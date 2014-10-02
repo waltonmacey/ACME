@@ -160,6 +160,13 @@ if (\$SAVE_TIMING == 'TRUE') then
     cp -p \$CASEROOT/CaseDocs/* .
     cp -p \$CASEROOT/*.run .
     cp -p \$CASEROOT/*.xml .
+    cp -p \$CASEROOT/user_nl_* .
+    cp -p \$CASEROOT/env_mach_specific .
+    cp -p \$CASEROOT/Macros .
+    cp -p \$CASEROOT/README.case .
+    if (-e \$CASEROOT/Depends.\$MACH) then
+      cp -p \$CASEROOT/Depends.\$MACH .
+    endif
     chmod a+r *
 
     if (\$SYSLOG_N > 0) then
