@@ -232,6 +232,7 @@
 !-----------------------------------------------------------------------
 
    integer (int_kind) :: &
+      tavg_MLD,          &! tavg id for average mixed layer depth (secondary stream)
       tavg_HMXL,         &! tavg id for average mixed layer depth
       tavg_HMXL_2,       &! tavg id for average mixed layer depth, stream #2 (allows two frequencies)
       tavg_XMXL,         &! tavg id for maximum mixed layer depth
@@ -840,6 +841,12 @@
 !
 !-----------------------------------------------------------------------
 
+   call define_tavg_field(tavg_MLD,'MLD',2,                         &
+                          tavg_method=tavg_method_avg,                &
+                          long_name='Mixed Layer Depth',              &
+                          units='centimeter', grid_loc='2110',        &
+                          coordinates='TLONG TLAT time')
+
    call define_tavg_field(tavg_HMXL,'HMXL',2,                         &
                           tavg_method=tavg_method_avg,                &
                           long_name='Mixed-Layer Depth',              &
@@ -1374,6 +1381,12 @@
 
 !-----------------------------------------------------------------------
         if (allocated(HMXL)) then
+          !$OMP PARALLEL DO PRIVATE(iblock)
+          do iblock=1,nblocks_clinic
+            call accumulate_tavg_field(HMXL(:,:,iblock), tavg_MLD,   iblock, 1)
+          end do
+          !$OMP END PARALLEL DO
+          
           !$OMP PARALLEL DO PRIVATE(iblock)
           do iblock=1,nblocks_clinic
             call accumulate_tavg_field(HMXL(:,:,iblock), tavg_HMXL,   iblock, 1)

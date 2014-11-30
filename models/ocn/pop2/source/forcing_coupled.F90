@@ -88,6 +88,7 @@
       tavg_LWUP_F,       &! tavg id for longwave heat flux up
       tavg_LWDN_F,       &! tavg id for longwave heat flux dn
       tavg_MELTH_F,      &! tavg id for melt     heat flux
+      tavg_ICEF,         &! tavg id for ice fraction
       tavg_IFRAC          ! tavg id for ice fraction
 
 #endif
@@ -463,6 +464,10 @@
    call define_tavg_field(tavg_MELTH_F,'MELTH_F',2,                            &
                           long_name='Melt Heat Flux from Coupler',             &
                           units='watt/m^2', grid_loc='2110',                   &
+                          coordinates='TLONG TLAT time')
+   call define_tavg_field(tavg_ICEF,'ICEF',2,                                &
+                          long_name='Ice Fraction from Coupler',               &
+                          units='fraction', grid_loc='2110',                   &
                           coordinates='TLONG TLAT time')
    call define_tavg_field(tavg_IFRAC,'IFRAC',2,                                &
                           long_name='Ice Fraction from Coupler',               &
@@ -1090,6 +1095,7 @@
          call accumulate_tavg_field(LWUP_F(:,:,iblock), tavg_LWUP_F,iblock,1)
          call accumulate_tavg_field(LWDN_F(:,:,iblock), tavg_LWDN_F,iblock,1)
          call accumulate_tavg_field(MELTH_F(:,:,iblock),tavg_MELTH_F,iblock,1)
+         call accumulate_tavg_field(IFRAC(:,:,iblock),  tavg_ICEF,iblock,1)
          call accumulate_tavg_field(IFRAC(:,:,iblock),  tavg_IFRAC,iblock,1)
    end do
 
