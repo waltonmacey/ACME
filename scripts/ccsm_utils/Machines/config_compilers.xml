@@ -836,9 +836,17 @@ for mct, etc.
   <MPI_PATH>/usr/local/tools/mvapich2-pgi-1.7/</MPI_PATH>
   <MPI_LIB_NAME> mpich</MPI_LIB_NAME>
   <ADD_SLIBS>$(shell /usr/local/tools/netcdf-pgi-4.1.3/bin/nc-config --flibs)</ADD_SLIBS>    
-  <ADD_LDFLAGS> -Wl,-rpath /usr/local/tools/netcdf-pgi-4.1.3/lib</ADD_LDFLAGS>
+  <ADD_LDFLAGS> -Wl,-rpath /usr/local/tools/netcdf-pgi-4.1.3/lib -llapack -lblas</ADD_LDFLAGS>
 </compiler>
 
+<compiler COMPILER="intel" MACH="bnlcm">
+  <NETCDF_PATH>/software/apps/netcdf4/</NETCDF_PATH>
+  <MPI_PATH>/software/openmpi/1.6.5-intel/</MPI_PATH>
+  <MPI_LIB_NAME MPILIB="openmpi"> mpi</MPI_LIB_NAME>
+  <LAPACK_LIBDIR> /usr/lib64 </LAPACK_LIBDIR>
+  <ADD_SLIBS>-L/software/apps/netcdf4/lib -lnetcdf -lnetcdff</ADD_SLIBS>
+  <ADD_LDFLAGS> -Wl,-rpath,/software/apps/netcdf4/lib</ADD_LDFLAGS>
+</compiler>
 
 <compiler MACH="goldbach">
  <MPI_LIB_NAME MPILIB="openmpi"> mpi</MPI_LIB_NAME>

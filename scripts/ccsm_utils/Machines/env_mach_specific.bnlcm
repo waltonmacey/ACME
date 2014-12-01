@@ -1,0 +1,16 @@
+#! /bin/csh -f
+
+#===============================================================================
+# Goldbach machine specific settings
+#===============================================================================
+
+limit stacksize unlimited
+limit coredumpsize unlimited
+setenv P4_GLOBMEMSIZE 500000000
+source /usr/share/Modules/init/csh
+
+module load intel
+module load openmpi
+
+setenv NETCDF_PATH /software/apps/netcdf4
+setenv NETCDF_DIR $NETCDF_PATH

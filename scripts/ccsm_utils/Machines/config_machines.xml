@@ -520,22 +520,44 @@
          <DESC>LLNL Linux Cluster, Linux (pgi), 12 pes/node, batch system is Moab</DESC>
          <COMPILERS>pgi</COMPILERS>
          <MPILIBS>mpich,mpi-serial</MPILIBS>
-         <RUNDIR>/p/lscratchd/$CCSMUSER/$CASE/run</RUNDIR>
-         <EXEROOT>/p/lscratchd/$CCSMUSER/$CASE/bld</EXEROOT>
-         <CESMSCRATCHROOT>/p/lscratchd/$USER</CESMSCRATCHROOT>
-         <DIN_LOC_ROOT>/p/lscratchd/mirin/ccsm3data/inputdata</DIN_LOC_ROOT>
-         <DIN_LOC_ROOT_CLMFORC>/p/lscratchd/mirin/ccsm3data/inputdata/atm/datm7</DIN_LOC_ROOT_CLMFORC>
-         <DOUT_S_ROOT>/p/lscratchd/$CCSMUSER/archive/$CASE</DOUT_S_ROOT>
+         <RUNDIR>/p/lscratche/$CCSMUSER/ACME/$CASE/run</RUNDIR>
+         <EXEROOT>/p/lscratche/$CCSMUSER/ACME/$CASE/bld</EXEROOT>
+         <CESMSCRATCHROOT>/p/lscratche/ACME/$USER</CESMSCRATCHROOT>
+         <DIN_LOC_ROOT>/p/lscratchd/ma21/ccsm3data/inputdata</DIN_LOC_ROOT>
+         <DIN_LOC_ROOT_CLMFORC>/p/lscratchd/ma21/ccsm3data/inputdata/atm/datm7</DIN_LOC_ROOT_CLMFORC>
+         <DOUT_S_ROOT>/p/lscratche/$CCSMUSER/ACME/archive/$CASE</DOUT_S_ROOT>
          <DOUT_L_HTAR>FALSE</DOUT_L_HTAR>
          <DOUT_L_MSROOT>UNSET</DOUT_L_MSROOT>
-         <CCSM_BASELINE>/p/lscratchd/$CCSMUSER/ccsm_baselines</CCSM_BASELINE>
-         <CCSM_CPRNC>/p/lscratchd/mirin/ccsm3data/tools/cprnc/cprnc</CCSM_CPRNC>
+         <CCSM_BASELINE>/p/lscratche/$CCSMUSER/ccsm_baselines</CCSM_BASELINE>
+         <CCSM_CPRNC>/p/lscratchd/ma21/ccsm3data/tools/cprnc/cprnc</CCSM_CPRNC>
          <OS>LINUX</OS>
          <BATCHQUERY>mshow</BATCHQUERY>
          <BATCHSUBMIT>msub</BATCHSUBMIT>
-         <SUPPORTED_BY>mirin1 -at- llnl.gov</SUPPORTED_BY>
+         <SUPPORTED_BY>ma21 -at- llnl.gov</SUPPORTED_BY>
          <GMAKE_J>8</GMAKE_J>
          <MAX_TASKS_PER_NODE>12</MAX_TASKS_PER_NODE>
+</machine>
+
+<machine MACH="bnlcm">
+         <DESC>BNL Linux Cluster, Linux (intel), 64pes/node, batch system is Maui</DESC>
+         <COMPILERS>intel</COMPILERS>
+         <MPILIBS>mpi,mpi-serial</MPILIBS>
+         <RUNDIR>/gscr/$CCSMUSER/ACME/$CASE/run</RUNDIR>
+         <EXEROOT>/gscr/$CCSMUSER/ACME/$CASE/bld</EXEROOT>
+         <CESMSCRATCHROOT>/gscr/ACME/$USER</CESMSCRATCHROOT>
+         <DIN_LOC_ROOT>/home/wlin/CESM/inputdata</DIN_LOC_ROOT>
+         <DIN_LOC_ROOT_CLMFORC>/home/wlin/CESM/inputdata/atm/datm7</DIN_LOC_ROOT_CLMFORC>
+         <DOUT_S_ROOT>/gscr/$CCSMUSER/ACME/archive/$CASE</DOUT_S_ROOT>
+         <DOUT_L_HTAR>FALSE</DOUT_L_HTAR>
+         <DOUT_L_MSROOT>UNSET</DOUT_L_MSROOT>
+         <CCSM_BASELINE>/gscr/$CCSMUSER/ccsm_baselines</CCSM_BASELINE>
+         <CCSM_CPRNC>/home/wlin/CESM/tools/cprnc/cprnc</CCSM_CPRNC>
+         <OS>LINUX</OS>
+         <BATCHQUERY>qstat</BATCHQUERY>
+         <BATCHSUBMIT>qsub</BATCHSUBMIT>
+         <SUPPORTED_BY>wlin -at- bnl.gov</SUPPORTED_BY>
+         <GMAKE_J>8</GMAKE_J>
+         <MAX_TASKS_PER_NODE>64</MAX_TASKS_PER_NODE>
 </machine>
 
 <machine MACH="stampede">

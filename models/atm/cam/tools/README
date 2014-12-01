@@ -42,4 +42,7 @@ II.     Description of tools contained in this module.
 4.) mkrgridsst:	Tool to translate SST datafiles from full to 
 			reduced grid.
 
+5.) nudging: 		copied from cesm1_2_rel06_capt/models/atm/cam/tools/nudging
+			which is created by Hsi-Yen Ma for CAPT based on cesm1_2_rel06.
+
 ############################################################################
