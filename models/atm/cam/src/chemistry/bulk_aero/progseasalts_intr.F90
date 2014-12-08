@@ -29,7 +29,8 @@ public ncnst  ! number of sea salt constituents
   real(r8), parameter :: scalefactor = 1.62_r8
 #elif (defined MODAL_AERO_3MODE)
   integer, parameter:: nsst =3
-  real(r8), parameter :: scalefactor = 1.35_r8 
+!  real(r8), parameter :: scalefactor = 1.35_r8 
+  real(r8), parameter :: scalefactor = 0.65_r8 
 #endif
 #else
   integer, parameter:: nsst =4
