@@ -52,6 +52,7 @@ module cuda_mod
   integer,parameter :: numk_eul = 8
   integer,parameter :: numk_hyp = 6
   integer,parameter :: numk_lim2d = 15
+  integer,parameter :: numk_lim8 = 15
 
   !This is from prim_advection_mod.F90
   type(EdgeBuffer_t) :: edgeAdv, edgeAdvQ3, edgeAdvQ2, edgeAdvDSS
@@ -494,10 +495,94 @@ contains
   call t_startf('euler_step_cuda')
 
   if (limiter_option == 8) then
-    write(*,*) 'CUDA_MOD IS NOT INTENDED FOR USE WITH LIMITER_OPTION == 8 AT THIS TIME!'
-    write(*,*) 'PLEASE USE LIMITER_OPTION == 0 WHEN THE GPU OPTION IS ENABLED!'
-    stop
-  endif
+!! TODO: need to create CUDA kernel for the next computations:
+
+
+    do ie = nets , nete
+      ! add hyperviscosity to RHS.  apply to Q at timelevel n0, Qdp(n0)/dp
+      do k = 1 , nlev    !  Loop index added with implicit inversion (AAM)
+         dp_h(:,:,k,ie) = elem(ie)%derived%dp(:,:,k) - rhs_multiplier*dt*elem(ie)%derived%divdp_proj(:,:,k)
+         do q = 1 , qsize
+           Qtens_biharmonic(:,:,k,q,ie) = elem(ie)%state%Qdp(:,:,k,q,n0_qdp)/dp_h(:,:,k,ie)
+         enddo
+      enddo
+    enddo  
+
+    ! compute element qmin/qmax
+    if ( rhs_multiplier == 0 ) then
+      do ie = nets , nete
+        do k = 1 , nlev
+          do q = 1 , qsize
+            qmin(k,q,ie)=minval(Qtens_biharmonic(:,:,k,q,ie))
+            qmax(k,q,ie)=maxval(Qtens_biharmonic(:,:,k,q,ie))
+            qmin(k,q,ie)=max(qmin(k,q,ie),0d0)
+          enddo
+        enddo
+      enddo
+
+    ! update qmin/qmax based on neighbor data for lim8
+    call neighbor_minmax(elem,hybrid,edgeAdvQ2,nets,nete,qmin(:,:,nets:nete),qmax(:,:,nets:nete))
+    endif
+ 
+    ! lets just reuse the old neighbor min/max, but update based on local data
+    if ( rhs_multiplier == 1 ) then
+      do ie = nets , nete
+        do k = 1 , nlev    !  Loop index added with implicit inversion (AAM)
+          do q = 1 , qsize
+            qmin(k,q,ie)=min(qmin(k,q,ie),minval(Qtens_biharmonic(:,:,k,q,ie)))
+            qmin(k,q,ie)=max(qmin(k,q,ie),0d0)
+            qmax(k,q,ie)=max(qmax(k,q,ie),maxval(Qtens_biharmonic(:,:,k,q,ie)))
+          enddo
+        enddo
+      enddo
+    endif
+     
+    ! get niew min/max values, and also compute biharmonic mixing term
+    if ( rhs_multiplier == 2 ) then
+      rhs_viss = 3
+      ! compute element qmin/qmax  
+      do ie = nets , nete
+        do k = 1  ,nlev
+          do q = 1 , qsize
+            qmin(k,q,ie)=minval(Qtens_biharmonic(:,:,k,q,ie))
+            qmax(k,q,ie)=maxval(Qtens_biharmonic(:,:,k,q,ie))
+            qmin(k,q,ie)=max(qmin(k,q,ie),0d0)
+          enddo
+        enddo
+      enddo
+      ! two scalings depending on nu_p:
+      ! nu_p=0:    qtens_biharmonic *= dp0                   (apply viscsoity only to q)
+      ! nu_p>0):   qtens_biharmonc *= elem()%psdiss_ave      (for consistency, if nu_p=nu_q)
+            if ( nu_p > 0 ) then
+        do ie = nets , nete
+          do k = 1 , nlev
+            dp0 = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*hvcoord%ps0
+            dpdiss(:,:) = elem(ie)%derived%dpdiss_ave(:,:,k)
+            do q = 1 , qsize
+              ! NOTE: divide by dp0 since we multiply by dp0 below
+              Qtens_biharmonic(:,:,k,q,ie)=Qtens_biharmonic(:,:,k,q,ie)*dpdiss(:,:)/dp0
+            enddo
+          enddo
+        enddo
+      endif
+      call biharmonic_wk_scalar_minmax( elem , qtens_biharmonic , deriv , edgeAdvQ3 , hybrid , nets , nete , qmin(:,:,nets:nete) , qmax(:,:,nets:nete) )
+      do ie = nets , nete
+        do k = 1 , nlev    !  Loop inversion (AAM)
+          dp0 = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*hvcoord%ps0
+          do q = 1 , qsize
+            ! note: biharmonic_wk() output has mass matrix already applied. Un-apply since we apply again below:
+            qtens_biharmonic(:,:,k,q,ie) = -rhs_viss*dt*nu_q*dp0*Qtens_biharmonic(:,:,k,q,ie) / elem(ie)%spheremp(:,:)
+          enddo
+        enddo
+      enddo
+    endif
+
+ierr = cudaMemcpyAsync( qmin_d , qmin , size( qmin ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
+ierr = cudaMemcpyAsync( qmax_d , qmax , size( qmax ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
+ierr = cudaMemcpyAsync( qtens_biharmonic_d , qtens_biharmonic , size( qtens_biharmonic ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
+  endif !end if for limiter 8
+
+
 !  if (nu_p > 0) then
 !    write(*,*) 'CUDA_MOD IS NOT INTENDED FOR USE WITH NU_P > 0 AT THIS TIME!'
 !    write(*,*) 'PLEASE USE NU_P == 0 WHEN THE GPU OPTION IS ENABLED!'
@@ -531,16 +616,43 @@ contains
 !$OMP MASTER
   ierr = cudaMemcpyAsync( dp_d    , dp_h    , size( dp_h    ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
   ierr = cudaMemcpyAsync( vstar_d , vstar_h , size( vstar_h ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
+
+  if ( limiter_option == 8 ) then
+    do ie = nets , nete
+      divdp_h(:,:,:,ie) = elem(ie)%derived%divdp(:,:,:)
+    enddo
+      
+     ierr = cudaMemcpyAsync( divdp_d, divdp_h, size( divdp_h) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
+   endif
+ 
+
   blockdim = dim3( np*np*numk_eul , 1 , 1 )
   griddim  = dim3( int(ceiling(dble(nlev)/numk_eul))*qsize_d*nelemd , 1 , 1 )
-  call euler_step_kernel1<<<griddim,blockdim,0,streams(1)>>>( qdp_d , spheremp_d , qmin_d , qmax_d , dp_d , vstar_d , divdp_d , hybi_d ,               &
+  call euler_step_kernel1<<<griddim,blockdim,0,streams(1)>>>( qdp_d , qtens_d, spheremp_d , qmin_d , qmax_d , dp_d , vstar_d , divdp_d , hybi_d ,               &
                                                               dpdiss_biharmonic_d , qtens_biharmonic_d , metdet_d , rmetdet_d , dinv_d , deriv_dvv_d , &
                                                               n0_qdp , np1_qdp , rhs_viss , dt , nu_p , nu_q , limiter_option , 1 , nelemd ); _CHECK(__LINE__)
+
+  if ( limiter_option == 8 ) then
+    ierr = cudaDeviceSynchronize()
+    blockdim = dim3( np*np*numk_lim8 , 1 , 1 )
+    griddim  = dim3( int(ceiling(dble(nlev)/numk_lim8))*qsize_d*nelemd , 1 , 1 )
+    call limiter_optim_iter_full_kernel<<<griddim,blockdim,0,streams(1)>>>( qdp_d , qtens_d, spheremp_d , qmin_d , qmax_d,  dp_star_d, dt, dp_d, divdp_d,  1 , nelemd, np1_qdp )
+
+    ierr = cudaDeviceSynchronize()
+
+  endif ! qnd if for limiter 8
+
+
   if ( limiter_option == 4 ) then
   blockdim = dim3( np*np*numk_lim2d , 1 , 1 )
   griddim  = dim3( int(ceiling(dble(nlev)/numk_lim2d))*qsize_d*nelemd , 1 , 1 )
     call limiter2d_zero_kernel<<<griddim,blockdim,0,streams(1)>>>( qdp_d , 1 , nelemd , np1_qdp ); _CHECK(__LINE__)
   endif
+
+!ierr = cudaMemcpyAsync( qdp_h, qdp_d, size( qdp_h) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
+!ierr = cudaDeviceSynchronize()
+!print *, qdp_h
+
 !$OMP END MASTER
   !This is a departure from the original order, adding an extra MPI communication. It's advantageous because it simplifies
   !the Pack-Exchange-Unpack procedure for us, since we're adding complexity to overlap MPI and packing
@@ -759,11 +871,12 @@ end subroutine qdp_time_avg_kernel
 
 
 
-attributes(global) subroutine euler_step_kernel1( Qdp , spheremp , qmin , qmax , dp , vstar , divdp , hybi ,                   &
+attributes(global) subroutine euler_step_kernel1( Qdp , Qtens, spheremp , qmin , qmax , dp , vstar , divdp , hybi ,                   &
                                                   dpdiss_biharmonic , qtens_biharmonic , metdet , rmetdet , dinv , deriv_dvv , &
                                                   n0_qdp , np1_qdp , rhs_viss , dt , nu_p , nu_q , limiter_option , nets , nete )
   implicit none
   real(kind=real_kind), dimension(np,np,nlev,qsize_d,timelevels,nets:nete), intent(inout) :: Qdp
+  real(kind=real_kind), dimension(np,np,nlev,qsize_d           ,nets:nete), intent(  out) :: Qtens
   real(kind=real_kind), dimension(np,np                        ,nets:nete), intent(in   ) :: spheremp
   real(kind=real_kind), dimension(      nlev,qsize_d           ,nets:nete), intent(in   ) :: qmin
   real(kind=real_kind), dimension(      nlev,qsize_d           ,nets:nete), intent(in   ) :: qmax
@@ -820,6 +933,11 @@ attributes(global) subroutine euler_step_kernel1( Qdp , spheremp , qmin , qmax ,
   qtens_s(ij,kk) = qtmp - dt * divergence_sphere( i , j , ie , kk , ij , vstar_s , qtmp , metdet_s , rmetdet_s , dinv , deriv_dvv_s , nets , nete )
   if ( rhs_viss /= 0 ) qtens_s(ij,kk) = qtens_s(ij,kk) + qtens_biharmonic(i,j,k,q,ie)
   call syncthreads()
+
+  if (limiter_option == 8) then
+     Qtens(i,j,k,q,ie)=qtens_s(ij,kk)
+  endif
+
   Qdp(i,j,k,q,np1_qdp,ie) = spheremp_s(ij) * Qtens_s(ij,kk)
 end subroutine euler_step_kernel1
 
@@ -851,6 +969,202 @@ attributes(device) function divergence_sphere(i,j,ie,k,ij,Vstar,qtmp,metdet,rmet
 end function divergence_sphere
 
 
+attributes(global) subroutine  limiter_optim_iter_full_kernel(Qdp, Qtens, spheremp, qmin_d, qmax_d, dp_star, dt, dp, divdp, nets,nete,np1)
+  use kinds, only : real_kind
+  use dimensions_mod, only : np, nlev
+  implicit none
+  real(kind=real_kind), dimension(np,np,nlev,qsize_d,timelevels,nets:nete), intent(inout) :: Qdp
+  real(kind=real_kind), dimension(np,np,nlev,qsize_d           ,nets:nete), intent(inout) :: Qtens
+  real(kind=real_kind), dimension(np,np                        ,nets:nete), intent(in   ) :: spheremp
+  real(kind=real_kind), dimension(      nlev,qsize_d           ,nets:nete), intent(in   ) :: qmin_d
+  real(kind=real_kind), dimension(      nlev,qsize_d           ,nets:nete), intent(in   ) :: qmax_d
+  real(kind=real_kind), value                                             , intent(in   ) :: dt
+  real(kind=real_kind), dimension(np,np,nlev                   ,nets:nete), intent(in   ) :: dp
+  real(kind=real_kind), dimension(np,np,nlev                   ,nets:nete), intent(in   ) :: divdp
+  real(kind=real_kind), dimension(np,np,nlev                   ,nets:nete), intent(inout) :: dp_star
+  integer, value       , intent(in   ) :: nets,nete,np1
+  integer :: i, j, k, kk, q, ie, jj, ij, ijk, ks
+
+  real(kind=real_kind), shared :: qtens_s    (np*np+1,numk_lim8+1  )
+  real(kind=real_kind)         :: temp_star
+  real(kind=real_kind), shared :: c_s    (np*np+1,numk_lim8+1  )
+  real(kind=real_kind), shared :: x_s    (np*np+1,numk_lim8+1  )
+  real(kind=real_kind), shared :: mass_shared    (numk_lim8+1  )
+  real(kind=real_kind), shared :: qmax_s    (numk_lim8+1  ), qmin_s (numk_lim8+1)
+  real(kind=real_kind)         :: summ_c, mass, addmass
+  real(kind=real_kind)         :: weightssum,  howmuch
+  real(kind=real_kind), shared :: al_pos(np*np+1, numk_lim8+1), al_neg(np*np+1,numk_lim8+1)
+  integer             , shared :: whois_neg(np*np+1, numk_lim8+1), whois_pos(np*np+1,numk_lim8+1)
+  integer                      :: neg_counter, pos_counter
+  real (kind=real_kind)        :: tol_limiter = 1e-15
+  integer, parameter           :: maxiter = 5
+  integer                      :: k1, i1, i2
+
+  ks = int(ceiling(dble(nlev)/numk_lim8))
+
+  !Define the indices
+  i  = modulo( threadidx%x-1    ,np)+1
+  j  = modulo((threadidx%x-1)/np,np)+1
+  kk = (threadidx%x-1)/(np*np)+1
+  k  = modulo(blockidx%x-1,ks)*numk_lim8 + kk
+  q  = modulo((blockidx%x-1)/ks,qsize_d)+1
+  ie =       ((blockidx%x-1)/ks)/qsize_d+1
+  ij   =              (j-1)*np+i
+  ijk = (kk-1)*np*np+ij
+ 
+  dp_star(i,j,k,ie)=dp(i,j,k,ie) - dt * divdp(i,j,k,ie)
+  call syncthreads()
+  qtens_s(ij,kk) = Qtens(i,j,k,q,ie)
+  call syncthreads()
+  qtens_s(ij,kk) = qtens_s(ij,kk)/dp_star(i,j,k,ie)
+  call syncthreads()
+
+  c_s(ij,kk)=spheremp(i,j,ie)*dp_star(i,j,k,ie)
+  x_s(ij,kk)=qtens_s(ij,kk)
+  call syncthreads()
+
+  if ( ijk <= numk_lim8 ) then
+    mass = 0.
+    summ_c=0.
+    do jj = 1 , np*np
+      mass = mass + c_s(jj,ijk)*x_s(jj,ijk)
+      summ_c=summ_c + c_s(jj,ijk)
+    enddo
+    mass=mass/summ_c
+    mass_shared(ijk) = mass
+  endif
+  call syncthreads()
+  qmax_s(kk)=qmax_d(k,q,ie)
+  qmin_s(kk)=qmin_d(k,q,ie)
+
+  if ( mass_shared(kk) < qmin_s(kk) ) then
+    qmin_d(k,q,ie)=mass_shared(kk)
+    qmin_s(kk)=mass_shared(kk)
+  endif
+  if ( mass_shared(kk) > qmax_s(kk) ) then
+    qmax_d(k,q,ie) = mass_shared(kk)
+    qmax_s(kk)=mass_shared(kk)
+  endif
+  call syncthreads()
+
+
+ if ( ijk <= numk_lim8 ) then
+  addmass=0.0d0
+  pos_counter = 0;
+  neg_counter = 0;
+  do jj = 1 , np*np
+   whois_neg(jj,ijk)=0;
+   whois_pos(jj,ijk)=0;
+
+    if (x_s(jj,ijk)>=qmax_s(ijk)) then
+      addmass=addmass + ( x_s(jj,ijk) - qmax_s(ijk) ) * c_s(jj,ijk)
+      x_s(jj,ijk)=qmax_s(ijk)
+      whois_pos(jj,ijk) = -1
+    else
+       pos_counter = pos_counter+1;
+       whois_pos(pos_counter,ijk) = jj;
+    endif
+
+
+    if ( ( x_s(jj,ijk) <= qmin_s(ijk) ) ) then
+       addmass = addmass - ( qmin_s(ijk) - x_s(jj,ijk) ) * c_s(jj,ijk)
+       x_s(jj,ijk) = qmin_s(ijk)
+       whois_neg(jj,ijk) = -1
+    else
+       neg_counter = neg_counter+1;
+       whois_neg(neg_counter,ijk) = jj;
+    endif
+  enddo
+
+  call syncthreads()
+  weightssum = 0.0d0
+  if ( addmass > 0 ) then
+    do i2 = 1 , maxIter
+          weightssum = 0.0
+          do k1 = 1 , pos_counter
+            i1 = whois_pos(k1,ijk)
+            weightssum = weightssum + c_s(i1,ijk)
+            al_pos(i1, ijk) = qmax_s(ijk) - x_s(i1,ijk)
+          enddo
+          if( ( pos_counter > 0 ) .and. ( addmass > tol_limiter * abs(mass_shared(ijk)) ) ) then
+              do k1 = 1 , pos_counter
+                i1 = whois_pos(k1,ijk)
+                howmuch = addmass / weightssum
+                if ( howmuch > al_pos(i1,ijk) ) then
+                  howmuch = al_pos(i1,ijk)
+                  whois_pos(k1,ijk) = -1
+                endif
+                addmass = addmass - howmuch * c_s(i1,ijk)
+                weightssum = weightssum - c_s(i1,ijk)
+                x_s(i1,ijk) = x_s(i1,ijk) + howmuch
+             enddo
+           neg_counter = pos_counter
+           whois_neg = whois_pos
+           whois_pos = -1
+           pos_counter = 0
+            do k1 = 1 , neg_counter
+              if ( whois_neg(k1,ijk) .ne. -1 ) then
+                pos_counter = pos_counter+1
+                whois_pos(pos_counter,ijk) = whois_neg(k1,ijk)
+              endif
+            enddo
+          else
+            exit
+          endif !( pos_counter > 0 ) .and. 
+     enddo !i2
+  endif
+  if ( addmass <= 0.0d0 )then
+     do i2 = 1 , maxIter
+       weightssum = 0.0
+       do k1 = 1 , neg_counter
+          i1 = whois_neg(k1,ijk)
+          weightssum = weightssum + c_s(i1,ijk)
+          al_neg(i1,ijk) = x_s(i1,ijk) - qmin_s(ijk)
+        enddo
+        if ( ( neg_counter > 0 ) .and. ( (-addmass) > tol_limiter * abs(mass_shared(ijk)) ) ) then
+             do k1 = 1 , neg_counter
+               i1 =  whois_neg(k1,ijk)
+               howmuch = -addmass / weightssum
+               if ( howmuch > al_neg(i1,ijk) ) then
+                 howmuch = al_neg(i1,ijk)
+                 whois_neg(k1,ijk) = -1
+               endif
+               addmass = addmass + howmuch * c_s(i1,ijk)
+               weightssum = weightssum - c_s(i1,ijk)
+
+               x_s(i1,ijk) = x_s(i1,ijk) - howmuch
+             enddo
+              call syncthreads()
+              !now sort whois_pos and get a new number for pos_counter
+             !here pos_counter and whois_pos serve as temp vars
+             pos_counter = neg_counter
+             whois_pos = whois_neg
+             whois_neg = -1
+             neg_counter = 0
+             do k1 = 1 , pos_counter
+               if ( whois_pos(k1,ijk) .ne. -1 ) then
+                 neg_counter = neg_counter+1
+                 whois_neg(neg_counter,ijk) = whois_pos(k1,ijk)
+               endif
+             enddo
+              call syncthreads()
+         else
+             exit
+         endif
+      call syncthreads()
+     enddo!i2 maxIter
+ 
+  endif !addmass>0
+
+ endif !ijk
+
+ call syncthreads()
+ qtens_s(ij,kk)=x_s(ij,kk)
+ call syncthreads()
+ Qtens(i,j,k,q,ie)=qtens_s(ij,kk)*dp_star(i,j,k,ie)
+
+ Qdp(i,j,k,q,np1,ie) = spheremp(i,j,ie)* Qtens(i,j,k,q,ie)
+end subroutine  limiter_optim_iter_full_kernel
 
 attributes(global) subroutine limiter2d_zero_kernel(Qdp,nets,nete,np1)
   use kinds, only : real_kind
