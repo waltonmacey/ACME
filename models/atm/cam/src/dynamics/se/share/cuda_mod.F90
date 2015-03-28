@@ -580,6 +580,7 @@ contains
 ierr = cudaMemcpyAsync( qmin_d , qmin , size( qmin ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
 ierr = cudaMemcpyAsync( qmax_d , qmax , size( qmax ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
 ierr = cudaMemcpyAsync( qtens_biharmonic_d , qtens_biharmonic , size( qtens_biharmonic ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
+
   endif !end if for limiter 8
 
 
