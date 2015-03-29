@@ -943,10 +943,12 @@ attributes(global) subroutine euler_step_kernel1( Qdp , Qtens, spheremp , qmin ,
   call syncthreads()
 
   if (limiter_option == 8) then
-   dp_star(i,j,k,ie)=dp(i,j,k,ie) - dt * divdp(i,j,k,ie)
+   dp_star_s(ij,kk)=dp(i,j,k,ie) - dt * divdp(i,j,k,ie)
    if ( nu_p > 0 .and. rhs_viss /= 0 ) then
-        dp_star(i,j,k,ie) = dp_star(i,j,k,ie) - rhs_viss * dt * nu_q * dpdiss_biharmonic(i,j,k,ie) / spheremp_s(ij)
+        dp_star_s(ij,kk) = dp_star_s(ij,kk) - rhs_viss * dt * nu_q * dpdiss_biharmonic(i,j,k,ie) / spheremp_s(ij)
    endif
+   call syncthreads()
+     dp_star(i,j,k,ie)=dp_star_s(ij,kk)
      Qtens(i,j,k,q,ie)=qtens_s(ij,kk)
   endif
 
@@ -1000,7 +1002,8 @@ attributes(global) subroutine  limiter_optim_iter_full_kernel(Qdp, Qtens, sphere
   integer :: i, j, k, kk, q, ie, jj, ij, ijk, ks
 
   real(kind=real_kind), shared :: qtens_s    (np*np+1,numk_lim8+1  )
-  real(kind=real_kind)         :: temp_star
+  real(kind=real_kind), shared :: dp_star_s  (np*np+1,numk_lim8+1  )
+  real(kind=real_kind), shared :: spheremp_s (np*np+1)
   real(kind=real_kind), shared :: c_s    (np*np+1,numk_lim8+1  )
   real(kind=real_kind), shared :: x_s    (np*np+1,numk_lim8+1  )
   real(kind=real_kind), shared :: mass_shared    (numk_lim8+1  )
@@ -1026,14 +1029,18 @@ attributes(global) subroutine  limiter_optim_iter_full_kernel(Qdp, Qtens, sphere
   ij   =              (j-1)*np+i
   ijk = (kk-1)*np*np+ij
  
-!  dp_star(i,j,k,ie)=dp(i,j,k,ie) - dt * divdp(i,j,k,ie)
-!  call syncthreads()
+  dp_star_s(ij,kk)=dp_star(i,j,k,ie)
   qtens_s(ij,kk) = Qtens(i,j,k,q,ie)
   call syncthreads()
-  qtens_s(ij,kk) = qtens_s(ij,kk)/dp_star(i,j,k,ie)
+  qtens_s(ij,kk) = qtens_s(ij,kk)/dp_star_s(ij,kk)
   call syncthreads()
 
-  c_s(ij,kk)=spheremp(i,j,ie)*dp_star(i,j,k,ie)
+  if (kk == 1) then
+    spheremp_s(ij) = spheremp(i,j,ie)
+  endif
+  call syncthreads()
+
+  c_s(ij,kk)=spheremp_s(ij)*dp_star_s(ij,kk)
   x_s(ij,kk)=qtens_s(ij,kk)
   call syncthreads()
 
@@ -1048,6 +1055,7 @@ attributes(global) subroutine  limiter_optim_iter_full_kernel(Qdp, Qtens, sphere
     mass_shared(ijk) = mass
   endif
   call syncthreads()
+
   qmax_s(kk)=qmax_d(k,q,ie)
   qmin_s(kk)=qmin_d(k,q,ie)
 
