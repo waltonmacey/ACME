@@ -1051,26 +1051,27 @@ attributes(global) subroutine  limiter_optim_iter_full_kernel(Qdp, Qtens, sphere
       mass = mass + c_s(jj,ijk)*x_s(jj,ijk)
       summ_c=summ_c + c_s(jj,ijk)
     enddo
-    mass=mass/summ_c
+    !mass=mass!/summ_c
     mass_shared(ijk) = mass
-  endif
+    mass=mass/summ_c
+!  endif
   call syncthreads()
 
-  qmax_s(kk)=qmax_d(k,q,ie)
-  qmin_s(kk)=qmin_d(k,q,ie)
+    qmax_s(ijk)=qmax_d(k,q,ie)
+    qmin_s(ijk)=qmin_d(k,q,ie)
 
-  if ( mass_shared(kk) < qmin_s(kk) ) then
-    qmin_d(k,q,ie)=mass_shared(kk)
-    qmin_s(kk)=mass_shared(kk)
-  endif
-  if ( mass_shared(kk) > qmax_s(kk) ) then
-    qmax_d(k,q,ie) = mass_shared(kk)
-    qmax_s(kk)=mass_shared(kk)
-  endif
+    if ( mass< qmin_s(ijk) ) then
+       qmin_d(k,q,ie)=mass
+       qmin_s(ijk)=mass
+    endif
+    if ( mass > qmax_s(ijk) ) then
+       qmax_d(k,q,ie) = mass
+       qmax_s(ijk)=mass
+     endif
   call syncthreads()
 
 
- if ( ijk <= numk_lim8 ) then
+! if ( ijk <= numk_lim8 ) then
   addmass=0.0d0
   pos_counter = 0;
   neg_counter = 0;
@@ -1086,7 +1087,8 @@ attributes(global) subroutine  limiter_optim_iter_full_kernel(Qdp, Qtens, sphere
        pos_counter = pos_counter+1;
        whois_pos(pos_counter,ijk) = jj;
     endif
-
+ 
+    call syncthreads()
 
     if ( ( x_s(jj,ijk) <= qmin_s(ijk) ) ) then
        addmass = addmass - ( qmin_s(ijk) - x_s(jj,ijk) ) * c_s(jj,ijk)
