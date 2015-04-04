@@ -589,7 +589,6 @@ ierr = cudaMemcpyAsync( qtens_biharmonic_d , qtens_biharmonic , size( qtens_biha
 !    write(*,*) 'PLEASE USE NU_P == 0 WHEN THE GPU OPTION IS ENABLED!'
 !    stop
 !  endif
-
   if (rhs_multiplier == 0) then
     do ie = nets , nete
       qdp1_h(:,:,:,ie) = elem(ie)%state%Qdp(:,:,:,1,n0_qdp)
@@ -602,7 +601,7 @@ ierr = cudaMemcpyAsync( qtens_biharmonic_d , qtens_biharmonic , size( qtens_biha
     call unpack_qdp1<<<griddim,blockdim,0,streams(1)>>>( qdp1_d , qdp_d , n0_qdp , nets , nete ); _CHECK(__LINE__)
     !$OMP END MASTER
   endif
-
+!Irina Debug: there is no such line in cpu code
   rhs_viss = 0
   !   2D Advection step
   do ie = nets , nete
@@ -621,11 +620,12 @@ ierr = cudaMemcpyAsync( qtens_biharmonic_d , qtens_biharmonic , size( qtens_biha
   if ( limiter_option == 8 ) then
     do ie = nets , nete
       divdp_h(:,:,:,ie) = elem(ie)%derived%divdp(:,:,:)
+      dpdiss_biharmonic_h(:,:,:,ie) = elem(ie)%derived%dpdiss_biharmonic(:,:,:)
     enddo
-      
-     ierr = cudaMemcpyAsync( divdp_d, divdp_h, size( divdp_h) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
-   endif
- 
+   ierr = cudaMemcpyAsync( dpdiss_biharmonic_d, dpdiss_biharmonic_h, size( dpdiss_biharmonic_d), cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)  
+   ierr = cudaMemcpyAsync( divdp_d, divdp_h, size( divdp_h) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
+ endif
+
 
   blockdim = dim3( np*np*numk_eul , 1 , 1 )
   griddim  = dim3( int(ceiling(dble(nlev)/numk_eul))*qsize_d*nelemd , 1 , 1 )
@@ -640,13 +640,13 @@ ierr = cudaMemcpyAsync( qtens_biharmonic_d , qtens_biharmonic , size( qtens_biha
     call limiter_optim_iter_full_kernel<<<griddim,blockdim,0,streams(1)>>>( qdp_d , qtens_d, spheremp_d , qmin_d , qmax_d,  dp_star_d, dt, dp_d, divdp_d,  1 , nelemd, np1_qdp )
 
     ierr = cudaDeviceSynchronize()
-    ierr = cudaMemcpyAsync( qdp_h, qdp_d, size( qdp_h) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
-    ierr = cudaMemcpyAsync( qmin, qmin_d, size( qmin) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
-    ierr = cudaMemcpyAsync( qmax, qmax_d, size( qmax) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
+!    ierr = cudaMemcpyAsync( qdp_h, qdp_d, size( qdp_h) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
+!    ierr = cudaMemcpyAsync( qmin, qmin_d, size( qmin) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
+!    ierr = cudaMemcpyAsync( qmax, qmax_d, size( qmax) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
     ierr = cudaDeviceSynchronize()
-   do ie = nets , nete 
-     elem(ie)%state%Qdp(:,:,:,:,:)=qdp_h(:,:,:,:,:,ie)
-   enddo
+!   do ie = nets , nete 
+!     elem(ie)%state%Qdp(:,:,:,:,:)=qdp_h(:,:,:,:,:,ie)
+!   enddo
   endif ! qnd if for limiter 8
 
 
@@ -939,6 +939,7 @@ attributes(global) subroutine euler_step_kernel1( Qdp , Qtens, spheremp , qmin ,
   !Begin the kernel
   qtmp = Qdp(i,j,k,q,n0_qdp,ie)
   qtens_s(ij,kk) = qtmp - dt * divergence_sphere( i , j , ie , kk , ij , vstar_s , qtmp , metdet_s , rmetdet_s , dinv , deriv_dvv_s , nets , nete )
+  call syncthreads()
   if ( rhs_viss /= 0 ) qtens_s(ij,kk) = qtens_s(ij,kk) + qtens_biharmonic(i,j,k,q,ie)
   call syncthreads()
 
@@ -1040,7 +1041,7 @@ attributes(global) subroutine  limiter_optim_iter_full_kernel(Qdp, Qtens, sphere
   endif
   call syncthreads()
 
-  c_s(ij,kk)=spheremp_s(ij)*dp_star_s(ij,kk)
+  c_s(ij,kk)=spheremp(i,j,ie)*dp_star_s(ij,kk)
   x_s(ij,kk)=qtens_s(ij,kk)
   call syncthreads()
 
@@ -1071,13 +1072,12 @@ attributes(global) subroutine  limiter_optim_iter_full_kernel(Qdp, Qtens, sphere
   call syncthreads()
 
 
-! if ( ijk <= numk_lim8 ) then
   addmass=0.0d0
   pos_counter = 0;
   neg_counter = 0;
   do jj = 1 , np*np
-   whois_neg(jj,ijk)=0;
-   whois_pos(jj,ijk)=0;
+!   whois_neg(jj,ijk)=0;
+!   whois_pos(jj,ijk)=0;
 
     if (x_s(jj,ijk)>=qmax_s(ijk)) then
       addmass=addmass + ( x_s(jj,ijk) - qmax_s(ijk) ) * c_s(jj,ijk)
@@ -1174,11 +1174,11 @@ attributes(global) subroutine  limiter_optim_iter_full_kernel(Qdp, Qtens, sphere
                  whois_neg(neg_counter,ijk) = whois_pos(k1,ijk)
                endif
              enddo
-              call syncthreads()
+!              call syncthreads()
          else
              exit
          endif
-      call syncthreads()
+!      call syncthreads()
      enddo!i2 maxIter
  
   endif !addmass>0
@@ -1188,8 +1188,7 @@ attributes(global) subroutine  limiter_optim_iter_full_kernel(Qdp, Qtens, sphere
  call syncthreads()
  qtens_s(ij,kk)=x_s(ij,kk)
  call syncthreads()
- Qtens(i,j,k,q,ie)=qtens_s(ij,kk)*dp_star(i,j,k,ie)
-
+ Qtens(i,j,k,q,ie)=x_s(ij,kk)*dp_star_s(ij,kk)
  Qdp(i,j,k,q,np1,ie) = spheremp(i,j,ie)* Qtens(i,j,k,q,ie)
 end subroutine  limiter_optim_iter_full_kernel
 
