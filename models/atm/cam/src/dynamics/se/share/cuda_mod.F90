@@ -609,7 +609,7 @@ ierr = cudaThreadSynchronize()
     !$OMP END MASTER
   endif
 !Irina Debug: there is no such line in cpu code
-  rhs_viss = 0
+!!!!!  rhs_viss = 0
   !   2D Advection step
   do ie = nets , nete
     ! Compute velocity used to advance Qdp 
@@ -647,14 +647,14 @@ ierr = cudaThreadSynchronize()
     call limiter_optim_iter_full_kernel<<<griddim,blockdim,0,streams(1)>>>( qdp_d , qtens_d, spheremp_d , qmin_d , qmax_d,  dp_star_d, dt, dp_d, divdp_d,  1 , nelemd, np1_qdp )
 
     ierr = cudaThreadSynchronize()
-    ierr = cudaMemcpyAsync( qdp_h, qdp_d, size( qdp_h) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
-!    ierr = cudaMemcpyAsync( qmin, qmin_d, size( qmin) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
-!    ierr = cudaMemcpyAsync( qmax, qmax_d, size( qmax) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
+!    ierr = cudaMemcpyAsync( qdp_h, qdp_d, size( qdp_h) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
+    ierr = cudaMemcpyAsync( qmin, qmin_d, size( qmin) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
+    ierr = cudaMemcpyAsync( qmax, qmax_d, size( qmax) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
      ierr = cudaThreadSynchronize()
-   do ie = nets , nete 
-    ierr = cudaMemcpy( elem(ie)%state%Qdp, qdp_d(1,1,1,1,1,ie), size(elem(ie)%state%Qdp) , cudaMemcpyDeviceToHost ); _CHECK(__LINE__)
-    ! elem(ie)%state%Qdp(:,:,:,:,:)=qdp_h(:,:,:,:,:,ie)
-   enddo
+!   do ie = nets , nete 
+!    ierr = cudaMemcpy( elem(ie)%state%Qdp, qdp_d(1,1,1,1,1,ie), size(elem(ie)%state%Qdp) , cudaMemcpyDeviceToHost ); _CHECK(__LINE__)
+!    ! elem(ie)%state%Qdp(:,:,:,:,:)=qdp_h(:,:,:,:,:,ie)
+!   enddo
   endif ! qnd if for limiter 8
 
   if ( limiter_option == 4 ) then
