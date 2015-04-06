@@ -1,5 +1,5 @@
 !-------------------------------------------------------------------------------
-! $Id: parameter_indices.F90 5560 2011-12-14 23:37:49Z vondeyle@uwm.edu $
+! $Id: parameter_indices.F90 6603 2013-11-22 19:51:01Z raut@uwm.edu $
 module parameter_indices
 
 ! Description:
@@ -25,7 +25,7 @@ module parameter_indices
   private ! Default Scope
 
   integer, parameter, public ::  & 
-    nparams = 59 ! Total tunable parameters
+    nparams = 65 ! Total tunable parameters
 
 !***************************************************************
 !                    ***** IMPORTANT *****
@@ -97,10 +97,16 @@ module parameter_indices
     imu               = 53, & 
     ibeta             = 54, & 
     ilmin_coef        = 55, & 
-    itaumin           = 56, & 
-    itaumax           = 57, &
-    iLscale_mu_coef   = 58, &
-    iLscale_pert_coef = 59
+    imult_coef        = 56, &
+    itaumin           = 57, & 
+    itaumax           = 58, &
+    iLscale_mu_coef   = 59, &
+    iLscale_pert_coef = 60, &
+    ialpha_corr       = 61, &
+    iSkw_denom_coef   = 62, &
+    ic_K10            = 63, &
+    ithlp2_rad_coef   = 64, &
+    ithlp2_rad_cloud_frac_thresh=65
 
 end module parameter_indices
 !-----------------------------------------------------------------------

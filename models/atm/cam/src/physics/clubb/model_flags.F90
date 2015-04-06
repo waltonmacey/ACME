@@ -1,5 +1,5 @@
 !===============================================================================
-! $Id: model_flags.F90 5585 2011-12-29 21:54:19Z dschanen@uwm.edu $
+! $Id: model_flags.F90 6620 2013-12-03 18:06:15Z raut@uwm.edu $
 
 module model_flags
 
@@ -40,6 +40,25 @@ module model_flags
                                 ! predictive equations.  The predictive
                                 ! equations are anelastic by default.
 
+  logical, public :: &
+    l_use_precip_frac = .true.   ! Flag to use precipitation fraction in KK
+                                 ! microphysics.  The precipitation fraction
+                                 ! is automatically set to 1 when this flag
+                                 ! is turned off.
+!$omp threadprivate(l_use_precip_frac)
+
+  logical, parameter, public :: &
+    l_morr_xp2_mc_tndcy = .false. !Flag to include the effects of rain evaporation
+                                  !on rtp2 and thlp2.  The moister (rt1 or rt2)
+                                  !and colder (thl1 or thl2) will be fed into
+                                  !the morrison micro, and rain evaporation will
+                                  !be allowed to increase variances
+
+  logical, parameter, public :: &
+    l_evaporate_cold_rcm = .false. ! Flag to evaporate cloud water at temperatures
+                                   ! colder than -37C.  This is to be used for 
+                                   ! Morrison microphysics, to prevent excess ice
+
   ! These are the integer constants that represent the various saturation
   ! formulas. To add a new formula, add an additional constant here,
   ! add the logic to check the strings for the new formula in clubb_core and
@@ -75,11 +94,11 @@ module model_flags
 
 
   logical, public :: & 
-    l_uv_nudge = .false., & ! For wind speed nudging. - Michael Falk
-    l_tke_aniso = .true.    ! For anisotropic turbulent kinetic energy, 
-                            ! i.e. TKE = 1/2 (u'^2 + v'^2 + w'^2)
-! OpenMP directives.
-!$omp threadprivate(l_uv_nudge, l_tke_aniso)
+    l_uv_nudge = .false.,  & ! For wind speed nudging. - Michael Falk
+    l_rtm_nudge = .false., & ! For rtm nudging
+    l_tke_aniso = .true.     ! For anisotropic turbulent kinetic energy, 
+                             ! i.e. TKE = 1/2 (u'^2 + v'^2 + w'^2)
+!$omp threadprivate(l_uv_nudge, l_tke_aniso, l_rtm_nudge)
 
   ! Use 2 calls to pdf_closure and the trapezoidal rule to  compute the 
   ! varibles that are output from high order closure
@@ -132,7 +151,24 @@ module model_flags
     saturation_formula = saturation_flatau ! Integer that stores the saturation formula to be used
 
 !$omp threadprivate(saturation_formula)
- 
+
+  ! See clubb:ticket:514 for details
+  logical, public :: &
+    l_diagnose_correlations = .false., & ! Diagnose correlations instead of using fixed ones
+    l_calc_w_corr = .false.    ! Calculate the correlations between w and the hydrometeors
+!$omp threadprivate(l_diagnose_correlations, l_calc_w_corr)
+
+  ! See clubb:ticket:514 for details
+  logical, parameter, public :: &
+    l_use_modified_corr = .true., & ! Use the new correlations code
+    l_use_hydromet_tolerance = .true.  ! Enable/Disable the zeroing of the hydrometeor
+                                       ! means, stddevs. and correlations based on a tolerance
+
+  ! See clubb:ticket:632 for details
+  logical, public :: &
+    l_calc_thlp2_rad = .true.         ! Include the contribution of radiation to thlp2
+!$omp threadprivate( l_calc_thlp2_rad )
+
 #ifdef GFDL
   logical, public :: &
      I_sat_sphum       ! h1g, 2010-06-15

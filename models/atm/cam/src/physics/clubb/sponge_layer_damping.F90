@@ -50,7 +50,6 @@ module sponge_layer_damping
     uv_sponge_damp_profile
 !$omp threadprivate(thlm_sponge_damp_profile, rtm_sponge_damp_profile, uv_sponge_damp_profile)
 
-
   private
 
   contains

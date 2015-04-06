@@ -14,7 +14,7 @@
    use physconst,         only : cpair, zvir
    use ppgrid,            only : pver, pcols, pverp
    use zm_conv,           only : zm_conv_evap
-   use cam_history,       only : outfld, addfld, add_default, phys_decomp
+   use cam_history,       only : outfld, addfld, phys_decomp
    use cam_logfile,       only : iulog
    use phys_control,      only : phys_getopts
 
@@ -78,8 +78,6 @@
 
   use physics_buffer, only : pbuf_add_field, dtype_r8, dyn_time_lvls
   
-  implicit none
-
   call phys_getopts( shallow_scheme_out = shallow_scheme, microp_scheme_out = microp_scheme)
                      
 
@@ -135,8 +133,6 @@
   
   use physics_buffer,            only : pbuf_get_index, physics_buffer_desc, pbuf_set_field
    use time_manager,    only :  is_first_step
-
-  implicit none
 
   real(r8), intent(in)       :: pref_edge(plevp)        ! Reference pressures at interfaces
 
@@ -200,7 +196,7 @@
   call addfld( 'PRECSH  '     , 'm/s     ',  1,      'A' , &
        'Shallow Convection precipitation rate'                     ,  phys_decomp )
   call addfld( 'CMFMC   '     , 'kg/m2/s ',  pverp,  'A' , &
-       'Moist shallow convection mass flux'                        ,  phys_decomp )
+       'Moist convection (deep+shallow) mass flux'                 ,  phys_decomp )
   call addfld( 'CMFSL   '     , 'W/m2    ',  pverp,  'A' , &
        'Moist shallow convection liquid water static energy flux'  ,  phys_decomp )
   call addfld( 'CMFLQ   '     , 'W/m2    ',  pverp,  'A' , &
@@ -625,8 +621,8 @@
       ! Convective fluxes of 'sl' and 'qt' in energy unit !
       ! ------------------------------------------------- !
 
-      cmfsl(:ncol,:pverp) = slflx(:ncol,:pverp)
-      cmflq(:ncol,:pverp) = qtflx(:ncol,:pverp) * latvap
+      cmfsl(:ncol,:) = slflx(:ncol,:)
+      cmflq(:ncol,:) = qtflx(:ncol,:) * latvap
 
       call outfld( 'PRECSH' , precc  , pcols, lchnk )
 

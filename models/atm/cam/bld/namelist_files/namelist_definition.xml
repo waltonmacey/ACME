@@ -1586,6 +1586,14 @@ This default logical is set in cospsimulator_intr.F90
 Default: FALSE
 </entry>
 
+<!-- Cloud Macro/Micro-physics -->
+
+<entry id="cld_macmic_num_steps" type="integer" category="conv"
+       group="phys_ctl_nl" valid_values="" >
+Number of macrophysics/microphysics substeps.
+Default: 1
+</entry>
+
 <!-- Cldwat -->
 <entry id="cldwat_icritc" type="real" category="conv"
        group="cldwat_nl" valid_values="" >
@@ -1661,6 +1669,24 @@ cloud liquid (cldliq).
 Default: .true.
 </entry>
 
+<entry id="micro_mg_num_steps" type="integer" category="microphys"
+       group="micro_mg_nl" valid_values="" >
+Number of substeps over MG microphysics.
+Default: 1
+</entry>
+
+<entry id="micro_mg_precip_frac_method" type="char*16" category="microphys"
+       group="micro_mg_nl" valid_values="max_overlap,in_cloud" >
+Type of precipitation fraction.
+Default: max_overlap
+</entry>
+
+<entry id="micro_mg_berg_eff_factor" type="real" category="microphys"
+       group="micro_mg_nl" valid_values="" >
+Efficiency factor for berg
+Default: 1
+</entry>
+
 <entry id="microp_uniform" type="logical" category="microphys"
        group="micro_mg_nl" valid_values="" >
 Switch to control whether MG microphysics performs a uniform calculation or not
@@ -1675,10 +1701,40 @@ Default: set by build-namelist
 </entry>
 
 <!-- micro_aero -->
-<entry id="microp_aero_bulk_scale" type="real" category="conv"
+<entry id="microp_aero_bulk_scale" type="real" category="microphysics"
        group="microp_aero_nl" valid_values="" >
 prescribed aerosol bulk sulfur scale factor
 Default: 2 
+</entry>
+
+<entry id="use_hetfrz_classnuc" type="logical" category="microphys"
+       group="phys_ctl_nl" valid_values="" >
+Switch to turn on heterogeneous freezing code.
+Default: .false.
+</entry>
+
+<entry id="hist_hetfrz_classnuc" type="logical" category="microphys"
+       group="hetfrz_classnuc_nl" valid_values="" >
+Add diagnostic output for heterogeneous freezing code.
+Default: .false.
+</entry>
+
+<entry id="use_preexisting_ice" type="logical" category="microphys"
+       group="nucleate_ice_nl" valid_values="" >
+Switch to turn on treatment of pre-existing ice in the ice nucleation code.
+Default: .false.
+</entry>
+
+<entry id="hist_preexisting_ice" type="logical" category="microphys"
+       group="nucleate_ice_nl" valid_values="" >
+Add diagnostics for pre-existing ice option in ice nucleation code to history output.
+Default: .false.
+</entry>
+
+<entry id="nucleate_ice_subgrid" type="real" category="microphys"
+       group="nucleate_ice_nl" valid_values="" >
+Subgrid scaling factor for relative humidity in ice nucleation code.
+Default: set by build-namelist
 </entry>
 
 <!-- hkconv Moist Convection -->
@@ -1734,6 +1790,17 @@ Minimum rh for high stable clouds.
 Default: set by build-namelist
 </entry>
 
+<entry id="cldfrc_rhminp" type="real" category="cldfrc" group="cldfrc_nl" valid_values="" >
+Minimum rh for high stable clouds poleward of 60 degrees.
+**This is valid only for RK microphysis scheme**
+Default: set to cldfrc_rhminh
+</entry>
+
+<entry id="cldfrc_rhminp_botmb" type="real" category="cldfrc" group="cldfrc_nl" valid_values="" >
+Maximum pressure level (mbars) where the <varname>cldfrc_rhminp</varname> setting is applied.
+Default: 300. mbar
+</entry>
+
 <entry id="cldfrc_sh1" type="real" category="cldfrc"
        group="cldfrc_nl" valid_values="" >
 parameter for shallow convection cloud fraction.
@@ -1781,6 +1848,18 @@ Default: 5
        group="cldfrc_nl" valid_values="" >
 Critical RH for ice clouds (Wilson & Ballard scheme).
 Default: 0.93
+</entry>
+
+<entry id="cldfrc2m_rhmini" type="real" category="conv"
+       group="cldfrc2m_nl" valid_values="" >
+Minimum rh for ice cloud fraction &gt; 0.
+Default: set by build-namelist
+</entry>
+
+<entry id="cldfrc2m_rhmaxi" type="real" category="conv"
+       group="cldfrc2m_nl" valid_values="" >
+rhi at which ice cloud fraction = 1.
+Default: set by build-namelist
 </entry>
 
 <!-- condensate to rain autoconversion coefficient -->
@@ -1914,10 +1993,10 @@ Default: 10
 <!-- Moist Convection and Microphysics -->
 
 <entry id="deep_scheme" type="char*16" category="conv"
-       group="phys_ctl_nl" valid_values="ZM,off" >
+       group="phys_ctl_nl" valid_values="ZM,UNICON,CLUBB_SGS,off" >
 Type of deep convection scheme employed.  'ZM' for Zhang-McFarlane;
 'off' for none.
-Default: 'ZM'
+Default: 'ZM' unless using 'UNICON'
 </entry>
 
 <entry id="microp_scheme" type="char*16" category="conv"
@@ -1932,7 +2011,7 @@ Default: set by build-namelist (depends on value set in configure).
        group="phys_ctl_nl" valid_values="park,RK,CLUBB_SGS" >
 Type of macrophysics scheme employed.  'park' for Park
 (1998); 'RK' for Rasch and Kristjansson (1998); 'CLUBB_SGS' clubb.
-Default: 'park'
+Default: set by build-namelist
 </entry>
 
 <entry id="do_clubb_sgs" type="logical" category="conv"
@@ -1942,10 +2021,10 @@ Default: FALSE
 </entry>
 
 <entry id="shallow_scheme" type="char*16" category="conv"
-       group="phys_ctl_nl" valid_values="Hack,UW,CLUBB_SGS" >
+       group="phys_ctl_nl" valid_values="Hack,UW,CLUBB_SGS,UNICON" >
 Type of shallow convection scheme employed.  'Hack' for Hack shallow convection;
 'UW' for original McCaa UW pbl scheme, modified by Sungsu Park; 'CLUBB_SGS'
-for CLUBB_SGS.
+for CLUBB_SGS; or UNICON which doesn't distinquish shallow and deep.
 Default: set by build-namelist (depends on <varname>eddy_scheme</varname>).
 </entry>
 
@@ -1954,6 +2033,12 @@ Default: set by build-namelist (depends on <varname>eddy_scheme</varname>).
 Logical switch to turn on turbulent mountain stress calculation in 
 vertical diffusion routine.
 Default: set by build-namelist
+</entry>
+
+<entry id="micro_do_icesupersat" type="logical"  category="conv"
+       group="phys_ctl_nl" valid_values="" >
+Apply ice supersaturation adjustment code
+Default: .false.
 </entry>
 
 <entry id="eddy_lbulk_max" type="real" category="conv"
@@ -2017,6 +2102,36 @@ Default: FALSE
 Logical switch to turn on implicit turbulent surface stress calculation in
 diffusion solver routine.
 Default: set by build-namelist
+</entry>
+
+<entry id="clubb_cloudtop_cooling" type="logical"  category="pblrad"
+       group="clubbpbl_diff_nl" valid_values="" >
+Apply cloud top radiative cooling parameterization
+Default: .false.
+</entry>
+
+<entry id="clubb_rainevap_turb" type="logical"  category="pblrad"
+       group="clubbpbl_diff_nl" valid_values="" >
+Include effects of precip evaporation on turbulent moments
+Default: .false.
+</entry>
+
+<entry id="clubb_expldiff" type="logical"  category="pblrad"
+       group="clubbpbl_diff_nl" valid_values="" >
+Explicit diffusion on temperature and moisture when CLUBB is on
+Default: .false.
+</entry>
+
+<entry id="clubb_do_adv" type="logical" category="pblrad"
+       group="clubbpbl_diff_nl" valid_values="" >
+Switch for CLUBB_ADV
+Default: FALSE
+</entry>
+
+<entry id="clubb_do_deep" type="logical" category="pblrad"
+       group="clubbpbl_diff_nl" valid_values="" >
+Switch for CLUBBND_CAM
+Default: FALSE
 </entry>
 
 <!-- CARMA Sectional Microphysics -->
@@ -2734,6 +2849,12 @@ Default: 1
        group="phys_ctl_nl" valid_values="" >
 Switch for diagnostic output used primarily for WACCM runs.
 Default: .true. if WACCM physics is on, .false. otherwise.
+</entry>
+
+<entry id="history_clubb" type="logical"  category="diagnostics"
+       group="phys_ctl_nl" valid_values="" >
+Switch for diagnostics specific to CLUBB.
+Default: .true.
 </entry>
 
 <!-- Radiation -->

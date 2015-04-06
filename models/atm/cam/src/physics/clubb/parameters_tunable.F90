@@ -1,5 +1,5 @@
 !-----------------------------------------------------------------------
-! $Id: parameters_tunable.F90 5623 2012-01-17 17:55:26Z connork@uwm.edu $
+! $Id: parameters_tunable.F90 6605 2013-11-25 16:45:15Z vlarson@uwm.edu $
 !===============================================================================
 module parameters_tunable
 
@@ -15,6 +15,11 @@ module parameters_tunable
   !
   ! References:
   !   None
+  ! 
+  ! Notes:
+  !   To make it easier to verify of code correctness, please keep the omp threadprivate
+  !   directives just after the variable declaration.  All parameters in this
+  !   module should be declared threadprivate because of the CLUBB tuner.
   !-----------------------------------------------------------------------
 
   use parameter_indices, only: nparams ! Variable(s)
@@ -34,95 +39,120 @@ module parameters_tunable
 
   ! Model constant parameters
   real( kind = core_rknd ), public :: & 
-    C1          = 2.500000_core_rknd,    & ! Low Skewness in C1 Skewness Function.
-    C1b         = 2.500000_core_rknd,    & ! High Skewness in C1 Skewness Function.
-    C1c         = 1.000000_core_rknd,    & ! Degree of Slope of C1 Skewness Function.
-    C2          = 1.300000_core_rknd,    & ! Low Skewness in C2 Skewness Function.
-    C2rt        = 1.000000_core_rknd,    & ! C2 coefficient for the rtp2_dp1 term.
-    C2thl       = 1.000000_core_rknd,    & ! C2 coefficient for the thlp2_dp1 term.
-    C2rtthl     = 2.000000_core_rknd,    & ! C2 coefficient for the rtpthlp_dp1 term.
-    C2b         = 1.300000_core_rknd,    & ! High Skewness in C2 Skewness Function.  
-    C2c         = 5.000000_core_rknd,    & ! Degree of Slope of C2 Skewness Function.
-    C4          = 5.200000_core_rknd,    & ! Used only when l_tke_aniso is true.
-    C5          = 0.300000_core_rknd,    & ! Coefficient in pressure terms in the w'^2 eqn.
-    C6rt        = 4.000000_core_rknd,    & ! Low Skewness in C6rt Skewness Function.
-    C6rtb       = 6.000000_core_rknd,    & ! High Skewness in C6rt Skewness Function.
-    C6rtc       = 1.000000_core_rknd,    & ! Degree of Slope of C6rt Skewness Function.
-    C6thl       = 4.000000_core_rknd,    & ! Low Skewness in C6thl Skewness Function.
-    C6thlb      = 6.000000_core_rknd,    & ! High Skewness in C6thl Skewness Function.
-    C6thlc      = 1.000000_core_rknd,    & ! Degree of Slope of C6thl Skewness Function.
-    C7          = 0.500000_core_rknd,    & ! Low Skewness in C7 Skewness Function.
-    C7b         = 0.800000_core_rknd,    & ! High Skewness in C7 Skewness Function.
-    C7c         = 0.500000_core_rknd,    & ! Degree of Slope of C7 Skewness Function.
-    C8          = 3.000000_core_rknd,    & ! Coefficient #1 in C8 Skewness Equation.
-    C8b         = 0.000000_core_rknd,    & ! Coefficient #2 in C8 Skewness Equation.
-    C10         = 3.300000_core_rknd,    & ! Currently Not Used in the Model.
-    C11         = 0.80000_core_rknd,    & ! Low Skewness in C11 Skewness Function.
-    C11b        = 0.350000_core_rknd,    & ! High Skewness in C11 Skewness Function.
-    C11c        = 0.500000_core_rknd,    & ! Degree of Slope of C11 Skewness Function.
-    C12         = 1.000000_core_rknd,    & ! Constant in w'^3 Crank-Nicholson diffusional term.
-    C13         = 0.100000_core_rknd,    & ! Not currently used in model.
-    C14         = 1.000000_core_rknd,    & ! Constant for u'^2 and v'^2 terms.
-    C15         = 0.4_core_rknd            ! Coefficient for the wp3_bp2 term
+    C1      = 2.500000_core_rknd,    & ! Low Skewness in C1 Skw. Function    [-]
+    C1b     = 2.500000_core_rknd,    & ! High Skewness in C1 Skw. Function   [-]
+    C1c     = 1.000000_core_rknd,    & ! Degree of Slope of C1 Skw. Function [-]
+    C2      = 1.300000_core_rknd,    & ! Low Skewness in C2 Skw. Function    [-]
+    C2rt    = 1.000000_core_rknd,    & ! C2 coef. for the rtp2_dp1 term      [-]
+    C2thl   = 1.000000_core_rknd,    & ! C2 coef. for the thlp2_dp1 term     [-]
+    C2rtthl = 1.300000_core_rknd,    & ! C2 coef. for the rtpthlp_dp1 term   [-]    
+    C2b     = 1.300000_core_rknd,    & ! High Skewness in C2 Skw. Function   [-]
+    C2c     = 5.000000_core_rknd,    & ! Degree of Slope of C2 Skw. Function [-]
+    C4      = 5.200000_core_rknd,    & ! Used only when l_tke_aniso is true  [-]
+    C5      = 0.300000_core_rknd,    & ! Coef. in pressure terms: w'^2 eqn   [-]
+    C6rt    = 4.000000_core_rknd,    & ! Low Skewness in C6rt Skw. Function  [-]
+    C6rtb   = 6.000000_core_rknd,    & ! High Skewness in C6rt Skw. Function [-]
+    C6rtc   = 1.000000_core_rknd,    & ! Degree of Slope of C6rt Skw. Fnct.  [-]
+    C6thl   = 4.000000_core_rknd,    & ! Low Skewness in C6thl Skw. Function [-]
+    C6thlb  = 6.000000_core_rknd,    & ! High Skewness in C6thl Skw. Fnct.   [-]
+    C6thlc  = 1.000000_core_rknd,    & ! Degree of Slope of C6thl Skw. Fnct. [-]
+    C7      = 0.500000_core_rknd,    & ! Low Skewness in C7 Skw. Function    [-]
+    C7b     = 0.500000_core_rknd,    & ! High Skewness in C7 Skw. Function   [-]
+    C7c     = 0.500000_core_rknd,    & ! Degree of Slope of C7 Skw. Function [-]
+#if defined(CLUBBND_CAM)
+    C8      = 4.100000_core_rknd,    & ! Coef. #1 in C8 Skewness Equation    [-]
+#else
+    C8      = 4.200000_core_rknd,    & ! Coef. #1 in C8 Skewness Equation    [-]
+#endif    
+    C8b     = 0.000000_core_rknd,    & ! Coef. #2 in C8 Skewness Equation    [-]
+    C10     = 3.300000_core_rknd,    & ! Currently Not Used in the Model     [-]
+#if defined(CLUBB_CAM) && !defined(CLUBBND_CAM)
+    C11     = 0.70000_core_rknd,     & ! Low Skewness in C11 Skw. Function   [-]
+    C11b    = 0.350000_core_rknd,    & ! High Skewness in C11 Skw. Function  [-]
+#else
+    C11     = 0.80000_core_rknd,     & ! Low Skewness in C11 Skw. Function   [-]
+    C11b    = 0.350000_core_rknd,    & ! High Skewness in C11 Skw. Function  [-]
+#endif
+    C11c    = 0.500000_core_rknd,    & ! Degree of Slope of C11 Skw. Fnct.   [-]
+    C12     = 1.000000_core_rknd,    & ! Constant in w'^3 Crank-Nich. diff.  [-]
+    C13     = 0.100000_core_rknd,    & ! Not currently used in model         [-]
+    C14     = 1.000000_core_rknd,    &
+    C15     = 0.4_core_rknd            ! Coefficient for the wp3_bp2 term    [-]
+!$omp threadprivate(C1, C1b, C1c, C2, C2b, C2c, &
+!$omp   C2rt, C2thl, C2rtthl, C4, C5, C6rt, C6rtb, C6rtc, &
+!$omp   C6thl, C6thlb, C6thlc, &
+!$omp   C7, C7b, C7c, C8, C8b, C10, C11, C11b, C11c, C12, &
+!$omp   C13, C14, C15)
 
   real( kind = core_rknd ), public ::    &
-    C6rt_Lscale0  = 14.0_core_rknd,      & ! Damp C6rt as a function of Lscale
-    C6thl_Lscale0 = 14.0_core_rknd,      & ! Damp C6thl as a function of Lscale
-    C7_Lscale0    = 0.8500000_core_rknd, & ! Damp C7 as a function of Lscale
-    wpxp_L_thresh = 60.0_core_rknd         ! Lscale threshold for damping C6 and C7 coefficients
-!$omp   threadprivate(C6rt_Lscale0, C6thl_Lscale0, C7_Lscale0, wpxp_L_thresh)
+    C6rt_Lscale0  = 14.0_core_rknd,      & ! Damp C6rt as a fnct. of Lscale  [-]
+    C6thl_Lscale0 = 14.0_core_rknd,      & ! Damp C6thl as a fnct. of Lscale [-]
+    C7_Lscale0    = 0.8500000_core_rknd, & ! Damp C7 as a fnct. of Lscale    [-]
+    wpxp_L_thresh = 60.0_core_rknd         ! Lscale threshold: damp C6 & C7  [m]
+!$omp threadprivate(C6rt_Lscale0, C6thl_Lscale0, C7_Lscale0, wpxp_L_thresh)
 
+  ! Note: DD 1987 is Duynkerke & Driedonks (1987).
   real( kind = core_rknd ), public :: & 
-    c_K         = 0.200000_core_rknd,    & ! Constant C_mu^(1/4) in Duynkerke & Driedonks 1987.
-    c_K1        = 0.750000_core_rknd,    & ! Coefficient of Eddy Diffusion for wp2.
-    c_K2        = 0.125000_core_rknd,    & ! Coefficient of Eddy Diffusion for xp2.
-    c_K6        = 0.375000_core_rknd,    & ! Coefficient of Eddy Diffusion for wpthlp and wprtp.
-    c_K8        = 1.250000_core_rknd,    & ! Coefficient of Eddy Diffusion for wp3.
-    c_K9        = 0.250000_core_rknd,    & ! Coefficient of Eddy Diffusion for up2 and vp2.
-    c_Krrainm   = 0.200000_core_rknd,    & ! Coefficient of Eddy Diffusion for hydrometeors.
-    gamma_coef  = 0.320000_core_rknd,    & ! Low Skewness in gamma coefficient Skewness Function.
-    gamma_coefb = 0.320000_core_rknd,    & ! High Skewness in gamma coefficient Skewness Function.
-    gamma_coefc = 5.000000_core_rknd,   & ! Degree of Slope of gamma coefficient Skewness Function.
-    mu          = 1.000E-3_core_rknd,    & ! Fractional entrainment rate per unit altitude.
-    taumin      = 90.00000_core_rknd,    & ! Minimum allowable value of time-scale tau.
-    taumax      = 3600.000_core_rknd,    & ! Maximum allowable value of time-scale tau.
-    lmin                              ! Minimum value for the length scale.
+    c_K         = 0.200000_core_rknd, & ! Constant C_mu^(1/4) in DD 1987 [m^2/s]
+    c_K1        = 0.750000_core_rknd, & ! Coef. of Eddy Diffusion: wp2   [m^2/s]
+    c_K2        = 0.125000_core_rknd, & ! Coef. of Eddy Diffusion: xp2   [m^2/s]
+    c_K6        = 0.375000_core_rknd, & ! Coef. of Eddy Diffusion: wpxp  [m^2/s]
+    c_K8        = 1.250000_core_rknd, & ! Coef. of Eddy Diffusion: wp3   [m^2/s]
+    c_K9        = 0.250000_core_rknd, & ! Coef. of Eddy Diff.: up2/vp2   [m^2/s]
+    c_Krrainm   = 0.200000_core_rknd, & ! Coef. of Eddy Diffusion: hmm   [m^2/s]
+    gamma_coef  = 0.320000_core_rknd, & ! Low Skw.: gamma coef. Skw. Fnct.   [-]
+    gamma_coefb = 0.320000_core_rknd, & ! High Skw.: gamma coef. Skw. Fnct.  [-]
+    gamma_coefc = 5.000000_core_rknd, & ! Deg. Slope: gamma coef. Skw. Fnct. [-]
+#ifdef CLUBBND_CAM
+    mu          = 1.000E-3_core_rknd, & ! Fract entrain rate per unit alt  [1/m]
+#else 
+    mu          = 1.000E-3_core_rknd, & ! Fract entrain rate per unit alt  [1/m]
+#endif
+#ifdef CLUBBND_CAM
+    mult_coef   = 1.500000_core_rknd, & ! Coef. applied to log(avg dz/thresh)[-]  ! 0.5
+#else
+    mult_coef   = 1.000000_core_rknd, & 
+#endif
+    taumin      = 90.00000_core_rknd, & ! Min. allow. value: time-scale tau  [s]
+    taumax      = 3600.000_core_rknd, & ! Max. allow. value: time-scale tau  [s]
+    lmin        = 20.00000_core_rknd    ! Min. value for the length scale    [m]
+!$omp threadprivate(c_K, c_K1, c_K2, c_K6, &
+!$omp   c_K8, c_K9, c_Krrainm, gamma_coef, gamma_coefb, gamma_coefc, &
+!$omp   mu, mult_coef, taumin, taumax, lmin)
 
   real( kind = core_rknd ), public :: &
-    Lscale_mu_coef   = 2.0_core_rknd, & ! Coefficient to perturb mu for an avg calculation of Lscale
-    Lscale_pert_coef = 0.1_core_rknd     ! Coeff to perturb thlm and rtm for an avg calc of Lscale.
+    Lscale_mu_coef   = 2.0_core_rknd, & ! Coef perturb mu: av calc Lscale    [-]
+    Lscale_pert_coef = 0.1_core_rknd    ! Coef pert thlm/rtm: av calc Lscale [-]
+!$omp threadprivate(Lscale_mu_coef, Lscale_pert_coef)
+
+  real( kind = core_rknd ), public :: &
+    alpha_corr = 0.15_core_rknd   ! Coef. for the corr. diagnosis algorithm  [-]
+
+!$omp threadprivate(alpha_corr)
 
   real( kind = core_rknd ), private :: & 
-    nu1         = 20.00000_core_rknd,    & ! Background Coefficient of Eddy Diffusion for wp2.
-    nu2         = 5.000000_core_rknd,    & ! Background Coefficient of Eddy Diffusion for xp2.
-    nu6         = 5.000000_core_rknd,    & ! Background Coefficient of Eddy Diffusion for wpxp.
-    nu8         = 20.00000_core_rknd,    & ! Background Coefficient of Eddy Diffusion for wp3.
-    nu9         = 20.00000_core_rknd, & ! Background Coefficient of Eddy Diffusion for up2 and vp2.
-    nu10        = 0.00000_core_rknd,&! Background Coef of Eddy Dfsn for edsclrm, um, vm, upwp, vpwp
-    nu_r        = 1.500000_core_rknd,& ! Background Coefficient of Eddy Diffusion for hydrometeors.
-    nu_hd       = 20000.00_core_rknd    ! Constant coefficient for 4th-order hyper-diffusion.
+    nu1   = 20.00000_core_rknd, & ! Bg. Coef. Eddy Diffusion: wp2        [m^2/s]
+    nu2   = 5.000000_core_rknd, & ! Bg. Coef. Eddy Diffusion: xp2        [m^2/s]
+    nu6   = 5.000000_core_rknd, & ! Bg. Coef. Eddy Diffusion: wpxp       [m^2/s]
+    nu8   = 20.00000_core_rknd, & ! Bg. Coef. Eddy Diffusion: wp3        [m^2/s]
+    nu9   = 20.00000_core_rknd, & ! Bg. Coef. Eddy Diffusion: up2/vp2    [m^2/s]
+    nu10  = 0.000000_core_rknd, & ! Bg. Coef. Eddy Diffusion: edsclrm    [m^2/s]
+    nu_r  = 1.500000_core_rknd, & ! Bg. Coef. Eddy Diffusion: hmm        [m^2/s]
+    nu_hd = 20000.00_core_rknd    ! Coef. for 4th-order hyper-diffusion  [m^4/s]
+!$omp threadprivate(nu1, nu2, nu6, nu8, nu9, nu10, nu_r, nu_hd)
 
-!$omp   threadprivate(C1, C1b, C1c, C2, C2b, C2c, &
-!$omp     C2rt, C2thl, C2rtthl, C4, C5, C6rt, C6rtb, C6rtc, &
-!$omp     C6thl, C6thlb, C6thlc, &
-!$omp     C7, C7b, C7c, C8, C8b, C10, C11, C11b, C11c, C12, &
-!$omp     C13, C14, C15, &
-!$omp     c_K, c_K1, nu1, c_K2, nu2, c_K6, nu6, &
-!$omp     c_K8, nu8, c_K9, nu9, nu10, c_Krrainm, nu_r, nu_hd, &
-!$omp     gamma_coef, gamma_coefb, gamma_coefc, &
-!$omp     taumin, taumax, mu, lmin, Lscale_mu_coef, Lscale_pert_coef)
 
   real( kind = core_rknd ), public, allocatable, dimension(:) :: & 
-    nu1_vert_res_dep,   & ! Background Coefficient of Eddy Diffusion for wp2.
-    nu2_vert_res_dep,   & ! Background Coefficient of Eddy Diffusion for xp2.
-    nu6_vert_res_dep,   & ! Background Coefficient of Eddy Diffusion for wpxp.
-    nu8_vert_res_dep,   & ! Background Coefficient of Eddy Diffusion for wp3.
-    nu9_vert_res_dep,   & ! Background Coefficient of Eddy Diffusion for up2 and vp2.
-    nu10_vert_res_dep,  & ! Background Coef of Eddy Dfsn for edsclrm,um,vm,upwp,vpwp.
-    nu_r_vert_res_dep     ! Background Coefficient of Eddy Diffusion for hydrometeors.
+    nu1_vert_res_dep,  & ! Background Coef. of Eddy Diffusion: wp2       [m^2/s]
+    nu2_vert_res_dep,  & ! Background Coef. of Eddy Diffusion: xp2       [m^2/s]
+    nu6_vert_res_dep,  & ! Background Coef. of Eddy Diffusion: wpxp      [m^2/s]
+    nu8_vert_res_dep,  & ! Background Coef. of Eddy Diffusion: wp3       [m^2/s]
+    nu9_vert_res_dep,  & ! Background Coef. of Eddy Diffusion: up2/vp2   [m^2/s]
+    nu10_vert_res_dep, & ! Background Coef. of Eddy Diffusion: edsclrm   [m^2/s]
+    nu_r_vert_res_dep    ! Background Coef. of Eddy Diffusion: hydromet. [m^2/s]
 
   real( kind = core_rknd ), public :: &
-    nu_hd_vert_res_dep    ! Constant coefficient for 4th-order hyper-diffusion.
+    nu_hd_vert_res_dep   ! Constant coef. for 4th-order hyper-diffusion  [m^4/s]
 
 !$omp threadprivate(nu1_vert_res_dep, nu2_vert_res_dep, nu6_vert_res_dep, &
 !$omp   nu8_vert_res_dep, nu9_vert_res_dep, nu10_vert_res_dep, nu_r_vert_res_dep,  &
@@ -131,13 +161,42 @@ module parameters_tunable
   ! Vince Larson added a constant to set plume widths for theta_l and rt
   ! beta should vary between 0 and 3, with 1.5 the standard value
 
-  real( kind = core_rknd ), public :: beta         = 1.750000_core_rknd
+  real( kind = core_rknd ), public :: &
+    beta = 2.400000_core_rknd    ! Beta coefficient     [-] 
 
 !$omp threadprivate(beta)
 
-  real( kind = core_rknd ), private :: lmin_coef    = 0.500000_core_rknd ! Coefficient of lmin
+  real( kind = core_rknd ), private :: &
+    lmin_coef = 0.100000_core_rknd    ! Coefficient of lmin    [-]
 
 !$omp threadprivate(lmin_coef)
+
+  ! Factor to decrease sensitivity in the denominator of Skw calculation
+  real( kind = core_rknd ), public :: &
+#ifdef CLUBB_CAM
+#ifdef CLUBBND_CAM
+    Skw_denom_coef = 0.0_core_rknd
+#else
+    Skw_denom_coef = 0.0_core_rknd
+#endif
+#else
+    Skw_denom_coef = 4.0_core_rknd
+#endif
+
+!$omp threadprivate( Skw_denom_coef )
+
+  ! Coefficient of Kh_zm
+  real( kind = core_rknd ), public :: &
+    c_K10 = 0.6_core_rknd
+
+!$omp threadprivate( c_K10 )
+
+  real( kind = core_rknd ), public :: &
+    thlp2_rad_coef = 1.0_core_rknd, &            ! Coefficient of thlp2_rad                   [-]
+    thlp2_rad_cloud_frac_thresh = 0.1_core_rknd ! Minimum cloud fraction for computation
+                                                 ! of thlp2_rad                               [-]
+
+!$omp threadprivate( thlp2_rad_coef, thlp2_rad_cloud_frac_thresh )
 
   ! used in adj_low_res_nu. If .true., avg_deltaz = deltaz
 #ifdef GFDL
@@ -158,8 +217,9 @@ module parameters_tunable
     C12, C13, C14, C15, C6rt_Lscale0, C6thl_Lscale0, &
     C7_Lscale0, wpxp_L_thresh, c_K, c_K1, nu1, c_K2, nu2, & 
     c_K6, nu6, c_K8, nu8, c_K9, nu9, nu10, c_Krrainm, nu_r, & 
-    nu_hd, beta, gamma_coef, gamma_coefb, gamma_coefc, & 
-    lmin_coef, taumin, taumax, mu, Lscale_mu_coef, Lscale_pert_coef
+    nu_hd, beta, gamma_coef, gamma_coefb, gamma_coefc, lmin_coef, &
+    mult_coef, taumin, taumax, mu, Lscale_mu_coef, Lscale_pert_coef, &
+    alpha_corr, Skw_denom_coef, c_K10, thlp2_rad_coef, thlp2_rad_cloud_frac_thresh
 
   ! These are referenced together often enough that it made sense to
   ! make a list of them.  Note that lmin_coef is the input parameter,
@@ -186,10 +246,12 @@ module parameters_tunable
        "nu6             ", "c_K8            ", "nu8             ", "c_K9            ", &
        "nu9             ", "nu10            ", "c_Krrainm       ", "nu_r            ", &
        "nu_hd           ", "gamma_coef      ", "gamma_coefb     ", "gamma_coefc     ", &
-       "mu              ", "beta            ", "lmin_coef       ", "taumin          ", &
-       "taumax          ", "Lscale_mu_coef  ", "Lscale_pert_coef" /)
+       "mu              ", "beta            ", "lmin_coef       ", "mult_coef       ", &
+       "taumin          ", "taumax          ", "Lscale_mu_coef  ", "Lscale_pert_coef", &
+       "alpha_corr      ", "Skw_denom_coef  ", "c_K10           ", "thlp2_rad_coef  ", &
+       "thlp2_rad_cloud_" /)
 
-  real( kind = core_rknd ), parameter :: &
+  real( kind = core_rknd ), parameter, private :: &
     init_value = -999._core_rknd ! Initial value for the parameters, used to detect missing values
 
   contains
@@ -218,6 +280,11 @@ module parameters_tunable
       core_rknd ! Variable(s)
 
     implicit none
+
+
+    ! Constant Parameters
+    real( kind = core_rknd ), parameter :: &
+      lmin_deltaz = 40.0_core_rknd ! Fixed value for minimum value for the length scale.
 
     ! Input Variables
     real( kind = core_rknd ), intent(in) ::  & 
@@ -257,10 +324,6 @@ module parameters_tunable
     integer, intent(out) ::  &
       err_code ! Error condition
 
-    ! Local Variables
-    real( kind = core_rknd ), parameter :: &
-      lmin_deltaz = 40.0_core_rknd ! Fixed value for minimum value for the length scale.
-
     !-------------------- Begin code --------------------
 
     call unpack_parameters( params, & 
@@ -272,8 +335,9 @@ module parameters_tunable
                             c_K, c_K1, nu1, c_K2, nu2, c_K6, nu6,  & 
                             c_K8, nu8, c_K9, nu9, nu10, c_Krrainm, nu_r, & 
                             nu_hd, gamma_coef, gamma_coefb, gamma_coefc, & 
-                            mu, beta, lmin_coef, taumin, taumax, Lscale_mu_coef, &
-                            Lscale_pert_coef )
+                            mu, beta, lmin_coef, mult_coef, taumin, taumax, Lscale_mu_coef, &
+                            Lscale_pert_coef, alpha_corr, Skw_denom_coef, c_K10, thlp2_rad_coef, &
+                            thlp2_rad_cloud_frac_thresh )
 
 
     ! It was decided after some experimentation, that the best
@@ -363,8 +427,7 @@ module parameters_tunable
     ! are increased.  Traditionally, the threshold grid spacing has been set to
     ! 40.0 meters.  This is only relevant if l_adj_low_res_nu is turned on.
     real( kind = core_rknd ), parameter :: &
-      grid_spacing_thresh = 40.0_core_rknd, &  ! grid spacing threshold  [m]
-      mult_coef = 1.5_core_rknd ! Coefficient applied to log( avg dz / threshold )
+      grid_spacing_thresh = 40.0_core_rknd  ! grid spacing threshold  [m]
 
     ! Input Variables
 
@@ -486,7 +549,8 @@ module parameters_tunable
           = ( thermodynamic_heights(nzmax) - thermodynamic_heights(1) )  &
              / real( nzmax - 1, kind = core_rknd )
       else
-
+        ! Eric Raut added to remove compiler warning. (Obviously, this value is not used)
+        avg_deltaz = 0.0_core_rknd
         write(fstderr,*) "Invalid grid_type:", grid_type
         stop "Fatal error"
 
@@ -605,8 +669,9 @@ module parameters_tunable
                           c_K, c_K1, nu1, c_K2, nu2, c_K6, nu6,  & 
                           c_K8, nu8, c_K9, nu9, nu10, c_Krrainm, nu_r, & 
                           nu_hd, gamma_coef, gamma_coefb, gamma_coefc, & 
-                          mu, beta, lmin_coef, taumin, taumax, Lscale_mu_coef, &
-                          Lscale_pert_coef, params )
+                          mu, beta, lmin_coef, mult_coef, taumin, taumax, Lscale_mu_coef, &
+                          Lscale_pert_coef, alpha_corr, Skw_denom_coef, c_K10, thlp2_rad_coef, &
+                          thlp2_rad_cloud_frac_thresh, params )
 
     l_error = .false.
 
@@ -674,7 +739,9 @@ module parameters_tunable
       C7_Lscale0, wpxp_L_thresh, c_K, c_K1, nu1, c_K2, nu2,  & 
       c_K6, nu6, c_K8, nu8, c_K9, nu9, nu10, c_Krrainm, nu_r, & 
       nu_hd, beta, gamma_coef, gamma_coefb, gamma_coefc, & 
-      lmin_coef, taumin, taumax, mu, Lscale_mu_coef, Lscale_pert_coef
+      lmin_coef, mult_coef, taumin, taumax, mu, Lscale_mu_coef, &
+      Lscale_pert_coef, alpha_corr, Skw_denom_coef, c_K10, thlp2_rad_coef, &
+      thlp2_rad_cloud_frac_thresh
 
     ! Initialize values to -999.
     call init_parameters_999( )
@@ -695,8 +762,9 @@ module parameters_tunable
                           c_K, c_K1, nu1, c_K2, nu2, c_K6, nu6,  & 
                           c_K8, nu8, c_K9, nu9, nu10, c_Krrainm, nu_r, & 
                           nu_hd, gamma_coef, gamma_coefb, gamma_coefc, & 
-                          mu, beta, lmin_coef, taumin, taumax, Lscale_mu_coef, &
-                          Lscale_pert_coef, param_spread )
+                          mu, beta, lmin_coef, mult_coef, taumin, taumax, Lscale_mu_coef, &
+                          Lscale_pert_coef, alpha_corr, Skw_denom_coef, c_K10, thlp2_rad_coef, &
+                          thlp2_rad_cloud_frac_thresh, param_spread )
 
     l_error = .false.
 
@@ -738,8 +806,9 @@ module parameters_tunable
                c_K, c_K1, nu1, c_K2, nu2, c_K6, nu6,  &
                c_K8, nu8, c_K9, nu9, nu10, c_Krrainm, nu_r, &
                nu_hd, gamma_coef, gamma_coefb, gamma_coefc, &
-               mu, beta, lmin_coef, taumin, taumax, Lscale_mu_coef, &
-               Lscale_pert_coef, params )
+               mu, beta, lmin_coef, mult_coef, taumin, taumax, Lscale_mu_coef, &
+               Lscale_pert_coef, alpha_corr, Skw_denom_coef, c_K10, thlp2_rad_coef, &
+               thlp2_rad_cloud_frac_thresh, params )
 
     ! Description:
     ! Takes the list of scalar variables and puts them into a 1D vector.
@@ -810,10 +879,16 @@ module parameters_tunable
       imu, & 
       ibeta, & 
       ilmin_coef, & 
+      imult_coef, &
       itaumin, & 
       itaumax, & 
       iLscale_mu_coef, &
       iLscale_pert_coef, &
+      ialpha_corr, &
+      iSkw_denom_coef, &
+      ic_K10, &
+      ithlp2_rad_coef, &
+      ithlp2_rad_cloud_frac_thresh, &
       nparams
 
     implicit none
@@ -827,8 +902,9 @@ module parameters_tunable
       C6rt_Lscale0, C6thl_Lscale0, C7_Lscale0, wpxp_L_thresh, &
       c_K, c_K1, nu1, c_K2, nu2, c_K6, nu6, c_K8, nu8,  & 
       c_K9, nu9, nu10, c_Krrainm, nu_r, nu_hd, gamma_coef, &
-      gamma_coefb, gamma_coefc, mu, beta, lmin_coef, taumin, &
-      taumax, Lscale_mu_coef, Lscale_pert_coef
+      gamma_coefb, gamma_coefc, mu, beta, lmin_coef, mult_coef, &
+      taumin, taumax, Lscale_mu_coef, Lscale_pert_coef, alpha_corr, &
+      Skw_denom_coef, c_K10, thlp2_rad_coef, thlp2_rad_cloud_frac_thresh
 
     ! Output variables
     real( kind = core_rknd ), intent(out), dimension(nparams) :: params
@@ -894,12 +970,18 @@ module parameters_tunable
     params(ibeta) = beta
 
     params(ilmin_coef) = lmin_coef
+    params(imult_coef) = mult_coef
 
     params(itaumin) = taumin
     params(itaumax) = taumax
 
     params(iLscale_mu_coef) = Lscale_mu_coef
     params(iLscale_pert_coef) = Lscale_pert_coef
+    params(ialpha_corr) = alpha_corr
+    params(iSkw_denom_coef) = Skw_denom_coef
+    params(ic_K10) = c_K10
+    params(ithlp2_rad_coef) = thlp2_rad_coef
+    params(ithlp2_rad_cloud_frac_thresh) = thlp2_rad_cloud_frac_thresh
 
     return
   end subroutine pack_parameters
@@ -915,8 +997,9 @@ module parameters_tunable
                c_K, c_K1, nu1, c_K2, nu2, c_K6, nu6, & 
                c_K8, nu8, c_K9, nu9, nu10, c_Krrainm, nu_r, & 
                nu_hd, gamma_coef, gamma_coefb, gamma_coefc, & 
-               mu, beta, lmin_coef, taumin, taumax, Lscale_mu_coef, &
-               Lscale_pert_coef )
+               mu, beta, lmin_coef, mult_coef, taumin, taumax, Lscale_mu_coef, &
+               Lscale_pert_coef, alpha_corr, Skw_denom_coef, c_K10, thlp2_rad_coef, &
+               thlp2_rad_cloud_frac_thresh )
 
     ! Description:
     ! Takes the 1D vector and returns the list of scalar variables.
@@ -987,10 +1070,16 @@ module parameters_tunable
       imu, & 
       ibeta, & 
       ilmin_coef, & 
+      imult_coef, &
       itaumin, & 
       itaumax, & 
       iLscale_mu_coef, &
       iLscale_pert_coef, &
+      ialpha_corr, &
+      iSkw_denom_coef, &
+      ic_K10, &
+      ithlp2_rad_coef, &
+      ithlp2_rad_cloud_frac_thresh, &
       nparams
 
     implicit none
@@ -1008,8 +1097,9 @@ module parameters_tunable
       c_K, c_K1, nu1, c_K2, nu2, c_K6, nu6, & 
       c_K8, nu8, c_K9, nu9, nu10, c_Krrainm, nu_r, & 
       nu_hd, gamma_coef, gamma_coefb, gamma_coefc, & 
-      mu, beta, lmin_coef, taumin, taumax, Lscale_mu_coef, &
-      Lscale_pert_coef
+      mu, beta, lmin_coef, mult_coef, taumin, taumax, Lscale_mu_coef, &
+      Lscale_pert_coef, alpha_corr, Skw_denom_coef, c_K10, thlp2_rad_coef, &
+      thlp2_rad_cloud_frac_thresh
 
     C1      = params(iC1)
     C1b     = params(iC1b)
@@ -1072,12 +1162,19 @@ module parameters_tunable
     beta = params(ibeta)
 
     lmin_coef = params(ilmin_coef)
+    mult_coef = params(imult_coef)
 
     taumin = params(itaumin)
     taumax = params(itaumax)
 
     Lscale_mu_coef = params(iLscale_mu_coef)
     Lscale_pert_coef = params(iLscale_pert_coef)
+    alpha_corr = params(ialpha_corr)
+    Skw_denom_coef = params(iSkw_denom_coef)
+    c_K10 = params(ic_K10)
+
+    thlp2_rad_coef = params(ithlp2_rad_coef)
+    thlp2_rad_cloud_frac_thresh = params(ithlp2_rad_cloud_frac_thresh)
 
     return
   end subroutine unpack_parameters
@@ -1105,8 +1202,9 @@ module parameters_tunable
                           c_K, c_K1, nu1, c_K2, nu2, c_K6, nu6,  & 
                           c_K8, nu8, c_K9, nu9, nu10, c_Krrainm, nu_r, & 
                           nu_hd, gamma_coef, gamma_coefb, gamma_coefc, & 
-                          mu, beta, lmin_coef, taumin, taumax, Lscale_mu_coef, &
-                          Lscale_pert_coef, params )
+                          mu, beta, lmin_coef, mult_coef, taumin, taumax, Lscale_mu_coef, &
+                          Lscale_pert_coef, alpha_corr, Skw_denom_coef, c_K10, thlp2_rad_coef, &
+                          thlp2_rad_cloud_frac_thresh, params )
 
     return
 
@@ -1182,14 +1280,19 @@ module parameters_tunable
     gamma_coef         = init_value
     gamma_coefb        = init_value
     gamma_coefc        = init_value
+    mult_coef          = init_value
     taumin             = init_value
     taumax             = init_value
     lmin_coef          = init_value
     mu                 = init_value
     Lscale_mu_coef     = init_value
     Lscale_pert_coef   = init_value
- 
+    alpha_corr         = init_value
     nu_hd_vert_res_dep = init_value
+    Skw_denom_coef     = init_value
+    c_K10              = init_value
+    thlp2_rad_coef     = init_value
+    thlp2_rad_cloud_frac_thresh=init_value
 
     return
   end subroutine init_parameters_999
@@ -1219,7 +1322,7 @@ module parameters_tunable
                 nu_r_vert_res_dep, stat = ierr )
 
     if ( ierr /= 0 ) then
-      write(fstderr,*) "Nu deallocation failed."
+      write(fstderr,*) "Deallocation of vertically depedent nu arrays failed."
     end if
 
     return

@@ -115,9 +115,6 @@ real(r8), parameter, public :: rhoi = 500._r8   ! bulk density ice
 real(r8), parameter, public :: rhow = 1000._r8  ! bulk density liquid
 real(r8), parameter, public :: rhows = 917._r8  ! bulk density water solid
 
-! autoconversion size threshold for cloud ice to snow (m)
-real(r8) :: dcs
-
 ! fall speed parameters, V = aD^b (V is in m/s)
 ! droplets
 real(r8), parameter, public :: ac = 3.e7_r8
@@ -133,8 +130,7 @@ real(r8), parameter, public :: ar = 841.99667_r8
 real(r8), parameter, public :: br = 0.8_r8
 
 ! mass of new crystal due to aerosol freezing and growth (kg)
-real(r8), parameter, public :: mi0 = &
-     4._r8/3._r8*pi*rhoi*(10.e-6_r8)*(10.e-6_r8)*(10.e-6_r8)
+real(r8), parameter, public :: mi0 = 4._r8/3._r8*pi*rhoi*(10.e-6_r8)**3
 
 !=================================================
 ! Private module parameters
@@ -153,9 +149,6 @@ real(r8), parameter :: icsmall = 1.e-8_r8
 real(r8), parameter :: dsph = 3._r8
 
 ! Bounds for mean diameter for different constituents.
-! (E.g. ice must be at least 10 microns but no more than twice the
-! threshold for autoconversion to snow.
-real(r8) :: lam_bnd_ice(2)
 real(r8), parameter :: lam_bnd_rain(2) = 1._r8/[500.e-6_r8, 20.e-6_r8]
 real(r8), parameter :: lam_bnd_snow(2) = 1._r8/[2000.e-6_r8, 10.e-6_r8]
 
@@ -173,7 +166,7 @@ real(r8), parameter :: f2r = 0.308_r8
 
 ! collection efficiencies
 ! aggregation of cloud ice and snow
-real(r8), parameter :: eii = 0.1_r8
+real(r8), parameter :: eii = 0.5_r8
 
 ! immersion freezing parameters, bigg 1953
 real(r8), parameter :: bimm = 100._r8
@@ -216,7 +209,7 @@ contains
 ! Check the list at the top of this module for descriptions of all other
 ! arguments.
 subroutine micro_mg_utils_init( kind, rh2o, cpair, tmelt_in, latvap, &
-     latice, errstring, dcs_in)
+     latice, dcs, errstring)
 
   integer,  intent(in)  :: kind
   real(r8), intent(in)  :: rh2o
@@ -224,9 +217,13 @@ subroutine micro_mg_utils_init( kind, rh2o, cpair, tmelt_in, latvap, &
   real(r8), intent(in)  :: tmelt_in
   real(r8), intent(in)  :: latvap
   real(r8), intent(in)  :: latice
-  real(r8), intent(in)  :: dcs_in
+  real(r8), intent(in)  :: dcs
 
   character(128), intent(out) :: errstring
+
+  ! Name this array to workaround an XLF bug (otherwise could just use the
+  ! expression that sets it).
+  real(r8) :: ice_lambda_bounds(2)
 
   !-----------------------------------------------------------------------
 
@@ -242,9 +239,6 @@ subroutine micro_mg_utils_init( kind, rh2o, cpair, tmelt_in, latvap, &
   rv= rh2o                  ! water vapor gas constant
   cpp = cpair               ! specific heat of dry air
   tmelt = tmelt_in
-  dcs = dcs_in
-  lam_bnd_ice(1) = 1._r8/(2._r8*dcs)
-  lam_bnd_ice(2) = 1._r8/10.e-6_r8
 
   ! latent heats
 
@@ -259,8 +253,15 @@ subroutine micro_mg_utils_init( kind, rh2o, cpair, tmelt_in, latvap, &
 
   ! Don't specify lambda bounds for cloud liquid, as they are determined by
   ! pgam dynamically.
-  mg_liq_props = MGHydrometeorProps(rhow, dsph, min_mean_mass=min_mean_mass_liq)
-  mg_ice_props = MGHydrometeorProps(rhoi, dsph, lam_bnd_ice, min_mean_mass_ice)
+  mg_liq_props = MGHydrometeorProps(rhow, dsph, &
+       min_mean_mass=min_mean_mass_liq)
+
+  ! Mean ice diameter can not grow bigger than twice the autoconversion
+  ! threshold for snow.
+  ice_lambda_bounds = 1._r8/[2._r8*dcs, 10.e-6_r8]
+  mg_ice_props = MGHydrometeorProps(rhoi, dsph, &
+       ice_lambda_bounds, min_mean_mass_ice)
+
   mg_rain_props = MGHydrometeorProps(rhow, dsph, lam_bnd_rain)
   mg_snow_props = MGHydrometeorProps(rhosn, dsph, lam_bnd_snow)
 
@@ -354,7 +355,7 @@ elemental subroutine size_dist_param_liq(props, qcic, ncic, rho, pgam, lamc)
 contains
 
   ! Use gamma function to implement rising factorial extended to the reals.
-  elemental function rising_factorial(x, n)
+  pure function rising_factorial(x, n)
     real(r8), intent(in) :: x, n
     real(r8) :: rising_factorial
 
@@ -405,8 +406,9 @@ end subroutine size_dist_param_basic
 real(r8) elemental function avg_diameter(q, n, rho_air, rho_sub)
   ! Finds the average diameter of particles given their density, and
   ! mass/number concentrations in the air.
+  ! Assumes that diameter follows an exponential distribution.
   real(r8), intent(in) :: q         ! mass mixing ratio
-  real(r8), intent(in) :: n         ! number concentration
+  real(r8), intent(in) :: n         ! number concentration (per volume)
   real(r8), intent(in) :: rho_air   ! local density of the air
   real(r8), intent(in) :: rho_sub   ! density of the particle substance
 
@@ -488,7 +490,7 @@ elemental subroutine ice_deposition_sublimation(t, qv, qi, ni, &
      if (t < tmelt .and. vap_dep>0._r8) then
         ice_sublim=0._r8
      else
-     !hm, make ice_sublim negative for consistency with other evap/sub processes
+     ! make ice_sublim negative for consistency with other evap/sub processes
         ice_sublim=min(vap_dep,0._r8)
         vap_dep=0._r8
      end if
@@ -546,7 +548,7 @@ elemental subroutine kk2000_liq_autoconversion(microp_uniform, qcic, &
 
      ! assume exponential sub-grid distribution of qc, resulting in additional
      ! factor related to qcvar below
-     ! hm switch for sub-columns, don't include sub-grid qc
+     ! switch for sub-columns, don't include sub-grid qc
 
      prc = prc_coef * &
           1350._r8 * qcic**2.47_r8 * (ncic/1.e6_r8*rho)**(-1.79_r8)
@@ -565,12 +567,13 @@ end subroutine kk2000_liq_autoconversion
 ! Autoconversion of cloud ice to snow
 ! similar to Ferrier (1994)
 
-elemental subroutine ice_autoconversion(t, qiic, lami, n0i, prci, nprci)
+elemental subroutine ice_autoconversion(t, qiic, lami, n0i, dcs, prci, nprci)
 
   real(r8), intent(in) :: t
   real(r8), intent(in) :: qiic
   real(r8), intent(in) :: lami
   real(r8), intent(in) :: n0i
+  real(r8), intent(in) :: dcs
 
   real(r8), intent(out) :: prci
   real(r8), intent(out) :: nprci

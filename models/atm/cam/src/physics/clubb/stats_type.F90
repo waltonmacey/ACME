@@ -1,5 +1,5 @@
 !-----------------------------------------------------------------------
-! $Id: stats_type.F90 5623 2012-01-17 17:55:26Z connork@uwm.edu $
+! $Id: stats_type.F90 6615 2013-11-27 22:00:31Z raut@uwm.edu $
 !===============================================================================
 module stats_type
 
@@ -35,37 +35,51 @@ module stats_type
   type stats
 
     ! Number of fields to sample
-    integer :: nn
+    integer :: nn    ! Number of variables being output to disk (e.g.
+                     ! cloud_frac, rain rate, etc.)
 
-    ! Vertical extent of variable
-    integer :: kk
+    integer :: &
+      ii, & ! Horizontal extent of the variables (Usually 1 for the single-column model)
+      jj, & ! Horizontal extent of the variables (Usually 1 for the single-column model)
+      kk    ! Vertical extent of the variables (Usually gr%nz from grid_class)
 
     ! Vertical levels
-    real( kind = core_rknd ), pointer, dimension(:) :: z
+    real( kind = core_rknd ), pointer, dimension(:) :: z ! [m]
 
     ! Array to store sampled fields
 
     real(kind=stat_rknd), pointer, dimension(:,:,:,:) :: x
+        ! The variable x contains the cumulative sums of n sample values of each
+        ! of the nn output fields (e.g. the sum of the sampled rain rate values)
 
     integer(kind=stat_nknd), pointer, dimension(:,:,:,:) :: n
+        ! n is the number of samples for each of the nn fields 
+        ! and each of the kk vertical levels
 
     ! Tracks if a field is in the process of an update
     logical, pointer, dimension(:,:,:,:) :: l_in_update
 
     ! Data for GrADS / netCDF output
 
-    type (stat_file) f
+    type (stat_file) ::  f
 
   end type stats
 
   contains
 
   !=============================================================================
-  subroutine stat_assign( var_index, var_name,  & 
-                     var_description, var_units, grid_kind )
+  subroutine stat_assign( var_index, var_name,  &
+                          var_description, var_units, &
+                          l_silhs, grid_kind )
 
     ! Description: 
-    !   Assigns pointers for statistics variables in grid.
+    !   Assigns pointers for statistics variables in grid. There is an
+    !   option to make the variable a SILHS variable (updated n_micro_calls
+    !   times per timestep rather than just once).
+
+    !
+    ! References:
+    !   None
     !-----------------------------------------------------------------------
 
     implicit none
@@ -77,15 +91,19 @@ module stats_type
     character(len = *), intent(in) :: var_description ! Variable description []
     character(len = *), intent(in) :: var_units       ! Variable units       []
 
-    ! Output Variable
+    logical, intent(in) :: l_silhs                    ! SILHS variable       [boolean]
 
-    ! Which grid the variable is located on (zt, zm, or sfc )
+    ! Input/Output Variable
+
+    ! Which grid the variable is located on (e.g., zt, zm, sfc)
     type(stats), intent(inout) :: grid_kind
 
     grid_kind%f%var(var_index)%ptr => grid_kind%x(:,:,:,var_index)
     grid_kind%f%var(var_index)%name = var_name
     grid_kind%f%var(var_index)%description = var_description
     grid_kind%f%var(var_index)%units = var_units
+
+    grid_kind%f%var(var_index)%l_silhs = l_silhs
 
     !Example of the old format
     !changed by Joshua Fasching 23 August 2007
@@ -121,6 +139,9 @@ module stats_type
     use clubb_precision, only: &
       stat_rknd ! Constant
 
+    use stat_file_module, only: &
+      clubb_i, clubb_j ! Variable(s)
+
     implicit none
 
     ! Input Variables(s)
@@ -142,10 +163,10 @@ module stats_type
 
     if ( var_index > 0 ) then
       do k = 1, grid_kind%kk
-        grid_kind%x(1,1,k,var_index) =  & 
-             grid_kind%x(1,1,k,var_index) + real( value(k), kind=stat_rknd )
-        grid_kind%n(1,1,k,var_index) =  & 
-             grid_kind%n(1,1,k,var_index) + 1
+        grid_kind%x(clubb_i,clubb_j,k,var_index) =  & 
+             grid_kind%x(clubb_i,clubb_j,k,var_index) + real( value(k), kind=stat_rknd )
+        grid_kind%n(clubb_i,clubb_j,k,var_index) =  & 
+             grid_kind%n(clubb_i,clubb_j,k,var_index) + 1
       end do
     endif
 
@@ -165,6 +186,9 @@ module stats_type
     use clubb_precision, only: &
       stat_rknd ! Constant
 
+    use stat_file_module, only: &
+      clubb_i, clubb_j ! Variable(s)
+
     implicit none
 
     ! Input Variables(s)
@@ -182,10 +206,11 @@ module stats_type
 
     if ( var_index > 0 ) then
 
-      grid_kind%x(1,1,grid_level,var_index) = grid_kind%x(1,1,grid_level,var_index) &
-                                            + real( value, kind=stat_rknd )
+      grid_kind%x(clubb_i,clubb_j,grid_level,var_index) = &
+        grid_kind%x(clubb_i,clubb_j,grid_level,var_index) + real( value, kind=stat_rknd )
 
-      grid_kind%n(1,1,grid_level,var_index) = grid_kind%n(1,1,grid_level,var_index) + 1
+      grid_kind%n(clubb_i,clubb_j,grid_level,var_index) = &
+        grid_kind%n(clubb_i,clubb_j,grid_level,var_index) + 1
 
     endif
 
@@ -277,6 +302,9 @@ module stats_type
     use clubb_precision, only: &
       stat_rknd ! Constant
 
+    use stat_file_module, only: &
+      clubb_i, clubb_j ! Variable(s)
+
     implicit none
 
     ! Input Variables(s)
@@ -296,12 +324,13 @@ module stats_type
 
     if ( var_index > 0 ) then  ! Are we storing this variable?
 
-      if ( .not. grid_kind%l_in_update(1,1,grid_level,var_index) ) then ! Can we begin an update?
+      ! Can we begin an update?
+      if ( .not. grid_kind%l_in_update(clubb_i,clubb_j,grid_level,var_index) ) then 
 
-        grid_kind%x(1,1,grid_level, var_index) =  & 
-                grid_kind%x(1,1,grid_level, var_index) - real( value, kind=stat_rknd )
+        grid_kind%x(clubb_i,clubb_j,grid_level, var_index) =  & 
+                grid_kind%x(clubb_i,clubb_j,grid_level, var_index) - real( value, kind=stat_rknd )
 
-        grid_kind%l_in_update(1,1,grid_level, var_index) = .true.  ! Start Record
+        grid_kind%l_in_update(clubb_i,clubb_j,grid_level, var_index) = .true.  ! Start Record
 
       else
 
@@ -365,13 +394,13 @@ module stats_type
     type(stats), intent(inout) ::  & 
       grid_kind ! Which grid the variable is located on (zt, zm, rad, or sfc).
 
-    integer :: i
+    integer :: k
 
     ! ---- Begin Code ----
 
-    do i = 1,gr%nz
+    do k = 1,gr%nz
       call stat_end_update_pt & 
-               ( var_index, i, value(i), grid_kind )
+               ( var_index, k, value(k), grid_kind )
     enddo
 
     return
@@ -393,6 +422,9 @@ module stats_type
 
     use error_code, only: clubb_debug ! Procedure(s)
 
+    use stat_file_module, only: &
+      clubb_i, clubb_j ! Variable(s)
+
     implicit none
 
     ! Input Variables(s)
@@ -412,12 +444,13 @@ module stats_type
 
     if ( var_index > 0 ) then ! Are we storing this variable?
 
-      if ( grid_kind%l_in_update(1,1,grid_level,var_index) ) then ! Can we end an update?
+      ! Can we end an update?
+      if ( grid_kind%l_in_update(clubb_i,clubb_j,grid_level,var_index) ) then 
 
         call stat_update_var_pt & 
                  ( var_index, grid_level, value, grid_kind )
 
-        grid_kind%l_in_update(1,1,grid_level,var_index) = .false. ! End Record
+        grid_kind%l_in_update(clubb_i,clubb_j,grid_level,var_index) = .false. ! End Record
 
       else
 
@@ -461,13 +494,13 @@ module stats_type
     type(stats), intent(inout) ::  & 
       grid_kind ! Which grid the variable is located on (zt, zm, rad, or sfc).
 
-    integer :: i
+    integer :: k
 
     ! ---- Begin Code ----
 
-    do i = 1, gr%nz
+    do k = 1, gr%nz
 
-      call stat_modify_pt( var_index, i, value(i), grid_kind )
+      call stat_modify_pt( var_index, k, value(k), grid_kind )
 
     enddo
 
@@ -488,6 +521,9 @@ module stats_type
 
     use clubb_precision, only: &
       stat_rknd ! Constant
+
+    use stat_file_module, only: &
+      clubb_i, clubb_j ! Variable(s)
 
     implicit none
 
@@ -511,8 +547,8 @@ module stats_type
 
     if ( var_index > 0 ) then
 
-      grid_kind%x(1,1,grid_level,var_index )  & 
-         = grid_kind%x(1,1,grid_level,var_index ) + real( value, kind=stat_rknd )
+      grid_kind%x(clubb_i,clubb_j,grid_level,var_index )  & 
+         = grid_kind%x(clubb_i,clubb_j,grid_level,var_index ) + real( value, kind=stat_rknd )
 
     end if
 

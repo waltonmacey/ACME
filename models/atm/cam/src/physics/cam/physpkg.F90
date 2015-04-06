@@ -26,7 +26,7 @@ module physpkg
   use camsrfexch,       only: cam_out_t, cam_in_t
 
   use cam_control_mod,  only: ideal_phys, adiabatic
-  use phys_control,     only: phys_do_flux_avg, waccmx_is
+  use phys_control,     only: phys_do_flux_avg, phys_getopts, waccmx_is
   use scamMod,          only: single_column, scm_crm_mode
   use flux_avg,         only: flux_avg_init
   use infnan,           only: posinf, assignment(=)
@@ -73,8 +73,17 @@ module physpkg
   !
   ! Private module data
   !
-  logical :: clim_modal_aero  ! climate controled by prognostic or prescribed modal aerosols
-  logical :: prog_modal_aero  ! Prognostic modal aerosols present
+  ! Physics package options
+  character(len=16) :: shallow_scheme
+  character(len=16) :: macrop_scheme
+  character(len=16) :: microp_scheme 
+  integer           :: cld_macmic_num_steps    ! Number of macro/micro substeps
+  logical           :: do_clubb_sgs
+  logical           :: use_subcol_microp   ! if true, use subcolumns in microphysics
+  logical           :: state_debug_checks  ! Debug physics_state.
+  logical           :: clim_modal_aero     ! climate controled by prognostic or prescribed modal aerosols
+  logical           :: prog_modal_aero     ! Prognostic modal aerosols present
+  logical           :: micro_do_icesupersat
 
   !======================================================================= 
 contains
@@ -96,7 +105,6 @@ subroutine phys_register
     use constituents,       only: pcnst, cnst_add, cnst_chk_dim, cnst_name
 
     use cam_control_mod,    only: moist_physics
-    use phys_control,       only: phys_do_flux_avg, phys_getopts, waccmx_is
     use chemistry,          only: chem_register
     use cloud_fraction,     only: cldfrc_register
     use stratiform,         only: stratiform_register
@@ -134,21 +142,22 @@ subroutine phys_register
     use subcol,             only: subcol_register
     use subcol_utils,       only: is_subcol_on
 
-
-    implicit none
     !---------------------------Local variables-----------------------------
     !
     integer  :: m        ! loop index
     integer  :: mm       ! constituent index 
     !-----------------------------------------------------------------------
 
-    character(len=16) :: microp_scheme
-    logical           :: do_clubb_sgs
-
     integer :: nmodes
 
-    call phys_getopts( microp_scheme_out = microp_scheme )
-    call phys_getopts( do_clubb_sgs_out  = do_clubb_sgs )
+    call phys_getopts(shallow_scheme_out       = shallow_scheme, &
+                      macrop_scheme_out        = macrop_scheme,   &
+                      microp_scheme_out        = microp_scheme,   &
+                      cld_macmic_num_steps_out = cld_macmic_num_steps, &
+                      do_clubb_sgs_out         = do_clubb_sgs,     &
+                      use_subcol_microp_out    = use_subcol_microp, &
+                      state_debug_checks_out   = state_debug_checks, &
+                      micro_do_icesupersat_out = micro_do_icesupersat)
 
     ! Initialize dyn_time_lvls
     call pbuf_init_time()
@@ -641,6 +650,7 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
     use aircraft_emit,      only: aircraft_emit_init
     use prescribed_volcaero,only: prescribed_volcaero_init
     use cloud_fraction,     only: cldfrc_init
+    use cldfrc2m,           only: cldfrc2m_init
     use co2_cycle,          only: co2_init, co2_transport
     use convect_deep,       only: convect_deep_init
     use convect_shallow,    only: convect_shallow_init
@@ -652,7 +662,6 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
     use radiation,          only: radiation_init
     use cloud_diagnostics,  only: cloud_diagnostics_init
     use stratiform,         only: stratiform_init
-    use phys_control,       only: phys_getopts, waccmx_is
     use wv_saturation,      only: wv_sat_init
     use microp_driver,      only: microp_driver_init
     use microp_aero,        only: microp_aero_init
@@ -691,14 +700,7 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
     ! local variables
     integer :: lchnk
 
-    character(len=16) :: microp_scheme 
-    logical           :: do_clubb_sgs
-
     !-----------------------------------------------------------------------
-
-    ! Get microphysics option
-    call phys_getopts(microp_scheme_out = microp_scheme)
-    call phys_getopts(do_clubb_sgs_out  = do_clubb_sgs )
 
     call physics_type_alloc(phys_state, phys_tend, begchunk, endchunk, pcols)
 
@@ -804,14 +806,15 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
 
     call convect_shallow_init(pref_edge)
 
-    call cldfrc_init
+    call cldfrc_init()
+    call cldfrc2m_init()
 
     call convect_deep_init(pref_edge)
 
     if( microp_scheme == 'RK' ) then
        call stratiform_init()
     elseif( microp_scheme == 'MG' ) then 
-       if (.not. do_clubb_sgs) call macrop_driver_init()
+       if (.not. do_clubb_sgs) call macrop_driver_init(pbuf2d)
        call microp_aero_init()
        call microp_driver_init(pbuf2d)
        call conv_water_init
@@ -1249,7 +1252,6 @@ subroutine tphysac (ztodt,   cam_in,  &
          physics_dme_adjust, set_dry_to_wet, physics_state_check
     use majorsp_diffusion,  only: mspd_intr  ! WACCM-X major diffusion
     use ionosphere,         only: ionos_intr ! WACCM-X ionosphere
-    use phys_control,       only: phys_getopts
     use tracers,            only: tracers_timestep_tend
     use aoa_tracers,        only: aoa_tracers_timestep_tend
     use physconst,          only: rhoh2o, latvap,latice
@@ -1269,10 +1271,7 @@ subroutine tphysac (ztodt,   cam_in,  &
     use iondrag,            only: iondrag_calc, do_waccm_ions
     use clubb_intr,         only: clubb_surface
     use perf_mod
-    use phys_control,       only: phys_do_flux_avg, waccmx_is
     use flux_avg,           only: flux_avg_run
-
-    implicit none
 
     !
     ! Arguments
@@ -1328,10 +1327,6 @@ subroutine tphysac (ztodt,   cam_in,  &
     real(r8), pointer, dimension(:,:) :: dtcore
     real(r8), pointer, dimension(:,:) :: ast     ! relative humidity cloud fraction 
 
-    logical :: do_clubb_sgs 
-
-    ! Debug physics_state.
-    logical :: state_debug_checks
     !
     !-----------------------------------------------------------------------
     !
@@ -1340,9 +1335,6 @@ subroutine tphysac (ztodt,   cam_in,  &
 
     nstep = get_nstep()
     
-    call phys_getopts( do_clubb_sgs_out       = do_clubb_sgs, &
-                       state_debug_checks_out = state_debug_checks)
-
     ! Adjust the surface fluxes to reduce instabilities in near sfc layer
     if (phys_do_flux_avg()) then 
        call flux_avg_run(state, cam_in,  pbuf, nstep, ztodt)
@@ -1639,12 +1631,11 @@ subroutine tphysbc (ztodt,               &
     use shr_kind_mod,    only: r8 => shr_kind_r8
 
     use stratiform,      only: stratiform_tend
-    use phys_control,    only: phys_getopts
     use microp_driver,   only: microp_driver_tend
     use microp_aero,     only: microp_aero_run
     use macrop_driver,   only: macrop_driver_tend
     use physics_types,   only: physics_state, physics_tend, physics_ptend, physics_update, &
-         physics_ptend_init, physics_ptend_sum, physics_state_check
+         physics_ptend_init, physics_ptend_sum, physics_state_check, physics_ptend_scale
     use cam_diagnostics, only: diag_conv_tend_ini, diag_phys_writeout, diag_conv, diag_export, diag_state_b4_phys_write
     use cam_history,     only: outfld
     use physconst,       only: cpair, latvap
@@ -1723,6 +1714,9 @@ subroutine tphysbc (ztodt,               &
 
     integer  i,k,m                             ! Longitude, level, constituent indices
     integer :: ixcldice, ixcldliq              ! constituent indices for cloud liquid and ice water.
+    ! for macro/micro co-substepping
+    integer :: macmic_it                       ! iteration variables
+    real(r8) :: cld_macmic_ztodt               ! modified timestep
 
     ! physics buffer fields to compute tendencies for stratiform package
     integer itim_old, ifld
@@ -1759,6 +1753,12 @@ subroutine tphysbc (ztodt,               &
     real(r8),pointer :: prec_sed(:)     ! total precip from cloud sedimentation
     real(r8),pointer :: snow_sed(:)     ! snow from cloud ice sedimentation
 
+    ! Local copies for substepping
+    real(r8) :: prec_pcw_macmic(pcols)
+    real(r8) :: snow_pcw_macmic(pcols)
+    real(r8) :: prec_sed_macmic(pcols)
+    real(r8) :: snow_sed_macmic(pcols)
+
     ! energy checking variables
     real(r8) :: zero(pcols)                    ! array of zeros
     real(r8) :: zero_sc(pcols*psubcols)        ! array of zeros
@@ -1772,20 +1772,7 @@ subroutine tphysbc (ztodt,               &
     real(r8) :: zero_tracers(pcols,pcnst)
 
     logical   :: lq(pcnst)
-    logical   :: use_subcol_microp             ! if true, use subcolumns in microphysics
 
-    !  pass macro to micro
-    character(len=16) :: microp_scheme 
-    character(len=16) :: macrop_scheme
-
-    ! Debug physics_state.
-    logical :: state_debug_checks
-
-    call phys_getopts( microp_scheme_out      = microp_scheme, &
-                       macrop_scheme_out      = macrop_scheme, &
-                       use_subcol_microp_out  = use_subcol_microp, &
-                       state_debug_checks_out = state_debug_checks)
-    
     !-----------------------------------------------------------------------
     call t_startf('bc_init')
 
@@ -1944,6 +1931,8 @@ subroutine tphysbc (ztodt,               &
     call pbuf_get_field(pbuf, snow_str_idx, snow_str)
     call pbuf_get_field(pbuf, prec_sed_idx, prec_sed)
     call pbuf_get_field(pbuf, snow_sed_idx, snow_sed)
+    call pbuf_get_field(pbuf, prec_pcw_idx, prec_pcw )
+    call pbuf_get_field(pbuf, snow_pcw_idx, snow_pcw )
 
     if (use_subcol_microp) then
       call pbuf_get_field(pbuf, prec_str_idx, prec_str_sc, col_type=col_type_subcol)
@@ -2028,107 +2017,179 @@ subroutine tphysbc (ztodt,               &
        call t_stopf('stratiform_tend')
 
     elseif( microp_scheme == 'MG' ) then
+       ! Start co-substepping of macrophysics and microphysics
+       cld_macmic_ztodt = ztodt/cld_macmic_num_steps
 
-       !===================================================
-       ! Calculate macrophysical tendency (sedimentation, detrain, cloud fraction)
-       !===================================================
+       ! Clear precip fields that should accumulate.
+       prec_sed_macmic = 0._r8
+       snow_sed_macmic = 0._r8
+       prec_pcw_macmic = 0._r8
+       snow_pcw_macmic = 0._r8
 
-       call t_startf('macrop_tend')
+       do macmic_it = 1, cld_macmic_num_steps
 
-       ! don't call Park macrophysics if CLUBB is called
-       if (macrop_scheme .ne. 'CLUBB_SGS') then
+          if (micro_do_icesupersat) then 
 
-          call macrop_driver_tend(state, ptend, ztodt, &
-               cam_in%landfrac, cam_in%ocnfrac, &
-               cam_in%snowhland, & ! sediment
-               dlf, dlf2, & ! detrain
-               cmfmc,   cmfmc2, &
-               cam_in%ts,      cam_in%sst, zdu,  pbuf, &
-               det_s, det_ice)
+            !===================================================
+            ! Aerosol Activation
+            !===================================================
+            call t_startf('microp_aero_run')
+            call microp_aero_run(state, ptend, cld_macmic_ztodt, pbuf)
+            call t_stopf('microp_aero_run')
 
-          !  Since we "added" the reserved liquid back in this routine, we need 
-	  !    to account for it in the energy checker
-          flx_cnd(:ncol) = -1._r8*rliq(:ncol) 
-	  flx_heat(:ncol) = det_s(:ncol)
-          
-          call physics_update(state, ptend, ztodt, tend)
-          call check_energy_chng(state, tend, "macrop_tend", nstep, ztodt, zero, flx_cnd, det_ice, flx_heat)
+            call physics_ptend_scale(ptend, 1._r8/cld_macmic_num_steps, ncol)
+
+            call physics_update(state, ptend, ztodt, tend)
+            call check_energy_chng(state, tend, "mp_aero_tend", nstep, ztodt, zero, zero, zero, zero)      
+
+          endif
+          !===================================================
+          ! Calculate macrophysical tendency (sedimentation, detrain, cloud fraction)
+          !===================================================
+
+          call t_startf('macrop_tend')
+
+          ! don't call Park macrophysics if CLUBB is called
+          if (macrop_scheme .ne. 'CLUBB_SGS') then
+
+             call macrop_driver_tend( &
+                  state,           ptend,          cld_macmic_ztodt, &
+                  cam_in%landfrac, cam_in%ocnfrac, cam_in%snowhland, & ! sediment
+                  dlf,             dlf2,                             & ! detrain
+                  cmfmc,           cmfmc2,                           &
+                  cam_in%ts,       cam_in%sst,     zdu,              &
+                  pbuf,            det_s,          det_ice)
+
+             !  Since we "added" the reserved liquid back in this routine, we need 
+             !    to account for it in the energy checker
+             flx_cnd(:ncol) = -1._r8*rliq(:ncol) 
+             flx_heat(:ncol) = det_s(:ncol)
+
+             ! Unfortunately, physics_update does not know what time period
+             ! "tend" is supposed to cover, and therefore can't update it
+             ! with substeps correctly. For now, work around this by scaling
+             ! ptend down by the number of substeps, then applying it for
+             ! the full time (ztodt).
+             call physics_ptend_scale(ptend, 1._r8/cld_macmic_num_steps, ncol)          
+             call physics_update(state, ptend, ztodt, tend)
+             call check_energy_chng(state, tend, "macrop_tend", nstep, ztodt, &
+                  zero, flx_cnd/cld_macmic_num_steps, &
+                  det_ice/cld_macmic_num_steps, flx_heat/cld_macmic_num_steps)
        
-       else ! Calculate CLUBB macrophysics
+          else ! Calculate CLUBB macrophysics
 
-          ! =====================================================
-          !    CLUBB call (PBL, shallow convection, macrophysics)
-          ! =====================================================  
+             ! =====================================================
+             !    CLUBB call (PBL, shallow convection, macrophysics)
+             ! =====================================================  
    
-          call clubb_tend_cam(state,ptend,pbuf,1.0_r8*ztodt,&
-             cmfmc, cmfmc2, cam_in, sgh30, dlf, det_s, det_ice)
+             call clubb_tend_cam(state,ptend,pbuf,cld_macmic_ztodt,&
+                cmfmc, cmfmc2, cam_in, sgh30, macmic_it, cld_macmic_num_steps, & 
+                dlf, det_s, det_ice)
 
-          !  Since we "added" the reserved liquid back in this routine, we need 
-	  !    to account for it in the energy checker
-          flx_cnd(:ncol) = -1._r8*rliq(:ncol) 
-	  flx_heat(:ncol) = cam_in%shf(:ncol) + det_s(:ncol)
+                !  Since we "added" the reserved liquid back in this routine, we need 
+                !    to account for it in the energy checker
+                flx_cnd(:ncol) = -1._r8*rliq(:ncol) 
+                flx_heat(:ncol) = cam_in%shf(:ncol) + det_s(:ncol)
 
-          !    Update physics tendencies and copy state to state_eq, because that is 
-          !      input for microphysics              
-          call physics_update(state, ptend, ztodt, tend)
-          call check_energy_chng(state, tend, "clubb_tend", nstep, ztodt, cam_in%lhf/latvap, flx_cnd, det_ice, flx_heat)
+                ! Unfortunately, physics_update does not know what time period
+                ! "tend" is supposed to cover, and therefore can't update it
+                ! with substeps correctly. For now, work around this by scaling
+                ! ptend down by the number of substeps, then applying it for
+                ! the full time (ztodt).
+                call physics_ptend_scale(ptend, 1._r8/cld_macmic_num_steps, ncol)
+                !    Update physics tendencies and copy state to state_eq, because that is 
+                !      input for microphysics              
+                call physics_update(state, ptend, ztodt, tend)
+                call check_energy_chng(state, tend, "clubb_tend", nstep, ztodt, &
+                     cam_in%lhf/latvap/cld_macmic_num_steps, flx_cnd/cld_macmic_num_steps, &
+                     det_ice/cld_macmic_num_steps, flx_heat/cld_macmic_num_steps)
  
-       endif 
+          endif
 
-       call t_stopf('macrop_tend') 
+          call t_stopf('macrop_tend')
 
-       !===================================================
-       ! Calculate cloud microphysics 
-       !===================================================
+          !===================================================
+          ! Calculate cloud microphysics 
+          !===================================================
 
-       if (is_subcol_on()) then
-          ! Allocate sub-column structures. 
-          call physics_state_alloc(state_sc, lchnk, psubcols*pcols)
-          call physics_tend_alloc(tend_sc, psubcols*pcols)
+          if (is_subcol_on()) then
+             ! Allocate sub-column structures. 
+             call physics_state_alloc(state_sc, lchnk, psubcols*pcols)
+             call physics_tend_alloc(tend_sc, psubcols*pcols)
 
-          ! Generate sub-columns using the requested scheme
-          call subcol_gen(state, tend, state_sc, tend_sc, pbuf)
+             ! Generate sub-columns using the requested scheme
+             call subcol_gen(state, tend, state_sc, tend_sc, pbuf)
 
-          !Initialize check energy for subcolumns
-           call check_energy_timestep_init(state_sc, tend_sc, pbuf, col_type_subcol)
-       end if
+             !Initialize check energy for subcolumns
+             call check_energy_timestep_init(state_sc, tend_sc, pbuf, col_type_subcol)
+          end if
 
-       call t_startf('microp_aero_run')
-       call microp_aero_run(state, ptend_aero, ztodt, pbuf)
-       call t_stopf('microp_aero_run')
+          if (.not. micro_do_icesupersat) then 
 
-       call t_startf('microp_tend')
+            call t_startf('microp_aero_run')
+            call microp_aero_run(state, ptend_aero, cld_macmic_ztodt, pbuf)
+            call t_stopf('microp_aero_run')
 
-       if (use_subcol_microp) then
+          endif
 
-          call microp_driver_tend(state_sc, ptend_sc, ztodt, pbuf)
+          call t_startf('microp_tend')
 
-          ! Average the sub-column ptend for use in gridded update - will not contain ptend_aero
-          call subcol_ptend_avg(ptend_sc, state_sc%ngrdcol, lchnk, ptend)
-         
 
-          ! Copy ptend_aero field to one dimensioned by sub-columns before summing with ptend
-          call subcol_ptend_copy(ptend_aero, state_sc, ptend_aero_sc)
-          call physics_ptend_sum(ptend_aero_sc, ptend_sc, state_sc%ncol)
+          if (use_subcol_microp) then
+             call microp_driver_tend(state_sc, ptend_sc, cld_macmic_ztodt, pbuf)
 
-          call physics_update (state_sc, ptend_sc, ztodt, tend_sc)
-          call check_energy_chng(state_sc, tend_sc, "microp_tend_subcol", nstep, ztodt, zero_sc, prec_str_sc, snow_str_sc, zero_sc)
+             ! Average the sub-column ptend for use in gridded update - will not contain ptend_aero
+             call subcol_ptend_avg(ptend_sc, state_sc%ngrdcol, lchnk, ptend)
 
-          call physics_state_dealloc(state_sc)
-          call physics_tend_dealloc(tend_sc)
-          call physics_ptend_dealloc(ptend_sc)
+             ! Copy ptend_aero field to one dimensioned by sub-columns before summing with ptend
+             call subcol_ptend_copy(ptend_aero, state_sc, ptend_aero_sc)
+             call physics_ptend_sum(ptend_aero_sc, ptend_sc, state_sc%ncol)
+             call physics_ptend_dealloc(ptend_aero_sc)
 
-       else
-          call microp_driver_tend(state, ptend, ztodt, pbuf)
-       end if
+             ! Have to scale and apply for full timestep to get tend right
+             ! (see above note for macrophysics).
+             call physics_ptend_scale(ptend_sc, 1._r8/cld_macmic_num_steps, ncol)
 
-       ! combine aero and micro tendencies for the grid
-       call physics_ptend_sum(ptend_aero, ptend, ncol)
-       call physics_update(state, ptend, ztodt, tend)
-       call check_energy_chng(state, tend, "microp_tend", nstep, ztodt, zero, prec_str, snow_str, zero)
+             call physics_update (state_sc, ptend_sc, ztodt, tend_sc)
+             call check_energy_chng(state_sc, tend_sc, "microp_tend_subcol", &
+                  nstep, ztodt, zero_sc, prec_str_sc/cld_macmic_num_steps, &
+                  snow_str_sc/cld_macmic_num_steps, zero_sc)
 
-       call physics_ptend_dealloc(ptend_aero)
-       call t_stopf('microp_tend')
+             call physics_state_dealloc(state_sc)
+             call physics_tend_dealloc(tend_sc)
+             call physics_ptend_dealloc(ptend_sc)
+          else
+             call microp_driver_tend(state, ptend, cld_macmic_ztodt, pbuf)
+          end if
+          ! combine aero and micro tendencies for the grid
+          if (.not. micro_do_icesupersat) then
+             call physics_ptend_sum(ptend_aero, ptend, ncol)
+             call physics_ptend_dealloc(ptend_aero)
+          endif
+
+          ! Have to scale and apply for full timestep to get tend right
+          ! (see above note for macrophysics).
+          call physics_ptend_scale(ptend, 1._r8/cld_macmic_num_steps, ncol)
+
+          call physics_update (state, ptend, ztodt, tend)
+          call check_energy_chng(state, tend, "microp_tend", nstep, ztodt, &
+               zero, prec_str/cld_macmic_num_steps, &
+               snow_str/cld_macmic_num_steps, zero)
+
+          call t_stopf('microp_tend')
+          prec_sed_macmic(:ncol) = prec_sed_macmic(:ncol) + prec_sed(:ncol)
+          snow_sed_macmic(:ncol) = snow_sed_macmic(:ncol) + snow_sed(:ncol)
+          prec_pcw_macmic(:ncol) = prec_pcw_macmic(:ncol) + prec_pcw(:ncol)
+          snow_pcw_macmic(:ncol) = snow_pcw_macmic(:ncol) + snow_pcw(:ncol)
+
+       end do ! end substepping over macrophysics/microphysics
+
+       prec_sed(:ncol) = prec_sed_macmic(:ncol)/cld_macmic_num_steps
+       snow_sed(:ncol) = snow_sed_macmic(:ncol)/cld_macmic_num_steps
+       prec_pcw(:ncol) = prec_pcw_macmic(:ncol)/cld_macmic_num_steps
+       snow_pcw(:ncol) = snow_pcw_macmic(:ncol)/cld_macmic_num_steps
+       prec_str(:ncol) = prec_pcw(:ncol) + prec_sed(:ncol)
+       snow_str(:ncol) = snow_pcw(:ncol) + snow_sed(:ncol)
 
     endif
 

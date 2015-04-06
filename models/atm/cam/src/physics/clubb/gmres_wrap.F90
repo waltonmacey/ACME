@@ -1,5 +1,5 @@
 !----------------------------------------------------------------------------
-! $Id: gmres_wrap.F90 5623 2012-01-17 17:55:26Z connork@uwm.edu $
+! $Id: gmres_wrap.F90 6353 2013-07-05 15:14:52Z weberjk@uwm.edu $
 !==============================================================================
 
 module gmres_wrap
@@ -201,8 +201,8 @@ module gmres_wrap
     err_code = 0
 
     ! Convert our A array and rhs vector to double precision...
-    csr_dbl_a = dble(csr_a)
-    dbl_rhs = dble(rhs)
+    csr_dbl_a = real(csr_a, kind=dp)
+    dbl_rhs = real(rhs, kind=dp)
 
     ! DEBUG: Set our a_array so it represents the identity matrix, and
     ! set the RHS so we can get a meaningful answer.

@@ -26,7 +26,7 @@ use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_mode_num, rad_cnst_g
                             rad_cnst_get_aer_props, rad_cnst_get_mode_props,                &
                             rad_cnst_get_mam_mmr_idx, rad_cnst_get_mode_num_idx
 use cam_history,      only: addfld, add_default, phys_decomp, fieldname_len, outfld
-use cam_abortutils,       only: endrun
+use cam_abortutils,   only: endrun
 use cam_logfile,      only: iulog
 
 implicit none
@@ -289,7 +289,7 @@ end subroutine ndrop_init
 
 subroutine dropmixnuc( &
    state, ptend, dtmicro, pbuf, wsub, &
-   cldn, cldo, tendnd)
+   cldn, cldo, tendnd, factnum)
 
    ! vertical diffusion and nucleation of cloud droplets
    ! assume cloud presence controlled by cloud fraction
@@ -309,7 +309,7 @@ subroutine dropmixnuc( &
 
    ! output arguments
    real(r8), intent(out) :: tendnd(pcols,pver) ! change in droplet number concentration (#/kg/s)
-
+   real(r8), intent(out) :: factnum(:,:,:)     ! activation fraction for aerosol number
    !--------------------Local storage-------------------------------------
 
    integer  :: lchnk               ! chunk identifier
@@ -479,7 +479,8 @@ subroutine dropmixnuc( &
       end do
    end do
 
-   wtke = 0._r8
+   factnum = 0._r8
+   wtke    = 0._r8
 
    if (prog_modal_aero) then
       ! aerosol tendencies
@@ -630,6 +631,8 @@ subroutine dropmixnuc( &
                vaerosol, hygro, fn, fm, fluxn,                      &
                fluxm,flux_fullact(k))
 
+            factnum(i,k,:) = fn
+
             dumc = (cldn_tmp - cldo_tmp)
             do m = 1, ntot_amode
                mm = mam_idx(m,0)
@@ -713,6 +716,8 @@ subroutine dropmixnuc( &
                   temp(i,k), cs(i,k), naermod, ntot_amode, &
                   vaerosol, hygro, fn, fm, fluxn,                      &
                   fluxm, flux_fullact(k))
+
+               factnum(i,k,:) = fn
 
                if (k < pver) then
                   dumc = cldn(i,k) - cldn(i,kp1)
@@ -1569,7 +1574,6 @@ subroutine maxsat(zeta,eta,nmode,smc,smax)
       if(eta(m).gt.1.e-20_r8)then
          g1=zeta(m)/eta(m)
          g1sqrt=sqrt(g1)
-         g1=g1sqrt*g1
          g1=g1sqrt*g1
          g2=smc(m)/sqrt(eta(m)+3._r8*zeta(m))
          g2sqrt=sqrt(g2)

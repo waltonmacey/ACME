@@ -1,5 +1,5 @@
 !-------------------------------------------------------------------------------
-! $Id: parameters_model.F90 5623 2012-01-17 17:55:26Z connork@uwm.edu $
+! $Id: parameters_model.F90 6356 2013-07-08 22:33:03Z dschanen@uwm.edu $
 !===============================================================================
 module parameters_model
 
@@ -32,8 +32,8 @@ module parameters_model
 
   ! Model parameters and constraints setup in the namelists
   real( kind = core_rknd ), public ::  & 
-    T0,       & ! Reference temperature (usually 300)  [K]
-    ts_nudge    ! Timescale of u/v nudging             [s]
+    T0 = 300._core_rknd,       & ! Reference temperature (usually 300)  [K]
+    ts_nudge = 0._core_rknd      ! Timescale of u/v nudging             [s]
 
 #ifdef GFDL
  real( kind = core_rknd ), public ::  &   ! h1g, 2010-06-15
@@ -43,10 +43,17 @@ module parameters_model
 
 
 !$omp threadprivate(T0, ts_nudge)
+
+  real( kind = core_rknd), public :: &
+    rtm_min = epsilon( rtm_min ), &             ! Value below which rtm will be nudged [kg/kg]
+    rtm_nudge_max_altitude = 10000._core_rknd ! Highest altitude at which to nudge rtm [m]
+
+!$omp threadprivate(rtm_min, rtm_nudge_max_altitude)
+
   integer, public :: & 
-    sclr_dim,        & ! Number of passive scalars
-    edsclr_dim,      & ! Number of eddy-diff. passive scalars
-    hydromet_dim       ! Number of hydrometeor species
+    sclr_dim = 0,        & ! Number of passive scalars
+    edsclr_dim = 0,      & ! Number of eddy-diff. passive scalars
+    hydromet_dim = 0       ! Number of hydrometeor species
 
 !$omp threadprivate(sclr_dim, edsclr_dim, hydromet_dim)
 

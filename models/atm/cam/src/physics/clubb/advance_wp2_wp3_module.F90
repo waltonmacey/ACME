@@ -1,5 +1,5 @@
 !------------------------------------------------------------------------
-! $Id: advance_wp2_wp3_module.F90 5623 2012-01-17 17:55:26Z connork@uwm.edu $
+! $Id: advance_wp2_wp3_module.F90 6146 2013-04-05 18:02:22Z raut@uwm.edu $
 !===============================================================================
 module advance_wp2_wp3_module
 
@@ -43,7 +43,7 @@ module advance_wp2_wp3_module
                               wpthvp, wp2thvp, um, vm, upwp, vpwp, &
                               up2, vp2, Kh_zm, Kh_zt, tau_zm, tau_zt, &
                               Skw_zm, Skw_zt, rho_ds_zm, rho_ds_zt, &
-                              invrs_rho_ds_zm, invrs_rho_ds_zt, &
+                              invrs_rho_ds_zm, invrs_rho_ds_zt, radf, &
                               thv_ds_zm, thv_ds_zt, mixt_frac, &
                               wp2, wp3, wp3_zm, wp2_zt, err_code )
 
@@ -100,6 +100,9 @@ module advance_wp2_wp3_module
         fatal_error,  & ! Procedure(s)
         clubb_at_least_debug_level
 
+    use error_code, only: &
+      clubb_var_out_of_range ! Constant(s)
+
     implicit none
 
     intrinsic :: exp
@@ -136,6 +139,7 @@ module advance_wp2_wp3_module
       rho_ds_zt,       & ! Dry, static density on thermo. levels     [kg/m^3]
       invrs_rho_ds_zm, & ! Inv. dry, static density @ momentum levs. [m^3/kg]
       invrs_rho_ds_zt, & ! Inv. dry, static density @ thermo. levs.  [m^3/kg]
+      radf,            & ! Buoyancy production at the CL top         [m^2/s^3]
       thv_ds_zm,       & ! Dry, base-state theta_v on momentum levs. [K]
       thv_ds_zt,       & ! Dry, base-state theta_v on thermo. levs.  [K]
       mixt_frac          ! Weight of 1st normal distribution         [-]
@@ -216,10 +220,6 @@ module advance_wp2_wp3_module
       C11_Skw_fnc(1:gr%nz) = C11b
     end if
 
-#ifdef CLUBB_CAM
-      C11_Skw_fnc(1:gr%nz) = 0.65_core_rknd   
-#endif
-
     ! The if..then here is only for computational efficiency -dschanen 2 Sept 08
     if ( C1 /= C1b ) then
       C1_Skw_fnc(1:gr%nz) =  & 
@@ -230,6 +230,15 @@ module advance_wp2_wp3_module
 
     !C11_Skw_fnc = C11
     !C1_Skw_fnc = C1
+
+    if ( clubb_at_least_debug_level( 2 ) ) then
+      ! Assertion check for C11_Skw_fnc
+      if ( any( C11_Skw_fnc(:) > 1._core_rknd ) .or. any( C11_Skw_fnc(:) < 0._core_rknd ) ) then
+        write(fstderr,*) "The C11_Skw_fnc is outside the valid range for this variable"
+        err_code = clubb_var_out_of_range
+        return
+      end if
+    end if
 
     if ( l_stats_samp ) then
       call stat_update_var( iC11_Skw_fnc, C11_Skw_fnc, zt )
@@ -271,7 +280,7 @@ module advance_wp2_wp3_module
                      wpthvp, wp2thvp, um, vm, upwp, vpwp,    & ! Intent(in)
                      up2, vp2, Kw1, Kw8, Kh_zt, Skw_zt, tau_zm, tauw3t,    & ! Intent(in)
                      C1_Skw_fnc, C11_Skw_fnc, rho_ds_zm, rho_ds_zt, & ! Intent(in)
-                     invrs_rho_ds_zm, invrs_rho_ds_zt, thv_ds_zm,   & ! Intent(in)
+                     invrs_rho_ds_zm, invrs_rho_ds_zt, radf, thv_ds_zm,   & ! Intent(in)
                      thv_ds_zt, nsub, nsup,                         & ! Intent(in)
                      wp2, wp3, wp3_zm, wp2_zt, wp2_wp3_err_code     ) ! Intent(inout)
 
@@ -326,7 +335,7 @@ module advance_wp2_wp3_module
                          wpthvp, wp2thvp, um, vm, upwp, vpwp, &
                          up2, vp2, Kw1, Kw8, Kh_zt, Skw_zt, tau1m, tauw3t, &
                          C1_Skw_fnc, C11_Skw_fnc, rho_ds_zm, rho_ds_zt, &
-                         invrs_rho_ds_zm, invrs_rho_ds_zt, thv_ds_zm, &
+                         invrs_rho_ds_zm, invrs_rho_ds_zt, radf, thv_ds_zm, &
                          thv_ds_zt, nsub, nsup, &
                          wp2, wp3, wp3_zm, wp2_zt, err_code )
 
@@ -421,7 +430,9 @@ module advance_wp2_wp3_module
         zmscr16, &
         zmscr17, &
         ztscr01, &
-        ztscr02, &
+        ztscr02
+
+    use stats_variables, only: &
         ztscr03, &
         ztscr04, &
         ztscr05, &
@@ -485,6 +496,7 @@ module advance_wp2_wp3_module
       rho_ds_zt,       & ! Dry, static density on thermo. levels     [kg/m^3]
       invrs_rho_ds_zm, & ! Inv. dry, static density @ momentum levs. [m^3/kg]
       invrs_rho_ds_zt, & ! Inv. dry, static density @ thermo. levs.  [m^3/kg]
+      radf,            & ! Buoyancy production at CL top             [m^2/s^3]
       thv_ds_zm,       & ! Dry, base-state theta_v on momentum levs. [K]
       thv_ds_zt          ! Dry, base-state theta_v on thermo. levs.  [K]
 
@@ -553,7 +565,7 @@ module advance_wp2_wp3_module
                    a3, a3_zt, wp3_on_wp2, wpthvp, wp2thvp, um, vm,  & 
                    upwp, vpwp, up2, vp2, Kw1, Kw8, Kh_zt,  & 
                    Skw_zt, tau1m, tauw3t, C1_Skw_fnc, &
-                   C11_Skw_fnc, rho_ds_zm, invrs_rho_ds_zt, &
+                   C11_Skw_fnc, rho_ds_zm, invrs_rho_ds_zt, radf, &
                    thv_ds_zm, thv_ds_zt, l_crank_nich_diff, &
                    rhs )
 
@@ -1106,7 +1118,9 @@ module advance_wp2_wp3_module
         zmscr16,    &
         zmscr17,    &
         ztscr01,    &
-        ztscr02,    &
+        ztscr02
+
+    use stats_variables, only: &
         ztscr03,    &
         ztscr04,    &
         ztscr05,    &
@@ -1777,7 +1791,9 @@ module advance_wp2_wp3_module
         zmscr16,    &
         zmscr17,    &
         ztscr01,    &
-        ztscr02,    &
+        ztscr02
+
+    use stats_variables, only: &
         ztscr03,    &
         ztscr04,    &
         ztscr05,    &
@@ -2473,7 +2489,7 @@ module advance_wp2_wp3_module
                        a3, a3_zt, wp3_on_wp2, wpthvp, wp2thvp, um, vm,  & 
                        upwp, vpwp, up2, vp2, Kw1, Kw8, Kh_zt, & 
                        Skw_zt, tau1m, tauw3t, C1_Skw_fnc, &
-                       C11_Skw_fnc, rho_ds_zm, invrs_rho_ds_zt, &
+                       C11_Skw_fnc, rho_ds_zm, invrs_rho_ds_zt, radf, &
                        thv_ds_zm, thv_ds_zt, l_crank_nich_diff, &
                        rhs )
 
@@ -2567,6 +2583,7 @@ module advance_wp2_wp3_module
       C11_Skw_fnc,     & ! C_11 parameter with Sk_w applied          [-]
       rho_ds_zm,       & ! Dry, static density on momentum levels    [kg/m^3]
       invrs_rho_ds_zt, & ! Inv. dry, static density @ thermo. levs.  [m^3/kg]
+      radf,            & ! Buoyancy production at the CL top         [m^2/s^3]
       thv_ds_zm,       & ! Dry, base-state theta_v on momentum levs. [K]
       thv_ds_zt          ! Dry, base-state theta_v on thermo. levs.  [K]
 
@@ -2636,6 +2653,9 @@ module advance_wp2_wp3_module
       rhs(k_wp2) & 
       = rhs(k_wp2) & 
       + wp2_terms_bp_pr2_rhs( C5, thv_ds_zm(k), wpthvp(k) )
+
+      ! RHS buoyancy production at CL top due to LW radiative cooling
+      rhs(k_wp2) = rhs(k_wp2) + radf(k) 
 
       ! RHS pressure term 3 (pr3).
       rhs(k_wp2) & 

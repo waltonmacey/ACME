@@ -1,4 +1,4 @@
-! $Id: pdf_closure_module.F90 5623 2012-01-17 17:55:26Z connork@uwm.edu $
+! $Id: pdf_closure_module.F90 6618 2013-11-28 01:45:30Z janhft@uwm.edu $
 module pdf_closure_module
 
   implicit none
@@ -9,6 +9,14 @@ module pdf_closure_module
 
   contains
 !------------------------------------------------------------------------
+
+  !#######################################################################
+  !#######################################################################
+  ! If you change the argument list of pdf_closure you also have to 
+  ! change the calls to this function in the host models CAM, WRF, SAM 
+  ! and GFDL.
+  !#######################################################################
+  !#######################################################################
   subroutine pdf_closure &
              ( p_in_Pa, exner, thv_ds, wm,       &
                wp2, wp3, sigma_sqd_w,            &
@@ -18,20 +26,18 @@ module pdf_closure_module
                wpsclrp, sclrp2, sclrprtp,        &
                sclrpthlp, level,                 &
 #ifdef GFDL
-               RH_crit,                          &  ! h1g, 2010-06-15
+               RH_crit,  do_liquid_only_in_clubb,&  ! h1g, 2010-06-15
 #endif
                wp4, wprtp2, wp2rtp,              &
                wpthlp2, wp2thlp, wprtpthlp,      &
-               cloud_frac, rcm, wpthvp,          &
-               wp2thvp, rtpthvp, thlpthvp,       &
-               wprcp, wp2rcp, rtprcp,            &
+               cloud_frac, ice_supersat_frac,    &
+               rcm, wpthvp, wp2thvp, rtpthvp,    &
+               thlpthvp, wprcp, wp2rcp, rtprcp,  &
                thlprcp, rcp2, pdf_params,        &
                err_code,                         &
                wpsclrprtp, wpsclrp2, sclrpthvp,  &
                wpsclrpthlp, sclrprcp, wp2sclrp,  &
-               sptp_mellor_1, sptp_mellor_2,     &
-               tp2_mellor_1, tp2_mellor_2,       &
-               corr_st_mellor1, corr_st_mellor2  )
+               rc_coef                           )
 
 
 ! Description:
@@ -55,6 +61,8 @@ module pdf_closure_module
       sqrt_2pi,      & ! sqrt(2*pi)
       sqrt_2,        & ! sqrt(2)
       pi,            & ! The ratio of radii to their circumference
+      two,           & ! 2
+      zero,          & ! 0
       Cp,            & ! Dry air specific heat at constant p [J/kg/K]
       Lv,            & ! Latent heat of vaporization         [J/kg]
       Rd,            & ! Dry air gas constant                [J/kg/K]
@@ -66,6 +74,7 @@ module pdf_closure_module
       rt_tol,        & ! Tolerance for r_t                   [kg/kg]
       thl_tol,       & ! Tolerance for th_l                  [K]
       s_mellor_tol,  & ! Tolerance for pdf parameter s       [kg/kg]
+      T_freeze_K,    & ! Freezing point of water             [K]
       fstderr,       &
       zero_threshold
 
@@ -89,20 +98,15 @@ module pdf_closure_module
       pdf_closure_check ! Procedure(s)
 
     use saturation, only:  & 
-      sat_mixrat_liq ! Procedure(s)
+      sat_mixrat_liq, & ! Procedure(s)
+      sat_mixrat_ice
 
-#ifdef GFDL
-    ! including ice clouds
-    use saturation, only:  & ! h1g, 2010-06-15
-       sat_mixrat_ice
-#endif
+    use error_code, only: & 
+      clubb_no_error ! Constant(s)
 
     use error_code, only:  & 
-      clubb_var_equals_NaN,  & ! Constant(s)
-      clubb_no_error
-
-    use error_code, only:  & 
-      clubb_at_least_debug_level ! Procedure(s)
+      clubb_at_least_debug_level, & ! Procedure(s)
+      fatal_error
 
     use stats_variables, only: &
       iwp4,       & ! Variables
@@ -110,14 +114,6 @@ module pdf_closure_module
       iwprtp2,    &
       iwprtpthlp, &
       iwpthlp2
-
-    use stats_variables, only: &
-      itp2_mellor_1, &
-      itp2_mellor_2, &
-      isptp_mellor_1, &
-      isptp_mellor_2, &
-      icorr_st_mellor1, &
-      icorr_st_mellor2
 
     use clubb_precision, only: &
       core_rknd ! Variable(s)
@@ -155,6 +151,9 @@ module pdf_closure_module
     ! critial relative humidity for nucleation
     real( kind = core_rknd ), dimension( min(1,sclr_dim), 2 ), intent(in) ::  & ! h1g, 2010-06-15
        RH_crit     ! critical relative humidity for droplet and ice nucleation
+! ---> h1g, 2012-06-14
+    logical, intent(in)                 ::  do_liquid_only_in_clubb
+! <--- h1g, 2012-06-14
 #endif
 
     integer, intent(in) ::  &
@@ -163,30 +162,24 @@ module pdf_closure_module
     ! Output Variables
 
     real( kind = core_rknd ), intent(out) ::  & 
-      wp4,         & ! w'^4                  [m^4/s^4]
-      wprtp2,      & ! w' r_t'               [(m kg)/(s kg)]
-      wp2rtp,      & ! w'^2 r_t'             [(m^2 kg)/(s^2 kg)]
-      wpthlp2,     & ! w' th_l'^2            [(m K^2)/s]
-      wp2thlp,     & ! w'^2 th_l'            [(m^2 K)/s^2]
-      cloud_frac,  & ! Cloud fraction        [-]
-      rcm,         & ! Mean liquid water     [kg/kg]
-      wpthvp,      & ! Buoyancy flux         [(K m)/s] 
-      wp2thvp,     & ! w'^2 th_v'            [(m^2 K)/s^2]
-      rtpthvp,     & ! r_t' th_v'            [(kg K)/kg]
-      thlpthvp,    & ! th_l' th_v'           [K^2]
-      wprcp,       & ! w' r_c'               [(m kg)/(s kg)]
-      wp2rcp,      & ! w'^2 r_c'             [(m^2 kg)/(s^2 kg)]
-      rtprcp,      & ! r_t' r_c'             [(kg^2)/(kg^2)]
-      thlprcp,     & ! th_l' r_c'            [(K kg)/kg]
-      rcp2,        & ! r_c'^2                [(kg^2)/(kg^2)]
-      wprtpthlp      ! w' r_t' th_l'         [(m kg K)/(s kg)]
-
-    ! Some variables for when we're computing the correlation or covariance of
-    ! s and t for diagnostic purposes
-    real( kind = core_rknd ), optional, intent(out) ::  & 
-      sptp_mellor_1, sptp_mellor_2, &      ! Covariance of s and t  [kg^2/kg^2]
-      tp2_mellor_1, tp2_mellor_2, &        ! Variance of t          [kg^2/kg^2]
-      corr_st_mellor1, corr_st_mellor2 ! Correlation of s and t [-]
+      wp4,                & ! w'^4                  [m^4/s^4]
+      wprtp2,             & ! w' r_t'               [(m kg)/(s kg)]
+      wp2rtp,             & ! w'^2 r_t'             [(m^2 kg)/(s^2 kg)]
+      wpthlp2,            & ! w' th_l'^2            [(m K^2)/s]
+      wp2thlp,            & ! w'^2 th_l'            [(m^2 K)/s^2]
+      cloud_frac,         & ! Cloud fraction        [-]
+      ice_supersat_frac,  & ! Ice cloud fracion     [-]
+      rcm,                & ! Mean liquid water     [kg/kg]
+      wpthvp,             & ! Buoyancy flux         [(K m)/s] 
+      wp2thvp,            & ! w'^2 th_v'            [(m^2 K)/s^2]
+      rtpthvp,            & ! r_t' th_v'            [(kg K)/kg]
+      thlpthvp,           & ! th_l' th_v'           [K^2]
+      wprcp,              & ! w' r_c'               [(m kg)/(s kg)]
+      wp2rcp,             & ! w'^2 r_c'             [(m^2 kg)/(s^2 kg)]
+      rtprcp,             & ! r_t' r_c'             [(kg^2)/(kg^2)]
+      thlprcp,            & ! th_l' r_c'            [(K kg)/kg]
+      rcp2,               & ! r_c'^2                [(kg^2)/(kg^2)]
+      wprtpthlp             ! w' r_t' th_l'         [(m kg K)/(s kg)]
 
     type(pdf_parameter), intent(out) :: & 
       pdf_params     ! pdf paramters         [units vary]
@@ -213,36 +206,44 @@ module pdf_closure_module
 
     ! Variables that are stored in derived data type pdf_params.
     real( kind = core_rknd ) ::  &
-      w1,          & ! Mean of w for 1st normal distribution                 [m/s]
-      w2,          & ! Mean of w for 2nd normal distribution                 [m/s]
-      varnce_w1,   & ! Variance of w for 1st normal distribution         [m^2/s^2]
-      varnce_w2,   & ! Variance of w for 2nd normal distribution         [m^2/s^2]
-      rt1,         & ! Mean of r_t for 1st normal distribution             [kg/kg]
-      rt2,         & ! Mean of r_t for 2nd normal distribution             [kg/kg]
-      varnce_rt1,  & ! Variance of r_t for 1st normal distribution     [kg^2/kg^2]
-      varnce_rt2,  & ! Variance of r_t for 2nd normal distribution     [kg^2/kg^2]
-      crt1,        & ! Coefficient for s'                                      [-]
-      crt2,        & ! Coefficient for s'                                      [-]
-      cthl1,       & ! Coefficient for s'                                    [1/K]
-      cthl2,       & ! Coefficient for s'                                    [1/K]
-      thl1,        & ! Mean of th_l for 1st normal distribution                [K]
-      thl2,        & ! Mean of th_l for 2nd normal distribution                [K]
-      varnce_thl1, & ! Variance of th_l for 1st normal distribution          [K^2]
-      varnce_thl2, & ! Variance of th_l for 2nd normal distribution          [K^2]
-      mixt_frac,   & ! Weight of 1st normal distribution (Sk_w dependent)      [-]
-      rc1,         & ! Mean of r_c for 1st normal distribution             [kg/kg]
-      rc2,         & ! Mean of r_c for 2nd normal distribution             [kg/kg]
-      rsl1,        & ! Mean of r_sl for 1st normal distribution            [kg/kg]
-      rsl2,        & ! Mean of r_sl for 2nd normal distribution            [kg/kg]
-      cloud_frac1, & ! Cloud fraction for 1st normal distribution              [-]
-      cloud_frac2, & ! Cloud fraction for 2nd normal distribution              [-]
-      s1,          & ! Mean of s for 1st normal distribution               [kg/kg]
-      s2,          & ! Mean of s for 2nd normal distribution               [kg/kg]
-      stdev_s1,    & ! Standard deviation of s for 1st normal distribution [kg/kg]
-      stdev_s2,    & ! Standard deviation of s for 2nd normal distribution [kg/kg]
-      rrtthl,      & ! Within-a-normal (sub-plume) correlation of r_t and th_l [-]
-      alpha_thl,   & ! Factor relating to normalized variance for th_l         [-]
-      alpha_rt       ! Factor relating to normalized variance for r_t          [-]
+      w1,          & ! Mean of w (1st PDF component)                       [m/s]
+      w2,          & ! Mean of w (2nd PDF component)                       [m/s]
+      varnce_w1,   & ! Variance of w (1st PDF component)               [m^2/s^2]
+      varnce_w2,   & ! Variance of w (2nd PDF component)               [m^2/s^2]
+      rt1,         & ! Mean of r_t (1st PDF component)                   [kg/kg]
+      rt2,         & ! Mean of r_t (2nd PDF component)                   [kg/kg]
+      varnce_rt1,  & ! Variance of r_t (1st PDF component)           [kg^2/kg^2]
+      varnce_rt2,  & ! Variance of r_t (2nd PDF component)           [kg^2/kg^2]
+      thl1,        & ! Mean of th_l (1st PDF component)                      [K]
+      thl2,        & ! Mean of th_l (2nd PDF component)                      [K]
+      varnce_thl1, & ! Variance of th_l (1st PDF component)                [K^2]
+      varnce_thl2, & ! Variance of th_l (2nd PDF component)                [K^2]
+      rrtthl,      & ! Correlation between r_t and th_l (both components)    [-]
+      alpha_thl,   & ! Factor relating to normalized variance for th_l       [-]
+      alpha_rt,    & ! Factor relating to normalized variance for r_t        [-]
+      crt1,        & ! Coef. on r_t in s/t eqns. (1st PDF comp.)             [-]
+      crt2,        & ! Coef. on r_t in s/t eqns. (2nd PDF comp.)             [-]
+      cthl1,       & ! Coef. on th_l in s/t eqns. (1st PDF comp.)    [(kg/kg)/K]
+      cthl2          ! Coef. on th_l in s/t eqns. (2nd PDF comp.)    [(kg/kg)/K]
+
+    real( kind = core_rknd ) :: &
+      s1,          & ! Mean of s (1st PDF component)                     [kg/kg]
+      s2,          & ! Mean of s (2nd PDF component)                     [kg/kg]
+      stdev_s1,    & ! Standard deviation of s (1st PDF component)       [kg/kg]
+      stdev_s2,    & ! Standard deviation of s (2nd PDF component)       [kg/kg]
+      stdev_t1,    & ! Standard deviation of t (1st PDF component)       [kg/kg]
+      stdev_t2,    & ! Standard deviation of t (2nd PDF component)       [kg/kg]
+      covar_st_1,  & ! Covariance of s and t (1st PDF component)     [kg^2/kg^2]
+      covar_st_2,  & ! Covariance of s and t (2nd PDF component)     [kg^2/kg^2]
+      corr_st_1,   & ! Correlation between s and t (1st PDF component)       [-]
+      corr_st_2,   & ! Correlation between s and t (2nd PDF component)       [-]
+      rsl1,        & ! Mean of r_sl (1st PDF component)                  [kg/kg]
+      rsl2,        & ! Mean of r_sl (2nd PDF component)                  [kg/kg]
+      rc1,         & ! Mean of r_c (1st PDF component)                   [kg/kg]
+      rc2,         & ! Mean of r_c (2nd PDF component)                   [kg/kg]
+      cloud_frac1, & ! Cloud fraction (1st PDF component)                    [-]
+      cloud_frac2, & ! Cloud fraction (2nd PDF component)                    [-]
+      mixt_frac      ! Weight of 1st PDF component (Sk_w dependent)          [-]
 
     ! Note:  alpha coefficients = 0.5 * ( 1 - correlations^2 ).
     !        These are used to calculate the scalar widths
@@ -259,28 +260,42 @@ module pdf_closure_module
 !     sclr1_n, sclr2_n,
 
     logical :: &
-      l_scalar_calc, & ! True if sclr_dim > 0
-      l_corr_calc      ! True if the diagnostic correlation and covariance variables are present
+      l_scalar_calc, &  ! True if sclr_dim > 0
+      l_calc_ice_supersat_frac ! True if we should calculate ice_supersat_frac
 
     ! Quantities needed to predict higher order moments
     real( kind = core_rknd ) ::  & 
       tl1, tl2,  & 
-      beta1, beta2,  & 
-      zeta1, zeta2
+      beta1, beta2
 
     real( kind = core_rknd ) :: sqrt_wp2
 
     ! Thermodynamic quantity
 
-    real( kind = core_rknd ) :: rc_coef
+    real( kind = core_rknd ), intent(out) :: rc_coef
 
     ! variables for a generalization of Chris Golaz' closure
     ! varies width of plumes in theta_l, rt
     real( kind = core_rknd ) :: width_factor_1, width_factor_2
-
-    real( kind = core_rknd ) :: stdev_s_times_stdev_t
+    
+    ! variables for computing ice cloud fraction
+    real( kind = core_rknd) :: &
+      ice_supersat_frac1, & ! first  pdf component of ice_supersat_frac
+      ice_supersat_frac2, & ! second pdf component of ice_supersat_frac
+      rt_at_ice_sat1, rt_at_ice_sat2, &
+      s_at_ice_sat1, s_at_ice_sat2
+      
+    
+    real( kind = core_rknd ), parameter :: &
+      s_at_liq_sat  = 0.0_core_rknd    ! Always zero
 
     integer :: i   ! Index
+
+#ifdef GFDL
+    real ( kind = core_rknd ), parameter :: t1_combined = 273.16, &
+                                            t2_combined = 268.16, &
+                                            t3_combined = 238.16 
+#endif
 
 !------------------------ Code Begins ----------------------------------
 
@@ -290,14 +305,6 @@ module pdf_closure_module
       l_scalar_calc = .true.
     else
       l_scalar_calc = .false.
-    end if
-
-    if ( present( sptp_mellor_1 ) .and. present( sptp_mellor_2 ) .and. &
-         present( tp2_mellor_1 ) .and.  present( tp2_mellor_2 ) .and. &
-         present( corr_st_mellor1 ) .and. present( corr_st_mellor2 ) )then
-      l_corr_calc = .true.
-    else
-      l_corr_calc = .false.
     end if
 
     err_code = clubb_no_error ! Initialize to the value for no errors
@@ -626,31 +633,35 @@ module pdf_closure_module
     tl2  = thl2*exner
 
 #ifdef GFDL
-    if( sclr_dim > 0 ) then ! h1g, 2010-06-16 begin mod
+    if( sclr_dim > 0  .and.  (.not. do_liquid_only_in_clubb) ) then ! h1g, 2010-06-16 begin mod
 
-      if( tl1 > 250.0_core_rknd) then
+      if( tl1 > t1_combined ) then
         rsl1 = sat_mixrat_liq( p_in_Pa, tl1 )
+      elseif( tl1 > t2_combined )  then
+        rsl1 = sat_mixrat_liq( p_in_Pa, tl1 ) * (tl1 - t2_combined)/(t1_combined - t2_combined) &
+             + sat_mixrat_ice( p_in_Pa, tl1 ) * (t1_combined - tl1)/(t1_combined - t2_combined)
+      elseif( tl1 > t3_combined )  then
+        rsl1 = sat_mixrat_ice( p_in_Pa, tl1 ) &
+             + sat_mixrat_ice( p_in_Pa, tl1 ) * (RH_crit(1, 1) -1._core_rknd ) &
+               * ( t2_combined -tl1)/(t2_combined - t3_combined)
       else
-        rsl1 = sat_mixrat_ice( p_in_Pa, tl1 )
-        if( tl1 > 238.15_core_rknd)  then
-          rsl1 = 1.2_core_rknd * rsl1
-        else
-          rsl1 = RH_crit(1, 1) * rsl1
-        endif
+        rsl1 = sat_mixrat_ice( p_in_Pa, tl1 ) * RH_crit(1, 1)
       endif
 
-      if( tl2 > 250.0_core_rknd) then
+      if( tl2 > t1_combined ) then
         rsl2 = sat_mixrat_liq( p_in_Pa, tl2 )
+      elseif( tl2 > t2_combined )  then
+        rsl2 = sat_mixrat_liq( p_in_Pa, tl2 ) * (tl2 - t2_combined)/(t1_combined - t2_combined) &
+             + sat_mixrat_ice( p_in_Pa, tl2 ) * (t1_combined - tl2)/(t1_combined - t2_combined)
+      elseif( tl2 > t3_combined )  then
+        rsl2 = sat_mixrat_ice( p_in_Pa, tl2 ) &
+             + sat_mixrat_ice( p_in_Pa, tl2 )* (RH_crit(1, 2) -1._core_rknd) &
+               * ( t2_combined -tl2)/(t2_combined - t3_combined)
       else
-        rsl2 = sat_mixrat_ice( p_in_Pa, tl2 )
-        if( tl2 > 238.15_core_rknd)  then
-          rsl2 = 1.2_core_rknd * rsl2
-        else
-          rsl2 = RH_crit(1, 2)* rsl2
-        endif
+        rsl2 = sat_mixrat_ice( p_in_Pa, tl2 ) * RH_crit(1, 2)
       endif
 
-    else !sclr_dim <= 0
+    else !sclr_dim <= 0  or  do_liquid_only_in_clubb = .T.
       rsl1 = sat_mixrat_liq( p_in_Pa, tl1 )
       rsl2 = sat_mixrat_liq( p_in_Pa, tl2 )
 
@@ -682,57 +693,102 @@ module pdf_closure_module
     cthl2 = ( (1._core_rknd + beta2 * rt2) / ( 1._core_rknd + beta2*rsl2 )**2 ) & 
              * ( Cp/Lv ) * beta2 * rsl2 * exner
 
-    ! Standard deviation of s
-    ! include subplume correlation of qt, thl
+    ! Standard deviation of s for each component.
+    ! Include subplume correlation of qt, thl
     ! Because of round-off error,
     ! stdev_s1 (and probably stdev_s2) can become negative when rrtthl=1
     ! One could also write this as a squared term
     ! plus a postive correction; this might be a neater format
+    stdev_s1 = sqrt( max( crt1**2 * varnce_rt1  &
+                          - two * rrtthl * crt1 * cthl1  &
+                                * sqrt( varnce_rt1 * varnce_thl1 )  &
+                          + cthl1**2 * varnce_thl1,  &
+                          zero_threshold )  )
 
-    stdev_s1 = sqrt( max( zero_threshold, ( varnce_rt1*crt1**2 + varnce_thl1*cthl1**2  &
-        - 2.0_core_rknd*rrtthl*crt1*sqrt( varnce_rt1*varnce_thl1 )*cthl1 )  & 
-               ) &  ! max
-          ) ! sqrt
-    stdev_s2 = sqrt( max( zero_threshold, ( varnce_rt2*crt2**2 + varnce_thl2*cthl2**2 & 
-        - 2.0_core_rknd*rrtthl*crt2*sqrt( varnce_rt2*varnce_thl2 )*cthl2 )  & 
-               )  &  ! max
-          ) ! sqrt
+    stdev_s2 = sqrt( max( crt2**2 * varnce_rt2  &
+                          - two * rrtthl * crt2 * cthl2  &
+                                * sqrt( varnce_rt2 * varnce_thl2 )  &
+                          + cthl2**2 * varnce_thl2,  &
+                          zero_threshold )  )
 
-!   stdev_s1 = sqrt( (sqrt(varnce_rt1)*crt1 - sqrt(varnce_thl1)*cthl1)**2 &
-!                + (1.-rrtthl)*2.*crt1*sqrt(varnce_rt1)*cthl1*sqrt(varnce_thl1)  )
-!   stdev_s2 = sqrt( (sqrt(varnce_rt2)*crt2 - sqrt(varnce_thl2)*cthl2)**2 &
-!                + (1.-rrtthl)*2.*crt2*sqrt(varnce_rt2)*cthl2*sqrt(varnce_thl2)  )
+    ! Standard deviation of t for each component.
+    stdev_t1 = sqrt( max( crt1**2 * varnce_rt1  &
+                          + two * rrtthl * crt1 * cthl1  &
+                                * sqrt( varnce_rt1 * varnce_thl1 )  &
+                          + cthl1**2 * varnce_thl1,  &
+                          zero_threshold )  )
 
+    stdev_t2 = sqrt( max( crt2**2 * varnce_rt2  &
+                          + two * rrtthl * crt2 * cthl2  &
+                                * sqrt( varnce_rt2 * varnce_thl2 )  &
+                          + cthl2**2 * varnce_thl2,  &
+                          zero_threshold )  )
+
+    ! Covariance of s and t for each component.
+    covar_st_1 = crt1**2 * varnce_rt1 - cthl1**2 * varnce_thl1
+
+    covar_st_2 = crt2**2 * varnce_rt2 - cthl2**2 * varnce_thl2
+
+    ! Correlation between s and t for each component.
+    if ( stdev_s1 * stdev_t1 > zero ) then
+      corr_st_1 = covar_st_1 / ( stdev_s1 * stdev_t1 )
+    else
+      corr_st_1 = zero
+    endif
+
+    if ( stdev_s2 * stdev_t2 > zero ) then
+      corr_st_2 = covar_st_2 / ( stdev_s2 * stdev_t2 )
+    else
+      corr_st_2 = zero
+    endif
+    
+    ! Determine whether to compute ice_supersat_frac. We do not compute
+    ! ice_supersat_frac for GFDL (unless do_liquid_only_in_clubb is true),
+    ! because liquid and ice are both fed into rtm, ruining the calculation.
+#ifdef GFDL
+    if (do_liquid_only_in_clubb) then
+      l_calc_ice_supersat_frac = .true.
+    else
+      l_calc_ice_supersat_frac = .false.
+    end if
+#else
+    l_calc_ice_supersat_frac = .true.
+#endif
 
     ! We need to introduce a threshold value for the variance of s
 
-    if ( stdev_s1 > s_mellor_tol ) then
-      zeta1 = s1/stdev_s1
-      cloud_frac1  = 0.5_core_rknd*( 1._core_rknd + erf( zeta1/sqrt_2 )  )
-      rc1          = s1*cloud_frac1+stdev_s1*exp( -0.5_core_rknd*zeta1**2 )/( sqrt_2pi )
-    else
-      if ( s1 < 0.0_core_rknd ) then
-        cloud_frac1  = 0.0_core_rknd
-        rc1          = 0.0_core_rknd
-      else
-        cloud_frac1  = 1.0_core_rknd
-        rc1          = s1
-      end if ! s1 < 0
-    end if ! stdev_s1 > s_mellor_tol
+    ! Calculate cloud_frac1 and rc1
+    call calc_cloud_frac_component(s1, stdev_s1, s_at_liq_sat, cloud_frac1, rc1)
+    
+    ! Calculate cloud_frac2 and rc2
+    call calc_cloud_frac_component(s2, stdev_s2, s_at_liq_sat, cloud_frac2, rc2)
 
-    if ( stdev_s2 > s_mellor_tol ) then
-      zeta2       = s2/stdev_s2
-      cloud_frac2 = 0.5_core_rknd*( 1._core_rknd + erf( zeta2/sqrt_2 ) )
-      rc2         = s2*cloud_frac2+stdev_s2*exp( -0.5_core_rknd*zeta2**2 )/( sqrt_2pi )
-    else
-      if ( s2 < 0.0_core_rknd ) then
-        cloud_frac2  = 0.0_core_rknd
-        rc2          = 0.0_core_rknd
+    if (l_calc_ice_supersat_frac) then
+      ! We must compute s_at_ice_sat1 and s_at_ice_sat2
+      if (tl1 <= T_freeze_K) then
+        rt_at_ice_sat1 = sat_mixrat_ice( p_in_Pa, tl1 )
+        s_at_ice_sat1 = ( rt_at_ice_sat1 - rsl1 ) / ( 1._core_rknd + beta1 * rsl1 )
       else
-        cloud_frac2  = 1.0_core_rknd
-        rc2          = s2
-      end if ! s2 < 0
-    end if ! stdev_s2 > s_mellor_tol
+        ! If the temperature is warmer than freezing (> 0C) then ice_supersat_frac
+        ! is not defined, so we use s_at_liq_sat
+        s_at_ice_sat1 = s_at_liq_sat
+      end if
+
+      if (tl2 <= T_freeze_K) then
+        rt_at_ice_sat2 = sat_mixrat_ice( p_in_Pa, tl2 )
+        s_at_ice_sat2 = ( rt_at_ice_sat2 - rsl2 ) / ( 1._core_rknd + beta2 * rsl2 )
+      else
+        ! If the temperature is warmer than freezing (> 0C) then ice_supersat_frac
+        ! is not defined, so we use s_at_liq_sat
+        s_at_ice_sat2 = s_at_liq_sat
+      end if
+
+      ! Calculate ice_supersat_frac1
+      call calc_cloud_frac_component(s1, stdev_s1, s_at_ice_sat1, ice_supersat_frac1)
+      
+      ! Calculate ice_supersat_frac2
+      call calc_cloud_frac_component(s2, stdev_s2, s_at_ice_sat2, ice_supersat_frac2)
+    end if
 
     ! Compute moments that depend on theta_v
     !
@@ -798,79 +854,38 @@ module pdf_closure_module
     end if ! l_scalar_calc
 
     ! Compute mean cloud fraction and cloud water
-
-    cloud_frac = mixt_frac * cloud_frac1 + (1._core_rknd-mixt_frac) * cloud_frac2
+    cloud_frac = calc_cloud_frac(cloud_frac1, cloud_frac2, mixt_frac)
     rcm        = mixt_frac * rc1         + (1._core_rknd-mixt_frac) * rc2
-
-    ! Note: Brian added the following lines to ensure that there
-    ! are never any negative liquid water values (or any negative
-    ! cloud fraction values, for that matter).  According to
-    ! Vince Larson, the analytic formula should not produce any
-    ! negative results, but such computer-induced errors such as
-    ! round-off error may produce such a value.  This has been
-    ! corrected because Brian found a small negative value of
-    ! rcm in the first timestep of the FIRE case.
-
-    cloud_frac  = max( zero_threshold, cloud_frac )
-    if ( clubb_at_least_debug_level( 2 ) ) then
-      if ( cloud_frac > 1.0_core_rknd ) then
-        write(fstderr,*) "Cloud fraction > 1"
+    
+    rcm = max( zero_threshold, rcm )
+    
+    if (l_calc_ice_supersat_frac) then
+      ! Compute ice cloud fraction, ice_supersat_frac
+      ice_supersat_frac = calc_cloud_frac(ice_supersat_frac1, ice_supersat_frac2, mixt_frac)
+    else
+      ! ice_supersat_frac will be garbage if computed as above
+      ice_supersat_frac = 0.0_core_rknd
+      if (clubb_at_least_debug_level( 1 )) then
+         write(fstderr,*) "Warning: ice_supersat_frac has garbage values if &
+                         & do_liquid_only_in_clubb = .false."
       end if
     end if
-    cloud_frac = min( 1.0_core_rknd, cloud_frac )
-
-    rcm = max( zero_threshold, rcm )
-
     ! Compute variance of liquid water mixing ratio.
     ! This is not needed for closure.  Statistical Analysis only.
-#ifndef CLUBB_CAM  !  if CLUBB is used in CAM we want this variable computed no matter what
+
+#ifndef CLUBB_CAM
+    !  if CLUBB is used in CAM we want this variable computed no matter what
     if ( ircp2 > 0 ) then
 #endif
 
       rcp2 = mixt_frac * ( s1*rc1 + cloud_frac1*stdev_s1**2 ) &
              + ( 1._core_rknd-mixt_frac ) * ( s2*rc2 + cloud_frac2*stdev_s2**2 ) - rcm**2
       rcp2 = max( zero_threshold, rcp2 )
-#ifndef CLUBB_CAM !  if CLUBB is used in CAM we want this variable computed no matter what
+
+#ifndef CLUBB_CAM
+    !  if CLUBB is used in CAM we want this variable computed no matter what
     end if
 #endif
-
-    ! Compute some diagnostics related to the s and t variables
-    if ( l_corr_calc ) then
-      if ( icorr_st_mellor1 > 0 .or. isptp_mellor_1 > 0 .or. itp2_mellor_1 > 0 ) then
-        sptp_mellor_1 = crt1**2 * varnce_rt1 - cthl1**2 * varnce_thl1
-        tp2_mellor_1 = crt1**2 * varnce_rt1 + 2.0_core_rknd * crt1 * cthl1 &
-                       * rrtthl * sqrt( varnce_rt1 * varnce_thl1 ) &
-                     + varnce_thl1 * cthl1**2
-
-        ! We found that in some cases when rrtthl is -1 exactly the tp2_mellor_1 can be 
-        ! negative.  Therefore we clip the result here.
-        stdev_s_times_stdev_t = sqrt( max( tp2_mellor_1, zero_threshold ) ) * stdev_s1
-
-        if ( stdev_s_times_stdev_t > 0._core_rknd ) then
-          corr_st_mellor1 = sptp_mellor_1 / stdev_s_times_stdev_t
-        else
-          corr_st_mellor1 = 0._core_rknd
-        end if
-
-      end if
-
-      if ( icorr_st_mellor2 > 0 .or. isptp_mellor_2 > 0 .or. itp2_mellor_2 > 0 ) then
-        sptp_mellor_2 = crt2**2 * varnce_rt2 - cthl2**2 * varnce_thl2
-        tp2_mellor_2 = crt2**2 * varnce_rt2 + 2.0_core_rknd * crt2 * cthl2 &
-                       * rrtthl * sqrt( varnce_rt2 * varnce_thl2 ) &
-                     + varnce_thl2 * cthl2**2
-
-        ! See comment above about clipping.
-        stdev_s_times_stdev_t = sqrt( max( tp2_mellor_2, zero_threshold ) ) * stdev_s2
-
-        if ( stdev_s_times_stdev_t > 0._core_rknd ) then
-          corr_st_mellor2 = sptp_mellor_2 / stdev_s_times_stdev_t
-        else
-          corr_st_mellor2 = 0._core_rknd
-        end if
-
-      end if
-    end if ! l_corr_calc
 
 
     ! Save PDF parameters
@@ -882,28 +897,34 @@ module pdf_closure_module
     pdf_params%rt2         = rt2
     pdf_params%varnce_rt1  = varnce_rt1
     pdf_params%varnce_rt2  = varnce_rt2
-    pdf_params%crt1        = crt1
-    pdf_params%crt2        = crt2
-    pdf_params%cthl1       = cthl1
-    pdf_params%cthl2       = cthl2
     pdf_params%thl1        = thl1
     pdf_params%thl2        = thl2
     pdf_params%varnce_thl1 = varnce_thl1
     pdf_params%varnce_thl2 = varnce_thl2
-    pdf_params%mixt_frac   = mixt_frac
-    pdf_params%rc1         = rc1
-    pdf_params%rc2         = rc2
-    pdf_params%rsl1        = rsl1
-    pdf_params%rsl2        = rsl2
-    pdf_params%cloud_frac1 = cloud_frac1
-    pdf_params%cloud_frac2 = cloud_frac2
+    pdf_params%rrtthl      = rrtthl
+    pdf_params%alpha_thl   = alpha_thl
+    pdf_params%alpha_rt    = alpha_rt
+    pdf_params%crt1        = crt1
+    pdf_params%crt2        = crt2
+    pdf_params%cthl1       = cthl1
+    pdf_params%cthl2       = cthl2
     pdf_params%s1          = s1
     pdf_params%s2          = s2
     pdf_params%stdev_s1    = stdev_s1
     pdf_params%stdev_s2    = stdev_s2
-    pdf_params%rrtthl      = rrtthl
-    pdf_params%alpha_thl   = alpha_thl
-    pdf_params%alpha_rt    = alpha_rt
+    pdf_params%stdev_t1    = stdev_t1
+    pdf_params%stdev_t2    = stdev_t2
+    pdf_params%covar_st_1  = covar_st_1
+    pdf_params%covar_st_2  = covar_st_2
+    pdf_params%corr_st_1   = corr_st_1
+    pdf_params%corr_st_2   = corr_st_2
+    pdf_params%rsl1        = rsl1
+    pdf_params%rsl2        = rsl2
+    pdf_params%rc1         = rc1
+    pdf_params%rc2         = rc2
+    pdf_params%cloud_frac1 = cloud_frac1
+    pdf_params%cloud_frac2 = cloud_frac2
+    pdf_params%mixt_frac   = mixt_frac
 
 
     if ( clubb_at_least_debug_level( 2 ) ) then
@@ -921,7 +942,7 @@ module pdf_closure_module
       ! Error Reporting
       ! Joshua Fasching February 2008
 
-      if ( err_code == clubb_var_equals_NaN ) then
+      if ( fatal_error( err_code ) ) then
 
         write(fstderr,*) "Error in pdf_closure_new"
 
@@ -959,6 +980,7 @@ module pdf_closure_module
         write(fstderr,*) "wp2rtp = ", wp2rtp
         write(fstderr,*) "wpthlp2 = ", wpthlp2
         write(fstderr,*) "cloud_frac = ", cloud_frac
+        write(fstderr,*) "ice_supersat_frac = ", ice_supersat_frac
         write(fstderr,*) "rcm = ", rcm
         write(fstderr,*) "wpthvp = ", wpthvp
         write(fstderr,*) "wp2thvp = ", wp2thvp
@@ -970,10 +992,6 @@ module pdf_closure_module
         write(fstderr,*) "thlprcp = ", thlprcp
         write(fstderr,*) "rcp2 = ", rcp2
         write(fstderr,*) "wprtpthlp = ", wprtpthlp
-        write(fstderr,*) "crt1 = ", crt1
-        write(fstderr,*) "crt2 = ", crt2
-        write(fstderr,*) "cthl1 = ", cthl1
-        write(fstderr,*) "cthl2 = ", cthl2
         write(fstderr,*) "pdf_params%w1 = ", pdf_params%w1
         write(fstderr,*) "pdf_params%w2 = ", pdf_params%w2
         write(fstderr,*) "pdf_params%varnce_w1 = ", pdf_params%varnce_w1
@@ -986,20 +1004,30 @@ module pdf_closure_module
         write(fstderr,*) "pdf_params%thl2 = ", pdf_params%thl2
         write(fstderr,*) "pdf_params%varnce_thl1 = ", pdf_params%varnce_thl1
         write(fstderr,*) "pdf_params%varnce_thl2 = ", pdf_params%varnce_thl2
-        write(fstderr,*) "pdf_params%mixt_frac = ", pdf_params%mixt_frac
         write(fstderr,*) "pdf_params%rrtthl = ", pdf_params%rrtthl
-        write(fstderr,*) "pdf_params%rc1 = ", pdf_params%rc1
-        write(fstderr,*) "pdf_params%rc2 = ", pdf_params%rc2
-        write(fstderr,*) "pdf_params%rsl1 = ", pdf_params%rsl1
-        write(fstderr,*) "pdf_params%rsl2 = ", pdf_params%rsl2
-        write(fstderr,*) "pdf_params%cloud_frac1 = ", pdf_params%cloud_frac1
-        write(fstderr,*) "pdf_params%cloud_frac2 = ", pdf_params%cloud_frac2
+        write(fstderr,*) "pdf_params%alpha_thl = ", pdf_params%alpha_thl
+        write(fstderr,*) "pdf_params%alpha_rt = ", pdf_params%alpha_rt
+        write(fstderr,*) "pdf_params%crt1 = ", pdf_params%crt1
+        write(fstderr,*) "pdf_params%crt2 = ", pdf_params%crt2
+        write(fstderr,*) "pdf_params%cthl1 = ", pdf_params%cthl1
+        write(fstderr,*) "pdf_params%cthl2 = ", pdf_params%cthl2
         write(fstderr,*) "pdf_params%s1 = ", pdf_params%s1
         write(fstderr,*) "pdf_params%s2 = ", pdf_params%s2
         write(fstderr,*) "pdf_params%stdev_s1 = ", pdf_params%stdev_s1
         write(fstderr,*) "pdf_params%stdev_s2 = ", pdf_params%stdev_s2
-        write(fstderr,*) "pdf_params%alpha_thl = ", pdf_params%alpha_thl
-        write(fstderr,*) "pdf_params%alpha_rt = ", pdf_params%alpha_rt
+        write(fstderr,*) "pdf_params%stdev_t1 = ", pdf_params%stdev_t1
+        write(fstderr,*) "pdf_params%stdev_t2 = ", pdf_params%stdev_t2
+        write(fstderr,*) "pdf_params%covar_st_1 = ", pdf_params%covar_st_1
+        write(fstderr,*) "pdf_params%covar_st_2 = ", pdf_params%covar_st_2
+        write(fstderr,*) "pdf_params%corr_st_1 = ", pdf_params%corr_st_1
+        write(fstderr,*) "pdf_params%corr_st_2 = ", pdf_params%corr_st_2
+        write(fstderr,*) "pdf_params%rsl1 = ", pdf_params%rsl1
+        write(fstderr,*) "pdf_params%rsl2 = ", pdf_params%rsl2
+        write(fstderr,*) "pdf_params%rc1 = ", pdf_params%rc1
+        write(fstderr,*) "pdf_params%rc2 = ", pdf_params%rc2
+        write(fstderr,*) "pdf_params%cloud_frac1 = ", pdf_params%cloud_frac1
+        write(fstderr,*) "pdf_params%cloud_frac2 = ", pdf_params%cloud_frac2
+        write(fstderr,*) "pdf_params%mixt_frac = ", pdf_params%mixt_frac
 
         if ( sclr_dim > 0 )then
           write(fstderr,*) "sclrpthvp = ", sclrpthvp
@@ -1010,11 +1038,145 @@ module pdf_closure_module
           write(fstderr,*) "wp2sclrp = ", wp2sclrp
         end if
 
-      end if ! err_code == clubb_var_equals_NaN
+      end if ! Fatal error
 
     end if ! clubb_at_least_debug_level
 
     return
   end subroutine pdf_closure
+  
+  !-----------------------------------------------------------------------
+  pure subroutine calc_cloud_frac_component(s, stdev_s, s_at_sat, cloud_fracN, rcN)
+  ! Description:
+  !   Given the mean and standard deviation of 's', this subroutine
+  !   calculates cloud_frac<n>, where n is the PDF component (either 1 or
+  !   2). In addition, the subroutine can also optionally calculate rc<n>,
+  !   the mean of r_c
+  !
+  ! References:
+  !   See ticket#529
+  !-----------------------------------------------------------------------
+    
+    use constants_clubb, only: &
+      s_mellor_tol,&! Tolerance for pdf parameter s       [kg/kg]
+      sqrt_2pi,    &! sqrt(2*pi)
+      sqrt_2        ! sqrt(2)
+    
+    use clubb_precision, only: &
+      core_rknd     ! Precision
+    
+    use anl_erf, only:  & 
+      erf ! Procedure(s)
+    ! The error function
+    
+    implicit none
+    
+    ! Input Variables
+    real( kind = core_rknd ), intent(in) :: &
+      s,          & ! Mean of 's' component
+      stdev_s,    & ! Standard deviation of s
+      s_at_sat      ! Value of 's' at exact saturation with respect to ice
+                    !  Negative (or zero for liquid)
+    
+    ! Output Variables
+    real( kind = core_rknd ), intent(out) :: &
+      cloud_fracN   ! Component of cloud_frac
+    
+    ! Output Variable
+    ! Note: this parameter can be optionally computed.
+    real( kind = core_rknd), intent(out), optional :: &
+      rcN           ! Mean of r_c 
+    
+    ! Local Variables
+    real( kind = core_rknd) :: zetaN
+    
+  !-----------------------------------------------------------------------
+    !----- Begin Code -----
+    if ( stdev_s > s_mellor_tol ) then
+      zetaN = (s - s_at_sat) / stdev_s
+      cloud_fracN  = 0.5_core_rknd*( 1._core_rknd + erf( zetaN/sqrt_2 )  )
+      if (present(rcN)) &
+        rcN       = (s - s_at_sat)*cloud_fracN + stdev_s*exp( -0.5_core_rknd*zetaN**2 )/( sqrt_2pi )
+    else
+      if ( (s - s_at_sat) < 0.0_core_rknd ) then
+        cloud_fracN  = 0.0_core_rknd
+        if (present(rcN)) &
+          rcN        = 0.0_core_rknd
+      else
+        cloud_fracN  = 1.0_core_rknd
+        if (present(rcN)) &
+          rcN        = s - s_at_sat
+      end if ! s < 0
+    end if ! stdev_s > s_mellor_tol
+    
+    
+  end subroutine calc_cloud_frac_component
+  !-----------------------------------------------------------------------
+  
+  !-----------------------------------------------------------------------
+  function calc_cloud_frac(cloud_frac1, cloud_frac2, mixt_frac)
+  ! Description:
+  !   Given the the two pdf components of a cloud fraction, and the weight
+  !   of the first component, this fuction calculates the cloud fraction,
+  !   cloud_frac
+  !
+  ! References:
+  !   See ticket#530
+  !-----------------------------------------------------------------------
+    
+    use constants_clubb, only: &
+      fstderr,        &! Standard error output
+      zero_threshold   ! A physical quantity equal to zero
+    
+    use clubb_precision, only: &
+      core_rknd        ! Precision
+      
+    use error_code, only: &
+      clubb_at_least_debug_level ! Function to check whether clubb is in
+                                 !  at least the specified debug level 
+      
+    implicit none
+    
+    ! Input Variables
+    real( kind = core_rknd ), intent(in) :: &
+      cloud_frac1,  & ! First PDF component of cloud_frac
+      cloud_frac2,  & ! Second PDF component of cloud_frac
+      mixt_frac       ! Weight of 1st PDF component (Sk_w dependent)
+    
+    ! Output Variables
+    real( kind = core_rknd) :: &
+      calc_cloud_frac ! Cloud fraction
+    
+    ! Local Variables
+    real( kind = core_rknd) :: &
+      cloud_frac      ! Cloud fraction (used as a holding variable for
+                      !                    output)
+
+  !-----------------------------------------------------------------------
+    !----- Begin Code -----
+    cloud_frac = mixt_frac * cloud_frac1 + (1.0_core_rknd-mixt_frac) * cloud_frac2
+    
+    ! Note: Brian added the following lines to ensure that there
+    ! are never any negative liquid water values (or any negative
+    ! cloud fraction values, for that matter).  According to
+    ! Vince Larson, the analytic formula should not produce any
+    ! negative results, but such computer-induced errors such as
+    ! round-off error may produce such a value.  This has been
+    ! corrected because Brian found a small negative value of
+    ! rcm in the first timestep of the FIRE case.
+
+    cloud_frac  = max( zero_threshold, cloud_frac )
+    if ( clubb_at_least_debug_level( 2 ) ) then
+      if ( cloud_frac > 1.0_core_rknd ) then
+        write(fstderr,*) "Cloud fraction > 1"
+      end if
+    end if
+    cloud_frac = min( 1.0_core_rknd, cloud_frac )
+
+    calc_cloud_frac = cloud_frac
+    return
+    
+  end function calc_cloud_frac
+  !-----------------------------------------------------------------------
 
 end module pdf_closure_module

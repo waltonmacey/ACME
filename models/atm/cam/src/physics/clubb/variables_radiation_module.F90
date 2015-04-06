@@ -1,5 +1,5 @@
 !---------------------------------------------------------------
-! $Id: variables_radiation_module.F90 5623 2012-01-17 17:55:26Z connork@uwm.edu $
+! $Id: variables_radiation_module.F90 6447 2013-08-06 17:41:47Z raut@uwm.edu $
 module variables_radiation_module
 
 !   This module contains definitions of all radiation arrays
@@ -8,7 +8,8 @@ module variables_radiation_module
 !---------------------------------------------------------------
 
   use clubb_precision, only: &
-    core_rknd ! Variable(s)
+    core_rknd, & ! Variable(s)
+    dp
 
   implicit none
 
@@ -18,8 +19,6 @@ module variables_radiation_module
     cleanup_radiation_variables
 
   private ! Set Default Scoping
-
-  integer, private, parameter :: dp = selected_real_kind( p=12 )
 
   real( kind = core_rknd ), public, dimension(:), allocatable :: &
     radht_LW, & ! LW heating rate   [K/s]
@@ -39,9 +38,11 @@ module variables_radiation_module
   real(kind = dp), public, dimension(:,:), allocatable :: &
     rsnowm_2d,& ! Two-dimensional copies of the input parameters
     rcm_in_cloud_2d, &
-    cloud_frac_2d
+    cloud_frac_2d, &
+    ice_supersat_frac_2d
 
-!$omp threadprivate(rsnowm_2d, rcm_in_cloud_2d, cloud_frac_2d)
+!$omp threadprivate(rsnowm_2d, rcm_in_cloud_2d, cloud_frac_2d, &
+!$omp   ice_supersat_frac_2d)
 
   real(kind = dp), public, dimension(:,:), allocatable :: &
     radht_SW_2d, & ! SW Radiative heating rate  [W/m^2]
@@ -116,6 +117,7 @@ module variables_radiation_module
     allocate( rsnowm_2d(nlen, rad_zt_dim ) )
     allocate( rcm_in_cloud_2d(nlen, rad_zt_dim ) )
     allocate( cloud_frac_2d(nlen, rad_zt_dim ) )
+    allocate( ice_supersat_frac_2d(nlen, rad_zt_dim ) )
 
     allocate( radht_SW_2d(nlen, rad_zt_dim ) )
     allocate( radht_LW_2d(nlen, rad_zt_dim ) )
@@ -143,6 +145,7 @@ module variables_radiation_module
     rsnowm_2d = 0.0_dp
     rcm_in_cloud_2d = 0.0_dp
     cloud_frac_2d = 0.0_dp
+    ice_supersat_frac_2d = 0.0_dp
     radht_SW_2d = 0.0_dp
     radht_LW_2d = 0.0_dp
     Frad_uLW = 0.0_dp
@@ -179,6 +182,7 @@ module variables_radiation_module
     deallocate( rsnowm_2d )
     deallocate( rcm_in_cloud_2d )
     deallocate( cloud_frac_2d )
+    deallocate( ice_supersat_frac_2d )
 
     deallocate( radht_SW_2d )
     deallocate( radht_LW_2d )

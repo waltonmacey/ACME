@@ -67,8 +67,8 @@ module gmres_cache
                     ! initial solution has been passed in for that particular
                     ! cache index. This defaults to false and is set to true
                     ! when a solution is updated.
-
 !$omp threadprivate(l_gmres_soln_ok)
+
 
   contains
 
