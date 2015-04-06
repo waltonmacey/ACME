@@ -494,6 +494,7 @@ contains
   !call t_startf('euler_step')
   call t_startf('euler_step_cuda')
 
+  rhs_viss = 0
   if (limiter_option == 8) then
 !! TODO: need to create CUDA kernel for the next computations:
 
@@ -507,7 +508,6 @@ contains
          enddo
       enddo
     enddo  
-
     ! compute element qmin/qmax
     if ( rhs_multiplier == 0 ) then
       do ie = nets , nete
@@ -576,13 +576,20 @@ contains
         enddo
       enddo
     endif
-
-ierr = cudaMemcpyAsync( qmin_d , qmin , size( qmin ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
-ierr = cudaMemcpyAsync( qmax_d , qmax , size( qmax ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
-ierr = cudaMemcpyAsync( qtens_biharmonic_d , qtens_biharmonic , size( qtens_biharmonic ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
-
-  endif !end if for limiter 8
-
+   !$OMP BARRIER
+   !$OMP MASTER
+   ierr = cudaMemcpyAsync( qmin_d , qmin , size( qmin ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
+   ierr = cudaMemcpyAsync( qmax_d , qmax , size( qmax ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
+   ierr = cudaMemcpyAsync( qtens_biharmonic_d , qtens_biharmonic , size( qtens_biharmonic ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
+   !$OMP END MASTER
+ endif !end if for limiter 8
+!Irina Debug
+ierr = cudaThreadSynchronize()
+!print *, "Irina Debug qmin", qmax(:,1,1)
+!print *, "Irina debug", rhs_multiplier, "  ", rhs_viss, "  ", nu_p
+!print *, "Irina Debug qmin", qmax(:,1,1)
+!print*,"Irina Debug qtens_biharmonic  \n", qtens_biharmonic(:,1,1,1,1)
+!end Irina Debug
 
 !  if (nu_p > 0) then
 !    write(*,*) 'CUDA_MOD IS NOT INTENDED FOR USE WITH NU_P > 0 AT THIS TIME!'
@@ -639,16 +646,16 @@ ierr = cudaMemcpyAsync( qtens_biharmonic_d , qtens_biharmonic , size( qtens_biha
     griddim  = dim3( int(ceiling(dble(nlev)/numk_lim8))*qsize_d*nelemd , 1 , 1 )
     call limiter_optim_iter_full_kernel<<<griddim,blockdim,0,streams(1)>>>( qdp_d , qtens_d, spheremp_d , qmin_d , qmax_d,  dp_star_d, dt, dp_d, divdp_d,  1 , nelemd, np1_qdp )
 
-    ierr = cudaDeviceSynchronize()
-!    ierr = cudaMemcpyAsync( qdp_h, qdp_d, size( qdp_h) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
+    ierr = cudaThreadSynchronize()
+    ierr = cudaMemcpyAsync( qdp_h, qdp_d, size( qdp_h) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
 !    ierr = cudaMemcpyAsync( qmin, qmin_d, size( qmin) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
 !    ierr = cudaMemcpyAsync( qmax, qmax_d, size( qmax) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
-    ierr = cudaDeviceSynchronize()
-!   do ie = nets , nete 
-!     elem(ie)%state%Qdp(:,:,:,:,:)=qdp_h(:,:,:,:,:,ie)
-!   enddo
+     ierr = cudaThreadSynchronize()
+   do ie = nets , nete 
+    ierr = cudaMemcpy( elem(ie)%state%Qdp, qdp_d(1,1,1,1,1,ie), size(elem(ie)%state%Qdp) , cudaMemcpyDeviceToHost ); _CHECK(__LINE__)
+    ! elem(ie)%state%Qdp(:,:,:,:,:)=qdp_h(:,:,:,:,:,ie)
+   enddo
   endif ! qnd if for limiter 8
-
 
   if ( limiter_option == 4 ) then
   blockdim = dim3( np*np*numk_lim2d , 1 , 1 )
@@ -700,11 +707,16 @@ ierr = cudaMemcpyAsync( qtens_biharmonic_d , qtens_biharmonic , size( qtens_biha
 !$OMP END MASTER
 !$OMP BARRIER
 
+!Irina Debug
+do ie = nets , nete
+    ierr = cudaMemcpy( elem(ie)%state%Qdp, qdp_d(1,1,1,1,1,ie), size(elem(ie)%state%Qdp) , cudaMemcpyDeviceToHost ); _CHECK(__LINE__)
+enddo
+!print *,"Irina Debug qdp", elem(nets)%state%Qdp(1,1,1,1,:)
+!print *, "qdp_h", qdp_h(1,1,1,1,:,nets) 
+
   call t_stopf('euler_step_cuda')
   !call t_stopf('euler_step')
 end subroutine euler_step_cuda
-
-
 
 subroutine qdp_time_avg_cuda( elem , rkstage , n0_qdp , np1_qdp , limiter_option , nu_p , nets , nete )
   use element_mod, only: element_t
@@ -726,7 +738,6 @@ subroutine qdp_time_avg_cuda( elem , rkstage , n0_qdp , np1_qdp , limiter_option
 !$OMP BARRIER
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 end subroutine qdp_time_avg_cuda
-
 
 
 subroutine advance_hypervis_scalar_cuda( edgeAdv , elem , hvcoord , hybrid , deriv , nt , nt_qdp , nets , nete , dt2 )
