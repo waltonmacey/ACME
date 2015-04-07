@@ -633,7 +633,7 @@ ierr = cudaThreadSynchronize()
    ierr = cudaMemcpyAsync( divdp_d, divdp_h, size( divdp_h) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
  endif
 
-
+  ierr = cudaThreadSynchronize()
   blockdim = dim3( np*np*numk_eul , 1 , 1 )
   griddim  = dim3( int(ceiling(dble(nlev)/numk_eul))*qsize_d*nelemd , 1 , 1 )
   call euler_step_kernel1<<<griddim,blockdim,0,streams(1)>>>( qdp_d , qtens_d, spheremp_d , qmin_d , qmax_d , dp_d , vstar_d,  dp_star_d , divdp_d , hybi_d ,               &
@@ -641,7 +641,7 @@ ierr = cudaThreadSynchronize()
                                                               n0_qdp , np1_qdp , rhs_viss , dt , nu_p , nu_q , limiter_option , 1 , nelemd ); _CHECK(__LINE__)
 
   if ( limiter_option == 8 ) then
-    ierr = cudaDeviceSynchronize()
+    ierr = cudaThreadSynchronize()
     blockdim = dim3( np*np*numk_lim8 , 1 , 1 )
     griddim  = dim3( int(ceiling(dble(nlev)/numk_lim8))*qsize_d*nelemd , 1 , 1 )
     call limiter_optim_iter_full_kernel<<<griddim,blockdim,0,streams(1)>>>( qdp_d , qtens_d, spheremp_d , qmin_d , qmax_d,  dp_star_d, dt, dp_d, divdp_d,  1 , nelemd, np1_qdp )
@@ -707,12 +707,12 @@ ierr = cudaThreadSynchronize()
 !$OMP END MASTER
 !$OMP BARRIER
 
-!Irina Debug
-do ie = nets , nete
+ if ( limiter_option == 8 ) then
+  do ie = nets , nete
     ierr = cudaMemcpy( elem(ie)%state%Qdp, qdp_d(1,1,1,1,1,ie), size(elem(ie)%state%Qdp) , cudaMemcpyDeviceToHost ); _CHECK(__LINE__)
-enddo
-!print *,"Irina Debug qdp", elem(nets)%state%Qdp(1,1,1,1,:)
-!print *, "qdp_h", qdp_h(1,1,1,1,:,nets) 
+  enddo
+  ierr = cudaThreadSynchronize()
+ endif
 
   call t_stopf('euler_step_cuda')
   !call t_stopf('euler_step')
@@ -952,11 +952,12 @@ attributes(global) subroutine euler_step_kernel1( Qdp , Qtens, spheremp , qmin ,
   qtens_s(ij,kk) = qtmp - dt * divergence_sphere( i , j , ie , kk , ij , vstar_s , qtmp , metdet_s , rmetdet_s , dinv , deriv_dvv_s , nets , nete )
   call syncthreads()
   if ( rhs_viss /= 0 ) qtens_s(ij,kk) = qtens_s(ij,kk) + qtens_biharmonic(i,j,k,q,ie)
-  call syncthreads()
+ call syncthreads()
 
   if (limiter_option == 8) then
    dp_star_s(ij,kk)=dp(i,j,k,ie) - dt * divdp(i,j,k,ie)
    if ( nu_p > 0 .and. rhs_viss /= 0 ) then
+        call syncthreads()
         dp_star_s(ij,kk) = dp_star_s(ij,kk) - rhs_viss * dt * nu_q * dpdiss_biharmonic(i,j,k,ie) / spheremp_s(ij)
    endif
    call syncthreads()
@@ -1071,6 +1072,7 @@ attributes(global) subroutine  limiter_optim_iter_full_kernel(Qdp, Qtens, sphere
 
     qmax_s(ijk)=qmax_d(k,q,ie)
     qmin_s(ijk)=qmin_d(k,q,ie)
+    call syncthreads() 
 
     if ( mass< qmin_s(ijk) ) then
        qmin_d(k,q,ie)=mass
@@ -1200,6 +1202,7 @@ attributes(global) subroutine  limiter_optim_iter_full_kernel(Qdp, Qtens, sphere
  qtens_s(ij,kk)=x_s(ij,kk)
  call syncthreads()
  Qtens(i,j,k,q,ie)=x_s(ij,kk)*dp_star_s(ij,kk)
+  call syncthreads()
  Qdp(i,j,k,q,np1,ie) = spheremp(i,j,ie)* Qtens(i,j,k,q,ie)
 end subroutine  limiter_optim_iter_full_kernel
 
