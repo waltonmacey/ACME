@@ -73,6 +73,11 @@ module physpkg
   !
   ! Private module data
   !
+  character(len=16) :: shallow_scheme
+  character(len=16) :: macrop_scheme
+  character(len=16) :: microp_scheme
+  logical           :: do_clubb_sgs
+  logical           :: state_debug_checks  ! Debug physics_state.
   logical :: clim_modal_aero  ! climate controled by prognostic or prescribed modal aerosols
   logical :: prog_modal_aero  ! Prognostic modal aerosols present
 
@@ -802,7 +807,7 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
 
     call radheat_init(pref_mid)
 
-    call convect_shallow_init(pref_edge)
+    call convect_shallow_init(pref_edge, pbuf2d)
 
     call cldfrc_init
 
@@ -811,7 +816,7 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
     if( microp_scheme == 'RK' ) then
        call stratiform_init()
     elseif( microp_scheme == 'MG' ) then 
-       if (.not. do_clubb_sgs) call macrop_driver_init()
+       if (.not. do_clubb_sgs) call macrop_driver_init(pbuf2d)
        call microp_aero_init()
        call microp_driver_init(pbuf2d)
        call conv_water_init
@@ -873,7 +878,7 @@ subroutine phys_run1(phys_state, ztodt, phys_tend, pbuf2d,  cam_in, cam_out)
 #if (defined BFB_CAM_SCAM_IOP )
     use cam_history,    only: outfld
 #endif
-    use comsrf,         only: fsns, fsnt, flns, sgh30, flnt, landm, fsds
+    use comsrf,         only: fsns, fsnt, flns, sgh, sgh30, flnt, landm, fsds
     use cam_abortutils,     only: endrun
 #if ( defined OFFLINE_DYN )
      use metdata,       only: get_met_srf1
@@ -976,7 +981,7 @@ subroutine phys_run1(phys_state, ztodt, phys_tend, pbuf2d,  cam_in, cam_out)
 
           call tphysbc (ztodt, fsns(1,c), fsnt(1,c), flns(1,c), flnt(1,c), phys_state(c),        &
                        phys_tend(c), phys_buffer_chunk,  fsds(1,c), landm(1,c),          &
-                       sgh30(1,c), cam_out(c), cam_in(c) )
+                       sgh(1,c), sgh30(1,c), cam_out(c), cam_in(c) )
 
        end do
 
@@ -1271,6 +1276,7 @@ subroutine tphysac (ztodt,   cam_in,  &
     use perf_mod
     use phys_control,       only: phys_do_flux_avg, waccmx_is
     use flux_avg,           only: flux_avg_run
+    use unicon_cam,         only: unicon_cam_org_diags
 
     implicit none
 
@@ -1419,7 +1425,15 @@ subroutine tphysac (ztodt,   cam_in,  &
     call check_tracers_chng(state, tracerint, "aoa_tracers_timestep_tend", nstep, ztodt,   &
          cam_in%cflx)
 
-    ! Chemistry calculation
+    !===================================================
+    ! Chemistry and MAM calculation
+    ! MAM core aerosol conversion process is performed in the below 'chem_timestep_tend'.
+    ! In addition, surface flux of aerosol species other than 'dust' and 'sea salt', and
+    ! elevated emission of aerosol species are treated in 'chem_timestep_tend' before
+    ! Gas chemistry and MAM core aerosol conversion. 
+    ! Note that surface flux is not added into the atmosphere, but elevated emission is
+    ! added into the atmosphere as tendency.
+    !===================================================
     if (chem_is_active()) then
        call chem_timestep_tend(state, ptend, cam_in, cam_out, ztodt, &
             pbuf,  fh2o, fsds)
@@ -1556,6 +1570,28 @@ subroutine tphysac (ztodt,   cam_in,  &
     call pbuf_set_field(pbuf, teout_idx, state%te_cur, (/1,itim_old/),(/pcols,1/))       
 
 
+    ! store dse after tphysac in buffer
+    do k = 1,pver
+       dtcore(:ncol,k) = state%s(:ncol,k)
+    end do
+
+    if (shallow_scheme .eq. 'UNICON') then
+
+       ! ------------------------------------------------------------------------
+       ! Insert the organization-related heterogeneities computed inside the
+       ! UNICON into the tracer arrays here before performing advection.
+       ! This is necessary to prevent any modifications of organization-related
+       ! heterogeneities by non convection-advection process, such as
+       ! dry and wet deposition of aerosols, MAM, etc.
+       ! Again, note that only UNICON and advection schemes are allowed to
+       ! changes to organization at this stage, although we can include the
+       ! effects of other physical processes in future.
+       ! ------------------------------------------------------------------------
+
+       call unicon_cam_org_diags(state, pbuf)
+
+    end if
+
     !*** BAB's FV heating kludge *** apply the heating as temperature tendency.
     !*** BAB's FV heating kludge *** modify the temperature in the state structure
     tmp_t(:ncol,:pver) = state%t(:ncol,:pver)
@@ -1606,7 +1642,7 @@ end subroutine tphysac
 subroutine tphysbc (ztodt,               &
        fsns,    fsnt,    flns,    flnt,    state,   &
        tend,    pbuf,     fsds,    landm,            &
-       sgh30, cam_out, cam_in )
+       sgh, sgh30, cam_out, cam_in )
     !----------------------------------------------------------------------- 
     ! 
     ! Purpose: 
@@ -1682,7 +1718,8 @@ subroutine tphysbc (ztodt,               &
     real(r8), intent(inout) :: flnt(pcols)                   ! Net outgoing lw flux at model top
     real(r8), intent(inout) :: fsds(pcols)                   ! Surface solar down flux
     real(r8), intent(in) :: landm(pcols)                   ! land fraction ramp
-    real(r8), intent(in) :: sgh30(pcols)                   ! Std. deviation of 30 s orography for tms
+    real(r8), intent(in) :: sgh(pcols)               ! Std. deviation of orography
+    real(r8), intent(in) :: sgh30(pcols)             ! Std. deviation of 30 s orography for tms
 
     type(physics_state), intent(inout) :: state
     type(physics_tend ), intent(inout) :: tend
@@ -1961,7 +1998,7 @@ subroutine tphysbc (ztodt,               &
 
     call convect_shallow_tend (ztodt   , cmfmc,  cmfmc2  ,&
          dlf        , dlf2   ,  rliq   , rliq2, & 
-         state      , ptend  ,  pbuf)
+         state      , ptend  ,  pbuf, sgh, sgh30, cam_in)
     call t_stopf ('convect_shallow_tend')
 
     call physics_update(state, ptend, ztodt, tend)

@@ -31,7 +31,7 @@ module cloud_diagnostics
    integer :: ixcldice, ixcldliq, rei_idx, rel_idx
 
    logical :: do_cld_diag, mg_clouds, rk_clouds, camrt_rad
-   integer :: conv_water_in_rad
+!  integer :: conv_water_in_rad
    
    integer :: cicewp_idx = -1
    integer :: cliqwp_idx = -1
@@ -130,7 +130,7 @@ contains
 
     if (.not.do_cld_diag) return
     
-    call phys_getopts(conv_water_in_rad_out=conv_water_in_rad)
+!   call phys_getopts(conv_water_in_rad_out=conv_water_in_rad)
 
     if (rk_clouds) then 
        wpunits = 'gram/m2'
@@ -207,7 +207,7 @@ subroutine cloud_diagnostics_calc(state,  pbuf)
     use physics_types, only: physics_state    
     use physics_buffer,only: physics_buffer_desc, pbuf_get_field, pbuf_old_tim_idx
     use pkg_cldoptics, only: cldovrlap, cldclw,  cldems
-    use conv_water,    only: conv_water_4rad
+    use conv_water,    only: conv_water_in_rad, conv_water_4rad
     use radiation,     only: radiation_do
     use cloud_cover_diags, only: cloud_cover_diags_out
 
@@ -359,7 +359,7 @@ subroutine cloud_diagnostics_calc(state,  pbuf)
           allcld_ice(:ncol,:) = 0._r8 ! Grid-avg all cloud liquid
           allcld_liq(:ncol,:) = 0._r8 ! Grid-avg all cloud ice
     
-          call conv_water_4rad( state, pbuf, conv_water_in_rad, allcld_liq, allcld_ice )
+          call conv_water_4rad(state, pbuf, allcld_liq, allcld_ice)
        else
           allcld_liq(:ncol,top_lev:pver) = state%q(:ncol,top_lev:pver,ixcldliq)  ! Grid-ave all cloud liquid
           allcld_ice(:ncol,top_lev:pver) = state%q(:ncol,top_lev:pver,ixcldice)  !           "        ice
@@ -404,7 +404,7 @@ subroutine cloud_diagnostics_calc(state,  pbuf)
     elseif(rk_clouds) then
 
        if (conv_water_in_rad /= 0) then
-          call conv_water_4rad(state,pbuf,conv_water_in_rad,allcld_liq,allcld_ice)
+          call conv_water_4rad(state, pbuf, allcld_liq, allcld_ice)
        else
           allcld_liq = state%q(:,:,ixcldliq)
           allcld_ice = state%q(:,:,ixcldice)

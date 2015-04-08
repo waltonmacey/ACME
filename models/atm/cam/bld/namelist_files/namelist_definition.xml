@@ -1914,10 +1914,10 @@ Default: 10
 <!-- Moist Convection and Microphysics -->
 
 <entry id="deep_scheme" type="char*16" category="conv"
-       group="phys_ctl_nl" valid_values="ZM,off" >
+       group="phys_ctl_nl" valid_values="ZM,UNICON,off" >
 Type of deep convection scheme employed.  'ZM' for Zhang-McFarlane;
-'off' for none.
-Default: 'ZM'
+'off' for none; or 'UNICON' which doesn't distinquish shallow and deep.
+Default: 'ZM' unless using 'UNICON'
 </entry>
 
 <entry id="microp_scheme" type="char*16" category="conv"
@@ -1942,10 +1942,10 @@ Default: FALSE
 </entry>
 
 <entry id="shallow_scheme" type="char*16" category="conv"
-       group="phys_ctl_nl" valid_values="Hack,UW,CLUBB_SGS" >
+       group="phys_ctl_nl" valid_values="Hack,UW,CLUBB_SGS,UNICON" >
 Type of shallow convection scheme employed.  'Hack' for Hack shallow convection;
 'UW' for original McCaa UW pbl scheme, modified by Sungsu Park; 'CLUBB_SGS'
-for CLUBB_SGS.
+for CLUBB_SGS; or UNICON which doesn't distinquish shallow and deep.
 Default: set by build-namelist (depends on <varname>eddy_scheme</varname>).
 </entry>
 
@@ -1983,6 +1983,12 @@ Bottom pressure level at which namelist values for eddy_leng_max and
 eddy_lbulk_max are applied. Default values are used at lower levels (i.e. the 
 boundary layer).
 Default: 100.e3 (hPa)
+</entry>
+
+<entry id="eddy_moist_entrain_a2l" type="real" category="conv"
+       group="vert_diff_nl" valid_values="" >
+Moist entrainment enhancement parameter.
+Default: set by build-namelist
 </entry>
 
 <entry id="kv_top_pressure" type="real" category="conv"
@@ -2744,11 +2750,17 @@ Default: set by build-namelist
 </entry>
 
 <entry id="conv_water_in_rad" type="integer" category="radiation"
-       group="phys_ctl_nl" valid_values="0,1,2" >
+       group="conv_water_nl" valid_values="0,1,2" >
 Convective water used in radiation?
 0 ==> No
 1 ==> Yes - Arithmetic average.
 2 ==> Yes - Average in emissivity.
+Default: set by build-namelist
+</entry>
+
+<entry id="conv_water_frac_limit" type="real" category="radiation"
+       group="conv_water_nl" valid_values="" >
+Lower limit of cumulus cloud fraction.
 Default: set by build-namelist
 </entry>
 
@@ -3150,6 +3162,18 @@ Default: set by build-namelist.
 <entry id="aer_drydep_list" type="char*16(1000)" category="cam_chem"
        group="aerosol_nl" valid_values="" >
 List of aerosol species that undergo sediment (dry deposition).
+Default: set by build-namelist.
+</entry>
+
+<entry id="sol_factb_interstitial" type="real" category="cam_chem"
+       group="aerosol_nl" valid_values="" >
+Tuning for below cloud scavenging of interstitial modal aerosols.
+Default: set by build-namelist.
+</entry>
+
+<entry id="sol_factic_interstitial" type="real" category="cam_chem"
+       group="aerosol_nl" valid_values="" >
+Tuning for in-cloud scavenging of interstitial modal aerosols.
 Default: set by build-namelist.
 </entry>
 

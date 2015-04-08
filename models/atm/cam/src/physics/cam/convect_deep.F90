@@ -134,6 +134,8 @@ subroutine convect_deep_init(pref_edge)
   case('ZM') !    1 ==> Zhang-McFarlane (default)
      if (masterproc) write(iulog,*)'convect_deep initializing Zhang-McFarlane convection'
      call zm_conv_init(pref_edge)
+  case('UNICON')
+     if (masterproc) write(iulog,*)'convect_deep: deep convection done by UNICON'
   case default
      if (masterproc) write(iulog,*)'WARNING: convect_deep: no deep convection scheme. May fail.'
   end select
@@ -213,7 +215,7 @@ subroutine convect_deep_tend( &
    call pbuf_get_field(pbuf, icwmrdp_idx, ql    )
 
   select case ( deep_scheme )
-  case('off') !    0 ==> no deep convection
+  case('off', 'UNICON') ! in UNICON case the run method is called from convect_shallow_tend
     zero = 0     
     mcon = 0
     dlf = 0
@@ -274,7 +276,7 @@ end subroutine convect_deep_tend
 
 subroutine convect_deep_tend_2( state,  ptend,  ztodt, pbuf)
 
-   use physics_types, only: physics_state, physics_ptend
+   use physics_types, only: physics_state, physics_ptend, physics_ptend_init
    
    use physics_buffer,  only: physics_buffer_desc
    use constituents, only: pcnst
@@ -290,6 +292,8 @@ subroutine convect_deep_tend_2( state,  ptend,  ztodt, pbuf)
 
    if ( deep_scheme .eq. 'ZM' ) then  !    1 ==> Zhang-McFarlane (default)
       call zm_conv_tend_2( state,   ptend,  ztodt,  pbuf) 
+   else
+      call physics_ptend_init(ptend, state%psetcols, 'convect_deep')
    end if
 
 

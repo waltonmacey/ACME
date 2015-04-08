@@ -16,6 +16,8 @@
   use physconst,     only: latice
   use phys_control,  only: phys_getopts
   use constituents,  only: cnst_get_ind, pcnst
+  use physics_buffer, only: physics_buffer_desc, pbuf_set_field, pbuf_get_field, pbuf_old_tim_idx
+  use time_manager,  only: is_first_step
   use perf_mod,      only: t_startf, t_stopf
   use cam_logfile,   only: iulog
   use cam_abortutils,    only: endrun
@@ -177,7 +179,7 @@ end subroutine macrop_driver_readnl
   !                                                                             !
   !============================================================================ !
 
-  subroutine macrop_driver_init()
+  subroutine macrop_driver_init(pbuf2d)
 
   !-------------------------------------------- !
   !                                             !
@@ -188,7 +190,7 @@ end subroutine macrop_driver_readnl
     use cam_history,     only: addfld, add_default, phys_decomp
     use convect_shallow, only: convect_shallow_use_shfrc
     
-
+    type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
     logical              :: history_aerosol      ! Output the MAM aerosol tendencies
     logical              :: history_budget       ! Output tendencies and state variables for CAM4
@@ -297,6 +299,20 @@ end subroutine macrop_driver_readnl
     CC_ni_idx   = pbuf_get_index('CC_ni')
     CC_qlst_idx = pbuf_get_index('CC_qlst')
 
+    ! Init pbuf fields.  Note that the fields CLD, CONCLD, QCWAT, LCWAT, 
+    ! ICCWAT, and TCWAT are initialized in phys_inidat.
+    if (is_first_step()) then
+       call pbuf_set_field(pbuf2d, ast_idx,    0._r8)
+       call pbuf_set_field(pbuf2d, aist_idx,   0._r8)
+       call pbuf_set_field(pbuf2d, alst_idx,   0._r8)
+       call pbuf_set_field(pbuf2d, qist_idx,   0._r8)
+       call pbuf_set_field(pbuf2d, qlst_idx,   0._r8)
+       call pbuf_set_field(pbuf2d, nlwat_idx,  0._r8)
+       call pbuf_set_field(pbuf2d, niwat_idx,  0._r8)
+       call pbuf_set_field(pbuf2d, fice_idx,   0._r8)
+       call pbuf_set_field(pbuf2d, cmeliq_idx, 0._r8)
+    end if
+
   end subroutine macrop_driver_init
 
   !============================================================================ !
@@ -377,7 +393,7 @@ end subroutine macrop_driver_readnl
   integer i,k
   integer :: lchnk                                  ! Chunk identifier
   integer :: ncol                                   ! Number of atmospheric columns
-  integer :: conv_water_in_rad
+! integer :: conv_water_in_rad
 
   ! Physics buffer fields
 
@@ -510,7 +526,7 @@ end subroutine macrop_driver_readnl
   lchnk = state%lchnk
   ncol  = state%ncol
 
-  call phys_getopts( conv_water_in_rad_out = conv_water_in_rad )
+! call phys_getopts( conv_water_in_rad_out = conv_water_in_rad )
 
   call physics_state_copy(state, state_loc)            ! Copy state to local state_loc.
 

@@ -49,8 +49,9 @@ character(len=16) :: microp_scheme        = unset_str  ! microphysics package
 character(len=16) :: macrop_scheme        = unset_str  ! macrophysics package
 character(len=16) :: radiation_scheme     = unset_str  ! radiation package
 integer           :: srf_flux_avg         = unset_int  ! 1 => smooth surface fluxes, 0 otherwise
-integer           :: conv_water_in_rad    = unset_int  ! 0==> No; 1==> Yes-Arithmetic average;
-                                                       ! 2==> Yes-Average in emissivity.
+!conv_water is in separate namelist in UNICON (JYoon)
+!integer           :: conv_water_in_rad    = unset_int  ! 0==> No; 1==> Yes-Arithmetic average;
+!                                                       ! 2==> Yes-Average in emissivity.
 
 logical           :: use_subcol_microp    = .false.    ! if .true. then use sub-columns in microphysics
 
@@ -101,7 +102,7 @@ subroutine phys_ctl_readnl(nlfile)
       eddy_scheme, microp_scheme,  macrop_scheme, radiation_scheme, srf_flux_avg, &
       use_subcol_microp, atm_dep_flux, history_amwg, history_vdiag, history_aerosol, history_aero_optics, &
       history_eddy, history_budget,  history_budget_histfile_num, history_waccm, & 
-      conv_water_in_rad, do_clubb_sgs, do_tms, state_debug_checks, &
+      do_clubb_sgs, do_tms, state_debug_checks, &
       use_gw_oro, use_gw_front, use_gw_convect
    !-----------------------------------------------------------------------------
 
@@ -142,7 +143,7 @@ subroutine phys_ctl_readnl(nlfile)
    call mpibcast(history_budget_histfile_num,     1 , mpiint,  0, mpicom)
    call mpibcast(history_waccm,                   1 , mpilog,  0, mpicom)
    call mpibcast(do_clubb_sgs,                    1 , mpilog,  0, mpicom)
-   call mpibcast(conv_water_in_rad,               1 , mpiint,  0, mpicom)
+!   call mpibcast(conv_water_in_rad,               1 , mpiint,  0, mpicom)
    call mpibcast(do_tms,                          1 , mpilog,  0, mpicom)
    call mpibcast(state_debug_checks,              1 , mpilog,  0, mpicom)
    call mpibcast(use_gw_oro,                      1 , mpilog,  0, mpicom)
@@ -160,12 +161,13 @@ subroutine phys_ctl_readnl(nlfile)
       write(iulog,*)'waccm: illegal value of waccmx_opt:', waccmx_opt
       call endrun('waccm: illegal value of waccmx_opt')
    endif
-   if (.not. (shallow_scheme .eq. 'Hack' .or. shallow_scheme .eq. 'UW' .or. shallow_scheme .eq. 'CLUBB_SGS')) then
+   if (.not. (shallow_scheme == 'Hack' .or. shallow_scheme == 'UW' .or. &
+              shallow_scheme == 'CLUBB_SGS' .or. shallow_scheme == 'UNICON' )) then
       write(iulog,*)'phys_setopts: illegal value of shallow_scheme:', shallow_scheme
       call endrun('phys_setopts: illegal value of shallow_scheme')
    endif
-   if (.not. (eddy_scheme .eq. 'HB' .or. eddy_scheme .eq. 'HBR' .or. eddy_scheme .eq. 'diag_TKE' .or. &
-              eddy_scheme .eq. 'CLUBB_SGS') ) then
+   if (.not. (eddy_scheme == 'HB' .or. eddy_scheme == 'HBR' .or. eddy_scheme == 'diag_TKE' .or. &
+              eddy_scheme == 'CLUBB_SGS') ) then
       write(iulog,*)'phys_setopts: illegal value of eddy_scheme:', eddy_scheme
       call endrun('phys_setopts: illegal value of eddy_scheme')
    endif
@@ -175,8 +177,13 @@ subroutine phys_ctl_readnl(nlfile)
    endif
 
    ! Check compatibility of eddy & shallow schemes
-   if (( shallow_scheme .eq. 'UW' ) .and. ( eddy_scheme .ne. 'diag_TKE' )) then
+   if (( shallow_scheme == 'UW' ) .and. ( eddy_scheme .ne. 'diag_TKE' )) then
       write(iulog,*)'Do you really want to run UW shallow scheme without diagnostic TKE eddy scheme? Quiting'
+      call endrun('shallow convection and eddy scheme may be incompatible')
+   endif
+
+   if (( shallow_scheme .eq. 'UNICON' ) .and. ( eddy_scheme .ne. 'diag_TKE' )) then
+      write(iulog,*)'Do you really want to run UNICON scheme without diagnostic TKE eddy scheme? Quiting'
       call endrun('shallow convection and eddy scheme may be incompatible')
    endif
 
@@ -256,7 +263,7 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
                         radiation_scheme_out, use_subcol_microp_out, atm_dep_flux_out, &
                         history_amwg_out, history_vdiag_out, history_aerosol_out, history_aero_optics_out, history_eddy_out, &
                         history_budget_out, history_budget_histfile_num_out, history_waccm_out, &
-                        conv_water_in_rad_out, cam_chempkg_out, prog_modal_aero_out, macrop_scheme_out, &
+                        cam_chempkg_out, prog_modal_aero_out, macrop_scheme_out, &
                         do_clubb_sgs_out, do_tms_out, state_debug_checks_out )
 !-----------------------------------------------------------------------
 ! Purpose: Return runtime settings
@@ -284,7 +291,7 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
    integer,           intent(out), optional :: history_budget_histfile_num_out
    logical,           intent(out), optional :: history_waccm_out
    logical,           intent(out), optional :: do_clubb_sgs_out
-   integer,           intent(out), optional :: conv_water_in_rad_out
+!   integer,           intent(out), optional :: conv_water_in_rad_out
    character(len=32), intent(out), optional :: cam_chempkg_out
    logical,           intent(out), optional :: prog_modal_aero_out
    logical,           intent(out), optional :: do_tms_out
@@ -308,7 +315,7 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
    if ( present(history_budget_histfile_num_out ) ) history_budget_histfile_num_out = history_budget_histfile_num
    if ( present(history_waccm_out       ) ) history_waccm_out        = history_waccm
    if ( present(do_clubb_sgs_out        ) ) do_clubb_sgs_out         = do_clubb_sgs
-   if ( present(conv_water_in_rad_out   ) ) conv_water_in_rad_out    = conv_water_in_rad
+!   if ( present(conv_water_in_rad_out   ) ) conv_water_in_rad_out    = conv_water_in_rad
    if ( present(cam_chempkg_out         ) ) cam_chempkg_out          = cam_chempkg
    if ( present(prog_modal_aero_out     ) ) prog_modal_aero_out      = prog_modal_aero
    if ( present(do_tms_out              ) ) do_tms_out               = do_tms

@@ -71,7 +71,9 @@ module aero_model
   ! Namelist variables
   character(len=16) :: wetdep_list(pcnst) = ' '
   character(len=16) :: drydep_list(pcnst) = ' '
-  real(r8)          :: sol_facti_cloud_borne = 1._r8
+  real(r8)          :: sol_facti_cloud_borne   = 1._r8
+  real(r8)          :: sol_factb_interstitial  = 0.1_r8
+  real(r8)          :: sol_factic_interstitial = 0.4_r8
   real(r8)          :: seasalt_emis_scale
 
   integer :: ndrydep = 0
@@ -103,7 +105,8 @@ contains
     character(len=16) :: aer_wetdep_list(pcnst) = ' '
     character(len=16) :: aer_drydep_list(pcnst) = ' '
 
-    namelist /aerosol_nl/ aer_wetdep_list, aer_drydep_list, sol_facti_cloud_borne, seasalt_emis_scale
+    namelist /aerosol_nl/ aer_wetdep_list, aer_drydep_list, sol_facti_cloud_borne, seasalt_emis_scale, &
+       sol_factb_interstitial, sol_factic_interstitial
 
     !-----------------------------------------------------------------------------
 

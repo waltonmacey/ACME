@@ -354,6 +354,7 @@ contains
    use qbo,                 only: qbo_readnl
    use iondrag,             only: iondrag_readnl
    use phys_debug_util,     only: phys_debug_readnl
+   use conv_water,          only: conv_water_readnl
    use rad_constituents,    only: rad_cnst_readnl
    use radiation_data,      only: rad_data_readnl
    use modal_aer_opt,       only: modal_aer_opt_readnl
@@ -749,6 +750,7 @@ contains
    call qbo_readnl(nlfilename)
    call iondrag_readnl(nlfilename)
    call phys_debug_readnl(nlfilename)
+   call conv_water_readnl(nlfilename)
    call rad_cnst_readnl(nlfilename)
    call rad_data_readnl(nlfilename)
    call modal_aer_opt_readnl(nlfilename)

@@ -4,6 +4,9 @@
 
 module edge_mod
   use kinds, only : int_kind, log_kind, real_kind
+! JHYoon
+  use kinds, only : iulog
+! JHYoon
   use dimensions_mod, only : max_neigh_edges, nelemd
   use perf_mod, only: t_startf, t_stopf ! _EXTERNAL
   use parallel_mod, only : haltmp
@@ -1157,6 +1160,12 @@ contains
     iw=desc%getmapP(west)
     do k=1,vlyr
        do i=1,np
+! JHYoon
+!         write(iulog,*)"JHYoon edge_mod 1", edge%buf(kptr+k,is+i  )
+!         write(iulog,*)"JHYoon edge_mod 2", edge%buf(kptr+k,ie+i  )
+!         write(iulog,*)"JHYoon edge_mod 3", edge%buf(kptr+k,in+i  ) 
+!         write(iulog,*)"JHYoon edge_mod 4", edge%buf(kptr+k,iw+i  )
+! JHYoon
           v(i  ,1  ,k) = MIN(v(i  ,1  ,k),edge%buf(kptr+k,is+i  ))
           v(np ,i  ,k) = MIN(v(np ,i  ,k),edge%buf(kptr+k,ie+i  ))
           v(i  ,np ,k) = MIN(v(i  ,np ,k),edge%buf(kptr+k,in+i  ))

@@ -16,6 +16,7 @@
    !---------------------------------------------------------------------- !
 
   use shr_kind_mod,  only: r8=>shr_kind_r8
+  use spmd_utils,    only: masterproc
   use ppgrid,        only: pcols, pver, pverp
   use physconst,     only: gravit, latvap, latice
   use cam_abortutils,    only: endrun
@@ -27,7 +28,12 @@
   private
   save
 
-  public :: conv_water_register, conv_water_4rad, conv_water_init
+  public :: &
+     conv_water_readnl,   &
+     conv_water_register, &
+     conv_water_init,     &
+     conv_water_4rad,     &
+     conv_water_in_rad
 
 ! pbuf indices
 
@@ -36,9 +42,61 @@
 
   integer :: ixcldice, ixcldliq
 
-  contains
+! Namelist
+integer, parameter :: unset_int = huge(1)
 
-  !============================================================================ !
+integer  :: conv_water_in_rad = unset_int  ! 0==> No; 1==> Yes-Arithmetic average;
+                                           ! 2==> Yes-Average in emissivity.
+integer  :: conv_water_mode
+real(r8) :: frac_limit 
+
+!=============================================================================================
+contains
+!=============================================================================================
+
+subroutine conv_water_readnl(nlfile)
+
+   use namelist_utils,  only: find_group_name
+   use units,           only: getunit, freeunit
+   use mpishorthand
+
+   character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
+
+   ! Local variables
+   integer :: unitn, ierr
+   character(len=*), parameter :: subname = 'conv_water_readnl'
+
+   real(r8) :: conv_water_frac_limit 
+
+   namelist /conv_water_nl/ conv_water_in_rad, conv_water_frac_limit
+   !-----------------------------------------------------------------------------
+
+   if (masterproc) then
+      unitn = getunit()
+      open( unitn, file=trim(nlfile), status='old' )
+      call find_group_name(unitn, 'conv_water_nl', status=ierr)
+      if (ierr == 0) then
+         read(unitn, conv_water_nl, iostat=ierr)
+         if (ierr /= 0) then
+            call endrun(subname // ':: ERROR reading namelist')
+         end if
+      end if
+      close(unitn)
+      call freeunit(unitn)
+   end if
+
+#ifdef SPMD
+   ! Broadcast namelist variables
+   call mpibcast(conv_water_in_rad,     1, mpiint, 0, mpicom)
+   call mpibcast(conv_water_frac_limit, 1, mpir8,  0, mpicom)
+#endif
+
+   conv_water_mode = conv_water_in_rad
+   frac_limit      = conv_water_frac_limit
+
+end subroutine conv_water_readnl
+
+!=============================================================================================
 
   subroutine conv_water_register
 
@@ -101,7 +159,7 @@
 
    end subroutine conv_water_init
 
-   subroutine conv_water_4rad( state, pbuf,  conv_water_mode, totg_liq, totg_ice )
+   subroutine conv_water_4rad(state, pbuf, totg_liq, totg_ice)
 
    ! --------------------------------------------------------------------- ! 
    ! Purpose:                                                              !
@@ -132,11 +190,8 @@
    ! ---------------------- !
 
    
-   type(physics_state), intent(in)    :: state        ! state variables
-   type(physics_buffer_desc), pointer :: pbuf(:)
-
-
-   integer,  intent(in) :: conv_water_mode
+   type(physics_state), target, intent(in) :: state        ! state variables
+   type(physics_buffer_desc),   pointer    :: pbuf(:)
 
    real(r8), intent(out):: totg_ice(pcols,pver)   ! Total GBA in-cloud ice
    real(r8), intent(out):: totg_liq(pcols,pver)   ! Total GBA in-cloud liquid
@@ -144,6 +199,10 @@
    ! --------------- !
    ! Local Workspace !
    ! --------------- !
+
+   real(r8), pointer, dimension(:,:) ::  pdel     ! Moist pressure difference across layer
+   real(r8), pointer, dimension(:,:) ::  ls_liq   ! Large-scale contributions to GBA cloud liq
+   real(r8), pointer, dimension(:,:) ::  ls_ice   ! Large-scale contributions to GBA cloud ice
 
    ! Physics buffer fields
 
@@ -171,7 +230,7 @@
    real(r8) :: tot_icwmr                          ! Large-scale water for this grid-box.  
    real(r8) :: ls_frac                            ! Large-scale cloud frac for this grid-box. 
    real(r8) :: tot0_frac, cu0_frac, dp0_frac, sh0_frac 
-   real(r8) :: kabs, kabsi, kabsl, alpha, dp0, sh0, ic_limit, frac_limit  
+   real(r8) :: kabs, kabsi, kabsl, alpha, dp0, sh0, ic_limit
    real(r8) :: wrk1         
 
    integer :: lchnk
@@ -181,11 +240,14 @@
    ! Parameter !
    ! --------- !
 
-   parameter( kabsl = 0.090361_r8, frac_limit = 0.01_r8, ic_limit = 1.e-12_r8 )
+   parameter( kabsl = 0.090361_r8, ic_limit = 1.e-12_r8 )
    character(len=16) :: microp_scheme 
 
    ncol  = state%ncol
    lchnk = state%lchnk
+   pdel   => state%pdel
+   ls_liq => state%q(:,:,ixcldliq)
+   ls_ice => state%q(:,:,ixcldice)
 
  ! Get microphysics option
    call phys_getopts( microp_scheme_out = microp_scheme )
@@ -228,7 +290,7 @@
 
     ! For the moment calculate the emissivity based upon the ls clouds ice fraction
 
-      wrk1 = min(1._r8,max(0._r8, state%q(i,k,ixcldice)/(state%q(i,k,ixcldice)+state%q(i,k,ixcldliq)+1.e-36_r8)))
+      wrk1 = min(1._r8,max(0._r8, ls_ice(i,k)/(ls_ice(i,k)+ls_liq(i,k)+1.e-36_r8)))
 
       if( ( cu0_frac < frac_limit ) .or. ( ( sh_icwmr(i,k) + dp_icwmr(i,k) ) < ic_limit ) ) then
 
@@ -240,7 +302,7 @@
                 ls_frac  = 0._r8
                 ls_icwmr = 0._r8
             else
-                ls_icwmr = ( state%q(i,k,ixcldliq) + state%q(i,k,ixcldice) )/max(frac_limit,ls_frac) ! Convert to IC value.
+                ls_icwmr = ( ls_liq(i,k) + ls_ice(i,k) )/max(frac_limit,ls_frac) ! Convert to IC value.
             end if
 
             tot0_frac = ls_frac
@@ -256,7 +318,7 @@
                kabsi = 0.005_r8 + 1._r8/min(max(13._r8,rei(i,k)),130._r8)
             endif
             kabs  = kabsl * ( 1._r8 - wrk1 ) + kabsi * wrk1
-            alpha = -1.66_r8*kabs*state%pdel(i,k)/gravit*1000.0_r8
+            alpha = -1.66_r8*kabs*pdel(i,k)/gravit*1000.0_r8
 
           ! Selecting cumulus in-cloud water.            
 
@@ -276,7 +338,7 @@
           ! Attribute large-scale/convective area fraction differently from default.
 
             ls_frac   = ast(i,k) 
-            ls_icwmr  = (state%q(i,k,ixcldliq) + state%q(i,k,ixcldice))/max(frac_limit,ls_frac) ! Convert to IC value.
+            ls_icwmr  = (ls_liq(i,k) + ls_ice(i,k))/max(frac_limit,ls_frac) ! Convert to IC value.
             tot0_frac = (ls_frac + cu0_frac) 
 
             select case (conv_water_mode) ! Type of average

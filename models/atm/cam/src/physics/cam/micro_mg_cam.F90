@@ -88,7 +88,10 @@ integer :: &
      ls_flxsnw_idx,      &
      relvar_idx,         &
      cmeliq_idx,         &
-     accre_enhan_idx
+     accre_enhan_idx,    &
+     am_evp_st_idx,      &! Evaporation area of stratiform precipitation
+     evprain_st_idx,     &! Evaporation rate of stratiform rain [kg/kg/s]. >= 0.
+     evpsnow_st_idx       ! Evaporation rate of stratiform snow [kg/kg/s]. >= 0.
 
 ! Fields needed as inputs to COSP
 integer :: &
@@ -259,6 +262,9 @@ subroutine micro_mg_cam_register
   call pbuf_add_field('QME',        'physpkg',dtype_r8,(/pcols,pver/), qme_idx)
   call pbuf_add_field('PRAIN',      'physpkg',dtype_r8,(/pcols,pver/), prain_idx)
   call pbuf_add_field('NEVAPR',     'physpkg',dtype_r8,(/pcols,pver/), nevapr_idx)
+  call pbuf_add_field('am_evp_st',  'global', dtype_r8, (/pcols,pver/), am_evp_st_idx) 
+  call pbuf_add_field('evprain_st', 'global', dtype_r8, (/pcols,pver/), evprain_st_idx) 
+  call pbuf_add_field('evpsnow_st', 'global', dtype_r8, (/pcols,pver/), evpsnow_st_idx)   
 
   call pbuf_add_field('WSEDL',      'physpkg',dtype_r8,(/pcols,pver/), wsedl_idx)
 
@@ -770,6 +776,9 @@ subroutine micro_mg_cam_init(pbuf2d)
      call pbuf_set_field(pbuf2d, acnum_idx,  0)
      call pbuf_set_field(pbuf2d, relvar_idx, 2._r8)
      call pbuf_set_field(pbuf2d, accre_enhan_idx, 1._r8)
+     call pbuf_set_field(pbuf2d, am_evp_st_idx,  0._r8)
+     call pbuf_set_field(pbuf2d, evprain_st_idx, 0._r8)
+     call pbuf_set_field(pbuf2d, evpsnow_st_idx, 0._r8)
 
      if (qrain_idx > 0)   call pbuf_set_field(pbuf2d, qrain_idx, 0._r8)
      if (qsnow_idx > 0)   call pbuf_set_field(pbuf2d, qsnow_idx, 0._r8)
@@ -845,6 +854,9 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
   real(r8), pointer :: mu(:,:)           ! Size distribution shape parameter for radiation
   real(r8), pointer :: lambdac(:,:)      ! Size distribution slope parameter for radiation
   real(r8), pointer :: des(:,:)          ! Snow effective diameter (m)
+  real(r8), pointer :: am_evp_st(:,:)    ! Evaporation area of stratiform precipitation. 0<= am_evp_st <=1.
+  real(r8), pointer :: evprain_st(:,:)   ! Evaporation rate of stratiform rain [kg/kg/s]
+  real(r8), pointer :: evpsnow_st(:,:)   ! Evaporation rate of stratiform snow [kg/kg/s]
 
   real(r8) :: rho(state%psetcols,pver)
   real(r8) :: ncic(state%psetcols,pver)
@@ -1165,6 +1177,7 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
   call pbuf_get_field(pbuf, re_ice_idx,      re_ice,      col_type=col_type, copy_if_needed=use_subcol_microp)
   call pbuf_get_field(pbuf, relvar_idx,      relvar,      col_type=col_type, copy_if_needed=use_subcol_microp)
   call pbuf_get_field(pbuf, accre_enhan_idx, accre_enhan, col_type=col_type, copy_if_needed=use_subcol_microp)
+  call pbuf_get_field(pbuf, am_evp_st_idx, am_evp_st, col_type=col_type, copy_if_needed=use_subcol_microp)
   call pbuf_get_field(pbuf, cmeliq_idx,      cmeliq,      col_type=col_type, copy_if_needed=use_subcol_microp)
 
   call pbuf_get_field(pbuf, cld_idx,         cld,     start=(/1,1,itim_old/), kount=(/psetcols,pver,1/), &
@@ -1338,7 +1351,7 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
              aist_mic, rate1cld, naai, npccn,                 &
              rndst, nacon, tlat, qvlat, qcten,                &
              qiten, ncten, niten, rel, rel_fn,                &
-             rei, prect, preci, nevapr, evapsnow,             &
+             rei, prect, preci, nevapr, evapsnow, am_evp_st,  &
              prain, prodsnow, cmeice, dei, mu,                &
              lambdac, qsout, des, rflx, sflx,                 &
              qrout, reff_rain, reff_snow, qcsevap, qisevap,   &

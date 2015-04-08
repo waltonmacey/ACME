@@ -377,6 +377,10 @@ elemental function GoffGratch_svp_water(t) result(es)
        8.1328e-3_r8*(10._r8**(-3.49149_r8*(tboil/t-1._r8))-1._r8)+ &
        log10(1013.246_r8))*100._r8
 
+  ! Sungsu : Impose a certain minimum value
+    es = max( es, 1.e-4_r8 )
+  ! Sungsu : Impose a certain minimum value
+
 end function GoffGratch_svp_water
 
 elemental function GoffGratch_svp_ice(t) result(es)
@@ -387,6 +391,10 @@ elemental function GoffGratch_svp_ice(t) result(es)
   es = 10._r8**(-9.09718_r8*(h2otrip/t-1._r8)-3.56654_r8* &
        log10(h2otrip/t)+0.876793_r8*(1._r8-t/h2otrip)+ &
        log10(6.1071_r8))*100._r8
+
+  ! Sungsu : Impose a certain minimum value
+    es = max( es, 1.e-4_r8 )
+  ! Sungsu : Impose a certain minimum value
 
 end function GoffGratch_svp_ice
 
@@ -402,6 +410,10 @@ elemental function MurphyKoop_svp_water(t) result(es)
        (53.878_r8 - (1331.22_r8 / t) - (9.44523_r8 * log(t)) + &
        0.014025_r8 * t)))
 
+  ! Sungsu : Impose a certain minimum value
+    es = max( es, 1.e-4_r8 )
+  ! Sungsu : Impose a certain minimum value
+
 end function MurphyKoop_svp_water
 
 elemental function MurphyKoop_svp_ice(t) result(es)
@@ -411,6 +423,10 @@ elemental function MurphyKoop_svp_ice(t) result(es)
   ! (good down to 110 K)
   es = exp(9.550426_r8 - (5723.265_r8 / t) + (3.53068_r8 * log(t)) &
        - (0.00728332_r8 * t))
+
+  ! Sungsu : Impose a certain minimum value
+    es = max( es, 1.e-4_r8 )
+  ! Sungsu : Impose a certain minimum value
 
 end function MurphyKoop_svp_ice
 
@@ -444,6 +460,10 @@ elemental function OldGoffGratch_svp_water(t) result(es)
   f  = f1 + f2 + f3 + f4 + f5
 
   es = (10.0_r8**f)*100.0_r8
+
+  ! Sungsu : Impose a certain minimum value
+    es = max( es, 1.e-4_r8 )
+  ! Sungsu : Impose a certain minimum value
   
 end function OldGoffGratch_svp_water
 
@@ -458,6 +478,10 @@ elemental function OldGoffGratch_svp_ice(t) result(es)
 
   es = 575.185606e10_r8*exp(-(term1 + term2 + term3))
   
+  ! Sungsu : Impose a certain minimum value
+    es = max( es, 1.e-4_r8 )
+  ! Sungsu : Impose a certain minimum value
+
 end function OldGoffGratch_svp_ice
 
 ! Bolton (1980)
@@ -478,6 +502,10 @@ elemental function Bolton_svp_water(t) result(es)
   real(r8) :: es             ! SVP in Pa
 
   es = c1*exp( (c2*(t - tmelt))/((t - tmelt)+c3) )
+
+  ! Sungsu : Impose a certain minimum value
+    es = max( es, 1.e-4_r8 )
+  ! Sungsu : Impose a certain minimum value
 
 end function Bolton_svp_water
 

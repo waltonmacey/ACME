@@ -2522,6 +2522,8 @@ if ($nl->get_value('clubb_history') =~ "true" &&  $nl->get_value('atm_nthreads')
 #in-cloud scav tuning for cloud-borne aerosol
 if ($chem =~ /_mam/) {
     add_default($nl, 'sol_facti_cloud_borne');
+    add_default($nl, 'sol_factb_interstitial');
+    add_default($nl, 'sol_factic_interstitial');
 }
 
 #Sea Salt aerosol emission scale factors
@@ -2549,6 +2551,7 @@ add_default($nl, 'do_iss');
 
 # Use Convective water in radiation
 add_default($nl, 'conv_water_in_rad');
+add_default($nl, 'conv_water_frac_limit');
 
 # Cloud fraction
 add_default($nl, 'cldfrc_freeze_dry');
@@ -2593,6 +2596,7 @@ add_default($nl, 'kv_freetrop_scale');
 add_default($nl, 'eddy_lbulk_max');
 add_default($nl, 'eddy_leng_max');
 add_default($nl, 'eddy_max_bot_pressure');
+add_default($nl, 'eddy_moist_entrain_a2l');
 add_default($nl, 'diff_cnsrv_mass_check');
 
 # Pressure limits for molecular diffusion.
