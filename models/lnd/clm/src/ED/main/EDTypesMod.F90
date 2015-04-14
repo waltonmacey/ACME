@@ -8,7 +8,8 @@ module EDTypesMod
 
   implicit none
   save
-
+  
+  ! jah touching 
   ! Touching for branching
   !SWITCHES THAT ARE READ IN
   integer         RESTART                                  ! restart flag, 1= read initial system state 0 = bare ground
