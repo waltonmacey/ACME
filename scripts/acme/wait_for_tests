@@ -4,13 +4,17 @@
 Wait for a queued ACME test to finish by watching the TestStatus file.
 If the test passes, 0 is returned, otherwise a non-zero error code
 is returned.
+
+The easiest way to test this script is to keep a set of create_test
+results laying around somewhere so you don't have to wait for tests
+to run to test this script.
 """
 
 import acme_util
 acme_util.check_minimum_python_version(2, 7)
 import wait_for_tests
 
-import argparse, sys
+import argparse, sys, os
 
 ###############################################################################
 def parse_command_line(args, description):
@@ -47,6 +51,9 @@ formatter_class=argparse.ArgumentDefaultsHelpFormatter
     parser.add_argument("-t", "--check-throughput", action="store_true", dest="check_throughput", default=False,
                         help="Fail if throughput check fails (fail if tests slow down)")
 
+    parser.add_argument("-i", "--ignore-namelist-diffs", action="store_true", dest="ignore_namelist_diffs", default=False,
+                        help="Do not fail a test if the only problem is diffing namelists")
+
     parser.add_argument("-d", "--cdash-build-name", action="store", dest="cdash_build_name", default=None,
                         help="Build name, implies you want results send to Cdash")
 
@@ -54,19 +61,21 @@ formatter_class=argparse.ArgumentDefaultsHelpFormatter
 
     acme_util.set_verbosity(args.verbose)
 
-    return args.paths, args.no_wait, args.check_throughput, args.cdash_build_name
+    return args.paths, args.no_wait, args.check_throughput, args.ignore_namelist_diffs, args.cdash_build_name
 
 ###############################################################################
 def _main_func(description):
 ###############################################################################
     if ("--test" in sys.argv):
-        wait_for_tests.run_unit_tests()
+        acme_util.run_cmd("python -m doctest %s/wait_for_tests.py -v" % os.path.dirname(sys.argv[0]), arg_stdout=None, arg_stderr=None)
         return
 
-    test_paths, no_wait, check_throughput, cdash_build_name = \
+    acme_util.stop_buffering_output()
+
+    test_paths, no_wait, check_throughput, ignore_namelist_diffs, cdash_build_name = \
         parse_command_line(sys.argv, description)
 
-    sys.exit(0 if wait_for_tests.wait_for_tests(test_paths, no_wait, check_throughput, cdash_build_name) else 1)
+    sys.exit(0 if wait_for_tests.wait_for_tests(test_paths, no_wait, check_throughput, ignore_namelist_diffs, cdash_build_name) else 1)
 
 ###############################################################################
 

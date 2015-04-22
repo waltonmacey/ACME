@@ -10,8 +10,11 @@ from acme_util import expect, warning, verbose_print
 TEST_STATUS_FILENAME     = "TestStatus"
 TEST_NOT_FINISHED_STATUS = ["GEN", "BUILD", "RUN", "PEND"]
 TEST_PASSED_STATUS       = "PASS"
+NAMELIST_FAIL_STATUS     = "NLFAIL"
+BUILD_FAIL_STATUS        = "CFAIL"
 SLEEP_INTERVAL_SEC       = 1
 THROUGHPUT_TEST_STR      = ".tputcomp."
+NAMELIST_TEST_STR        = ".nlcomp"
 SIGNAL_RECEIVED          = False
 
 ###############################################################################
@@ -159,7 +162,12 @@ NightlyStartTime: %s UTC
         test_norm_path = test_path if os.path.isdir(test_path) else os.path.dirname(test_path)
 
         full_test_elem = xmlet.SubElement(testing_elem, "Test")
-        full_test_elem.attrib["Status"] = "passed" if test_passed else "failed"
+        if (test_passed):
+            full_test_elem.attrib["Status"] = "passed"
+        elif (test_status == NAMELIST_FAIL_STATUS):
+            full_test_elem.attrib["Status"] = "notrun"
+        else:
+            full_test_elem.attrib["Status"] = "failed"
 
         name_elem = xmlet.SubElement(full_test_elem, "Name")
         name_elem.text = test_name
@@ -206,21 +214,49 @@ NightlyStartTime: %s UTC
     acme_util.run_cmd("ctest -D NightlySubmit", verbose=True)
 
 ###############################################################################
-def parse_test_status_file(file_contents, status_file_path, check_throughput):
+def reduce_stati(stati):
+###############################################################################
+    """
+    Given a collection of stati for a test, produce a single result. Preference
+    is given to unfinished stati since we don't want to stop waiting for a test
+    that hasn't finished. Namelist diffs are given the lowest precedence.
+    """
+    rv = TEST_PASSED_STATUS
+    for status in stati:
+        if (status in TEST_NOT_FINISHED_STATUS):
+            return status
+        elif (status != TEST_PASSED_STATUS):
+            if (status == NAMELIST_FAIL_STATUS):
+                if (rv == TEST_PASSED_STATUS):
+                    rv = NAMELIST_FAIL_STATUS
+            else:
+                rv = status
+
+    return rv
+
+###############################################################################
+def parse_test_status_file(file_contents, status_file_path, check_throughput=False, ignore_namelists=False):
 ###############################################################################
     r"""
-    >>> parse_test_status_file('PASS testname', '', False)
+    >>> parse_test_status_file('PASS testname', '')
     ('testname', 'PASS')
-    >>> parse_test_status_file('PASS testname \nGEN testname2', '', False)
+    >>> parse_test_status_file('PASS testname \nGEN testname2', '')
     ('testname', 'GEN')
-    >>> parse_test_status_file('PASS testname\nPASS testname2', '', False)
+    >>> parse_test_status_file('FAIL testname \nGEN testname2', '')
+    ('testname', 'GEN')
+    >>> parse_test_status_file('PASS testname\nPASS testname2', '')
     ('testname', 'PASS')
-    >>> parse_test_status_file('PASS testname\nFAIL testname2.tputcomp.foo', '', False)
+    >>> parse_test_status_file('PASS testname\nFAIL testname2.tputcomp.foo', '')
     ('testname', 'PASS')
     >>> parse_test_status_file('PASS testname\nFAIL testname2.tputcomp.foo', '', True)
     ('testname', 'FAIL')
+    >>> parse_test_status_file('PASS testname\nFAIL testname2.nlcomp', '')
+    ('testname', 'NLFAIL')
+    >>> parse_test_status_file('PASS testname\nFAIL testname2.nlcomp', '', ignore_namelists=True)
+    ('testname', 'PASS')
     """
     real_test_name = None
+    stati = []
     for line in file_contents.splitlines():
         if (len(line.split()) == 2):
             status, test_name = line.split()
@@ -232,18 +268,24 @@ def parse_test_status_file(file_contents, status_file_path, check_throughput):
             # A non-pass is OK if the failure is due to throughput and we
             # aren't checking throughput
             if (status != TEST_PASSED_STATUS and not
-                (not check_throughput and THROUGHPUT_TEST_STR in test_name)):
-                return real_test_name, status
+                (not check_throughput and THROUGHPUT_TEST_STR in test_name or
+                 ignore_namelists and NAMELIST_TEST_STR in test_name)):
+                if (NAMELIST_TEST_STR in test_name):
+                    stati.append(NAMELIST_FAIL_STATUS)
+                else:
+                    stati.append(status)
+            else:
+                stati.append(TEST_PASSED_STATUS)
         else:
             warning("In '%s', line '%s' not in expected format" % (status_file_path, line))
 
     if (real_test_name is None):
         warning("Empty status file: %s" % status_file_path)
 
-    return real_test_name, TEST_PASSED_STATUS
+    return real_test_name, reduce_stati(stati)
 
 ###############################################################################
-def wait_for_test(test_path, results, wait, check_throughput):
+def wait_for_test(test_path, results, wait, check_throughput, ignore_namelists):
 ###############################################################################
     if (os.path.isdir(test_path)):
         test_status_filepath = os.path.join(test_path, TEST_STATUS_FILENAME)
@@ -255,7 +297,7 @@ def wait_for_test(test_path, results, wait, check_throughput):
         if (os.path.exists(test_status_filepath)):
             test_status_fd = open(test_status_filepath, "r")
             test_status_contents = test_status_fd.read()
-            test_name, test_status = parse_test_status_file(test_status_contents, test_status_filepath, check_throughput)
+            test_name, test_status = parse_test_status_file(test_status_contents, test_status_filepath, check_throughput, ignore_namelists)
 
             if (test_status in TEST_NOT_FINISHED_STATUS and (wait and not SIGNAL_RECEIVED)):
                 time.sleep(SLEEP_INTERVAL_SEC)
@@ -274,7 +316,41 @@ def wait_for_test(test_path, results, wait, check_throughput):
                 break
 
 ###############################################################################
-def wait_for_tests(test_paths, no_wait, check_throughput, cdash_build_name):
+def get_test_results(test_paths, no_wait, check_throughput, ignore_namelists):
+###############################################################################
+    results = Queue.Queue()
+
+    for test_path in test_paths:
+        t = threading.Thread(target=wait_for_test, args=(test_path, results, not no_wait, check_throughput, ignore_namelists))
+        t.daemon = True
+        t.start()
+
+    while threading.active_count() > 1:
+        time.sleep(SLEEP_INTERVAL_SEC)
+
+    test_results = dict()
+    completed_test_paths = []
+    while (not results.empty()):
+        test_name, test_path, test_status = results.get()
+        if (test_name in test_results):
+            prior_path, prior_status = test_results[test_name]
+            if (test_status == prior_status):
+                warning("Test name '%s' was found in both '%s' and '%s'" %
+                        (test_name, test_path, prior_path))
+            else:
+                raise SystemExit("Test name '%s' was found in both '%s' and '%s' with different results" %
+                                 (test_name, test_path, prior_path))
+
+        test_results[test_name] = (test_path, test_status)
+        completed_test_paths.append(test_path)
+
+    expect(set(test_paths) == set(completed_test_paths),
+           "Missing results for test paths: %s" % (set(test_paths) - set(completed_test_paths)) )
+
+    return test_results
+
+###############################################################################
+def wait_for_tests(test_paths, no_wait, check_throughput, ignore_namelists, cdash_build_name):
 ###############################################################################
     # Set up signal handling, we want to print results before the program
     # is terminated
@@ -284,48 +360,16 @@ def wait_for_tests(test_paths, no_wait, check_throughput, cdash_build_name):
     if (cdash_build_name):
         start_time = time.time()
 
-    results = Queue.Queue()
-
-    for test_path in test_paths:
-        t = threading.Thread(target=wait_for_test, args=(test_path, results, not no_wait, check_throughput))
-        t.daemon = True
-        t.start()
-
-    while threading.active_count() > 1:
-        time.sleep(SLEEP_INTERVAL_SEC)
-
-    tests_with_results = dict()
-    completed_test_paths = []
-    while (not results.empty()):
-        test_name, test_path, test_status = results.get()
-        if (test_name in tests_with_results):
-            prior_path, prior_status = tests_with_results[test_name]
-            if (test_status == prior_status):
-                warning("Test name '%s' was found in both '%s' and '%s'" %
-                        (test_name, test_path, prior_path))
-            else:
-                raise SystemExit("Test name '%s' was found in both '%s' and '%s' with different results" %
-                                 (test_name, test_path, prior_path))
-
-        tests_with_results[test_name] = (test_path, test_status)
-        completed_test_paths.append(test_path)
-
-    expect(set(test_paths) == set(completed_test_paths),
-           "Missing results for test paths: %s" % (set(test_paths) - set(completed_test_paths)) )
+    test_results = get_test_results(test_paths, no_wait, check_throughput, ignore_namelists)
 
     all_pass = True
-    for test_name, test_data in sorted(tests_with_results.iteritems()):
+    for test_name, test_data in sorted(test_results.iteritems()):
         test_path, test_status = test_data
         print "Test '%s' finished with status '%s'" % (test_name, test_status)
         print "    Path: %s" % test_path
         all_pass &= test_status == TEST_PASSED_STATUS
 
     if (cdash_build_name):
-        create_cdash_xml(start_time, tests_with_results, cdash_build_name)
+        create_cdash_xml(start_time, test_results, cdash_build_name)
 
     return all_pass
-
-###############################################################################
-def run_unit_tests():
-###############################################################################
-    doctest.testmod()

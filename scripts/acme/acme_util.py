@@ -9,7 +9,9 @@ _VERBOSE = False
 MACHINE_NODENAMES = [
     ("redsky", re.compile(r"redsky-login")),
     ("skybridge", re.compile(r"skybridge-login")),
-    ("melvin", re.compile(r"melvin"))
+    ("melvin", re.compile(r"melvin")),
+    ("edison", re.compile(r"edison")),
+    ("blues", re.compile(r"blogin")),
 ]
 
 ###############################################################################
@@ -20,7 +22,7 @@ def expect(condition, error_msg):
     checking user error, not programming error.
     """
     if (not condition):
-        raise SystemExit(error_msg)
+        raise SystemExit("FAIL: %s" % error_msg)
 
 ###############################################################################
 def warning(msg):
@@ -128,3 +130,60 @@ def get_current_branch(repo=None):
     else:
         output = run_cmd("git symbolic-ref HEAD", from_dir=repo)
         return output.replace("refs/heads/", "").strip()
+
+###############################################################################
+def get_current_commit(short=False, repo=None):
+###############################################################################
+    """
+    Return the sha1 of the current HEAD commit
+    """
+    output = run_cmd("git rev-parse %s HEAD" % ("--short" if short else ""), from_dir=repo)
+    return output.strip()
+
+###############################################################################
+def stop_buffering_output():
+###############################################################################
+    """
+    All stdout, stderr will not be buffered after this is called.
+    """
+    sys.stdout.flush()
+    sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
+
+###############################################################################
+def start_buffering_output():
+###############################################################################
+    """
+    All stdout, stderr will be buffered after this is called. This is python's
+    default behavior.
+    """
+    sys.stdout.flush()
+    sys.stdout = os.fdopen(sys.stdout.fileno(), 'w')
+
+###############################################################################
+def match_any(item, re_list):
+###############################################################################
+    """
+    Return true if item matches any regex in re_list
+    """
+    for regex_str in re_list:
+        regex = re.compile(regex_str)
+        if (regex.match(item)):
+            return True
+
+    return False
+
+###############################################################################
+def safe_copy(src_dir, tgt_dir, files):
+###############################################################################
+    """
+    Copies a set of files from one dir to another. Works even if overwriting a
+    read-only file. Files can be relative paths and the relative path will be
+    matched on the tgt side.
+    """
+    for file_ in files:
+        full_tgt = os.path.join(tgt_dir, file_)
+        full_src = os.path.join(src_dir, file_)
+        expect(os.path.isfile(full_src), "Source dir '%s' missing file '%s'" % (src_dir, file_))
+        if (os.path.isfile(full_tgt)):
+            os.remove(full_tgt)
+        shutil.copy2(full_src, full_tgt)
