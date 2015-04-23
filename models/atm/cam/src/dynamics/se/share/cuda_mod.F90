@@ -55,7 +55,7 @@ module cuda_mod
   integer,parameter :: numk_lim2d = 15
 
   !This is from prim_advection_mod.F90
-  type(EdgeBuffer_t) :: edgeAdv, edgeAdv3, edgeAdvQ3, edgeAdvQ2, edgeAdvDSS
+  type(EdgeBuffer_t) :: edgeAdv, edgeAdv1, edgeAdvQ3, edgeAdvQ2, edgeAdv_p1, edgeAdvDSS
   integer,parameter :: DSSeta = 1
   integer,parameter :: DSSomega = 2
   integer,parameter :: DSSdiv_vdp_ave = 3
@@ -180,6 +180,8 @@ contains
     logical,allocatable,dimension(:,:) :: recv_elem_mask
     logical,allocatable,dimension(:)   :: elem_computed
     integer :: total_work
+    real(kind=real_kind), pointer :: buf_ptr(:) => null()
+    real(kind=real_kind), pointer :: receive_ptr(:) => null()
 
     rrearth_d = rrearth
 
@@ -321,10 +323,14 @@ contains
     write(*,*) "edgebuffers"
     !These have to be in a threaded region or they complain and die
 !$OMP END MASTER
-    call initEdgeBuffer(edgeAdv   ,qsize_d*nlev  )
-    call initEdgeBuffer(edgeAdvDSS,      3*nlev  )
-    call initEdgeBuffer(edgeAdvQ2 ,qsize_d*nlev*2)
-    call initEdgeBuffer(edgeAdvQ3 ,qsize_d*nlev*3)
+    call initEdgeBuffer(edgeAdvDSS,      3*nlev                              )
+    call initEdgeBuffer(edgeAdvQ3 ,max(nlev,qsize*nlev*3),buf_ptr,receive_ptr)  ! Qtens,Qmin, Qmax
+    call initEdgeBuffer(edgeAdv1  ,nlev                  ,buf_ptr,receive_ptr)
+    call initEdgeBuffer(edgeAdv   ,qsize*nlev            ,buf_ptr,receive_ptr)
+    call initEdgeBuffer(edgeAdv_p1,qsize*nlev + nlev     ,buf_ptr,receive_ptr) 
+    call initEdgeBuffer(edgeAdvQ2 ,qsize*nlev*2          ,buf_ptr,receive_ptr)  ! Qtens,Qmin, Qmax
+    nullify(buf_ptr)
+    nullify(receive_ptr)
 !$OMP MASTER
 
     write(*,*) "initial kernel"
@@ -522,6 +528,17 @@ contains
 
 
   subroutine euler_step_cuda( np1_qdp , n0_qdp , dt , elem , hvcoord , hybrid , deriv , nets , nete , DSSopt , rhs_multiplier )
+  ! ===================================
+  ! This routine is the basic foward
+  ! euler component used to construct RK SSP methods
+  !
+  !           u(np1) = u(n0) + dt2*DSS[ RHS(u(n0)) ]
+  !
+  ! n0 can be the same as np1.  
+  !
+  ! DSSopt = DSSeta or DSSomega:   also DSS eta_dot_dpdn or omega
+  !
+  ! ===================================
   use kinds             , only: real_kind
   use dimensions_mod    , only: np, npdg, nlev, qsize
   use hybrid_mod        , only: hybrid_t
@@ -551,6 +568,7 @@ contains
   real(kind=real_kind), dimension(np,np,2                     ) :: gradQ
   real(kind=real_kind), dimension(np,np,2,nlev                ) :: Vstar
   real(kind=real_kind), dimension(np,np  ,nlev                ) :: dp,dp_star
+  real(kind=real_kind), dimension(np,np  ,nlev,qsize,nets:nete) :: Qtens_biharmonic
   real(kind=real_kind) :: dp0,qmintmp,qmaxtmp
   integer :: ie,q,i,j,k
   integer :: rhs_viss = 0
@@ -561,14 +579,120 @@ contains
   !call t_startf('euler_step')
   call t_startf('euler_step_cuda')
 
-  if (limiter_option == 8) then
-    write(*,*) 'CUDA_MOD IS NOT INTENDED FOR USE WITH LIMITER_OPTION == 8 AT THIS TIME!'
-    write(*,*) 'PLEASE USE LIMITER_OPTION == 0 WHEN THE GPU OPTION IS ENABLED!'
-    stop
-  endif
-
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !   compute Q min/max values for lim8
+  !   compute biharmonic mixing term f
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   rhs_viss = 0
+  if ( limiter_option == 8  ) then
+    ! when running lim8, we also need to limit the biharmonic, so that term needs
+    ! to be included in each euler step.  three possible algorithms here:
+    ! 1) most expensive:
+    !     compute biharmonic (which also computes qmin/qmax) during all 3 stages
+    !     be sure to set rhs_viss=1
+    !     cost:  3 biharmonic steps with 3 DSS
+    !
+    ! 2) cheapest:
+    !     compute biharmonic (which also computes qmin/qmax) only on first stage
+    !     be sure to set rhs_viss=3
+    !     reuse qmin/qmax for all following stages (but update based on local qmin/qmax)
+    !     cost:  1 biharmonic steps with 1 DSS
+    !     main concern:  viscosity 
+    !     
+    ! 3)  compromise:
+    !     compute biharmonic (which also computes qmin/qmax) only on last stage
+    !     be sure to set rhs_viss=3
+    !     compute qmin/qmax directly on first stage
+    !     reuse qmin/qmax for 2nd stage stage (but update based on local qmin/qmax)
+    !     cost:  1 biharmonic steps, 2 DSS
+    !
+    !  NOTE  when nu_p=0 (no dissipation applied in dynamics to dp equation), we should
+    !        apply dissipation to Q (not Qdp) to preserve Q=1
+    !        i.e.  laplace(Qdp) ~  dp0 laplace(Q)                
+    !        for nu_p=nu_q>0, we need to apply dissipation to Q * diffusion_dp
+    !
+    ! initialize dp, and compute Q from Qdp (and store Q in Qtens_biharmonic)
+    do ie = nets , nete
+      ! add hyperviscosity to RHS.  apply to Q at timelevel n0, Qdp(n0)/dp
+      do k = 1 , nlev    !  Loop index added with implicit inversion (AAM)
+        dp(:,:,k) = elem(ie)%derived%dp(:,:,k) - rhs_multiplier*dt*elem(ie)%derived%divdp_proj(:,:,k) 
+        do q = 1 , qsize
+          Qtens_biharmonic(:,:,k,q,ie) = elem(ie)%state%Qdp(:,:,k,q,n0_qdp)/dp(:,:,k)
+        enddo
+      enddo
+    enddo
+    ! compute element qmin/qmax
+    if ( rhs_multiplier == 0 ) then
+      do ie = nets , nete
+        do k = 1 , nlev    
+          do q = 1 , qsize
+            qmin(k,q,ie)=minval(Qtens_biharmonic(:,:,k,q,ie))
+            qmax(k,q,ie)=maxval(Qtens_biharmonic(:,:,k,q,ie))
+            qmin(k,q,ie)=max(qmin(k,q,ie),0d0)
+          enddo
+        enddo
+      enddo
+      ! update qmin/qmax based on neighbor data for lim8
+      call neighbor_minmax(elem,hybrid,edgeAdvQ2,nets,nete,qmin(:,:,nets:nete),qmax(:,:,nets:nete))
+    endif
+    ! lets just reuse the old neighbor min/max, but update based on local data
+    if ( rhs_multiplier == 1 ) then
+      do ie = nets , nete
+        do k = 1 , nlev    !  Loop index added with implicit inversion (AAM)
+          do q = 1 , qsize
+            qmin(k,q,ie)=min(qmin(k,q,ie),minval(Qtens_biharmonic(:,:,k,q,ie)))
+            qmin(k,q,ie)=max(qmin(k,q,ie),0d0)
+            qmax(k,q,ie)=max(qmax(k,q,ie),maxval(Qtens_biharmonic(:,:,k,q,ie)))
+          enddo
+        enddo
+      enddo
+    endif
+    ! get niew min/max values, and also compute biharmonic mixing term
+    if ( rhs_multiplier == 2 ) then
+      rhs_viss = 3
+      ! compute element qmin/qmax  
+      do ie = nets , nete
+        do k = 1  ,nlev    
+          do q = 1 , qsize
+            qmin(k,q,ie)=minval(Qtens_biharmonic(:,:,k,q,ie))
+            qmax(k,q,ie)=maxval(Qtens_biharmonic(:,:,k,q,ie))
+            qmin(k,q,ie)=max(qmin(k,q,ie),0d0)
+          enddo
+        enddo
+      enddo
+      ! two scalings depending on nu_p:
+      ! nu_p=0:    qtens_biharmonic *= dp0                   (apply viscsoity only to q)
+      ! nu_p>0):   qtens_biharmonc *= elem()%psdiss_ave      (for consistency, if nu_p=nu_q)
+      if ( nu_p > 0 ) then
+        do ie = nets , nete
+          do k = 1 , nlev    
+            dp0 = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + &
+                  ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*hvcoord%ps0
+            dpdiss(:,:) = elem(ie)%derived%dpdiss_ave(:,:,k)
+            do q = 1 , qsize
+              ! NOTE: divide by dp0 since we multiply by dp0 below
+              Qtens_biharmonic(:,:,k,q,ie)=Qtens_biharmonic(:,:,k,q,ie)*dpdiss(:,:)/dp0
+            enddo
+          enddo
+        enddo
+      endif
+      call biharmonic_wk_scalar_minmax( elem , qtens_biharmonic , deriv , edgeAdvQ3 , hybrid , nets , nete , qmin(:,:,nets:nete) , qmax(:,:,nets:nete) )
+      do ie = nets , nete
+        do k = 1 , nlev    !  Loop inversion (AAM)
+          dp0 = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + &
+                ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*hvcoord%ps0
+          do q = 1 , qsize
+            ! note: biharmonic_wk() output has mass matrix already applied. Un-apply since we apply again below:
+            qtens_biharmonic(:,:,k,q,ie) = -rhs_viss*dt*nu_q*dp0*Qtens_biharmonic(:,:,k,q,ie) / elem(ie)%spheremp(:,:)
+          enddo
+        enddo
+      enddo
+    endif
+  endif  ! compute biharmonic mixing term and qmin/qmax
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   2D Advection step
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   do ie = nets , nete
     ! Compute velocity used to advance Qdp 
     ! derived variable divdp_proj() (DSS'd version of divdp) will only be correct on 2nd and 3rd stage
@@ -577,17 +701,47 @@ contains
     vstar_h(:,:,:,1,ie) = elem(ie)%derived%vn0(:,:,1,:) / dp_h(:,:,:,ie)
     vstar_h(:,:,:,2,ie) = elem(ie)%derived%vn0(:,:,2,:) / dp_h(:,:,:,ie)
   enddo
-!$OMP BARRIER
-!$OMP MASTER
+  call copy_qdp_h2d(elem,n0_qdp)
+  !$OMP BARRIER
+  !$OMP MASTER
   ierr = cudaMemcpyAsync( dp_d    , dp_h    , size( dp_h    ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
   ierr = cudaMemcpyAsync( vstar_d , vstar_h , size( vstar_h ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
   blockdim = dim3( np*np*numk_eul , 1 , 1 )
   griddim  = dim3( int(ceiling(dble(nlev)/numk_eul))*qsize_d*nelemd , 1 , 1 )
-  call euler_step_kernel1<<<griddim,blockdim,0,streams(1)>>>( qdp_d , spheremp_d , vstar_d , qtens_biharmonic_d , metdet_d , rmetdet_d , dinv_d , deriv_dvv_d , &
+  call euler_step_kernel1<<<griddim,blockdim,0,streams(1)>>>( qdp_d , qtens_d , spheremp_d , vstar_d , metdet_d , rmetdet_d , dinv_d , deriv_dvv_d , &
                                                               n0_qdp , np1_qdp , rhs_viss , dt , 1 , nelemd ); _CHECK(__LINE__)
+
+  ierr = cudaMemcpyAsync( qtens_h , qtens_d , size(qtens_h) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
+  ierr = cudathreadsynchronize()
+  !$OMP END MASTER
+  !$OMP BARRIER
+  do ie = nets , nete
+    do q = 1 , qsize
+      if ( limiter_option == 8 ) then
+        do k = 1 , nlev  ! Loop index added (AAM)
+          if ( rhs_viss /= 0 ) Qtens_h(:,:,k,q,ie) = Qtens_h(:,:,k,q,ie) + Qtens_biharmonic(:,:,k,q,ie)
+          ! UN-DSS'ed dp at timelevel n0+1:  
+          dp_star(:,:,k) = dp_h(:,:,k,ie) - dt * elem(ie)%derived%divdp(:,:,k)  
+          if ( nu_p > 0 .and. rhs_viss /= 0 ) then
+            ! add contribution from UN-DSS'ed PS dissipation
+            dpdiss(:,:) = elem(ie)%derived%dpdiss_biharmonic(:,:,k)
+            dp_star(:,:,k) = dp_star(:,:,k) - rhs_viss * dt * nu_q * dpdiss(:,:) / elem(ie)%spheremp(:,:)
+          endif
+        enddo
+        ! apply limiter to Q = Qtens / dp_star 
+        call limiter_optim_iter_full( Qtens_h(:,:,:,q,ie) , elem(ie)%spheremp(:,:) , qmin(:,q,ie) , qmax(:,q,ie) , dp_star(:,:,:) )
+      endif
+    enddo
+  enddo
+  !$OMP BARRIER
+  !$OMP MASTER
+  ierr = cudaMemcpyAsync(qtens_d,qtens_h,size(qtens_h),cudaMemcpyHostToDevice,streams(1)); _CHECK(__LINE__)
+  blockdim = dim3( np*np*numk_eul , 1 , 1 )
+  griddim  = dim3( int(ceiling(dble(nlev)/numk_eul))*qsize_d*nelemd , 1 , 1 )
+  call euler_step_kernel2<<<griddim,blockdim,0,streams(1)>>>( qdp_d , qtens_d , spheremp_d , np1_qdp , 1 , nelemd ); _CHECK(__LINE__)
   if ( limiter_option == 4 ) then
-  blockdim = dim3( np*np*numk_lim2d , 1 , 1 )
-  griddim  = dim3( int(ceiling(dble(nlev)/numk_lim2d))*qsize_d*nelemd , 1 , 1 )
+    blockdim = dim3( np*np*numk_lim2d , 1 , 1 )
+    griddim  = dim3( int(ceiling(dble(nlev)/numk_lim2d))*qsize_d*nelemd , 1 , 1 )
     call limiter2d_zero_kernel<<<griddim,blockdim,0,streams(1)>>>( qdp_d , 1 , nelemd , np1_qdp ); _CHECK(__LINE__)
   endif
   call t_startf('eus_cuda_peus')
@@ -596,8 +750,9 @@ contains
   blockdim = dim3( np*np   * nlev  , 1 , 1 )
   griddim  = dim3( qsize_d , nelemd , 1 )
   call euler_hypervis_kernel_last<<<griddim,blockdim,0,streams(1)>>>( qdp_d , rspheremp_d , 1 , nelemd , np1_qdp ); _CHECK(__LINE__)
-!$OMP END MASTER
-!$OMP BARRIER
+  !$OMP END MASTER
+  !$OMP BARRIER
+  call copy_qdp_d2h(elem,np1_qdp)
 
   call t_stopf('euler_step_cuda')
   !call t_stopf('euler_step')
@@ -609,11 +764,14 @@ subroutine qdp_time_avg_cuda( elem , rkstage , n0_qdp , np1_qdp , limiter_option
   use element_mod, only: element_t
   implicit none
   type(element_t)     , intent(inout) :: elem(:)
-  real(kind=real_kind), intent(in   ) :: nu_p
   integer             , intent(in   ) :: rkstage , n0_qdp , np1_qdp , nets , nete, limiter_option
+  real(kind=real_kind), intent(in   ) :: nu_p
+  integer :: ie
   type(dim3) :: griddim , blockdim
-  integer :: ierr, ie
+  integer :: ierr
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  call copy_qdp_h2d(elem,np1_qdp)
+  call copy_qdp_h2d(elem,n0_qdp)
 !$OMP BARRIER
 !$OMP MASTER
   blockdim = dim3( np      , np     , nlev )
@@ -621,6 +779,7 @@ subroutine qdp_time_avg_cuda( elem , rkstage , n0_qdp , np1_qdp , limiter_option
   call qdp_time_avg_kernel<<<griddim,blockdim,0,streams(1)>>>( qdp_d , rkstage , n0_qdp , np1_qdp , 1 , nelemd ); _CHECK(__LINE__)
 !$OMP END MASTER
 !$OMP BARRIER
+  call copy_qdp_d2h(elem,np1_qdp)
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 end subroutine qdp_time_avg_cuda
 
@@ -767,12 +926,12 @@ end subroutine qdp_time_avg_kernel
 
 
 
-attributes(global) subroutine euler_step_kernel1( Qdp , spheremp , vstar , qtens_biharmonic , metdet , rmetdet , dinv , deriv_dvv , n0_qdp , np1_qdp , rhs_viss , dt , nets , nete )
+attributes(global) subroutine euler_step_kernel1( Qdp , qtens , spheremp , vstar , metdet , rmetdet , dinv , deriv_dvv , n0_qdp , np1_qdp , rhs_viss , dt , nets , nete )
   implicit none
-  real(kind=real_kind), dimension(np,np,nlev,qsize_d,timelevels,nets:nete), intent(inout) :: Qdp
+  real(kind=real_kind), dimension(np,np,nlev,qsize_d,timelevels,nets:nete), intent(in   ) :: Qdp
+  real(kind=real_kind), dimension(np,np,nlev,qsize_d           ,nets:nete), intent(  out) :: qtens
   real(kind=real_kind), dimension(np,np                        ,nets:nete), intent(in   ) :: spheremp
   real(kind=real_kind), dimension(np,np,nlev,2                 ,nets:nete), intent(in   ) :: vstar
-  real(kind=real_kind), dimension(np,np,nlev,qsize_d           ,nets:nete), intent(in   ) :: qtens_biharmonic
   real(kind=real_kind), dimension(np,np                        ,nets:nete), intent(in   ) :: metdet
   real(kind=real_kind), dimension(np,np                        ,nets:nete), intent(in   ) :: rmetdet
   real(kind=real_kind), dimension(np,np,2,2                    ,nets:nete), intent(in   ) :: dinv
@@ -782,7 +941,7 @@ attributes(global) subroutine euler_step_kernel1( Qdp , spheremp , vstar , qtens
   integer :: ks
   integer :: i , j , k , kk , q , ie , ij
   real(kind=real_kind), shared :: deriv_dvv_s(np*np+1)
-  real(kind=real_kind) :: qtmp, qtens
+  real(kind=real_kind) :: qtmp
 
   ks = int(ceiling(dble(nlev)/numk_eul))
 
@@ -797,11 +956,32 @@ attributes(global) subroutine euler_step_kernel1( Qdp , spheremp , vstar , qtens
   if (k  <= nlev .and. q  <= qsize_d .and. ie <= nete ) then
     if (kk == 1) deriv_dvv_s(ij) = deriv_dvv(i,j)
     qtmp = Qdp(i,j,k,q,n0_qdp,ie)
-    qtens = qtmp - dt * divergence_sphere( i , j , k , q , ie , kk , ij , vstar , qtmp , metdet , rmetdet , dinv , deriv_dvv_s , nets , nete )
-    if ( rhs_viss /= 0 ) qtens = qtens + qtens_biharmonic(i,j,k,q,ie)
-    Qdp(i,j,k,q,np1_qdp,ie) = spheremp(i,j,ie) * qtens
+    qtens(i,j,k,q,ie) = qtmp - dt * divergence_sphere( i , j , k , q , ie , kk , ij , vstar , qtmp , metdet , rmetdet , dinv , deriv_dvv_s , nets , nete )
   endif
 end subroutine euler_step_kernel1
+
+
+
+attributes(global) subroutine euler_step_kernel2( Qdp , qtens , spheremp , np1_qdp , nets , nete )
+  implicit none
+  real(kind=real_kind), dimension(np,np,nlev,qsize_d,timelevels,nets:nete), intent(  out) :: Qdp
+  real(kind=real_kind), dimension(np,np,nlev,qsize_d           ,nets:nete), intent(in   ) :: qtens
+  real(kind=real_kind), dimension(np,np                        ,nets:nete), intent(in   ) :: spheremp
+  integer, value                                                          , intent(in   ) :: np1_qdp, nets, nete
+  integer :: i,j,k,q,ie,kk,ks
+  ks = int(ceiling(dble(nlev)/numk_eul))
+  !Define the indices
+  i  = modulo( threadidx%x-1    ,np)+1
+  j  = modulo((threadidx%x-1)/np,np)+1
+  kk = (threadidx%x-1)/(np*np)+1
+  k  = modulo(blockidx%x-1,ks)*numk_eul + kk
+  q  = modulo((blockidx%x-1)/ks,qsize_d)+1
+  ie =       ((blockidx%x-1)/ks)/qsize_d+1
+  if (k  > nlev   ) return
+  if (q  > qsize_d) return
+  if (ie > nete   ) return
+  Qdp(i,j,k,q,np1_qdp,ie) = spheremp(i,j,ie) * Qtens(i,j,k,q,ie)
+end subroutine euler_step_kernel2
 
 
 
@@ -1286,6 +1466,166 @@ attributes(device) function divergence_sphere_wk(i,j,ie,k,tmp,s,dinv,spheremp,de
                    s((l-1)*np+i,k,2)*deriv_dvv(j,l)) * rrearth_d
   enddo
 end function divergence_sphere_wk
+
+
+
+  subroutine limiter_optim_iter_full(ptens,sphweights,minp,maxp,dpmass)
+    !THIS IS A NEW VERSION OF LIM8, POTENTIALLY FASTER BECAUSE INCORPORATES KNOWLEDGE FROM
+    !PREVIOUS ITERATIONS
+    
+    !The idea here is the following: We need to find a grid field which is closest
+    !to the initial field (in terms of weighted sum), but satisfies the min/max constraints.
+    !So, first we find values which do not satisfy constraints and bring these values
+    !to a closest constraint. This way we introduce some mass change (addmass),
+    !so, we redistribute addmass in the way that l2 error is smallest. 
+    !This redistribution might violate constraints thus, we do a few iterations. 
+    use kinds         , only : real_kind
+    use dimensions_mod, only : np, np, nlev
+    real (kind=real_kind), dimension(np*np,nlev), intent(inout)            :: ptens
+    real (kind=real_kind), dimension(np*np     ), intent(in   )            :: sphweights
+    real (kind=real_kind), dimension(      nlev), intent(inout)            :: minp
+    real (kind=real_kind), dimension(      nlev), intent(inout)            :: maxp
+    real (kind=real_kind), dimension(np*np,nlev), intent(in   ), optional  :: dpmass
+ 
+    real (kind=real_kind), dimension(np*np,nlev) :: weights
+    integer  k1, k, i, j, iter, i1, i2
+    integer :: whois_neg(np*np), whois_pos(np*np), neg_counter, pos_counter
+    real (kind=real_kind) :: addmass, weightssum, mass
+    real (kind=real_kind) :: x(np*np),c(np*np)
+    real (kind=real_kind) :: al_neg(np*np), al_pos(np*np), howmuch
+    real (kind=real_kind) :: tol_limiter = 1e-15
+    integer, parameter :: maxiter = 5
+
+    do k = 1 , nlev
+      weights(:,k) = sphweights(:) * dpmass(:,k)
+      ptens(:,k) = ptens(:,k) / dpmass(:,k)
+    enddo
+
+    do k = 1 , nlev
+      c = weights(:,k)
+      x = ptens(:,k)
+
+      mass = sum(c*x)
+
+      ! relax constraints to ensure limiter has a solution:
+      ! This is only needed if runnign with the SSP CFL>1 or 
+      ! due to roundoff errors
+      if( (mass / sum(c)) < minp(k) ) then
+        minp(k) = mass / sum(c)
+      endif
+      if( (mass / sum(c)) > maxp(k) ) then
+        maxp(k) = mass / sum(c)
+      endif
+
+      addmass = 0.0d0
+      pos_counter = 0;
+      neg_counter = 0;
+      
+      ! apply constraints, compute change in mass caused by constraints 
+      do k1 = 1 , np*np
+        if ( ( x(k1) >= maxp(k) ) ) then
+          addmass = addmass + ( x(k1) - maxp(k) ) * c(k1)
+          x(k1) = maxp(k)
+          whois_pos(k1) = -1
+        else
+          pos_counter = pos_counter+1;
+          whois_pos(pos_counter) = k1;
+        endif
+        if ( ( x(k1) <= minp(k) ) ) then
+          addmass = addmass - ( minp(k) - x(k1) ) * c(k1)
+          x(k1) = minp(k)
+          whois_neg(k1) = -1
+        else
+          neg_counter = neg_counter+1;
+          whois_neg(neg_counter) = k1;
+        endif
+      enddo
+      
+      ! iterate to find field that satifies constraints and is l2-norm closest to original 
+      weightssum = 0.0d0
+      if ( addmass > 0 ) then
+        do i2 = 1 , maxIter
+          weightssum = 0.0
+          do k1 = 1 , pos_counter
+            i1 = whois_pos(k1)
+            weightssum = weightssum + c(i1)
+            al_pos(i1) = maxp(k) - x(i1)
+          enddo
+          
+          if( ( pos_counter > 0 ) .and. ( addmass > tol_limiter * abs(mass) ) ) then
+            do k1 = 1 , pos_counter
+              i1 = whois_pos(k1)
+              howmuch = addmass / weightssum
+              if ( howmuch > al_pos(i1) ) then
+                howmuch = al_pos(i1)
+                whois_pos(k1) = -1
+              endif
+              addmass = addmass - howmuch * c(i1)
+              weightssum = weightssum - c(i1)
+              x(i1) = x(i1) + howmuch
+            enddo
+            !now sort whois_pos and get a new number for pos_counter
+            !here neg_counter and whois_neg serve as temp vars
+            neg_counter = pos_counter
+            whois_neg = whois_pos
+            whois_pos = -1
+            pos_counter = 0
+            do k1 = 1 , neg_counter
+              if ( whois_neg(k1) .ne. -1 ) then
+                pos_counter = pos_counter+1
+                whois_pos(pos_counter) = whois_neg(k1)
+              endif
+            enddo
+          else
+            exit
+          endif
+        enddo
+      else
+         do i2 = 1 , maxIter
+           weightssum = 0.0
+           do k1 = 1 , neg_counter
+             i1 = whois_neg(k1)
+             weightssum = weightssum + c(i1)
+             al_neg(i1) = x(i1) - minp(k)
+           enddo
+           
+           if ( ( neg_counter > 0 ) .and. ( (-addmass) > tol_limiter * abs(mass) ) ) then
+             do k1 = 1 , neg_counter
+               i1 = whois_neg(k1)
+               howmuch = -addmass / weightssum
+               if ( howmuch > al_neg(i1) ) then
+                 howmuch = al_neg(i1)
+                 whois_neg(k1) = -1
+               endif
+               addmass = addmass + howmuch * c(i1)
+               weightssum = weightssum - c(i1)
+               x(i1) = x(i1) - howmuch
+             enddo
+             !now sort whois_pos and get a new number for pos_counter
+             !here pos_counter and whois_pos serve as temp vars
+             pos_counter = neg_counter
+             whois_pos = whois_neg
+             whois_neg = -1
+             neg_counter = 0
+             do k1 = 1 , pos_counter
+               if ( whois_pos(k1) .ne. -1 ) then
+                 neg_counter = neg_counter+1
+                 whois_neg(neg_counter) = whois_pos(k1)
+               endif
+             enddo
+           else
+             exit
+           endif
+         enddo
+      endif
+      
+      ptens(:,k) = x
+    enddo
+    
+    do k = 1 , nlev
+      ptens(:,k) = ptens(:,k) * dpmass(:,k)
+    enddo
+  end subroutine limiter_optim_iter_full
 
 
 
