@@ -96,6 +96,7 @@ module cuda_mod
   real(kind=real_kind) ,device,allocatable,dimension(:,:,:,:)     :: z1_d
   real(kind=real_kind) ,device,allocatable,dimension(:,:,:,:)     :: z2_d
   integer              ,device,allocatable,dimension(:,:,:,:)     :: kid_d
+  real(kind=real_kind) ,device,allocatable,dimension(:)           :: dp0_d
 
   !PINNED Host arrays
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:,:,:) :: qdp_h
@@ -119,6 +120,7 @@ module cuda_mod
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:)     :: z1_h
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:)     :: z2_h
   integer             ,pinned,allocatable,dimension(:,:,:,:)     :: kid_h
+  real(kind=real_kind),pinned,allocatable,dimension(:)           :: dp0_h
 
   !Normal Host arrays
   integer,allocatable,dimension(:)   :: send_nelem
@@ -173,7 +175,7 @@ contains
 
     type (Cycle_t),pointer    :: pCycle
     type (Schedule_t),pointer :: pSchedule
-    integer                   :: ie , ierr , icycle , iPtr , rank , nSendCycles , nRecvCycles , nlyr , mx_send_len , mx_recv_len , n
+    integer                   :: ie , ierr , icycle , iPtr , rank , nSendCycles , nRecvCycles , nlyr , mx_send_len , mx_recv_len , n, k
     real(kind=real_kind)      :: dinv_t(np , np , 2 , 2)
     type (dim3)               :: griddim , blockdim
     logical,allocatable,dimension(:,:) :: send_elem_mask
@@ -253,6 +255,7 @@ contains
     allocate( z1_d                     (np,np,        nlev           ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( z2_d                     (np,np,        nlev           ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( kid_d                    (np,np,        nlev           ,nelemd) , stat = ierr ); _CHECK(__LINE__)
+    allocate( dp0_d                    (              nlev                  ) , stat = ierr ); _CHECK(__LINE__)
 
     allocate( qdp_h                    (np,np,nlev,qsize_d,timelevels,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( qdp1_h                   (np,np,nlev                   ,nelemd) , stat = ierr ); _CHECK(__LINE__)
@@ -273,6 +276,7 @@ contains
     allocate( z1_h                     (np,np,        nlev           ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( z2_h                     (np,np,        nlev           ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( kid_h                    (np,np,        nlev           ,nelemd) , stat = ierr ); _CHECK(__LINE__)
+    allocate( dp0_h                    (              nlev                  ) , stat = ierr ); _CHECK(__LINE__)
 
     ! The PGI compiler with cuda enabled errors when allocating arrays of zero
     !   size - here when using only one MPI task
@@ -319,6 +323,11 @@ contains
       ierr = cudaMemcpy( reverse_d                (1        ,ie) , elem(ie)%desc%reverse            , size(elem(ie)%desc%reverse           ) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
       ierr = cudaMemcpy( variable_hyperviscosity_d(1,1      ,ie) , elem(ie)%variable_hyperviscosity , size(elem(ie)%variable_hyperviscosity) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
     enddo
+    do k = 1 , nlev    
+      dp0_h(k) = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + &
+                 ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*hvcoord%ps0
+    enddo
+    ierr = cudaMemcpy( dp0_d , dp0_h , size(dp0_h) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
 
     write(*,*) "edgebuffers"
     !These have to be in a threaded region or they complain and die
@@ -579,6 +588,15 @@ contains
   !call t_startf('euler_step')
   call t_startf('euler_step_cuda')
 
+  do ie = nets , nete
+    ! Compute velocity used to advance Qdp 
+    ! derived variable divdp_proj() (DSS'd version of divdp) will only be correct on 2nd and 3rd stage
+    ! but that's ok because rhs_multiplier=0 on the first stage:
+    dp_h(:,:,:,ie) = elem(ie)%derived%dp(:,:,:) - rhs_multiplier * dt * elem(ie)%derived%divdp_proj(:,:,:) 
+    vstar_h(:,:,:,1,ie) = elem(ie)%derived%vn0(:,:,1,:) / dp_h(:,:,:,ie)
+    vstar_h(:,:,:,2,ie) = elem(ie)%derived%vn0(:,:,2,:) / dp_h(:,:,:,ie)
+  enddo
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   compute Q min/max values for lim8
   !   compute biharmonic mixing term f
@@ -612,51 +630,74 @@ contains
     !        for nu_p=nu_q>0, we need to apply dissipation to Q * diffusion_dp
     !
     ! initialize dp, and compute Q from Qdp (and store Q in Qtens_biharmonic)
-    do ie = nets , nete
-      ! add hyperviscosity to RHS.  apply to Q at timelevel n0, Qdp(n0)/dp
-      do k = 1 , nlev    !  Loop index added with implicit inversion (AAM)
-        dp(:,:,k) = elem(ie)%derived%dp(:,:,k) - rhs_multiplier*dt*elem(ie)%derived%divdp_proj(:,:,k) 
-        do q = 1 , qsize
-          Qtens_biharmonic(:,:,k,q,ie) = elem(ie)%state%Qdp(:,:,k,q,n0_qdp)/dp(:,:,k)
+    do ie = nets , nete    ! add hyperviscosity to RHS.  apply to Q at timelevel n0, Qdp(n0)/dp
+      do q = 1 , qsize
+        do k = 1 , nlev
+          do j = 1 , np
+            do i = 1 , np
+              Qtens_biharmonic(i,j,k,q,ie) = elem(ie)%state%Qdp(i,j,k,q,n0_qdp)/dp_h(i,j,k,ie)
+            enddo
+          enddo
         enddo
       enddo
     enddo
-    ! compute element qmin/qmax
-    if ( rhs_multiplier == 0 ) then
+    if ( rhs_multiplier == 0 ) then  ! compute element qmin/qmax
       do ie = nets , nete
-        do k = 1 , nlev    
-          do q = 1 , qsize
-            qmin(k,q,ie)=minval(Qtens_biharmonic(:,:,k,q,ie))
-            qmax(k,q,ie)=maxval(Qtens_biharmonic(:,:,k,q,ie))
-            qmin(k,q,ie)=max(qmin(k,q,ie),0d0)
+        do q = 1 , qsize
+          do k = 1 , nlev    
+            qmin(k,q,ie) =  1e20
+            qmax(k,q,ie) = -1e20
           enddo
         enddo
       enddo
-      ! update qmin/qmax based on neighbor data for lim8
-      call neighbor_minmax(elem,hybrid,edgeAdvQ2,nets,nete,qmin(:,:,nets:nete),qmax(:,:,nets:nete))
-    endif
-    ! lets just reuse the old neighbor min/max, but update based on local data
-    if ( rhs_multiplier == 1 ) then
       do ie = nets , nete
-        do k = 1 , nlev    !  Loop index added with implicit inversion (AAM)
-          do q = 1 , qsize
-            qmin(k,q,ie)=min(qmin(k,q,ie),minval(Qtens_biharmonic(:,:,k,q,ie)))
-            qmin(k,q,ie)=max(qmin(k,q,ie),0d0)
-            qmax(k,q,ie)=max(qmax(k,q,ie),maxval(Qtens_biharmonic(:,:,k,q,ie)))
+        do q = 1 , qsize
+          do k = 1 , nlev    
+            do j = 1 , np
+              do i = 1 , np
+                qmin(k,q,ie) = max(min(qmin(k,q,ie),Qtens_biharmonic(i,j,k,q,ie)),0d0)
+                qmax(k,q,ie) =     max(qmax(k,q,ie),Qtens_biharmonic(i,j,k,q,ie))
+              enddo
+            enddo
+          enddo
+        enddo
+      enddo
+      call neighbor_minmax(elem,hybrid,edgeAdvQ2,nets,nete,qmin(:,:,nets:nete),qmax(:,:,nets:nete))   ! update qmin/qmax based on neighbor data for lim8
+    endif
+    if ( rhs_multiplier == 1 ) then      ! lets just reuse the old neighbor min/max, but update based on local data
+      do ie = nets , nete
+        do q = 1 , qsize
+          do k = 1 , nlev    
+            do j = 1 , np
+              do i = 1 , np
+                qmin(k,q,ie)=max(min(qmin(k,q,ie),Qtens_biharmonic(i,j,k,q,ie)),0d0)
+                qmax(k,q,ie)=    max(qmax(k,q,ie),Qtens_biharmonic(i,j,k,q,ie))
+              enddo
+            enddo
           enddo
         enddo
       enddo
     endif
-    ! get niew min/max values, and also compute biharmonic mixing term
-    if ( rhs_multiplier == 2 ) then
+    if ( rhs_multiplier == 2 ) then   ! get niew min/max values, and also compute biharmonic mixing term
       rhs_viss = 3
       ! compute element qmin/qmax  
       do ie = nets , nete
-        do k = 1  ,nlev    
-          do q = 1 , qsize
-            qmin(k,q,ie)=minval(Qtens_biharmonic(:,:,k,q,ie))
-            qmax(k,q,ie)=maxval(Qtens_biharmonic(:,:,k,q,ie))
-            qmin(k,q,ie)=max(qmin(k,q,ie),0d0)
+        do q = 1 , qsize
+          do k = 1 , nlev    
+            qmin(k,q,ie) =  1e20
+            qmax(k,q,ie) = -1e20
+          enddo
+        enddo
+      enddo
+      do ie = nets , nete
+        do q = 1 , qsize
+          do k = 1 , nlev    
+            do j = 1 , np
+              do i = 1 , np
+                qmin(k,q,ie) = max(min(qmin(k,q,ie),Qtens_biharmonic(i,j,k,q,ie)),0d0)
+                qmax(k,q,ie) =     max(qmax(k,q,ie),Qtens_biharmonic(i,j,k,q,ie))
+              enddo
+            enddo
           enddo
         enddo
       enddo
@@ -665,25 +706,26 @@ contains
       ! nu_p>0):   qtens_biharmonc *= elem()%psdiss_ave      (for consistency, if nu_p=nu_q)
       if ( nu_p > 0 ) then
         do ie = nets , nete
-          do k = 1 , nlev    
-            dp0 = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + &
-                  ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*hvcoord%ps0
-            dpdiss(:,:) = elem(ie)%derived%dpdiss_ave(:,:,k)
-            do q = 1 , qsize
-              ! NOTE: divide by dp0 since we multiply by dp0 below
-              Qtens_biharmonic(:,:,k,q,ie)=Qtens_biharmonic(:,:,k,q,ie)*dpdiss(:,:)/dp0
+          do q = 1 , qsize
+            do k = 1 , nlev    
+              do j = 1 , np
+                do i = 1 , np
+                  Qtens_biharmonic(i,j,k,q,ie) = Qtens_biharmonic(i,j,k,q,ie)*elem(ie)%derived%dpdiss_ave(i,j,k)/dp0_h(k)    ! NOTE: divide by dp0 since we multiply by dp0 below
+                enddo
+              enddo
             enddo
           enddo
         enddo
       endif
       call biharmonic_wk_scalar_minmax( elem , qtens_biharmonic , deriv , edgeAdvQ3 , hybrid , nets , nete , qmin(:,:,nets:nete) , qmax(:,:,nets:nete) )
-      do ie = nets , nete
-        do k = 1 , nlev    !  Loop inversion (AAM)
-          dp0 = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + &
-                ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*hvcoord%ps0
-          do q = 1 , qsize
-            ! note: biharmonic_wk() output has mass matrix already applied. Un-apply since we apply again below:
-            qtens_biharmonic(:,:,k,q,ie) = -rhs_viss*dt*nu_q*dp0*Qtens_biharmonic(:,:,k,q,ie) / elem(ie)%spheremp(:,:)
+      do ie = nets , nete   ! note: biharmonic_wk() output has mass matrix already applied. Un-apply since we apply again below:
+        do q = 1 , qsize
+          do k = 1 , nlev
+            do j = 1 , np
+              do i = 1 , np
+                qtens_biharmonic(i,j,k,q,ie) = -rhs_viss*dt*nu_q*dp0_h(k)*Qtens_biharmonic(i,j,k,q,ie) / elem(ie)%spheremp(i,j)
+              enddo
+            enddo
           enddo
         enddo
       enddo
@@ -693,14 +735,6 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   2D Advection step
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  do ie = nets , nete
-    ! Compute velocity used to advance Qdp 
-    ! derived variable divdp_proj() (DSS'd version of divdp) will only be correct on 2nd and 3rd stage
-    ! but that's ok because rhs_multiplier=0 on the first stage:
-    dp_h(:,:,:,ie) = elem(ie)%derived%dp(:,:,:) - rhs_multiplier * dt * elem(ie)%derived%divdp_proj(:,:,:) 
-    vstar_h(:,:,:,1,ie) = elem(ie)%derived%vn0(:,:,1,:) / dp_h(:,:,:,ie)
-    vstar_h(:,:,:,2,ie) = elem(ie)%derived%vn0(:,:,2,:) / dp_h(:,:,:,ie)
-  enddo
   call copy_qdp_h2d(elem,n0_qdp)
   !$OMP BARRIER
   !$OMP MASTER
@@ -715,24 +749,22 @@ contains
   ierr = cudathreadsynchronize()
   !$OMP END MASTER
   !$OMP BARRIER
-  do ie = nets , nete
-    do q = 1 , qsize
-      if ( limiter_option == 8 ) then
-        do k = 1 , nlev  ! Loop index added (AAM)
-          if ( rhs_viss /= 0 ) Qtens_h(:,:,k,q,ie) = Qtens_h(:,:,k,q,ie) + Qtens_biharmonic(:,:,k,q,ie)
-          ! UN-DSS'ed dp at timelevel n0+1:  
-          dp_star(:,:,k) = dp_h(:,:,k,ie) - dt * elem(ie)%derived%divdp(:,:,k)  
-          if ( nu_p > 0 .and. rhs_viss /= 0 ) then
-            ! add contribution from UN-DSS'ed PS dissipation
-            dpdiss(:,:) = elem(ie)%derived%dpdiss_biharmonic(:,:,k)
-            dp_star(:,:,k) = dp_star(:,:,k) - rhs_viss * dt * nu_q * dpdiss(:,:) / elem(ie)%spheremp(:,:)
-          endif
+  if ( limiter_option == 8 ) then
+    do ie = nets , nete
+      do q = 1 , qsize
+        do k = 1 , nlev
+          do j = 1 , np
+            do i = 1 , np
+              if ( rhs_viss /= 0 ) Qtens_h(i,j,k,q,ie) = Qtens_h(i,j,k,q,ie) + Qtens_biharmonic(i,j,k,q,ie)
+              dp_star(i,j,k) = dp_h(i,j,k,ie) - dt * elem(ie)%derived%divdp(i,j,k)    ! UN-DSS'ed dp at timelevel n0+1:   
+              if ( nu_p > 0 .and. rhs_viss /= 0 ) dp_star(i,j,k) = dp_star(i,j,k) - rhs_viss * dt * nu_q * elem(ie)%derived%dpdiss_biharmonic(i,j,k) / elem(ie)%spheremp(i,j)
+            enddo
+          enddo
         enddo
-        ! apply limiter to Q = Qtens / dp_star 
-        call limiter_optim_iter_full( Qtens_h(:,:,:,q,ie) , elem(ie)%spheremp(:,:) , qmin(:,q,ie) , qmax(:,q,ie) , dp_star(:,:,:) )
-      endif
+        call limiter_optim_iter_full( Qtens_h(:,:,:,q,ie) , elem(ie)%spheremp(:,:) , qmin(:,q,ie) , qmax(:,q,ie) , dp_star(:,:,:) )  ! apply limiter to Q = Qtens / dp_star 
+      enddo
     enddo
-  enddo
+  endif
   !$OMP BARRIER
   !$OMP MASTER
   ierr = cudaMemcpyAsync(qtens_d,qtens_h,size(qtens_h),cudaMemcpyHostToDevice,streams(1)); _CHECK(__LINE__)
