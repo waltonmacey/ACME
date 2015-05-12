@@ -111,7 +111,7 @@ module cuda_mod
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:)     :: dpdiss_ave_h
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:)       :: sendbuf_h
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:)       :: recvbuf_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:,:)   :: qtens_biharmonic
+  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:,:)   :: qtens_biharmonic_h
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:)       :: qmin
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:)       :: qmax
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:)     :: dpdiss_biharmonic_h
@@ -264,7 +264,7 @@ contains
     allocate( qmax                     (nlev,qsize_d                 ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( vstar_h                  (np,np,nlev,2                 ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( qtens_h                  (np,np,nlev,qsize_d           ,nelemd) , stat = ierr ); _CHECK(__LINE__)
-    allocate( qtens_biharmonic         (np,np,nlev,qsize_d           ,nelemd) , stat = ierr ); _CHECK(__LINE__)
+    allocate( qtens_biharmonic_h       (np,np,nlev,qsize_d           ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( dp_h                     (np,np,nlev                   ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( divdp_h                  (np,np,nlev                   ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( divdp_proj_h             (np,np,nlev                   ,nelemd) , stat = ierr ); _CHECK(__LINE__)
@@ -577,7 +577,6 @@ contains
   real(kind=real_kind), dimension(np,np,2                     ) :: gradQ
   real(kind=real_kind), dimension(np,np,2,nlev                ) :: Vstar
   real(kind=real_kind), dimension(np,np  ,nlev                ) :: dp,dp_star
-  real(kind=real_kind), dimension(np,np  ,nlev,qsize,nets:nete) :: Qtens_biharmonic
   real(kind=real_kind) :: dp0,qmintmp,qmaxtmp
   integer :: ie,q,i,j,k
   integer :: rhs_viss = 0
@@ -630,48 +629,57 @@ contains
     !        for nu_p=nu_q>0, we need to apply dissipation to Q * diffusion_dp
     !
     ! initialize dp, and compute Q from Qdp (and store Q in Qtens_biharmonic)
-    do ie = nets , nete    ! add hyperviscosity to RHS.  apply to Q at timelevel n0, Qdp(n0)/dp
-      do q = 1 , qsize
-        do k = 1 , nlev
-          do j = 1 , np
-            do i = 1 , np
-              Qtens_biharmonic(i,j,k,q,ie) = elem(ie)%state%Qdp(i,j,k,q,n0_qdp)/dp_h(i,j,k,ie)
-            enddo
-          enddo
-        enddo
-      enddo
-    enddo
-    if ( rhs_multiplier == 0 ) then  ! compute element qmin/qmax
-      do ie = nets , nete
+    call copy_qdp_d2h(elem,n0_qdp)
+    !$OMP BARRIER
+    if (hybrid%ithr == 0) then
+      !$acc parallel loop collapse(5) deviceptr(qdp_d)
+      do ie = 1 , nelemd    ! add hyperviscosity to RHS.  apply to Q at timelevel n0, Qdp(n0)/dp
         do q = 1 , qsize
-          do k = 1 , nlev    
-            qmin(k,q,ie) =  1e20
-            qmax(k,q,ie) = -1e20
-          enddo
-        enddo
-      enddo
-      do ie = nets , nete
-        do q = 1 , qsize
-          do k = 1 , nlev    
+          do k = 1 , nlev
             do j = 1 , np
               do i = 1 , np
-                qmin(k,q,ie) = max(min(qmin(k,q,ie),Qtens_biharmonic(i,j,k,q,ie)),0d0)
-                qmax(k,q,ie) =     max(qmax(k,q,ie),Qtens_biharmonic(i,j,k,q,ie))
+                qtens_biharmonic_h(i,j,k,q,ie) = qdp_d(i,j,k,q,n0_qdp,ie)/dp_h(i,j,k,ie)
               enddo
             enddo
           enddo
         enddo
       enddo
-      call neighbor_minmax(elem,hybrid,edgeAdvQ2,nets,nete,qmin(:,:,nets:nete),qmax(:,:,nets:nete))   ! update qmin/qmax based on neighbor data for lim8
+      if ( rhs_multiplier == 0 ) then  ! compute element qmin/qmax
+        !$acc parallel loop collapse(3)
+        do ie = 1 , nelemd
+          do q = 1 , qsize
+            do k = 1 , nlev    
+              qmin(k,q,ie) =  1e20
+              qmax(k,q,ie) = -1e20
+            enddo
+          enddo
+        enddo
+        !ERROR OCCURS HERE SEEMINGLY DUE TO OPENACC BUG
+!       !$acc parallel loop collapse(5)
+        do ie = 1 , nelemd
+          do q = 1 , qsize
+            do k = 1 , nlev    
+              do j = 1 , np
+                do i = 1 , np
+                  qmin(k,q,ie) = max(min(qmin(k,q,ie),qtens_biharmonic_h(i,j,k,q,ie)),0d0)
+                  qmax(k,q,ie) =     max(qmax(k,q,ie),qtens_biharmonic_h(i,j,k,q,ie))
+                enddo
+              enddo
+            enddo
+          enddo
+        enddo
+      endif
     endif
+    !$OMP BARRIER
+    if ( rhs_multiplier == 0 ) call neighbor_minmax(elem,hybrid,edgeAdvQ2,nets,nete,qmin(:,:,nets:nete),qmax(:,:,nets:nete))   ! update qmin/qmax based on neighbor data for lim8
     if ( rhs_multiplier == 1 ) then      ! lets just reuse the old neighbor min/max, but update based on local data
       do ie = nets , nete
         do q = 1 , qsize
           do k = 1 , nlev    
             do j = 1 , np
               do i = 1 , np
-                qmin(k,q,ie)=max(min(qmin(k,q,ie),Qtens_biharmonic(i,j,k,q,ie)),0d0)
-                qmax(k,q,ie)=    max(qmax(k,q,ie),Qtens_biharmonic(i,j,k,q,ie))
+                qmin(k,q,ie)=max(min(qmin(k,q,ie),qtens_biharmonic_h(i,j,k,q,ie)),0d0)
+                qmax(k,q,ie)=    max(qmax(k,q,ie),qtens_biharmonic_h(i,j,k,q,ie))
               enddo
             enddo
           enddo
@@ -680,7 +688,6 @@ contains
     endif
     if ( rhs_multiplier == 2 ) then   ! get niew min/max values, and also compute biharmonic mixing term
       rhs_viss = 3
-      ! compute element qmin/qmax  
       do ie = nets , nete
         do q = 1 , qsize
           do k = 1 , nlev    
@@ -694,8 +701,8 @@ contains
           do k = 1 , nlev    
             do j = 1 , np
               do i = 1 , np
-                qmin(k,q,ie) = max(min(qmin(k,q,ie),Qtens_biharmonic(i,j,k,q,ie)),0d0)
-                qmax(k,q,ie) =     max(qmax(k,q,ie),Qtens_biharmonic(i,j,k,q,ie))
+                qmin(k,q,ie) = max(min(qmin(k,q,ie),qtens_biharmonic_h(i,j,k,q,ie)),0d0)
+                qmax(k,q,ie) =     max(qmax(k,q,ie),qtens_biharmonic_h(i,j,k,q,ie))
               enddo
             enddo
           enddo
@@ -710,20 +717,20 @@ contains
             do k = 1 , nlev    
               do j = 1 , np
                 do i = 1 , np
-                  Qtens_biharmonic(i,j,k,q,ie) = Qtens_biharmonic(i,j,k,q,ie)*elem(ie)%derived%dpdiss_ave(i,j,k)/dp0_h(k)    ! NOTE: divide by dp0 since we multiply by dp0 below
+                  Qtens_biharmonic_h(i,j,k,q,ie) = Qtens_biharmonic_h(i,j,k,q,ie)*elem(ie)%derived%dpdiss_ave(i,j,k)/dp0_h(k)    ! NOTE: divide by dp0 since we multiply by dp0 below
                 enddo
               enddo
             enddo
           enddo
         enddo
       endif
-      call biharmonic_wk_scalar_minmax( elem , qtens_biharmonic , deriv , edgeAdvQ3 , hybrid , nets , nete , qmin(:,:,nets:nete) , qmax(:,:,nets:nete) )
+      call biharmonic_wk_scalar_minmax( elem , qtens_biharmonic_h(:,:,:,:,nets:nete) , deriv , edgeAdvQ3 , hybrid , nets , nete , qmin(:,:,nets:nete) , qmax(:,:,nets:nete) )
       do ie = nets , nete   ! note: biharmonic_wk() output has mass matrix already applied. Un-apply since we apply again below:
         do q = 1 , qsize
           do k = 1 , nlev
             do j = 1 , np
               do i = 1 , np
-                qtens_biharmonic(i,j,k,q,ie) = -rhs_viss*dt*nu_q*dp0_h(k)*Qtens_biharmonic(i,j,k,q,ie) / elem(ie)%spheremp(i,j)
+                qtens_biharmonic_h(i,j,k,q,ie) = -rhs_viss*dt*nu_q*dp0_h(k)*Qtens_biharmonic_h(i,j,k,q,ie) / elem(ie)%spheremp(i,j)
               enddo
             enddo
           enddo
@@ -735,7 +742,6 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   2D Advection step
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  call copy_qdp_h2d(elem,n0_qdp)
   !$OMP BARRIER
   !$OMP MASTER
   ierr = cudaMemcpyAsync( dp_d    , dp_h    , size( dp_h    ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
@@ -745,17 +751,17 @@ contains
   call euler_step_kernel1<<<griddim,blockdim,0,streams(1)>>>( qdp_d , qtens_d , spheremp_d , vstar_d , metdet_d , rmetdet_d , dinv_d , deriv_dvv_d , &
                                                               n0_qdp , np1_qdp , rhs_viss , dt , 1 , nelemd ); _CHECK(__LINE__)
 
-  ierr = cudaMemcpyAsync( qtens_h , qtens_d , size(qtens_h) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
-  ierr = cudathreadsynchronize()
   !$OMP END MASTER
-  !$OMP BARRIER
   if ( limiter_option == 8 ) then
+    ierr = cudaMemcpyAsync( qtens_h , qtens_d , size(qtens_h) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
+    ierr = cudathreadsynchronize()
+    !$OMP BARRIER
     do ie = nets , nete
       do q = 1 , qsize
         do k = 1 , nlev
           do j = 1 , np
             do i = 1 , np
-              if ( rhs_viss /= 0 ) Qtens_h(i,j,k,q,ie) = Qtens_h(i,j,k,q,ie) + Qtens_biharmonic(i,j,k,q,ie)
+              if ( rhs_viss /= 0 ) Qtens_h(i,j,k,q,ie) = Qtens_h(i,j,k,q,ie) + Qtens_biharmonic_h(i,j,k,q,ie)
               dp_star(i,j,k) = dp_h(i,j,k,ie) - dt * elem(ie)%derived%divdp(i,j,k)    ! UN-DSS'ed dp at timelevel n0+1:   
               if ( nu_p > 0 .and. rhs_viss /= 0 ) dp_star(i,j,k) = dp_star(i,j,k) - rhs_viss * dt * nu_q * elem(ie)%derived%dpdiss_biharmonic(i,j,k) / elem(ie)%spheremp(i,j)
             enddo
@@ -764,10 +770,10 @@ contains
         call limiter_optim_iter_full( Qtens_h(:,:,:,q,ie) , elem(ie)%spheremp(:,:) , qmin(:,q,ie) , qmax(:,q,ie) , dp_star(:,:,:) )  ! apply limiter to Q = Qtens / dp_star 
       enddo
     enddo
+    ierr = cudaMemcpyAsync(qtens_d,qtens_h,size(qtens_h),cudaMemcpyHostToDevice,streams(1)); _CHECK(__LINE__)
+    !$OMP BARRIER
   endif
-  !$OMP BARRIER
   !$OMP MASTER
-  ierr = cudaMemcpyAsync(qtens_d,qtens_h,size(qtens_h),cudaMemcpyHostToDevice,streams(1)); _CHECK(__LINE__)
   blockdim = dim3( np*np*numk_eul , 1 , 1 )
   griddim  = dim3( int(ceiling(dble(nlev)/numk_eul))*qsize_d*nelemd , 1 , 1 )
   call euler_step_kernel2<<<griddim,blockdim,0,streams(1)>>>( qdp_d , qtens_d , spheremp_d , np1_qdp , 1 , nelemd ); _CHECK(__LINE__)
@@ -779,12 +785,11 @@ contains
   call t_startf('eus_cuda_peus')
   call pack_exchange_unpack_stage(np1_qdp,hybrid,qdp_d,timelevels)
   call t_stopf('eus_cuda_peus')
-  blockdim = dim3( np*np   * nlev  , 1 , 1 )
-  griddim  = dim3( qsize_d , nelemd , 1 )
+  blockdim = dim3( np*np*numk_eul , 1 , 1 )
+  griddim  = dim3( int(ceiling(dble(nlev)/numk_eul))*qsize_d*nelemd , 1 , 1 )
   call euler_hypervis_kernel_last<<<griddim,blockdim,0,streams(1)>>>( qdp_d , rspheremp_d , 1 , nelemd , np1_qdp ); _CHECK(__LINE__)
   !$OMP END MASTER
   !$OMP BARRIER
-  call copy_qdp_d2h(elem,np1_qdp)
 
   call t_stopf('euler_step_cuda')
   !call t_stopf('euler_step')
@@ -802,16 +807,25 @@ subroutine qdp_time_avg_cuda( elem , rkstage , n0_qdp , np1_qdp , limiter_option
   type(dim3) :: griddim , blockdim
   integer :: ierr
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  call copy_qdp_h2d(elem,np1_qdp)
-  call copy_qdp_h2d(elem,n0_qdp)
 !$OMP BARRIER
 !$OMP MASTER
   blockdim = dim3( np      , np     , nlev )
   griddim  = dim3( qsize_d , nelemd , 1    )
   call qdp_time_avg_kernel<<<griddim,blockdim,0,streams(1)>>>( qdp_d , rkstage , n0_qdp , np1_qdp , 1 , nelemd ); _CHECK(__LINE__)
+  if (limiter_option == 8) then
+    blockdim = dim3( np , np , nlev )
+    griddim  = dim3( nelemd , 1 , 1 )
+    call pack_qdp1<<<griddim,blockdim,0,streams(1)>>>( qdp1_d , qdp_d , np1_qdp , 1 , nelemd ); _CHECK(__LINE__)
+    ierr = cudaMemcpyAsync( qdp1_h , qdp1_d , size( qdp1_h ) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
+    ierr = cudaStreamSynchronize(streams(1))
+  endif
 !$OMP END MASTER
 !$OMP BARRIER
-  call copy_qdp_d2h(elem,np1_qdp)
+  if (limiter_option == 8) then
+    do ie = nets , nete
+      elem(ie)%state%Qdp(:,:,:,1,np1_qdp) = qdp1_h(:,:,:,ie)
+    enddo
+  endif
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 end subroutine qdp_time_avg_cuda
 
@@ -892,8 +906,8 @@ subroutine advance_hypervis_scalar_cuda( edgeAdv , elem , hvcoord , hybrid , der
     call t_stopf('ahs_cuda_peus2')
 
     !KERNEL 3
-    blockdim = dim3( np * np * nlev , 1 , 1 )
-    griddim  = dim3( qsize_d , nelemd , 1 )
+  blockdim = dim3( np*np*numk_eul , 1 , 1 )
+  griddim  = dim3( int(ceiling(dble(nlev)/numk_eul))*qsize_d*nelemd , 1 , 1 )
     call euler_hypervis_kernel_last<<<griddim,blockdim,0,streams(1)>>>( qdp_d , rspheremp_d , nets , nete , nt_qdp ); _CHECK(__LINE__)
     blockdim = dim3( np , np , nlev )
     griddim  = dim3( nelemd , 1 , 1 )
@@ -1104,15 +1118,22 @@ end subroutine limiter2d_zero_kernel
 
 attributes(global) subroutine euler_hypervis_kernel_last( Qdp , rspheremp , nets , nete , np1 )
   implicit none
-  real(kind=real_kind), dimension(np*np*nlev,qsize_d,timelevels,nets:nete), intent(inout) :: Qdp
-  real(kind=real_kind), dimension(np*np                        ,nets:nete), intent(in   ) :: rspheremp
+  real(kind=real_kind), dimension(np,np,nlev,qsize_d,timelevels,nets:nete), intent(inout) :: Qdp
+  real(kind=real_kind), dimension(np,np                        ,nets:nete), intent(in   ) :: rspheremp
   integer, value                                                          , intent(in   ) :: nets , nete , np1
-  integer :: ijk, ij, q, ie
-  ijk  = threadidx%x
-  ij   = modulo(threadidx%x-1,np*np)+1
-  q  = blockidx%x
-  ie = blockidx%y
-  Qdp(ijk,q,np1,ie) = rspheremp(ij,ie) * Qdp(ijk,q,np1,ie)
+  integer :: ks, i, j, kk, k, q, ie
+  ks = int(ceiling(dble(nlev)/numk_eul))
+  !Define the indices
+  i  = modulo( threadidx%x-1    ,np)+1
+  j  = modulo((threadidx%x-1)/np,np)+1
+  kk = (threadidx%x-1)/(np*np)+1
+  k  = modulo(blockidx%x-1,ks)*numk_eul + kk
+  q  = modulo((blockidx%x-1)/ks,qsize_d)+1
+  ie =       ((blockidx%x-1)/ks)/qsize_d+1
+  if (k  > nlev   ) return
+  if (q  > qsize_d) return
+  if (ie > nete   ) return
+  Qdp(i,j,k,q,np1,ie) = rspheremp(i,j,ie) * Qdp(i,j,k,q,np1,ie)
 end subroutine euler_hypervis_kernel_last
 
 
