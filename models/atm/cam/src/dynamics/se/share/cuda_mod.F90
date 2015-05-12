@@ -632,7 +632,9 @@ contains
     call copy_qdp_d2h(elem,n0_qdp)
     !$OMP BARRIER
     if (hybrid%ithr == 0) then
-      !$acc parallel loop collapse(5) deviceptr(qdp_d)
+      !$acc data pcreate(qtens_biharmonic_h,dp_h,qmin,qmax)
+      !$acc update device(dp_h)
+      !$acc parallel loop gang vector collapse(5) deviceptr(qdp_d)
       do ie = 1 , nelemd    ! add hyperviscosity to RHS.  apply to Q at timelevel n0, Qdp(n0)/dp
         do q = 1 , qsize
           do k = 1 , nlev
@@ -645,30 +647,27 @@ contains
         enddo
       enddo
       if ( rhs_multiplier == 0 ) then  ! compute element qmin/qmax
-        !$acc parallel loop collapse(3)
+        !$acc parallel loop gang vector collapse(3) vector_length(32)
         do ie = 1 , nelemd
           do q = 1 , qsize
             do k = 1 , nlev    
               qmin(k,q,ie) =  1e20
               qmax(k,q,ie) = -1e20
-            enddo
-          enddo
-        enddo
-        !ERROR OCCURS HERE SEEMINGLY DUE TO OPENACC BUG
-!       !$acc parallel loop collapse(5)
-        do ie = 1 , nelemd
-          do q = 1 , qsize
-            do k = 1 , nlev    
+              !acc loop seq collapse(2)
               do j = 1 , np
                 do i = 1 , np
-                  qmin(k,q,ie) = max(min(qmin(k,q,ie),qtens_biharmonic_h(i,j,k,q,ie)),0d0)
-                  qmax(k,q,ie) =     max(qmax(k,q,ie),qtens_biharmonic_h(i,j,k,q,ie))
+                  qmin(k,q,ie) = min(qmin(k,q,ie),qtens_biharmonic_h(i,j,k,q,ie))
+                  qmax(k,q,ie) = max(qmax(k,q,ie),qtens_biharmonic_h(i,j,k,q,ie))
                 enddo
               enddo
+              qmin(k,q,ie) = max(qmin(k,q,ie),0d0)
             enddo
           enddo
         enddo
+        !$acc update host(qmin,qmax)
       endif
+      !$acc update host(qtens_biharmonic_h)
+      !$acc end data
     endif
     !$OMP BARRIER
     if ( rhs_multiplier == 0 ) call neighbor_minmax(elem,hybrid,edgeAdvQ2,nets,nete,qmin(:,:,nets:nete),qmax(:,:,nets:nete))   ! update qmin/qmax based on neighbor data for lim8
