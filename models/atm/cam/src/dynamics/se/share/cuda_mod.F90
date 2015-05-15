@@ -24,9 +24,11 @@ module cuda_mod
 #if USE_CUDA_FORTRAN
 
 ! NP > 4 is not supported due to shared memory constraints
-#if NP > 4
-#error CUDA Fortran build only supported with NP <= 4
-#endif
+! JYoon (NAG doens't work with the following)
+!#if NP > 4
+!#error CUDA Fortran build only supported with NP <= 4
+!#endif
+! JYoon
 
 #define PAD 1
 
