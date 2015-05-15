@@ -34,7 +34,8 @@
    use grid, only: dz, DXT, DYT, HUW, HUS, c2dz, KMT, HTE, UAREA_R, DZT,    &
        partial_bottom_cells, DYU, DZU, DXU, DZR, DZ2R, KMU, TAREA_R, HTN,   &
        sfc_layer_type, sfc_layer_varthick, FCORT, KMTE,                     &
-       KMTW, KMTEE, KMTN, KMTS, KMTNN, ugrid_to_tgrid
+       KMTW, KMTEE, KMTN, KMTS, KMTNN, ugrid_to_tgrid,                      &
+       DXTR, DYTR
    use domain, only: nblocks_clinic, blocks_clinic, distrb_clinic,          &
        POP_haloClinic
    use broadcast, only: broadcast_scalar, broadcast_array
@@ -142,6 +143,7 @@
 
    integer (int_kind) :: &
       tavg_WVEL,         &! Vertical Velocity
+      tavg_W,            &! Vertical Velocity (for secondary stream)
       tavg_WVEL2,        &! Vertical Velocity Squared
       tavg_UEU,          &! flux of zonal momentum across east  face
       tavg_VNU,          &! flux of zonal momentum across north face
@@ -152,6 +154,7 @@
       tavg_PV,           &! potential vorticity
       tavg_Q,            &! z-derivative of pot density
       tavg_PD,           &! potential density 
+      tavg_PDEN,         &! potential density (for secondary stream)
       tavg_RHOU,         &! pot density times U velocity
       tavg_RHOV,         &! pot density times V velocity
       tavg_PVWM,         &! pot vorticity flux through bottom
@@ -167,8 +170,14 @@
    integer (int_kind), dimension(nt) :: &
       tavg_ADV_TRACER,   &! vertical average of tracer advective tendency
       tavg_UE_TRACER,    &! flux of tracer across east  face
+      tavg_UTRACER,      &! flux of tracer across east  face (for secondary stream)
+      tavg_UEADV_TRACER, &! adv  of tracer across east  face (u*dt/dx)
       tavg_VN_TRACER,    &! flux of tracer across north face
-      tavg_WT_TRACER      ! flux of tracer across top   face
+      tavg_VTRACER,      &! flux of tracer across north face (for secondary stream)
+      tavg_VNADV_TRACER, &! adv  of tracer across north face (v*dt/dy)
+      tavg_WT_TRACER,    &! flux of tracer across top   face
+      tavg_WTRACER,      &! flux of tracer across top   face (for secondary stream)
+      tavg_WTADV_TRACER   ! adv  of tracer across top   face (w*dt/dz)
 
 !-----------------------------------------------------------------------
 !
@@ -717,6 +726,11 @@
                           units='centimeter/s', grid_loc='3112',       &
                           coordinates='TLONG TLAT z_w time')
 
+   call define_tavg_field(tavg_W,'W',3,                                &
+                          long_name='Vertical Velocity',               &
+                          units='centimeter/s', grid_loc='3112',       &
+                          coordinates='TLONG TLAT z_w time')
+
    call define_tavg_field(tavg_WVEL2,'WVEL2',3,                          &
                           long_name='Vertical Velocity**2',       &
                           units='centimeter^2/s^2', grid_loc='3112',       &
@@ -751,15 +765,45 @@
                           units='degC/s', grid_loc='3211',             &
                           coordinates='ULONG TLAT z_t time' )
 
+   call define_tavg_field(tavg_UTRACER(1),'XFLUXT',3,                  &
+                          long_name='Flux of Heat in grid-x direction',&
+                          units='degC/s', grid_loc='3211',             &
+                          coordinates='ULONG TLAT z_t time' )
+
+   call define_tavg_field(tavg_UEADV_TRACER(1),'XADVT',3,              &
+                          long_name='Advection of Heat in x direction',&
+                          units='degC/s', grid_loc='3211',             &
+                          coordinates='TLONG TLAT z_t time' )
+
    call define_tavg_field(tavg_VN_TRACER(1),'VNT',3,                   &
                           long_name='Flux of Heat in grid-y direction',&
                           units='degC/s', grid_loc='3121',             &
                           coordinates='TLONG ULAT z_t time')
 
+   call define_tavg_field(tavg_VTRACER(1),'YFLUXT',3,                  &
+                          long_name='Flux of Heat in grid-y direction',&
+                          units='degC/s', grid_loc='3121',             &
+                          coordinates='TLONG ULAT z_t time')
+
+   call define_tavg_field(tavg_VNADV_TRACER(1),'YADVT',3,              &
+                          long_name='Advection of Heat in y direction',&
+                          units='degC/s', grid_loc='3211',             &
+                          coordinates='TLONG TLAT z_t time' )
+
    call define_tavg_field(tavg_WT_TRACER(1),'WTT',3,                   &
                           long_name='Heat Flux Across Top Face',       &
                           units='degC/s', grid_loc='3112',             &
                           coordinates='TLONG TLAT z_w time' )
+
+   call define_tavg_field(tavg_WTRACER(1),'ZFLUXT',3,                  &
+                          long_name='Heat Flux Across Top Face',       &
+                          units='degC/s', grid_loc='3112',             &
+                          coordinates='TLONG TLAT z_w time' )
+
+   call define_tavg_field(tavg_WTADV_TRACER(1),'ZADVT',3,              &
+                          long_name='Advection of Heat in z direction',&
+                          units='degC/s', grid_loc='3211',             &
+                          coordinates='TLONG TLAT z_t time' )
 
    call define_tavg_field(tavg_UE_TRACER(2),'UES',3,                   &
                           long_name='Salt Flux in grid-x direction',   &
@@ -767,17 +811,53 @@
                           units='gram/kilogram/s', grid_loc='3211',    &
                           coordinates='ULONG TLAT z_t time' )
 
+   call define_tavg_field(tavg_UTRACER(2),'XFLUXS',3,                   &
+                          long_name='Salt Flux in grid-x direction',   &
+                          scale_factor=1000.0_rtavg,                   &
+                          units='gram/kilogram/s', grid_loc='3211',    &
+                          coordinates='ULONG TLAT z_t time' )
+
+   call define_tavg_field(tavg_UEADV_TRACER(2),'XADVS',3,              &
+                          long_name='Advection of Salt in x direction',&
+                          scale_factor=1000.0_rtavg,                   &
+                          units='gram/kilogram/s', grid_loc='3211',    &
+                          coordinates='TLONG TLAT z_t time' )
+
    call define_tavg_field(tavg_VN_TRACER(2),'VNS',3,                   &
                           long_name='Salt Flux in grid-y direction',   &
                           scale_factor=1000.0_rtavg,                   &
                           units='gram/kilogram/s', grid_loc='3121',    &
                           coordinates='TLONG ULAT z_t time')
 
+   call define_tavg_field(tavg_VTRACER(2),'YFLUXS',3,                   &
+                          long_name='Salt Flux in grid-y direction',   &
+                          scale_factor=1000.0_rtavg,                   &
+                          units='gram/kilogram/s', grid_loc='3121',    &
+                          coordinates='TLONG ULAT z_t time')
+
+   call define_tavg_field(tavg_VNADV_TRACER(2),'YADVS',3,              &
+                          long_name='Advection of Salt in y direction',&
+                          scale_factor=1000.0_rtavg,                   &
+                          units='gram/kilogram/s', grid_loc='3211',    &
+                          coordinates='TLONG TLAT z_t time' )
+
    call define_tavg_field(tavg_WT_TRACER(2),'WTS',3,                   &
                           long_name='Salt Flux Across Top Face',       &
                           scale_factor=1000.0_rtavg,                   &
                           units='gram/kilogram/s', grid_loc='3112',    &
                           coordinates='TLONG TLAT z_w time' )
+
+   call define_tavg_field(tavg_WTRACER(2),'ZFLUXS',3,                   &
+                          long_name='Salt Flux Across Top Face',       &
+                          scale_factor=1000.0_rtavg,                   &
+                          units='gram/kilogram/s', grid_loc='3112',    &
+                          coordinates='TLONG TLAT z_w time' )
+
+   call define_tavg_field(tavg_WTADV_TRACER(2),'ZADVS',3,              &
+                          long_name='Advection of Salt in z direction',&
+                          scale_factor=1000.0_rtavg,                   &
+                          units='gram/kilogram/s', grid_loc='3211',    &
+                          coordinates='TLONG TLAT z_t time' )
 
    call define_tavg_field(tavg_ADV_TRACER(1),'ADVT',2,                     &
                     long_name='Vertically-Integrated T Advection Tendency',&
@@ -802,6 +882,26 @@
                              grid_loc='3211',                          &
                              coordinates='ULONG TLAT z_t time' )
 
+      call define_tavg_field(tavg_UTRACER(n),                          &
+                             'U'   /&
+                                    &/ trim(tracer_d(n)%short_name),3, &
+                             long_name=trim(tracer_d(n)%short_name)   /&
+                                    &/ ' Flux in grid-x direction',    &
+                             units=trim(tracer_d(n)%tend_units),       &
+                             scale_factor=tracer_d(n)%scale_factor,    &
+                             grid_loc='3211',                          &
+                             coordinates='ULONG TLAT z_t time' )
+
+      call define_tavg_field(tavg_UEADV_TRACER(n),                     &
+                             'UEADV_' /&
+                                       &/ trim(tracer_d(n)%short_name),&
+                             3,long_name=trim(tracer_d(n)%short_name) /&
+                               &/ ' Advection in grid-x direction',    &
+                             units=trim(tracer_d(n)%tend_units),       &
+                             scale_factor=tracer_d(n)%scale_factor,    &
+                             grid_loc='3211',                          &
+                             coordinates='TLONG TLAT z_t time' )
+
       call define_tavg_field(tavg_VN_TRACER(n),                        &
                              'VN_' /&
                                     &/ trim(tracer_d(n)%short_name),3, &
@@ -812,6 +912,26 @@
                              grid_loc='3121',                          &
                              coordinates='TLONG ULAT z_t time')
 
+      call define_tavg_field(tavg_VTRACER(n),                          &
+                             'V'   /&
+                                    &/ trim(tracer_d(n)%short_name),3, &
+                             long_name=trim(tracer_d(n)%short_name)   /&
+                                    &/ ' Flux in grid-y direction',    &
+                             units=trim(tracer_d(n)%tend_units),       &
+                             scale_factor=tracer_d(n)%scale_factor,    &
+                             grid_loc='3121',                          &
+                             coordinates='TLONG ULAT z_t time')
+
+      call define_tavg_field(tavg_VNADV_TRACER(n),                     &
+                             'VNADV_' /&
+                                       &/ trim(tracer_d(n)%short_name),&
+                             3,long_name=trim(tracer_d(n)%short_name) /&
+                               &/ ' Advection in grid-y direction',    &
+                             units=trim(tracer_d(n)%tend_units),       &
+                             scale_factor=tracer_d(n)%scale_factor,    &
+                             grid_loc='3211',                          &
+                             coordinates='TLONG TLAT z_t time' )
+
       call define_tavg_field(tavg_WT_TRACER(n),                        &
                              'WT_' /&
                                     &/ trim(tracer_d(n)%short_name),3, &
@@ -821,6 +941,26 @@
                              scale_factor=tracer_d(n)%scale_factor,    &
                              grid_loc='3112',                          &
                              coordinates='TLONG TLAT z_w time' )
+
+      call define_tavg_field(tavg_WTRACER(n),                          &
+                             'W'   /&
+                                    &/ trim(tracer_d(n)%short_name),3, &
+                             long_name=trim(tracer_d(n)%short_name)   /&
+                                    &/ ' Flux Across Top Face',        &
+                             units=trim(tracer_d(n)%tend_units),       &
+                             scale_factor=tracer_d(n)%scale_factor,    &
+                             grid_loc='3112',                          &
+                             coordinates='TLONG TLAT z_w time' )
+
+      call define_tavg_field(tavg_WTADV_TRACER(n),                     &
+                             'WTADV_' /&
+                                       &/ trim(tracer_d(n)%short_name),&
+                             3,long_name=trim(tracer_d(n)%short_name) /&
+                               &/ ' Advection in grid-z direction',    &
+                             units=trim(tracer_d(n)%tend_units),       &
+                             scale_factor=tracer_d(n)%scale_factor,    &
+                             grid_loc='3211',                          &
+                             coordinates='TLONG TLAT z_t time' )
 
       call define_tavg_field(tavg_ADV_TRACER(n),                       &
                              'ADV_' /&
@@ -846,6 +986,11 @@
                           coordinates='TLONG TLAT z_t time')
 
    call define_tavg_field(tavg_PD,'PD',3,                              &
+                          long_name='Potential Density Ref to Surface',&
+                          units='gram/centimeter^3', grid_loc='3111',  &
+                          coordinates='TLONG TLAT z_t time')
+
+   call define_tavg_field(tavg_PDEN,'PDEN',3,                          &
                           long_name='Potential Density Ref to Surface',&
                           units='gram/centimeter^3', grid_loc='3111',  &
                           coordinates='TLONG TLAT z_t time')
@@ -1688,37 +1833,125 @@
       endif
 
       call accumulate_tavg_field(WTK,tavg_WVEL,bid,k)
+      call accumulate_tavg_field(WTK,tavg_W,bid,k)
       call accumulate_tavg_field(WTK**2,tavg_WVEL2,bid,k)
 
       do n=1,nt
+      
+         ! The following computes -u*dTracer/dx at (TLONG,TLAT) as 
+         !  [u at (TLONG,TLAT)]*[dTracer/dx at (TLONG,TLAT)]:
+         !WORK1 = p5*(        TRCR(:,:,k,n) + &
+         !            eoshift(TRCR(:,:,k,n),dim=1,shift=1)) ! Tracer at ULONG,TLAT
+         !call ugrid_to_tgrid(WORK2,UUU(:,:,k),bid)         ! U      at TLONG,TLAT
+         !WORK = WORK2*(eoshift(WORK1,dim=1,shift=1) - WORK1)* &
+         !       DXTR(:,:,bid)                     ! -U*d(Tracer)/dx at TLONG,TLAT
+
+         ! The following computes -u*dTracer/dx at (TLONG,TLAT) reasoning that
+         !  u*dTracer/dx = d(u*Tracer)/dx - Tracer*du/dx:
+         WORK1 = UTE*(eoshift(TRCR(:,:,k,n),dim=1,shift=1) - &
+                              TRCR(:,:,k,n))             ! [u*dy on east face] * [dTracer on east face]
+         WORK2 = eoshift(UTE,dim=1,shift=-1)* &
+                 (        TRCR(:,:,k,n) -     &
+                  eoshift(TRCR(:,:,k,n),dim=1,shift=-1)) ! [u*dy on west face] * [dTracer on west face]
+         if (partial_bottom_cells) then
+           WORK = -p5*(WORK1 + WORK2)*TAREA_R(:,:,bid)/DZT(:,:,k,bid)
+         else
+           WORK = -p5*(WORK1 + WORK2)*TAREA_R(:,:,bid)
+         endif
+         call accumulate_tavg_field(WORK,tavg_UEADV_TRACER(n),bid,k)
+
+         ! The following computes -v*dTracer/dy at (TLONG,TLAT) as 
+         !  [v at (TLONG,TLAT)]*[dTracer/dy at (TLONG,TLAT)]:
+         !WORK1 = p5*(        TRCR(:,:,k,n) + &
+         !            eoshift(TRCR(:,:,k,n),dim=2,shift=1)) ! Tracer on TLONG,ULAT
+         !call ugrid_to_tgrid(WORK2,VVV(:,:,k),bid)         ! V      on TLONG,TLAT
+         !WORK = WORK2*(eoshift(WORK1,dim=2,shift=1) - WORK1)* &
+         !       DYTR(:,:,bid)                     ! -V*d(Tracer)/dy on TLONG,TLAT
+
+         ! The following computes -v*dTracer/dy at (TLONG,TLAT) reasoning that
+         !  v*dTracer/dy = d(v*Tracer)/dy - Tracer*dv/dy:
+         WORK1 = VTN*(eoshift(TRCR(:,:,k,n),dim=2,shift=1) - &
+                              TRCR(:,:,k,n))             ! [v*dx on north face] * [dTracer on north face]
+         WORK2 = eoshift(VTN,dim=2,shift=-1)* &
+                 (        TRCR(:,:,k,n) -     &
+                  eoshift(TRCR(:,:,k,n),dim=2,shift=-1)) ! [v*dx on south face] * [dTracer on south face]
+         if (partial_bottom_cells) then
+           WORK = -p5*(WORK1 + WORK2)*TAREA_R(:,:,bid)/DZT(:,:,k,bid)
+         else
+           WORK = -p5*(WORK1 + WORK2)*TAREA_R(:,:,bid)
+         endif
+         call accumulate_tavg_field(WORK,tavg_VNADV_TRACER(n),bid,k)
+
+
+         ! The following computes -w*dTracer/dz at (TLONG,TLAT) reasoning that
+         !  w*dTracer/dz = d(w*Tracer)/dz - Tracer*dw/dz.
+         ! Valid for both partial bottom cells or not and for any
+         ! sfc_layer_type.
+         do j=jb,je
+         do i=ib,ie
+           if (k == 1) then
+             WORK(i,j) = dz2r(k)*WTKB(i,j)*(TRCR(i,j,k+1,n) - TRCR(i,j,k,  n))
+           elseif (k < KMT(i,j,bid)) then
+             WORK(i,j) = dz2r(k)*(WTKB(i,j)*(TRCR(i,j,k+1,n) - TRCR(i,j,k,  n))&
+                                 +WTK(i,j) *(TRCR(i,j,k,n)   - TRCR(i,j,k-1,n)))
+           else
+             if (partial_bottom_cells) then
+                WORK(i,j) = p5*WTK(i,j)*(TRCR(i,j,k,n)- &
+                                         TRCR(i,j,k-1,n))/DZT(i,j,k,bid)
+             else
+                WORK(i,j) = dz2r(k)*WTK(i,j) *(TRCR(i,j,k,n) - &
+                                               TRCR(i,j,k-1,n))
+             endif
+           endif
+         enddo
+         enddo
+         call accumulate_tavg_field(WORK,tavg_WTADV_TRACER(n),bid,k)
+                      
          if (tadvect_itype(n) == tadvect_centered) then
 
             WORK = FUE*(        TRCR(:,:,k,n) + eoshift(TRCR(:,:,k,n),dim=1,shift=1))
             call accumulate_tavg_field(WORK,tavg_UE_TRACER(n),bid,k)
+            call accumulate_tavg_field(WORK,tavg_UTRACER(n),bid,k)
 
             WORK = FVN*(        TRCR(:,:,k,n) +  eoshift(TRCR(:,:,k,n),dim=2,shift=1))
             call accumulate_tavg_field(WORK,tavg_VN_TRACER(n),bid,k)
+            call accumulate_tavg_field(WORK,tavg_VTRACER(n),bid,k)
 
             if (k == 1) then
                if (sfc_layer_type /= sfc_layer_varthick) then
+!                 WORK = WTK*TRCR(:,:,k,n)/DZT(:,:,k,bid)
                   WORK = dzr(k)*WTK*TRCR(:,:,k,n)
                else
                   WORK = c0
                endif
             else
-               WORK = dz2r(k)*WTK*(TRCR(:,:,k  ,n) + TRCR(:,:,k-1,n))
+               if (partial_bottom_cells) then
+                  WORK = p5*WTK*(TRCR(:,:,k,n) + TRCR(:,:,k-1,n))/ &
+                         DZT(:,:,k,bid)
+               else
+                  WORK = dz2r(k)*WTK*(TRCR(:,:,k  ,n) + TRCR(:,:,k-1,n))
+               endif
             endif
+!           else
+!              WORK = p5*WTK*(TRCR(:,:,k,n) + TRCR(:,:,k-1,n))/ &
+!                     DZT(:,:,k,bid)
+!              !WORK = dz2r(k)*WTK*(TRCR(:,:,k  ,n) + TRCR(:,:,k-1,n))
+!           endif
             call accumulate_tavg_field(WORK,tavg_WT_TRACER(n),bid,k)
+            call accumulate_tavg_field(WORK,tavg_WTRACER(n),bid,k)
 
          else
 
             WORK = c2*FUE*TRACER_E(:,:,n)
             call accumulate_tavg_field(WORK,tavg_UE_TRACER(n),bid,k)
+            call accumulate_tavg_field(WORK,tavg_UTRACER(n),bid,k)
 
             WORK = c2*FVN*TRACER_N(:,:,n)
             call accumulate_tavg_field(WORK,tavg_VN_TRACER(n),bid,k)
+            call accumulate_tavg_field(WORK,tavg_VTRACER(n),bid,k)
 
             call accumulate_tavg_field(FLUX_T(:,:,n),tavg_WT_TRACER(n),bid,k)
+            call accumulate_tavg_field(FLUX_T(:,:,n),tavg_WTRACER(n),bid,k)
 
          endif
 
@@ -1765,6 +1998,7 @@
        endif
 
        call accumulate_tavg_field(RHOK1,tavg_PD,bid,k)
+       call accumulate_tavg_field(RHOK1,tavg_PDEN,bid,k)
 
        WORK = FUE*(RHOK1 + eoshift(RHOK1,dim=1,shift=1))
        call accumulate_tavg_field(WORK,tavg_URHO,bid,k)

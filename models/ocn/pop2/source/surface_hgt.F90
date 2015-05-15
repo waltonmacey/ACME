@@ -47,8 +47,8 @@
 
    integer (int_kind) :: &
       tavg_SSH,          &! tavg id for sea surface height
+      tavg_SHT,          &! tavg id for sea surface height
       tavg_SSH2,         &! tavg id for sea surface height squared (formerly H2)
-      tavg_SHT,          &! tavg id for sea surface height (second stream)
       tavg_H3             ! tavg id for (Dx(SSH))**2 + (Dy(SSH))**2
 
 !-----------------------------------------------------------------------
@@ -294,7 +294,7 @@
          WORK = PSURF(:,:,curtime,iblock)/grav
          call accumulate_tavg_field(WORK, tavg_SSH, iblock, 1)
       endif
-
+      
       if (accumulate_tavg_now(tavg_SHT) ) then
          WORK = PSURF(:,:,curtime,iblock)/grav
          call accumulate_tavg_field(WORK, tavg_SHT, iblock, 1)
