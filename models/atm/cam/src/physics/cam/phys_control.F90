@@ -94,6 +94,8 @@ logical, public, protected :: use_gw_front = .false.
 ! Convective
 logical, public, protected :: use_gw_convect = .false.
 
+real(r8),public :: rlshdet = 10e-6_r8
+
 ! Switches that turn on/off individual parameterizations.
 !
 ! Comment by Hui Wan (PNNL, 2014-12):
@@ -140,7 +142,7 @@ subroutine phys_ctl_readnl(nlfile)
       use_subcol_microp, atm_dep_flux, history_amwg, history_vdiag, history_aerosol, history_aero_optics, &
       history_eddy, history_budget,  history_budget_histfile_num, history_waccm, & 
       conv_water_in_rad, do_clubb_sgs, do_tms, state_debug_checks, &
-      use_gw_oro, use_gw_front, use_gw_convect, fix_g1_err_ndrop, &
+      use_gw_oro, use_gw_front, use_gw_convect, fix_g1_err_ndrop, rlshdet, &
       ssalt_tuning, resus_fix, convproc_do_aer, convproc_do_gas, convproc_method_activate, &
       liqcf_fix, regen_fix, demott_ice_nuc, &
       l_tracer_aero, l_vdiff, l_rayleigh, l_gw_drag, l_ac_energy_chk, &
@@ -190,6 +192,7 @@ subroutine phys_ctl_readnl(nlfile)
    call mpibcast(use_gw_oro,                      1 , mpilog,  0, mpicom)
    call mpibcast(use_gw_front,                    1 , mpilog,  0, mpicom)
    call mpibcast(use_gw_convect,                  1 , mpilog,  0, mpicom)
+   call mpibcast(rlshdet,                         1 , mpir8,   0, mpicom)
    call mpibcast(fix_g1_err_ndrop,                1 , mpilog,  0, mpicom)
    call mpibcast(ssalt_tuning,                    1 , mpilog,  0, mpicom)
    call mpibcast(resus_fix,                       1 , mpilog,  0, mpicom)
