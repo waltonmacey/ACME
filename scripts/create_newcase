@@ -834,6 +834,7 @@ my @repotag = split(/ /,$repotag);
 $repotag = $repotag[2]; 
 chomp($repotag);
 $cfg_ref->set('CCSM_REPOTAG', $repotag);
+print "Repotag is $repotag $eol";
 
 #-----------------------------------------------------------------------------------------------
 # Set the sharedlibroot for building shard CESM components
