@@ -207,6 +207,11 @@ Full pathname datafile with plant function type (PFT) constants combined with
 constants for biogeochem modules
 </entry>
 
+<entry id="fsoilordercon" type="char*256" category="datasets"
+       input_pathname="abs" group="clm_inparm" valid_values="" >
+       Full pathname datafile with soil order dependent constants
+</entry>
+       
 <entry id="flanduse_timeseries" type="char*256" category="datasets"
        input_pathname="abs" group="clm_inparm" valid_values="" >
 Full pathname of time varying PFT data file. This causes the land-use types of
