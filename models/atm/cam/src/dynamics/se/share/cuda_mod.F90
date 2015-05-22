@@ -111,14 +111,17 @@ module cuda_mod
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:)     :: dpdiss_ave_h
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:)       :: sendbuf_h
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:)       :: recvbuf_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:,:)   :: qtens_biharmonic
+  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:,:)   :: qtens_biharmonic_h
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:)       :: qmin
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:)       :: qmax
+  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:,:)   :: qmin_exch
+  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:,:)   :: qmax_exch
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:)     :: dpdiss_biharmonic_h
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:)     :: dpo_h
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:,:)   :: ppmdx_h
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:)     :: z1_h
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:)     :: z2_h
+  real(kind=real_kind),pinned,allocatable,dimension(:,:)         :: edgebuf_Q2
   integer             ,pinned,allocatable,dimension(:,:,:,:)     :: kid_h
   real(kind=real_kind),pinned,allocatable,dimension(:)           :: dp0_h
 
@@ -262,9 +265,11 @@ contains
     allocate( dpdiss_ave_h             (np,np,nlev                   ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( qmin                     (nlev,qsize_d                 ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( qmax                     (nlev,qsize_d                 ,nelemd) , stat = ierr ); _CHECK(__LINE__)
+    allocate( qmin_exch                (np,np,nlev,qsize_d           ,nelemd) , stat = ierr ); _CHECK(__LINE__)
+    allocate( qmax_exch                (np,np,nlev,qsize_d           ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( vstar_h                  (np,np,nlev,2                 ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( qtens_h                  (np,np,nlev,qsize_d           ,nelemd) , stat = ierr ); _CHECK(__LINE__)
-    allocate( qtens_biharmonic         (np,np,nlev,qsize_d           ,nelemd) , stat = ierr ); _CHECK(__LINE__)
+    allocate( qtens_biharmonic_h       (np,np,nlev,qsize_d           ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( dp_h                     (np,np,nlev                   ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( divdp_h                  (np,np,nlev                   ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( divdp_proj_h             (np,np,nlev                   ,nelemd) , stat = ierr ); _CHECK(__LINE__)
@@ -277,6 +282,7 @@ contains
     allocate( z2_h                     (np,np,        nlev           ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( kid_h                    (np,np,        nlev           ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( dp0_h                    (              nlev                  ) , stat = ierr ); _CHECK(__LINE__)
+    allocate( edgebuf_Q2               (nlev*qsize_d*2,nbuf                 ) , stat = ierr ); _CHECK(__LINE__)
 
     ! The PGI compiler with cuda enabled errors when allocating arrays of zero
     !   size - here when using only one MPI task
@@ -337,7 +343,7 @@ contains
     call initEdgeBuffer(edgeAdv1  ,nlev                  ,buf_ptr,receive_ptr)
     call initEdgeBuffer(edgeAdv   ,qsize*nlev            ,buf_ptr,receive_ptr)
     call initEdgeBuffer(edgeAdv_p1,qsize*nlev + nlev     ,buf_ptr,receive_ptr) 
-    call initEdgeBuffer(edgeAdvQ2 ,qsize*nlev*2          ,buf_ptr,receive_ptr)  ! Qtens,Qmin, Qmax
+    call initEdgeBuffer(edgeAdvQ2 ,qsize*nlev*2                              )  ! Qtens,Qmin, Qmax
     nullify(buf_ptr)
     nullify(receive_ptr)
 !$OMP MASTER
@@ -571,19 +577,18 @@ contains
   integer              , intent(in   )         :: nete
   integer              , intent(in   )         :: DSSopt
   integer              , intent(in   )         :: rhs_multiplier
-
   ! local
-  real(kind=real_kind), dimension(np,np                       ) :: divdp, dpdiss
-  real(kind=real_kind), dimension(np,np,2                     ) :: gradQ
-  real(kind=real_kind), dimension(np,np,2,nlev                ) :: Vstar
-  real(kind=real_kind), dimension(np,np  ,nlev                ) :: dp,dp_star
-  real(kind=real_kind), dimension(np,np  ,nlev,qsize,nets:nete) :: Qtens_biharmonic
-  real(kind=real_kind) :: dp0,qmintmp,qmaxtmp
+  real(kind=real_kind), dimension(np,np,nlev) :: dp_star
+  real(kind=real_kind) :: dp0
+  real(kind=real_kind) :: large,small
   integer :: ie,q,i,j,k
   integer :: rhs_viss = 0
 
   integer :: ierr
   type(dim3) :: blockdim , griddim
+
+  large =  huge(large)
+  small = (huge(small)-1)*-1
 
   !call t_startf('euler_step')
   call t_startf('euler_step_cuda')
@@ -630,106 +635,53 @@ contains
     !        for nu_p=nu_q>0, we need to apply dissipation to Q * diffusion_dp
     !
     ! initialize dp, and compute Q from Qdp (and store Q in Qtens_biharmonic)
-    do ie = nets , nete    ! add hyperviscosity to RHS.  apply to Q at timelevel n0, Qdp(n0)/dp
-      do q = 1 , qsize
-        do k = 1 , nlev
-          do j = 1 , np
-            do i = 1 , np
-              Qtens_biharmonic(i,j,k,q,ie) = elem(ie)%state%Qdp(i,j,k,q,n0_qdp)/dp_h(i,j,k,ie)
-            enddo
-          enddo
-        enddo
-      enddo
-    enddo
-    if ( rhs_multiplier == 0 ) then  ! compute element qmin/qmax
-      do ie = nets , nete
+    !$OMP BARRIER
+    if (hybrid%ithr == 0) then
+      do ie = 1 , nelemd
         do q = 1 , qsize
           do k = 1 , nlev    
-            qmin(k,q,ie) =  1e20
-            qmax(k,q,ie) = -1e20
-          enddo
-        enddo
-      enddo
-      do ie = nets , nete
-        do q = 1 , qsize
-          do k = 1 , nlev    
+            qtens_biharmonic_h(:,:,k,q,ie) = elem(ie)%state%Qdp(:,:,k,q,n0_qdp) / dp_h(:,:,k,ie)
+            if ( rhs_multiplier == 0 .or. rhs_multiplier == 2 ) then  !reset qmin,qmax before computing
+              qmin(k,q,ie) = large
+              qmax(k,q,ie) = small
+            endif
             do j = 1 , np
               do i = 1 , np
-                qmin(k,q,ie) = max(min(qmin(k,q,ie),Qtens_biharmonic(i,j,k,q,ie)),0d0)
-                qmax(k,q,ie) =     max(qmax(k,q,ie),Qtens_biharmonic(i,j,k,q,ie))
+                qmin(k,q,ie) = max(min(qmin(k,q,ie),qtens_biharmonic_h(i,j,k,q,ie)),0d0)
+                qmax(k,q,ie) =     max(qmax(k,q,ie),qtens_biharmonic_h(i,j,k,q,ie))
               enddo
             enddo
-          enddo
-        enddo
-      enddo
-      call neighbor_minmax(elem,hybrid,edgeAdvQ2,nets,nete,qmin(:,:,nets:nete),qmax(:,:,nets:nete))   ! update qmin/qmax based on neighbor data for lim8
-    endif
-    if ( rhs_multiplier == 1 ) then      ! lets just reuse the old neighbor min/max, but update based on local data
-      do ie = nets , nete
-        do q = 1 , qsize
-          do k = 1 , nlev    
-            do j = 1 , np
-              do i = 1 , np
-                qmin(k,q,ie)=max(min(qmin(k,q,ie),Qtens_biharmonic(i,j,k,q,ie)),0d0)
-                qmax(k,q,ie)=    max(qmax(k,q,ie),Qtens_biharmonic(i,j,k,q,ie))
-              enddo
-            enddo
+            ! two scalings depending on nu_p:
+            ! nu_p=0:    qtens_biharmonic *= dp0                   (apply viscsoity only to q)
+            ! nu_p>0):   qtens_biharmonic *= elem()%psdiss_ave      (for consistency, if nu_p=nu_q)
+            ! NOTE: divide by dp0 since we multiply by dp0 below
+            if ( nu_p > 0 .and. rhs_multiplier == 2 ) qtens_biharmonic_h(:,:,k,q,ie) = qtens_biharmonic_h(:,:,k,q,ie)*dpdiss_ave_h(:,:,k,ie)/dp0_h(k)
           enddo
         enddo
       enddo
     endif
-    if ( rhs_multiplier == 2 ) then   ! get niew min/max values, and also compute biharmonic mixing term
-      rhs_viss = 3
-      ! compute element qmin/qmax  
-      do ie = nets , nete
-        do q = 1 , qsize
-          do k = 1 , nlev    
-            qmin(k,q,ie) =  1e20
-            qmax(k,q,ie) = -1e20
-          enddo
-        enddo
-      enddo
-      do ie = nets , nete
-        do q = 1 , qsize
-          do k = 1 , nlev    
-            do j = 1 , np
-              do i = 1 , np
-                qmin(k,q,ie) = max(min(qmin(k,q,ie),Qtens_biharmonic(i,j,k,q,ie)),0d0)
-                qmax(k,q,ie) =     max(qmax(k,q,ie),Qtens_biharmonic(i,j,k,q,ie))
-              enddo
-            enddo
-          enddo
-        enddo
-      enddo
-      ! two scalings depending on nu_p:
-      ! nu_p=0:    qtens_biharmonic *= dp0                   (apply viscsoity only to q)
-      ! nu_p>0):   qtens_biharmonc *= elem()%psdiss_ave      (for consistency, if nu_p=nu_q)
-      if ( nu_p > 0 ) then
-        do ie = nets , nete
+    !$OMP BARRIER
+    if ( rhs_multiplier == 0 ) call neighbor_minmax_loc(elem,hybrid,edgeAdvQ2,nets,nete,qmin,qmax)   ! update qmin/qmax based on neighbor data for lim8
+    if ( rhs_multiplier == 2 ) call biharmonic_wk_scalar_minmax_loc( elem , qtens_biharmonic_h , deriv , edgeAdvQ3 , hybrid , nets , nete , qmin , qmax )
+    !$OMP BARRIER
+    if (hybrid%ithr == 0) then
+      if ( rhs_multiplier == 2 ) then
+        !compute biharmonic mixing term
+        rhs_viss = 3
+        do ie = 1 , nelemd
           do q = 1 , qsize
-            do k = 1 , nlev    
+            do k = 1 , nlev
               do j = 1 , np
                 do i = 1 , np
-                  Qtens_biharmonic(i,j,k,q,ie) = Qtens_biharmonic(i,j,k,q,ie)*elem(ie)%derived%dpdiss_ave(i,j,k)/dp0_h(k)    ! NOTE: divide by dp0 since we multiply by dp0 below
+                  qtens_biharmonic_h(i,j,k,q,ie) = -rhs_viss*dt*nu_q*dp0_h(k)*qtens_biharmonic_h(i,j,k,q,ie) / elem(ie)%spheremp(i,j)
                 enddo
               enddo
             enddo
           enddo
         enddo
       endif
-      call biharmonic_wk_scalar_minmax( elem , qtens_biharmonic , deriv , edgeAdvQ3 , hybrid , nets , nete , qmin(:,:,nets:nete) , qmax(:,:,nets:nete) )
-      do ie = nets , nete   ! note: biharmonic_wk() output has mass matrix already applied. Un-apply since we apply again below:
-        do q = 1 , qsize
-          do k = 1 , nlev
-            do j = 1 , np
-              do i = 1 , np
-                qtens_biharmonic(i,j,k,q,ie) = -rhs_viss*dt*nu_q*dp0_h(k)*Qtens_biharmonic(i,j,k,q,ie) / elem(ie)%spheremp(i,j)
-              enddo
-            enddo
-          enddo
-        enddo
-      enddo
     endif
+    !$OMP BARRIER
   endif  ! compute biharmonic mixing term and qmin/qmax
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -747,15 +699,13 @@ contains
 
   ierr = cudaMemcpyAsync( qtens_h , qtens_d , size(qtens_h) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
   ierr = cudathreadsynchronize()
-  !$OMP END MASTER
-  !$OMP BARRIER
   if ( limiter_option == 8 ) then
-    do ie = nets , nete
+    do ie = 1 , nelemd
       do q = 1 , qsize
         do k = 1 , nlev
           do j = 1 , np
             do i = 1 , np
-              if ( rhs_viss /= 0 ) Qtens_h(i,j,k,q,ie) = Qtens_h(i,j,k,q,ie) + Qtens_biharmonic(i,j,k,q,ie)
+              if ( rhs_viss /= 0 ) Qtens_h(i,j,k,q,ie) = Qtens_h(i,j,k,q,ie) + Qtens_biharmonic_h(i,j,k,q,ie)
               dp_star(i,j,k) = dp_h(i,j,k,ie) - dt * elem(ie)%derived%divdp(i,j,k)    ! UN-DSS'ed dp at timelevel n0+1:   
               if ( nu_p > 0 .and. rhs_viss /= 0 ) dp_star(i,j,k) = dp_star(i,j,k) - rhs_viss * dt * nu_q * elem(ie)%derived%dpdiss_biharmonic(i,j,k) / elem(ie)%spheremp(i,j)
             enddo
@@ -765,8 +715,6 @@ contains
       enddo
     enddo
   endif
-  !$OMP BARRIER
-  !$OMP MASTER
   ierr = cudaMemcpyAsync(qtens_d,qtens_h,size(qtens_h),cudaMemcpyHostToDevice,streams(1)); _CHECK(__LINE__)
   blockdim = dim3( np*np*numk_eul , 1 , 1 )
   griddim  = dim3( int(ceiling(dble(nlev)/numk_eul))*qsize_d*nelemd , 1 , 1 )
@@ -1658,6 +1606,297 @@ end function divergence_sphere_wk
       ptens(:,k) = ptens(:,k) * dpmass(:,k)
     enddo
   end subroutine limiter_optim_iter_full
+
+
+
+  subroutine neighbor_minmax_loc(elem,hybrid,edgeMinMax,nets,nete,min_neigh,max_neigh)
+    ! compute Q min&max over the element and all its neighbors
+    use element_mod, only: element_t
+    use hybrid_mod, only: hybrid_t
+    use edge_mod, only: edgeVpack, edgeVunpackMin, edgeVunpackMax
+    use bndry_mod, only: bndry_exchangeV
+    use perf_mod, only: t_startf, t_stopf
+    implicit none
+    integer              , intent(in   ) :: nets,nete
+    type (element_t)     , intent(in   ) :: elem(:)
+    type (hybrid_t)      , intent(in   ) :: hybrid
+    type (EdgeBuffer_t)  , intent(inout) :: edgeMinMax
+    real (kind=real_kind), intent(inout) :: min_neigh(nlev,qsize,nelemd)
+    real (kind=real_kind), intent(inout) :: max_neigh(nlev,qsize,nelemd)
+    ! local
+    integer :: ie,k,q
+    !$OMP BARRIER
+    if (hybrid%ithr == 0) then
+      do ie=1,nelemd
+        do q=1,qsize
+          do k=1,nlev
+            qmin_exch(:,:,k,q,ie) = min_neigh(k,q,ie)
+            qmax_exch(:,:,k,q,ie) = max_neigh(k,q,ie)
+          enddo
+        enddo
+      enddo
+      do ie=1,nelemd
+        call edgeVpack_loc(edgeMinMax,qmin_exch(:,:,:,:,ie),nlev*qsize,0         ,elem(ie)%desc)
+        call edgeVpack_loc(edgeMinMax,qmax_exch(:,:,:,:,ie),nlev*qsize,nlev*qsize,elem(ie)%desc)
+      enddo
+    endif
+    !$OMP BARRIER
+  
+    call t_startf('nmm_bexchV')
+    call bndry_exchangeV(hybrid,edgeMinMax)
+    call t_stopf('nmm_bexchV')
+       
+    !$OMP BARRIER
+    if (hybrid%ithr == 0) then
+      do ie=1,nelemd
+        call edgeVunpackMin_loc(edgeMinMax,qmin_exch(:,:,:,:,ie),nlev*qsize,0         ,elem(ie)%desc)
+        call edgeVunpackMax_loc(edgeMinMax,qmax_exch(:,:,:,:,ie),nlev*qsize,nlev*qsize,elem(ie)%desc)
+      enddo
+      do ie=1,nelemd
+        do q=1,qsize
+          do k=1,nlev
+            ! note: only need to consider the corners, since the data we packed was constant within each element
+            min_neigh(k,q,ie)=max(min(qmin_exch(1,1,k,q,ie),qmin_exch(1,np,k,q,ie),qmin_exch(np,1,k,q,ie),qmin_exch(np,np,k,q,ie)),0d0)
+            max_neigh(k,q,ie)=    max(qmax_exch(1,1,k,q,ie),qmax_exch(1,np,k,q,ie),qmax_exch(np,1,k,q,ie),qmax_exch(np,np,k,q,ie))
+          enddo
+        enddo
+      enddo
+    endif
+    !$OMP BARRIER
+  end subroutine neighbor_minmax_loc
+
+
+
+  subroutine biharmonic_wk_scalar_minmax_loc(elem,qtens,deriv,edgeq,hybrid,nets,nete,emin,emax)
+    use element_mod, only: element_t
+    use derivative_mod, only: derivative_t
+    use hybrid_mod, only: hybrid_t
+    use derivative_mod, only: laplace_sphere_wk
+    use control_mod, only : hypervis_scaling
+    use edge_mod, only: edgeVpack, edgeVunpack, edgeVunpackMin, edgeVunpackMax
+    use perf_mod, only: t_startf, t_stopf
+    use bndry_mod, only: bndry_exchangeV
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! compute weak biharmonic operator
+    !    input:  qtens = Q
+    !    output: qtens = weak biharmonic of Q and Q element min/max
+    !    note: emin/emax must be initialized with Q element min/max.  
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    implicit none
+    type (element_t)     , intent(inout), target :: elem(:)
+    real (kind=real_kind), intent(inout)         :: qtens(np,np,nlev,qsize,nelemd)
+    type (derivative_t)  , intent(in   )         :: deriv
+    type (EdgeBuffer_t)  , intent(inout)         :: edgeq
+    type (hybrid_t)      , intent(in   )         :: hybrid
+    integer              , intent(in   )         :: nets,nete
+    real (kind=real_kind), intent(  out)         :: emin(nlev,qsize,nelemd)
+    real (kind=real_kind), intent(  out)         :: emax(nlev,qsize,nelemd)
+    integer :: k,kptr,i,j,ie,ic,q
+    real (kind=real_kind) :: lap_p(np,np)
+    logical :: var_coef1
+    !if tensor hyperviscosity with tensor V is used, then biharmonic operator is (\grad\cdot V\grad) (\grad \cdot \grad) 
+    !so tensor is only used on second call to laplace_sphere_wk
+    var_coef1 = .true.
+    if(hypervis_scaling > 0)    var_coef1 = .false.
+    !$OMP BARRIER
+    if (hybrid%ithr == 0) then
+      do ie=1,nelemd
+        do q=1,qsize      
+          do k=1,nlev    !  Potential loop inversion (AAM)
+            qmin_exch(:,:,k,q,ie) = emin(k,q,ie)  ! need to set all values in element for
+            qmax_exch(:,:,k,q,ie) = emax(k,q,ie)  ! edgeVpack routine below
+            qtens    (:,:,k,q,ie) = laplace_sphere_wk(qtens(:,:,k,q,ie),deriv,elem(ie),var_coef=var_coef1)
+          enddo
+        enddo
+      enddo
+      do ie=1,nelemd
+        call edgeVpack_loc(edgeq,    qtens(:,:,:,:,ie),nlev*qsize,           0,elem(ie)%desc)
+        call edgeVpack_loc(edgeq,qmin_exch(:,:,:,:,ie),nlev*qsize,  nlev*qsize,elem(ie)%desc)
+        call edgeVpack_loc(edgeq,qmax_exch(:,:,:,:,ie),nlev*qsize,2*nlev*qsize,elem(ie)%desc)
+      enddo
+    endif
+    !$OMP BARRIER
+    call t_startf('biwkscmm_bexchV')
+    call bndry_exchangeV(hybrid,edgeq)
+    call t_stopf('biwkscmm_bexchV')
+    !$OMP BARRIER
+    if (hybrid%ithr == 0) then
+      do ie=1,nelemd
+        call edgeVunpack_loc   (edgeq,    qtens(:,:,:,:,ie),qsize*nlev,           0,elem(ie)%desc)
+        call edgeVunpackMin_loc(edgeq,qmin_exch(:,:,:,:,ie),qsize*nlev,  qsize*nlev,elem(ie)%desc)
+        call edgeVunpackMax_loc(edgeq,qmax_exch(:,:,:,:,ie),qsize*nlev,2*qsize*nlev,elem(ie)%desc)
+      enddo
+      do ie=1,nelemd
+        ! apply inverse mass matrix, then apply laplace again
+        do q=1,qsize      
+          do k=1,nlev
+            lap_p(:,:)=elem(ie)%rspheremp(:,:)*qtens(:,:,k,q,ie)
+            qtens(:,:,k,q,ie)=laplace_sphere_wk(lap_p,deriv,elem(ie),var_coef=.true.)
+            emin(k,q,ie)=max(min(qmin_exch(1,1,k,q,ie),qmin_exch(1,np,k,q,ie),qmin_exch(np,1,k,q,ie),qmin_exch(np,np,k,q,ie)),0d0)
+            emax(k,q,ie)=    max(qmax_exch(1,1,k,q,ie),qmax_exch(1,np,k,q,ie),qmax_exch(np,1,k,q,ie),qmax_exch(np,np,k,q,ie))
+          enddo
+        enddo
+      enddo
+    endif
+    !$OMP BARRIER
+  end subroutine biharmonic_wk_scalar_minmax_loc
+
+
+
+  subroutine edgeVpack_loc(edge,v,vlyr,kptr,desc)
+    use dimensions_mod, only : np, max_corner_elem
+    use control_mod, only : north, south, east, west, neast, nwest, seast, swest
+    use edge_mod, only: edgeDescriptor_t
+    use perf_mod, only: t_startf, t_stopf
+    type (EdgeBuffer_t)    ,intent(inout) :: edge
+    integer                ,intent(in   ) :: vlyr
+    real (kind=real_kind)  ,intent(in   ) :: v(np,np,vlyr)
+    integer                ,intent(in   ) :: kptr
+    type (EdgeDescriptor_t),intent(in   ) :: desc
+    integer :: i,k,ir,ll
+    integer :: is,ie,in,iw
+    call t_startf('edge_pack')
+    is = desc%putmapP(south)
+    ie = desc%putmapP(east)
+    in = desc%putmapP(north)
+    iw = desc%putmapP(west)
+    do k=1,vlyr
+      do i=1,np
+        edge%buf(kptr+k,is+i) = v(i ,1 ,k)
+        edge%buf(kptr+k,ie+i) = v(np,i ,k)
+        edge%buf(kptr+k,in+i) = v(i ,np,k)
+        edge%buf(kptr+k,iw+i) = v(1 ,i ,k)
+      enddo
+    enddo
+    do k=1,vlyr
+      do i=1,np
+        ir = np-i+1
+        if(desc%reverse(south)) edge%buf(kptr+k,is+ir)=v(i ,1 ,k)
+        if(desc%reverse(east )) edge%buf(kptr+k,ie+ir)=v(np,i ,k)
+        if(desc%reverse(north)) edge%buf(kptr+k,in+ir)=v(i ,np,k)
+        if(desc%reverse(west )) edge%buf(kptr+k,iw+ir)=v(1 ,i ,k)
+      enddo
+    enddo
+    do k=1,vlyr
+      do i = 0 , max_corner_elem-1
+        ll = swest+0*max_corner_elem+i ; if (desc%putmapP(ll) /= -1) edge%buf(kptr+k,desc%putmapP(ll)+1)=v(1  ,1 ,k)
+        ll = swest+1*max_corner_elem+i ; if (desc%putmapP(ll) /= -1) edge%buf(kptr+k,desc%putmapP(ll)+1)=v(np ,1 ,k)
+        ll = swest+2*max_corner_elem+i ; if (desc%putmapP(ll) /= -1) edge%buf(kptr+k,desc%putmapP(ll)+1)=v(1  ,np,k)
+        ll = swest+3*max_corner_elem+i ; if (desc%putmapP(ll) /= -1) edge%buf(kptr+k,desc%putmapP(ll)+1)=v(np ,np,k)
+      enddo
+    enddo
+    call t_stopf('edge_pack')
+  end subroutine edgeVpack_loc
+
+
+
+  subroutine edgeVunpack_loc(edge,v,vlyr,kptr,desc)
+    use dimensions_mod, only : np, max_corner_elem
+    use control_mod, only : north, south, east, west, neast, nwest, seast, swest
+    use edge_mod, only: edgeDescriptor_t
+    use perf_mod, only: t_startf, t_stopf
+    type (EdgeBuffer_t)    , intent(in   ) :: edge
+    real (kind=real_kind)  , intent(inout) :: v(np,np,vlyr)
+    integer                , intent(in   ) :: vlyr
+    integer                , intent(in   ) :: kptr
+    type (EdgeDescriptor_t), intent(in   ) :: desc
+    integer :: i,k,ll
+    integer :: is,ie,in,iw
+    call t_startf('edge_unpack')
+    is=desc%getmapP(south)
+    ie=desc%getmapP(east)
+    in=desc%getmapP(north)
+    iw=desc%getmapP(west)
+    do k=1,vlyr
+      do i=1,np
+        v(i ,1 ,k) = v(i ,1 ,k) + edge%buf(kptr+k,is+i)
+        v(np,i ,k) = v(np,i ,k) + edge%buf(kptr+k,ie+i)
+        v(i ,np,k) = v(i ,np,k) + edge%buf(kptr+k,in+i)
+        v(1 ,i ,k) = v(1 ,i ,k) + edge%buf(kptr+k,iw+i)
+      enddo
+    enddo
+    do k=1,vlyr
+      do i = 0 , max_corner_elem-1
+        ll = swest+0*max_corner_elem+i; if(desc%getmapP(ll) /= -1) v(1 ,1 ,k)=v(1 ,1 ,k)+edge%buf(kptr+k,desc%getmapP(ll)+1)
+        ll = swest+1*max_corner_elem+i; if(desc%getmapP(ll) /= -1) v(np,1 ,k)=v(np,1 ,k)+edge%buf(kptr+k,desc%getmapP(ll)+1)
+        ll = swest+2*max_corner_elem+i; if(desc%getmapP(ll) /= -1) v(1 ,np,k)=v(1 ,np,k)+edge%buf(kptr+k,desc%getmapP(ll)+1)
+        ll = swest+3*max_corner_elem+i; if(desc%getmapP(ll) /= -1) v(np,np,k)=v(np,np,k)+edge%buf(kptr+k,desc%getmapP(ll)+1)
+      enddo
+    enddo
+    call t_stopf('edge_unpack')
+  end subroutine edgeVunpack_loc
+
+
+
+  subroutine edgeVunpackMIN_loc(edge,v,vlyr,kptr,desc)
+    use dimensions_mod, only : np, max_corner_elem
+    use control_mod, only : north, south, east, west, neast, nwest, seast, swest
+    use edge_mod, only: edgeDescriptor_t
+    use perf_mod, only: t_startf, t_stopf
+    type (EdgeBuffer_t)    , intent(in   ) :: edge
+    integer                , intent(in   ) :: vlyr
+    real (kind=real_kind)  , intent(inout) :: v(np,np,vlyr)
+    integer                , intent(in   ) :: kptr
+    type (EdgeDescriptor_t), intent(in   ) :: desc
+    integer :: i,k,l
+    integer :: is,ie,in,iw
+    is=desc%getmapP(south)
+    ie=desc%getmapP(east)
+    in=desc%getmapP(north)
+    iw=desc%getmapP(west)
+    do k=1,vlyr
+      do i=1,np
+        v(i ,1 ,k) = MIN(v(i ,1 ,k),edge%buf(kptr+k,is+i))
+        v(np,i ,k) = MIN(v(np,i ,k),edge%buf(kptr+k,ie+i))
+        v(i ,np,k) = MIN(v(i ,np,k),edge%buf(kptr+k,in+i))
+        v(1 ,i ,k) = MIN(v(1 ,i ,k),edge%buf(kptr+k,iw+i))
+      enddo
+    enddo
+    do k=1,vlyr
+      do i = 0 , max_corner_elem-1
+        l = swest+0*max_corner_elem+i; if(desc%getmapP(l) /= -1) v(1 ,1 ,k)=MIN(v(1 ,1 ,k),edge%buf(kptr+k,desc%getmapP(l)+1))
+        l = swest+1*max_corner_elem+i; if(desc%getmapP(l) /= -1) v(np,1 ,k)=MIN(v(np,1 ,k),edge%buf(kptr+k,desc%getmapP(l)+1))
+        l = swest+2*max_corner_elem+i; if(desc%getmapP(l) /= -1) v(1 ,np,k)=MIN(v(1 ,np,k),edge%buf(kptr+k,desc%getmapP(l)+1))
+        l = swest+3*max_corner_elem+i; if(desc%getmapP(l) /= -1) v(np,np,k)=MIN(v(np,np,k),edge%buf(kptr+k,desc%getmapP(l)+1))
+      enddo
+    enddo
+  end subroutine edgeVunpackMIN_loc
+
+
+
+  subroutine edgeVunpackMAX_loc(edge,v,vlyr,kptr,desc)
+    use dimensions_mod, only : np, max_corner_elem
+    use control_mod, only : north, south, east, west, neast, nwest, seast, swest
+    use edge_mod, only: edgeDescriptor_t
+    use perf_mod, only: t_startf, t_stopf
+    type (EdgeBuffer_t),         intent(in)  :: edge
+    integer,               intent(in)  :: vlyr
+    real (kind=real_kind), intent(inout) :: v(np,np,vlyr)
+    integer,               intent(in)  :: kptr
+    type (EdgeDescriptor_t),intent(in) :: desc
+    integer :: i,k,l
+    integer :: is,ie,in,iw
+    is=desc%getmapP(south)
+    ie=desc%getmapP(east)
+    in=desc%getmapP(north)
+    iw=desc%getmapP(west)
+    do k=1,vlyr
+      do i=1,np
+        v(i ,1 ,k) = MAX(v(i ,1 ,k),edge%buf(kptr+k,is+i))
+        v(np,i ,k) = MAX(v(np,i ,k),edge%buf(kptr+k,ie+i))
+        v(i ,np,k) = MAX(v(i ,np,k),edge%buf(kptr+k,in+i))
+        v(1 ,i ,k) = MAX(v(1 ,i ,k),edge%buf(kptr+k,iw+i))
+      enddo
+    enddo
+    do k=1,vlyr
+      do i = 0 , max_corner_elem-1
+        l = swest+0*max_corner_elem+i; if(desc%getmapP(l) /= -1) v(1 ,1 ,k)=MAX(v(1 ,1 ,k),edge%buf(kptr+k,desc%getmapP(l)+1))
+        l = swest+1*max_corner_elem+i; if(desc%getmapP(l) /= -1) v(np,1 ,k)=MAX(v(np,1 ,k),edge%buf(kptr+k,desc%getmapP(l)+1))
+        l = swest+2*max_corner_elem+i; if(desc%getmapP(l) /= -1) v(1 ,np,k)=MAX(v(1 ,np,k),edge%buf(kptr+k,desc%getmapP(l)+1))
+        l = swest+3*max_corner_elem+i; if(desc%getmapP(l) /= -1) v(np,np,k)=MAX(v(np,np,k),edge%buf(kptr+k,desc%getmapP(l)+1))
+      enddo
+    enddo
+  end subroutine edgeVunpackMAX_loc
 
 
 
