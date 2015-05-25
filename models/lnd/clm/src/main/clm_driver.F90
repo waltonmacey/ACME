@@ -266,13 +266,11 @@ contains
                nitrogenstate_vars)
 
           
-          print*,'before BeginPBalance - X.YANG'
 
           call BeginPBalance(bounds_clump, &
                filter(nc)%num_soilc, filter(nc)%soilc, &
                phosphorusstate_vars)
 
-          print*,'after BeginPBalance - X.YANG'
 
           call carbonflux_vars%ZeroDWT(bounds_clump)
           if (use_c13) then
@@ -282,9 +280,7 @@ contains
              call c14_carbonflux_vars%ZeroDWT(bounds_clump)
           end if
           call nitrogenflux_vars%ZeroDWT(bounds_clump)
-          print*,'before P flux subroutine ZeroDWT - X.YANG'
           call phosphorusflux_vars%ZeroDWT(bounds_clump)
-          print*,'before P flux subroutine ZeroDWT - X.YANG'
 
           call carbonstate_vars%ZeroDWT(bounds_clump)
           call nitrogenstate_vars%ZeroDWT(bounds_clump)
@@ -808,12 +804,10 @@ contains
                      filter(nc)%num_soilc, filter(nc)%soilc, &
                      nitrogenstate_vars, nitrogenflux_vars)
 
-                print*,"before PBalanceCheck -X.YANG"
 
                 call PBalanceCheck(bounds_clump, &
                      filter(nc)%num_soilc, filter(nc)%soilc, &
                      phosphorusstate_vars, phosphorusflux_vars)
-                print*,"after PBalanceCheck -X.YANG"
 
                 call t_stopf('cnbalchk')
              end if

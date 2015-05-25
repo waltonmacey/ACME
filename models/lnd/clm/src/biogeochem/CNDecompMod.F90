@@ -492,11 +492,6 @@ contains
          end do
       end do
 
-     ! X.YANG - debug
-     do fc = 1,num_soilc
-        c = filter_soilc(fc)
-      print*,"net_pmin_vr(c,1)= ",net_pmin_vr(c,1) 
-     enddo  
 
       if (use_lch4) then
          ! Calculate total fraction of potential HR, for methane code

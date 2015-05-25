@@ -454,7 +454,6 @@ contains
 !         col_endpb(c) = sminp(c)
          col_endpb(c) = totcolp(c)
 !         col_endpb(c) = totsomp(c)+cwdp(c)+totlitp(c)
-!         print*,"col_endpb(c)=",col_endpb(c),"col_begpb=",col_begpb
 
 
          ! calculate total column-level inputs
@@ -464,14 +463,10 @@ contains
 !         col_pinputs(c) =  flux_mineralization_col(c)/dt
 !         if (crop_prog) col_pinputs(c) = col_pinputs(c) + fert_p_to_sminp(c) 
 
-!         print*,"primp_to_labilep(c)=",primp_to_labilep(c),"supplement_to_sminp(c)=",supplement_to_sminp(c)
-         ! calculate total column-level outputs
          col_poutputs(c) = secondp_to_occlp(c) + sminp_leached(c) + col_fire_ploss(c) + dwt_ploss(c) + product_ploss(c)
 !         col_poutputs(c) = leafp_to_litter_col(c)+frootp_to_litter_col(c)
 !         col_poutputs(c) =  flux_mineralization_col(c)/dt
 !          col_poutputs(c) = sminp_to_plant(c)
-!         print*,"secondp_to_occlp(c)=",secondp_to_occlp(c),"sminp_leached(c)=",sminp_leached(c),&
-!                "col_fire_ploss(c)=",col_fire_ploss(c),"dwt_ploss(c)=",dwt_ploss(c),"product_ploss(c)=",product_ploss(c)
 
          ! calculate the total column-level phosphorus balance error for this time step
          col_errpb(c) = (col_pinputs(c) - col_poutputs(c))*dt - &

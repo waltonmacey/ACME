@@ -271,9 +271,7 @@ contains
     call soilorder_conrd()
 
     ! Read surface dataset and set up subgrid weight arrays
-    print*,'is surface data read wrong, X.YANG' 
     call surfrd_get_data(begg, endg, ldomain, fsurdat)
-    print*,'is surface data read wrong, 2nd,  X.YANG' 
 
     ! ------------------------------------------------------------------------
     ! Determine decomposition of subgrid scale landunits, columns, patches

@@ -4,7 +4,7 @@ module PStateUpdate3Mod
   ! !DESCRIPTION:
   ! Module for phosphorus state variable update, mortality fluxes.
   ! Also, sminn leaching flux.
-  !
+  ! X.YANG
   ! !USES:
   use shr_kind_mod        , only: r8 => shr_kind_r8
   use decompMod           , only : bounds_type
@@ -123,9 +123,6 @@ contains
             ! assign read in parameter values
             smax_c = smax( isoilorder(c) )
             ks_sorption_c = ks_sorption( isoilorder(c) )
-!      print*,"soilorder=",isoilorder(c),"smax_c=",smax_c,"ks_sorption_c=",ks_sorption_c
-!      print*, " SOLUTION AND LABILE P BEFORE UPDATE YANGXJ",ps%solutionp_vr_col(c,j),ps%labilep_vr_col(c,j),ps%solutionp_vr_col(c,j)+ps%labilep_vr_col(c,j) 
-!            ! debug -X.YANG
             temp_solutionp(c,j) = ps%solutionp_vr_col(c,j)
             ps%solutionp_vr_col(c,j)      = ps%solutionp_vr_col(c,j)  + ( flux_mineralization(c,j) + pf%primp_to_labilep_vr_col(c,j)*dt &
                                 + pf%secondp_to_labilep_vr_col(c,j)*dt &
@@ -138,23 +135,6 @@ contains
                              + pf%supplement_to_sminp_vr_col(c,j)*dt - pf%sminp_to_plant_vr_col(c,j)*dt &
                              - pf%labilep_to_secondp_vr_col(c,j)*dt - pf%sminp_leached_vr_col(c,j)*dt ) / &
                              ( 1._r8+(smax_c*ks_sorption_c)/(ks_sorption_c+temp_solutionp(c,j))**2._r8 )
- 
-!             ps%labilep_vr_col(c,j) = ps%labilep_vr_col(c,j) + flux_mineralization(c,j) + pf%primp_to_labilep_vr_col(c,j)*dt &
-!                                + pf%secondp_to_labilep_vr_col(c,j)*dt &
-!                                + pf%supplement_to_sminp_vr_col(c,j)*dt -pf%sminp_to_plant_vr_col(c,j)*dt&
-!                                - pf%labilep_to_secondp_vr_col(c,j)*dt - pf%sminp_leached_vr_col(c,j)*dt
-
-!      print*, " SOLUTION AND LABILE P AFTER UPDATE YANGXJ",ps%solutionp_vr_col(c,j),ps%labilep_vr_col(c,j),ps%solutionp_vr_col(c,j)+ps%labilep_vr_col(c,j) 
-
-!      print*, "NET FLUX ENTERING SOLUTION AND LABILE P",c,j,flux_mineralization(c,j) + pf%primp_to_labilep_vr_col(c,j)*dt &
-!                                + pf%secondp_to_labilep_vr_col(c,j)*dt &
-!                                + pf%supplement_to_sminp_vr_col(c,j)*dt -pf%sminp_to_plant_vr_col(c,j)*dt&
-!                                - pf%labilep_to_secondp_vr_col(c,j)*dt - pf%sminp_leached_vr_col(c,j)*dt
-
-!      print*,flux_mineralization(c,j),pf%primp_to_labilep_vr_col(c,j)*dt,pf%secondp_to_labilep_vr_col(c,j)*dt 
-!      print*,pf%supplement_to_sminp_vr_col(c,j)*dt,pf%sminp_to_plant_vr_col(c,j)*dt,pf%labilep_to_secondp_vr_col(c,j)*dt,&
-!            pf%sminp_leached_vr_col(c,j)*dt
-!      print*,"X.YANG P uptake by plants", c,j,pf%sminp_to_plant_vr_col(c,j)*dt
 
             ps%secondp_vr_col(c,j) = ps%secondp_vr_col(c,j) + ( pf%labilep_to_secondp_vr_col(c,j) - pf%secondp_to_labilep_vr_col(c,j) &
                                      - pf%secondp_to_occlp_vr_col(c,j) )*dt

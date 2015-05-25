@@ -1963,7 +1963,6 @@ contains
 
     end do
 
-    print*,'test1 in summary, X.YANG'
 
     call p2c(bounds, num_soilc, filter_soilc, &
          this%fire_ploss_patch(bounds%begp:bounds%endp), &
@@ -1973,7 +1972,6 @@ contains
          this%wood_harvestp_patch(bounds%begp:bounds%endp), &
          this%wood_harvestp_col(bounds%begc:bounds%endc))
 
-    print*,'test2 in summary, X.YANG'
     do fc = 1,num_soilc
        c = filter_soilc(fc)
        this%supplement_to_sminp_col(c) = 0._r8
@@ -1996,7 +1994,6 @@ contains
           end do
        end do
     end do
-    print*,'test3 in summary, X.YANG'
 
     ! vertically integrate inorganic P flux
     do j = 1, nlevdecomp
@@ -2035,7 +2032,6 @@ contains
        end do
     end do
 
-    print*,'test4 in summary, X.YANG'
 
     ! vertically integrate leaching flux
     do j = 1, nlevdecomp
@@ -2119,7 +2115,6 @@ contains
                this%decomp_ppools_leached_col(c,l)
        end do
     end do
-    print*,'test5 in summary, X.YANG'
 
   end subroutine Summary
 

@@ -6,6 +6,7 @@ module PDynamicsMod
   ! !DESCRIPTION:
   ! Module for inorganic phosphorus dynamics
   ! for coupled carbon-nitrogen-phosphorus code.
+  ! X.YANG
   !
   ! !USES:
   use shr_kind_mod        , only : r8 => shr_kind_r8
@@ -172,8 +173,6 @@ contains
             else
                labilep_to_secondp(c,j) = 0._r8
             end if
-            !  X.YANG -debug
-!            labilep_to_secondp(c,j) = 0._r8
 
          end do
        end do
@@ -242,8 +241,6 @@ contains
             else
               secondp_to_labilep(c,j) = 0._r8
             endif
-            !  X.YANG -debug
-!            secondp_to_labilep(c,j) = 0._r8 
 
          end do
        end do
@@ -314,8 +311,6 @@ contains
             else
                secondp_to_occlp(c,j) =0._r8
             endif
-            !  X.YANG -debug
-!            secondp_to_occlp(c,j) =0._r8
 
          end do
        end do
@@ -433,8 +428,6 @@ contains
 
                ! limit the flux to a positive value
                sminp_leached_vr(c,j) = max(sminp_leached_vr(c,j), 0._r8)
-            !  X.YANG -debug
-!               sminp_leached_vr(c,j) =0._r8
             end do
          end do
 
@@ -533,8 +526,6 @@ contains
 
                endif 
 
-               ! X.YANG - debug
-!               biochem_pmin_ppools_vr_col(c,j,l) =0._r8
             end do
          end do
       end do
@@ -548,7 +539,6 @@ contains
                biochem_pmin_vr_col(c,j) = biochem_pmin_vr_col(c,j)+ &
                                           biochem_pmin_ppools_vr_col(c,j,l)
             enddo
-!            print*,"biochem_pmin_vr_col(c,j)=",biochem_pmin_vr_col(c,j)
          enddo
       enddo 
 

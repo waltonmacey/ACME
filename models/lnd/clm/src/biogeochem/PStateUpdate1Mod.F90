@@ -2,7 +2,7 @@ module PStateUpdate1Mod
   !-----------------------------------------------------------------------
   ! !DESCRIPTION:
   ! Module for phosphorus state variable updates, non-mortality fluxes.
-  !
+  ! X.YANG
   ! !USES:
   use shr_kind_mod           , only: r8 => shr_kind_r8
   use clm_time_manager       , only : get_step_size
@@ -142,12 +142,6 @@ contains
          end if
       end do
 
-      ! X.YANG  -debug
-      do fc = 1,num_soilc
-         c = filter_soilc(fc)
-         print*,"pf%decomp_ppools_sourcesink_col",pf%decomp_ppools_sourcesink_col(c,1,1) 
-      enddo
-      ! biochemical mineralization fluxes
 
 
 

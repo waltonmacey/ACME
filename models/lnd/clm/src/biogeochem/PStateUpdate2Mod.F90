@@ -3,7 +3,7 @@ module PStateUpdate2Mod
   !-----------------------------------------------------------------------
   ! !DESCRIPTION:
   ! Module for phosphorus state variable update, mortality fluxes.
-  !
+  ! X.YANG
   ! !USES:
   use shr_kind_mod        , only : r8 => shr_kind_r8
   use clm_time_manager    , only : get_step_size
