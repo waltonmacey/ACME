@@ -131,6 +131,8 @@ contains
     call mpibcast(aer_wetdep_list,   len(aer_wetdep_list(1))*pcnst, mpichar, 0, mpicom)
     call mpibcast(aer_drydep_list,   len(aer_drydep_list(1))*pcnst, mpichar, 0, mpicom)
     call mpibcast(sol_facti_cloud_borne, 1,                         mpir8,   0, mpicom)
+    call mpibcast(sol_factb_interstitial, 1,                        mpir8,   0, mpicom)
+    call mpibcast(sol_factic_interstitial, 1,                       mpir8,   0, mpicom)
     call mpibcast(seasalt_emis_scale, 1, mpir8,   0, mpicom)
 #endif
 
@@ -1034,12 +1036,14 @@ contains
              call modal_aero_bcscavcoef_get( m, ncol, isprx, dgnumwet, &
                   scavcoefnv(:,:,1), scavcoefnv(:,:,2) )
 
-             sol_factb = 0.1_r8 ! all below-cloud scav ON (0.1 "tuning factor")
+             sol_factb = sol_factb_interstitial ! all below-cloud scav ON (0.1 "tuning factor")
+!            sol_factb = 0.1_r8 ! all below-cloud scav ON (0.1 "tuning factor")
              ! sol_factb = 0.03_r8 ! all below-cloud scav ON (0.1 "tuning factor") ! tuned 1/6
 
              sol_facti = 0.0_r8 ! strat in-cloud scav totally OFF for institial
 
-             sol_factic = 0.4_r8 ! xl 2010/05/20
+             sol_factic = sol_factic_interstitial
+!            sol_factic = 0.4_r8 ! xl 2010/05/20
 
              if (m == modeptr_pcarbon) then
                 ! sol_factic = 0.0_r8 ! conv in-cloud scav OFF (0.0 activation fraction)
