@@ -112,6 +112,7 @@ module cuda_mod
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:)       :: sendbuf_h
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:)       :: recvbuf_h
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:,:)   :: qtens_biharmonic_h
+  real(kind=real_kind),pinned,allocatable,dimension(:,:,:)       :: variable_hyperviscosity_h
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:)       :: qmin
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:)       :: qmax
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:,:)   :: qmin_exch
@@ -124,6 +125,9 @@ module cuda_mod
   real(kind=real_kind),pinned,allocatable,dimension(:,:)         :: edgebuf_Q2
   integer             ,pinned,allocatable,dimension(:,:,:,:)     :: kid_h
   real(kind=real_kind),pinned,allocatable,dimension(:)           :: dp0_h
+  logical             ,pinned,allocatable,dimension(:,:)         :: reverse_h
+  integer             ,pinned,allocatable,dimension(:,:)         :: putmapP_h
+  integer             ,pinned,allocatable,dimension(:,:)         :: getmapP_h
 
   !Normal Host arrays
   integer,allocatable,dimension(:)   :: send_nelem
@@ -270,6 +274,7 @@ contains
     allocate( vstar_h                  (np,np,nlev,2                 ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( qtens_h                  (np,np,nlev,qsize_d           ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( qtens_biharmonic_h       (np,np,nlev,qsize_d           ,nelemd) , stat = ierr ); _CHECK(__LINE__)
+    allocate( variable_hyperviscosity_h(np,np                        ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( dp_h                     (np,np,nlev                   ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( divdp_h                  (np,np,nlev                   ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( divdp_proj_h             (np,np,nlev                   ,nelemd) , stat = ierr ); _CHECK(__LINE__)
@@ -283,6 +288,9 @@ contains
     allocate( kid_h                    (np,np,        nlev           ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( dp0_h                    (              nlev                  ) , stat = ierr ); _CHECK(__LINE__)
     allocate( edgebuf_Q2               (nlev*qsize_d*2,nbuf                 ) , stat = ierr ); _CHECK(__LINE__)
+    allocate( reverse_h                (max_neigh_edges              ,nelemd) , stat = ierr ); _CHECK(__LINE__)
+    allocate( putmapP_h                (max_neigh_edges              ,nelemd) , stat = ierr ); _CHECK(__LINE__)
+    allocate( getmapP_h                (max_neigh_edges              ,nelemd) , stat = ierr ); _CHECK(__LINE__)
 
     ! The PGI compiler with cuda enabled errors when allocating arrays of zero
     !   size - here when using only one MPI task
@@ -334,6 +342,11 @@ contains
                  ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*hvcoord%ps0
     enddo
     ierr = cudaMemcpy( dp0_d , dp0_h , size(dp0_h) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
+
+    ierr = cudaMemcpy( putmapP_h , putmapP_d , size(putmapP_h) , cudaMemcpyDeviceToHost ); _CHECK(__LINE__)
+    ierr = cudaMemcpy( reverse_h , reverse_d , size(reverse_h) , cudaMemcpyDeviceToHost ); _CHECK(__LINE__)
+    ierr = cudaMemcpy( getmapP_h , getmapP_d , size(getmapP_h) , cudaMemcpyDeviceToHost ); _CHECK(__LINE__)
+    ierr = cudaMemcpy( variable_hyperviscosity_h , variable_hyperviscosity_d , size(variable_hyperviscosity_h) , cudaMemcpyDeviceToHost ); _CHECK(__LINE__)
 
     write(*,*) "edgebuffers"
     !These have to be in a threaded region or they complain and die
@@ -637,10 +650,11 @@ contains
     ! initialize dp, and compute Q from Qdp (and store Q in Qtens_biharmonic)
     !$OMP BARRIER
     if (hybrid%ithr == 0) then
+      !$acc parallel loop gang vector collapse(3) deviceptr(qdp_d)
       do ie = 1 , nelemd
         do q = 1 , qsize
           do k = 1 , nlev    
-            qtens_biharmonic_h(:,:,k,q,ie) = elem(ie)%state%Qdp(:,:,k,q,n0_qdp) / dp_h(:,:,k,ie)
+            qtens_biharmonic_h(:,:,k,q,ie) = qdp_d(:,:,k,q,n0_qdp,ie) / dp_h(:,:,k,ie)
             if ( rhs_multiplier == 0 .or. rhs_multiplier == 2 ) then  !reset qmin,qmax before computing
               qmin(k,q,ie) = large
               qmax(k,q,ie) = small
@@ -668,12 +682,13 @@ contains
       if ( rhs_multiplier == 2 ) then
         !compute biharmonic mixing term
         rhs_viss = 3
+        !$acc parallel loop gang vector collapse(5) deviceptr(spheremp_d,dp0_d)
         do ie = 1 , nelemd
           do q = 1 , qsize
             do k = 1 , nlev
               do j = 1 , np
                 do i = 1 , np
-                  qtens_biharmonic_h(i,j,k,q,ie) = -rhs_viss*dt*nu_q*dp0_h(k)*qtens_biharmonic_h(i,j,k,q,ie) / elem(ie)%spheremp(i,j)
+                  qtens_biharmonic_h(i,j,k,q,ie) = -rhs_viss*dt*nu_q*dp0_d(k)*qtens_biharmonic_h(i,j,k,q,ie) / spheremp_d(i,j,ie)
                 enddo
               enddo
             enddo
@@ -1627,6 +1642,7 @@ end function divergence_sphere_wk
     integer :: ie,k,q
     !$OMP BARRIER
     if (hybrid%ithr == 0) then
+      !$acc parallel loop gang vector collapse(3)
       do ie=1,nelemd
         do q=1,qsize
           do k=1,nlev
@@ -1635,10 +1651,8 @@ end function divergence_sphere_wk
           enddo
         enddo
       enddo
-      do ie=1,nelemd
-        call edgeVpack_loc(edgeMinMax,qmin_exch(:,:,:,:,ie),nlev*qsize,0         ,elem(ie)%desc)
-        call edgeVpack_loc(edgeMinMax,qmax_exch(:,:,:,:,ie),nlev*qsize,nlev*qsize,elem(ie)%desc)
-      enddo
+      call edgeVpack_gpu(edgeMinMax%buf,qmin_exch,edgeMinMax%nlyr,nlev*qsize,0         ,putmapP_d,reverse_d)
+      call edgeVpack_gpu(edgeMinMax%buf,qmax_exch,edgeMinMax%nlyr,nlev*qsize,nlev*qsize,putmapP_d,reverse_d)
     endif
     !$OMP BARRIER
   
@@ -1648,10 +1662,9 @@ end function divergence_sphere_wk
        
     !$OMP BARRIER
     if (hybrid%ithr == 0) then
-      do ie=1,nelemd
-        call edgeVunpackMin_loc(edgeMinMax,qmin_exch(:,:,:,:,ie),nlev*qsize,0         ,elem(ie)%desc)
-        call edgeVunpackMax_loc(edgeMinMax,qmax_exch(:,:,:,:,ie),nlev*qsize,nlev*qsize,elem(ie)%desc)
-      enddo
+      call edgeVunpackMin_gpu(edgeMinMax%buf,qmin_exch,edgeMinMax%nlyr,nlev*qsize,0         ,getmapP_d)
+      call edgeVunpackMax_gpu(edgeMinMax%buf,qmax_exch,edgeMinMax%nlyr,nlev*qsize,nlev*qsize,getmapP_d)
+      !$acc parallel loop gang vector collapse(3)
       do ie=1,nelemd
         do q=1,qsize
           do k=1,nlev
@@ -1672,7 +1685,7 @@ end function divergence_sphere_wk
     use derivative_mod, only: derivative_t
     use hybrid_mod, only: hybrid_t
     use derivative_mod, only: laplace_sphere_wk
-    use control_mod, only : hypervis_scaling
+    use control_mod, only : hypervis_scaling, hypervis_power
     use edge_mod, only: edgeVpack, edgeVunpack, edgeVunpackMin, edgeVunpackMax
     use perf_mod, only: t_startf, t_stopf
     use bndry_mod, only: bndry_exchangeV
@@ -1705,15 +1718,13 @@ end function divergence_sphere_wk
           do k=1,nlev    !  Potential loop inversion (AAM)
             qmin_exch(:,:,k,q,ie) = emin(k,q,ie)  ! need to set all values in element for
             qmax_exch(:,:,k,q,ie) = emax(k,q,ie)  ! edgeVpack routine below
-            qtens    (:,:,k,q,ie) = laplace_sphere_wk(qtens(:,:,k,q,ie),deriv,elem(ie),var_coef=var_coef1)
+            qtens    (:,:,k,q,ie) = laplace_sphere_wk_loc(qtens(:,:,k,q,ie),deriv,elem(ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,var_coef1)
           enddo
         enddo
       enddo
-      do ie=1,nelemd
-        call edgeVpack_loc(edgeq,    qtens(:,:,:,:,ie),nlev*qsize,           0,elem(ie)%desc)
-        call edgeVpack_loc(edgeq,qmin_exch(:,:,:,:,ie),nlev*qsize,  nlev*qsize,elem(ie)%desc)
-        call edgeVpack_loc(edgeq,qmax_exch(:,:,:,:,ie),nlev*qsize,2*nlev*qsize,elem(ie)%desc)
-      enddo
+      call edgeVpack_gpu(edgeq%buf,    qtens,edgeq%nlyr,nlev*qsize,           0,putmapP_d,reverse_d)
+      call edgeVpack_gpu(edgeq%buf,qmin_exch,edgeq%nlyr,nlev*qsize,  nlev*qsize,putmapP_d,reverse_d)
+      call edgeVpack_gpu(edgeq%buf,qmax_exch,edgeq%nlyr,nlev*qsize,2*nlev*qsize,putmapP_d,reverse_d)
     endif
     !$OMP BARRIER
     call t_startf('biwkscmm_bexchV')
@@ -1721,17 +1732,15 @@ end function divergence_sphere_wk
     call t_stopf('biwkscmm_bexchV')
     !$OMP BARRIER
     if (hybrid%ithr == 0) then
-      do ie=1,nelemd
-        call edgeVunpack_loc   (edgeq,    qtens(:,:,:,:,ie),qsize*nlev,           0,elem(ie)%desc)
-        call edgeVunpackMin_loc(edgeq,qmin_exch(:,:,:,:,ie),qsize*nlev,  qsize*nlev,elem(ie)%desc)
-        call edgeVunpackMax_loc(edgeq,qmax_exch(:,:,:,:,ie),qsize*nlev,2*qsize*nlev,elem(ie)%desc)
-      enddo
+      call edgeVunpack_gpu   (edgeq%buf,    qtens,edgeq%nlyr,qsize*nlev,           0,getmapP_d)
+      call edgeVunpackMin_gpu(edgeq%buf,qmin_exch,edgeq%nlyr,qsize*nlev,  qsize*nlev,getmapP_d)
+      call edgeVunpackMax_gpu(edgeq%buf,qmax_exch,edgeq%nlyr,qsize*nlev,2*qsize*nlev,getmapP_d)
       do ie=1,nelemd
         ! apply inverse mass matrix, then apply laplace again
         do q=1,qsize      
           do k=1,nlev
             lap_p(:,:)=elem(ie)%rspheremp(:,:)*qtens(:,:,k,q,ie)
-            qtens(:,:,k,q,ie)=laplace_sphere_wk(lap_p,deriv,elem(ie),var_coef=.true.)
+            qtens(:,:,k,q,ie)=laplace_sphere_wk_loc(lap_p,deriv,elem(ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,.true.)
             emin(k,q,ie)=max(min(qmin_exch(1,1,k,q,ie),qmin_exch(1,np,k,q,ie),qmin_exch(np,1,k,q,ie),qmin_exch(np,np,k,q,ie)),0d0)
             emax(k,q,ie)=    max(qmax_exch(1,1,k,q,ie),qmax_exch(1,np,k,q,ie),qmax_exch(np,1,k,q,ie),qmax_exch(np,np,k,q,ie))
           enddo
@@ -1743,160 +1752,270 @@ end function divergence_sphere_wk
 
 
 
-  subroutine edgeVpack_loc(edge,v,vlyr,kptr,desc)
-    use dimensions_mod, only : np, max_corner_elem
+  subroutine edgeVpack_gpu(edge_buf,v,nlyr,vlyr,kptr,putmapP,reverse)
+    use dimensions_mod, only : np, max_corner_elem, max_neigh_edges
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
     use edge_mod, only: edgeDescriptor_t
     use perf_mod, only: t_startf, t_stopf
-    type (EdgeBuffer_t)    ,intent(inout) :: edge
-    integer                ,intent(in   ) :: vlyr
-    real (kind=real_kind)  ,intent(in   ) :: v(np,np,vlyr)
-    integer                ,intent(in   ) :: kptr
-    type (EdgeDescriptor_t),intent(in   ) :: desc
-    integer :: i,k,ir,ll
-    integer :: is,ie,in,iw
+    real (kind=real_kind)  , intent(inout) :: edge_buf(nlyr,nbuf)
+    real (kind=real_kind)  , intent(in   ) :: v(np,np,vlyr,nelemd)
+    integer                , intent(in   ) :: nlyr
+    integer                , intent(in   ) :: vlyr
+    integer                , intent(in   ) :: kptr
+    integer, device        , intent(in   ) :: putmapP(max_neigh_edges,nelemd)
+    logical, device        , intent(in   ) :: reverse(max_neigh_edges,nelemd)
+    integer :: i,k,ir,ll,ie
     call t_startf('edge_pack')
-    is = desc%putmapP(south)
-    ie = desc%putmapP(east)
-    in = desc%putmapP(north)
-    iw = desc%putmapP(west)
-    do k=1,vlyr
-      do i=1,np
-        edge%buf(kptr+k,is+i) = v(i ,1 ,k)
-        edge%buf(kptr+k,ie+i) = v(np,i ,k)
-        edge%buf(kptr+k,in+i) = v(i ,np,k)
-        edge%buf(kptr+k,iw+i) = v(1 ,i ,k)
-      enddo
-    enddo
-    do k=1,vlyr
-      do i=1,np
-        ir = np-i+1
-        if(desc%reverse(south)) edge%buf(kptr+k,is+ir)=v(i ,1 ,k)
-        if(desc%reverse(east )) edge%buf(kptr+k,ie+ir)=v(np,i ,k)
-        if(desc%reverse(north)) edge%buf(kptr+k,in+ir)=v(i ,np,k)
-        if(desc%reverse(west )) edge%buf(kptr+k,iw+ir)=v(1 ,i ,k)
-      enddo
-    enddo
-    do k=1,vlyr
-      do i = 0 , max_corner_elem-1
-        ll = swest+0*max_corner_elem+i ; if (desc%putmapP(ll) /= -1) edge%buf(kptr+k,desc%putmapP(ll)+1)=v(1  ,1 ,k)
-        ll = swest+1*max_corner_elem+i ; if (desc%putmapP(ll) /= -1) edge%buf(kptr+k,desc%putmapP(ll)+1)=v(np ,1 ,k)
-        ll = swest+2*max_corner_elem+i ; if (desc%putmapP(ll) /= -1) edge%buf(kptr+k,desc%putmapP(ll)+1)=v(1  ,np,k)
-        ll = swest+3*max_corner_elem+i ; if (desc%putmapP(ll) /= -1) edge%buf(kptr+k,desc%putmapP(ll)+1)=v(np ,np,k)
+    !$acc parallel loop gang vector collapse(2) deviceptr(putmapP,reverse) private(i,ll,ir)
+    do ie=1,nelemd
+      do k=1,vlyr
+        !$acc loop seq
+        do i=1,np
+          edge_buf(kptr+k,putmapP(south,ie)+i) = v(i ,1 ,k,ie)
+          edge_buf(kptr+k,putmapP(east ,ie)+i) = v(np,i ,k,ie)
+          edge_buf(kptr+k,putmapP(north,ie)+i) = v(i ,np,k,ie)
+          edge_buf(kptr+k,putmapP(west ,ie)+i) = v(1 ,i ,k,ie)
+        enddo
+        !$acc loop seq
+        do i=1,np
+          ir = np-i+1
+          if(reverse(south,ie)) edge_buf(kptr+k,putmapP(south,ie)+ir) = v(i ,1 ,k,ie)
+          if(reverse(east ,ie)) edge_buf(kptr+k,putmapP(east ,ie)+ir) = v(np,i ,k,ie)
+          if(reverse(north,ie)) edge_buf(kptr+k,putmapP(north,ie)+ir) = v(i ,np,k,ie)
+          if(reverse(west ,ie)) edge_buf(kptr+k,putmapP(west ,ie)+ir) = v(1 ,i ,k,ie)
+        enddo
+        !$acc loop seq
+        do i = 0 , max_corner_elem-1
+          ll = swest+0*max_corner_elem+i ; if (putmapP(ll,ie) /= -1) edge_buf(kptr+k,putmapP(ll,ie)+1) = v(1  ,1 ,k,ie)
+          ll = swest+1*max_corner_elem+i ; if (putmapP(ll,ie) /= -1) edge_buf(kptr+k,putmapP(ll,ie)+1) = v(np ,1 ,k,ie)
+          ll = swest+2*max_corner_elem+i ; if (putmapP(ll,ie) /= -1) edge_buf(kptr+k,putmapP(ll,ie)+1) = v(1  ,np,k,ie)
+          ll = swest+3*max_corner_elem+i ; if (putmapP(ll,ie) /= -1) edge_buf(kptr+k,putmapP(ll,ie)+1) = v(np ,np,k,ie)
+        enddo
       enddo
     enddo
     call t_stopf('edge_pack')
-  end subroutine edgeVpack_loc
+  end subroutine edgeVpack_gpu
 
 
 
-  subroutine edgeVunpack_loc(edge,v,vlyr,kptr,desc)
-    use dimensions_mod, only : np, max_corner_elem
+  subroutine edgeVunpack_gpu(edge_buf,v,nlyr,vlyr,kptr,getmapP)
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
-    use edge_mod, only: edgeDescriptor_t
     use perf_mod, only: t_startf, t_stopf
-    type (EdgeBuffer_t)    , intent(in   ) :: edge
-    real (kind=real_kind)  , intent(inout) :: v(np,np,vlyr)
+    real (kind=real_kind)  , intent(in   ) :: edge_buf(nlyr,nbuf)
+    real (kind=real_kind)  , intent(inout) :: v(np,np,vlyr,nelemd)
+    integer                , intent(in   ) :: nlyr
     integer                , intent(in   ) :: vlyr
     integer                , intent(in   ) :: kptr
-    type (EdgeDescriptor_t), intent(in   ) :: desc
-    integer :: i,k,ll
-    integer :: is,ie,in,iw
+    integer, device        , intent(in   ) :: getmapP(max_neigh_edges,nelemd)
+    integer :: i,k,ll,ie
     call t_startf('edge_unpack')
-    is=desc%getmapP(south)
-    ie=desc%getmapP(east)
-    in=desc%getmapP(north)
-    iw=desc%getmapP(west)
-    do k=1,vlyr
-      do i=1,np
-        v(i ,1 ,k) = v(i ,1 ,k) + edge%buf(kptr+k,is+i)
-        v(np,i ,k) = v(np,i ,k) + edge%buf(kptr+k,ie+i)
-        v(i ,np,k) = v(i ,np,k) + edge%buf(kptr+k,in+i)
-        v(1 ,i ,k) = v(1 ,i ,k) + edge%buf(kptr+k,iw+i)
-      enddo
-    enddo
-    do k=1,vlyr
-      do i = 0 , max_corner_elem-1
-        ll = swest+0*max_corner_elem+i; if(desc%getmapP(ll) /= -1) v(1 ,1 ,k)=v(1 ,1 ,k)+edge%buf(kptr+k,desc%getmapP(ll)+1)
-        ll = swest+1*max_corner_elem+i; if(desc%getmapP(ll) /= -1) v(np,1 ,k)=v(np,1 ,k)+edge%buf(kptr+k,desc%getmapP(ll)+1)
-        ll = swest+2*max_corner_elem+i; if(desc%getmapP(ll) /= -1) v(1 ,np,k)=v(1 ,np,k)+edge%buf(kptr+k,desc%getmapP(ll)+1)
-        ll = swest+3*max_corner_elem+i; if(desc%getmapP(ll) /= -1) v(np,np,k)=v(np,np,k)+edge%buf(kptr+k,desc%getmapP(ll)+1)
+    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP) private(ll,i)
+    do ie = 1 , nelemd
+      do k = 1 , vlyr
+        do i = 1 , np
+          v(i ,1 ,k,ie) = v(i ,1 ,k,ie) + edge_buf(kptr+k,getmapP(south,ie)+i)
+          v(np,i ,k,ie) = v(np,i ,k,ie) + edge_buf(kptr+k,getmapP(east ,ie)+i)
+          v(i ,np,k,ie) = v(i ,np,k,ie) + edge_buf(kptr+k,getmapP(north,ie)+i)
+          v(1 ,i ,k,ie) = v(1 ,i ,k,ie) + edge_buf(kptr+k,getmapP(west ,ie)+i)
+        enddo
+        do i = 0 , max_corner_elem-1
+          ll = swest+0*max_corner_elem+i; if(getmapP(ll,ie) /= -1) v(1 ,1 ,k,ie) = v(1 ,1 ,k,ie) + edge_buf(kptr+k,getmapP(ll,ie)+1)
+          ll = swest+1*max_corner_elem+i; if(getmapP(ll,ie) /= -1) v(np,1 ,k,ie) = v(np,1 ,k,ie) + edge_buf(kptr+k,getmapP(ll,ie)+1)
+          ll = swest+2*max_corner_elem+i; if(getmapP(ll,ie) /= -1) v(1 ,np,k,ie) = v(1 ,np,k,ie) + edge_buf(kptr+k,getmapP(ll,ie)+1)
+          ll = swest+3*max_corner_elem+i; if(getmapP(ll,ie) /= -1) v(np,np,k,ie) = v(np,np,k,ie) + edge_buf(kptr+k,getmapP(ll,ie)+1)
+        enddo
       enddo
     enddo
     call t_stopf('edge_unpack')
-  end subroutine edgeVunpack_loc
+  end subroutine edgeVunpack_gpu
 
 
 
-  subroutine edgeVunpackMIN_loc(edge,v,vlyr,kptr,desc)
-    use dimensions_mod, only : np, max_corner_elem
+  subroutine edgeVunpackMIN_gpu(edge_buf,v,nlyr,vlyr,kptr,getmapP)
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
-    use edge_mod, only: edgeDescriptor_t
-    use perf_mod, only: t_startf, t_stopf
-    type (EdgeBuffer_t)    , intent(in   ) :: edge
+    real (kind=real_kind)  , intent(in   ) :: edge_buf(nlyr,nbuf)
+    real (kind=real_kind)  , intent(inout) :: v(np,np,vlyr,nelemd)
+    integer                , intent(in   ) :: nlyr
     integer                , intent(in   ) :: vlyr
-    real (kind=real_kind)  , intent(inout) :: v(np,np,vlyr)
     integer                , intent(in   ) :: kptr
-    type (EdgeDescriptor_t), intent(in   ) :: desc
-    integer :: i,k,l
-    integer :: is,ie,in,iw
-    is=desc%getmapP(south)
-    ie=desc%getmapP(east)
-    in=desc%getmapP(north)
-    iw=desc%getmapP(west)
-    do k=1,vlyr
-      do i=1,np
-        v(i ,1 ,k) = MIN(v(i ,1 ,k),edge%buf(kptr+k,is+i))
-        v(np,i ,k) = MIN(v(np,i ,k),edge%buf(kptr+k,ie+i))
-        v(i ,np,k) = MIN(v(i ,np,k),edge%buf(kptr+k,in+i))
-        v(1 ,i ,k) = MIN(v(1 ,i ,k),edge%buf(kptr+k,iw+i))
+    integer, device        , intent(in   ) :: getmapP(max_neigh_edges,nelemd)
+    integer :: i,k,ll,ie
+    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP) private(ll,i)
+    do ie = 1 , nelemd
+      do k = 1 , vlyr
+        do i = 1 , np
+          v(i ,1 ,k,ie) = min( v(i ,1 ,k,ie) , edge_buf(kptr+k,getmapP(south,ie)+i) )
+          v(np,i ,k,ie) = min( v(np,i ,k,ie) , edge_buf(kptr+k,getmapP(east ,ie)+i) )
+          v(i ,np,k,ie) = min( v(i ,np,k,ie) , edge_buf(kptr+k,getmapP(north,ie)+i) )
+          v(1 ,i ,k,ie) = min( v(1 ,i ,k,ie) , edge_buf(kptr+k,getmapP(west ,ie)+i) )
+        enddo
+        do i = 0 , max_corner_elem-1
+          ll = swest+0*max_corner_elem+i; if(getmapP(ll,ie) /= -1) v(1 ,1 ,k,ie) = min( v(1 ,1 ,k,ie) , edge_buf(kptr+k,getmapP(ll,ie)+1) )
+          ll = swest+1*max_corner_elem+i; if(getmapP(ll,ie) /= -1) v(np,1 ,k,ie) = min( v(np,1 ,k,ie) , edge_buf(kptr+k,getmapP(ll,ie)+1) )
+          ll = swest+2*max_corner_elem+i; if(getmapP(ll,ie) /= -1) v(1 ,np,k,ie) = min( v(1 ,np,k,ie) , edge_buf(kptr+k,getmapP(ll,ie)+1) )
+          ll = swest+3*max_corner_elem+i; if(getmapP(ll,ie) /= -1) v(np,np,k,ie) = min( v(np,np,k,ie) , edge_buf(kptr+k,getmapP(ll,ie)+1) )
+        enddo
       enddo
     enddo
-    do k=1,vlyr
-      do i = 0 , max_corner_elem-1
-        l = swest+0*max_corner_elem+i; if(desc%getmapP(l) /= -1) v(1 ,1 ,k)=MIN(v(1 ,1 ,k),edge%buf(kptr+k,desc%getmapP(l)+1))
-        l = swest+1*max_corner_elem+i; if(desc%getmapP(l) /= -1) v(np,1 ,k)=MIN(v(np,1 ,k),edge%buf(kptr+k,desc%getmapP(l)+1))
-        l = swest+2*max_corner_elem+i; if(desc%getmapP(l) /= -1) v(1 ,np,k)=MIN(v(1 ,np,k),edge%buf(kptr+k,desc%getmapP(l)+1))
-        l = swest+3*max_corner_elem+i; if(desc%getmapP(l) /= -1) v(np,np,k)=MIN(v(np,np,k),edge%buf(kptr+k,desc%getmapP(l)+1))
-      enddo
-    enddo
-  end subroutine edgeVunpackMIN_loc
+  end subroutine edgeVunpackMIN_gpu
 
 
 
-  subroutine edgeVunpackMAX_loc(edge,v,vlyr,kptr,desc)
-    use dimensions_mod, only : np, max_corner_elem
+  subroutine edgeVunpackMAX_gpu(edge_buf,v,nlyr,vlyr,kptr,getmapP)
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
-    use edge_mod, only: edgeDescriptor_t
-    use perf_mod, only: t_startf, t_stopf
-    type (EdgeBuffer_t),         intent(in)  :: edge
-    integer,               intent(in)  :: vlyr
-    real (kind=real_kind), intent(inout) :: v(np,np,vlyr)
-    integer,               intent(in)  :: kptr
-    type (EdgeDescriptor_t),intent(in) :: desc
-    integer :: i,k,l
-    integer :: is,ie,in,iw
-    is=desc%getmapP(south)
-    ie=desc%getmapP(east)
-    in=desc%getmapP(north)
-    iw=desc%getmapP(west)
-    do k=1,vlyr
-      do i=1,np
-        v(i ,1 ,k) = MAX(v(i ,1 ,k),edge%buf(kptr+k,is+i))
-        v(np,i ,k) = MAX(v(np,i ,k),edge%buf(kptr+k,ie+i))
-        v(i ,np,k) = MAX(v(i ,np,k),edge%buf(kptr+k,in+i))
-        v(1 ,i ,k) = MAX(v(1 ,i ,k),edge%buf(kptr+k,iw+i))
+    real (kind=real_kind)  , intent(in   ) :: edge_buf(nlyr,nbuf)
+    real (kind=real_kind)  , intent(inout) :: v(np,np,vlyr,nelemd)
+    integer                , intent(in   ) :: nlyr
+    integer                , intent(in   ) :: vlyr
+    integer                , intent(in   ) :: kptr
+    integer, device        , intent(in   ) :: getmapP(max_neigh_edges,nelemd)
+    integer :: i,k,ll,ie
+    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP) private(ll,i)
+    do ie = 1 , nelemd
+      do k = 1 , vlyr
+        do i = 1 , np
+          v(i ,1 ,k,ie) = max( v(i ,1 ,k,ie) , edge_buf(kptr+k,getmapP(south,ie)+i) )
+          v(np,i ,k,ie) = max( v(np,i ,k,ie) , edge_buf(kptr+k,getmapP(east ,ie)+i) )
+          v(i ,np,k,ie) = max( v(i ,np,k,ie) , edge_buf(kptr+k,getmapP(north,ie)+i) )
+          v(1 ,i ,k,ie) = max( v(1 ,i ,k,ie) , edge_buf(kptr+k,getmapP(west ,ie)+i) )
+        enddo
+        do i = 0 , max_corner_elem-1
+          ll = swest+0*max_corner_elem+i; if(getmapP(ll,ie) /= -1) v(1 ,1 ,k,ie) = max( v(1 ,1 ,k,ie) , edge_buf(kptr+k,getmapP(ll,ie)+1) )
+          ll = swest+1*max_corner_elem+i; if(getmapP(ll,ie) /= -1) v(np,1 ,k,ie) = max( v(np,1 ,k,ie) , edge_buf(kptr+k,getmapP(ll,ie)+1) )
+          ll = swest+2*max_corner_elem+i; if(getmapP(ll,ie) /= -1) v(1 ,np,k,ie) = max( v(1 ,np,k,ie) , edge_buf(kptr+k,getmapP(ll,ie)+1) )
+          ll = swest+3*max_corner_elem+i; if(getmapP(ll,ie) /= -1) v(np,np,k,ie) = max( v(np,np,k,ie) , edge_buf(kptr+k,getmapP(ll,ie)+1) )
+        enddo
       enddo
     enddo
-    do k=1,vlyr
-      do i = 0 , max_corner_elem-1
-        l = swest+0*max_corner_elem+i; if(desc%getmapP(l) /= -1) v(1 ,1 ,k)=MAX(v(1 ,1 ,k),edge%buf(kptr+k,desc%getmapP(l)+1))
-        l = swest+1*max_corner_elem+i; if(desc%getmapP(l) /= -1) v(np,1 ,k)=MAX(v(np,1 ,k),edge%buf(kptr+k,desc%getmapP(l)+1))
-        l = swest+2*max_corner_elem+i; if(desc%getmapP(l) /= -1) v(1 ,np,k)=MAX(v(1 ,np,k),edge%buf(kptr+k,desc%getmapP(l)+1))
-        l = swest+3*max_corner_elem+i; if(desc%getmapP(l) /= -1) v(np,np,k)=MAX(v(np,np,k),edge%buf(kptr+k,desc%getmapP(l)+1))
-      enddo
+  end subroutine edgeVunpackMAX_gpu
+
+
+
+  function laplace_sphere_wk_loc(s,deriv,elem,hypervis_power,hypervis_scaling,variable_hyperviscosity,var_coef) result(laplace)
+    use derivative_mod, only: derivative_t
+    use element_mod, only: element_t
+    implicit none
+!   !$acc routine seq
+!   input:  s = scalar
+!   ouput:  -< grad(PHI), grad(s) >   = weak divergence of grad(s)
+!     note: for this form of the operator, grad(s) does not need to be made C0
+    real(kind=real_kind), intent(in) :: s(np,np) 
+    real(kind=real_kind), intent(in) :: hypervis_power,hypervis_scaling
+    real(kind=real_kind), intent(in) :: variable_hyperviscosity(np,np)
+    logical :: var_coef
+    type (derivative_t)              :: deriv
+    type (element_t)                 :: elem
+    real(kind=real_kind)             :: laplace(np,np)
+    real(kind=real_kind)             :: laplace2(np,np)
+    integer i,j
+    real(kind=real_kind) :: grads(np,np,2), oldgrads(np,np,2)
+    grads = gradient_sphere_loc(s,deriv,elem%Dinv)
+    if (var_coef) then
+       if (hypervis_power/=0 ) then
+          ! scalar viscosity with variable coefficient
+          do j = 1 , np
+            do i = 1 , np
+              grads(i,j,1) = grads(i,j,1)*variable_hyperviscosity(i,j)
+              grads(i,j,2) = grads(i,j,2)*variable_hyperviscosity(i,j)
+            enddo
+          enddo
+       else if (hypervis_scaling /=0 ) then
+          ! tensor hv, (3)
+          do j=1,np
+             do i=1,np
+                grads(i,j,1) = sum(grads(i,j,:)*elem%tensorVisc(1,:,i,j))
+                grads(i,j,2) = sum(grads(i,j,:)*elem%tensorVisc(2,:,i,j))
+             end do
+          end do
+       else
+          ! do nothing: constant coefficient viscsoity
+       endif
+    endif
+    ! note: divergnece_sphere and divergence_sphere_wk are identical *after* bndry_exchange
+    ! if input is C_0.  Here input is not C_0, so we should use divergence_sphere_wk().  
+    laplace=divergence_sphere_wk_loc(grads,deriv,elem)
+  end function laplace_sphere_wk_loc
+
+
+
+  function divergence_sphere_wk_loc(v,deriv,elem) result(div)
+    use physical_constants, only: rrearth
+    use derivative_mod, only: derivative_t
+    use element_mod, only: element_t
+    implicit none
+!   !$acc routine seq
+!   input:  v = velocity in lat-lon coordinates
+!   ouput:  div(v)  spherical divergence of v, integrated by parts
+!   Computes  -< grad(psi) dot v > 
+!   (the integrated by parts version of < psi div(v) > )
+!   note: after DSS, divergence_sphere() and divergence_sphere_wk() 
+!   are identical to roundoff, as theory predicts.
+    real(kind=real_kind), intent(in) :: v(np,np,2)  ! in lat-lon coordinates
+    type (derivative_t)              :: deriv
+    type (element_t)                 :: elem
+    real(kind=real_kind) :: div(np,np)
+    integer i,j,m,n
+    real(kind=real_kind) :: vtemp(np,np,2)
+    real(kind=real_kind) :: ggtemp(np,np,2)
+    real(kind=real_kind) :: gtemp(np,np,2)
+    real(kind=real_kind) :: psi(np,np)
+    real(kind=real_kind) :: xtmp
+    do j=1,np
+       do i=1,np
+          vtemp(i,j,1)=(elem%Dinv(1,1,i,j)*v(i,j,1) + elem%Dinv(1,2,i,j)*v(i,j,2))
+          vtemp(i,j,2)=(elem%Dinv(2,1,i,j)*v(i,j,1) + elem%Dinv(2,2,i,j)*v(i,j,2))
+       enddo
     enddo
-  end subroutine edgeVunpackMAX_loc
+    do n=1,np
+       do m=1,np
+          div(m,n)=0
+          do j=1,np
+             div(m,n)=div(m,n)-(  elem%spheremp(j,n)*vtemp(j,n,1)*deriv%Dvv(m,j) &
+                                + elem%spheremp(m,j)*vtemp(m,j,2)*deriv%Dvv(n,j) ) * rrearth
+          enddo
+       end do
+    end do
+  end function divergence_sphere_wk_loc
+
+
+
+  function gradient_sphere_loc(s,deriv,Dinv) result(ds)
+    use physical_constants, only: rrearth
+    use derivative_mod, only: derivative_t
+    implicit none
+!   !$acc routine seq
+!   input s:  scalar
+!   output  ds: spherical gradient of s, lat-lon coordinates
+    type (derivative_t)              :: deriv
+    real(kind=real_kind), intent(in), dimension(2,2,np,np) :: Dinv
+    real(kind=real_kind), intent(in) :: s(np,np)
+    real(kind=real_kind) :: ds(np,np,2)
+    integer i
+    integer j
+    integer l
+    real(kind=real_kind) ::  dsdx00
+    real(kind=real_kind) ::  dsdy00
+    real(kind=real_kind) ::  v1(np,np),v2(np,np)
+    do j=1,np
+       do l=1,np
+          dsdx00=0.0d0
+          dsdy00=0.0d0
+          do i=1,np
+             dsdx00 = dsdx00 + deriv%dvv(i,l)*s(i,j)
+             dsdy00 = dsdy00 + deriv%dvv(i,l)*s(j,i)
+          end do
+          v1(l,j) = dsdx00*rrearth
+          v2(j,l) = dsdy00*rrearth
+       end do
+    end do
+    ! convert covarient to latlon
+    do j=1,np
+       do i=1,np
+          ds(i,j,1)=Dinv(1,1,i,j)*v1(i,j) + Dinv(2,1,i,j)*v2(i,j)
+          ds(i,j,2)=Dinv(1,2,i,j)*v1(i,j) + Dinv(2,2,i,j)*v2(i,j)
+       enddo
+    enddo
+  end function gradient_sphere_loc
 
 
 
