@@ -973,7 +973,7 @@ contains
 
     ! decomposing P pools
     do k = 1, ndecomp_pools
-       varname=trim(decomp_cascade_con%decomp_pool_name_restart(k))//'n'
+       varname=trim(decomp_cascade_con%decomp_pool_name_restart(k))//'p'
        if (use_vertsoilc) then
           ptr2d => this%decomp_ppools_vr_col(:,:,k)
           call restartvar(ncid=ncid, flag=flag, varname=trim(varname)//"_vr", xtype=ncd_double, &
@@ -1008,21 +1008,10 @@ contains
     end if
 
 
-    ! Set the integrated sminn based on sminn_vr, as is done in CNSummaryMod (this may
-    ! not be the most appropriate method or place to do this)
 
-!    this%sminn_col(bounds%begc:bounds%endc) = 0._r8
-!    do j = 1, nlevdecomp
-!       do c = bounds%begc, bounds%endc
-!          this%sminn_col(c) = &
-!               this%sminn_col(c) + &
-!               this%sminn_vr_col(c,j) * dzsoi_decomp(j)
-!       end do
-!    end do
-
-!    call restartvar(ncid=ncid, flag=flag, varname='totcoln', xtype=ncd_double,  &
-!         dim1name='column', long_name='', units='', &
-!         interpinic_flag='interp', readvar=readvar, data=this%totcoln_col) 
+    call restartvar(ncid=ncid, flag=flag, varname='totcolp', xtype=ncd_double,  &
+         dim1name='column', long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%totcolp_col) 
 
     call restartvar(ncid=ncid, flag=flag, varname='seedp', xtype=ncd_double,  &
          dim1name='column', long_name='', units='', &
