@@ -99,6 +99,7 @@ module cuda_mod
   real(kind=real_kind) ,device,allocatable,dimension(:)           :: dp0_d
 
   !PINNED Host arrays
+  real(kind=real_kind),pinned,allocatable,dimension(:,:,:)       :: spheremp_h
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:,:,:) :: qdp_h
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:)     :: qdp1_h
   real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:,:)   :: vstar_h
@@ -264,6 +265,7 @@ contains
     allocate( kid_d                    (np,np,        nlev           ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( dp0_d                    (              nlev                  ) , stat = ierr ); _CHECK(__LINE__)
 
+    allocate( spheremp_h               (np,np                        ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( qdp_h                    (np,np,nlev,qsize_d,timelevels,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( qdp1_h                   (np,np,nlev                   ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( dpdiss_ave_h             (np,np,nlev                   ,nelemd) , stat = ierr ); _CHECK(__LINE__)
@@ -347,6 +349,7 @@ contains
     ierr = cudaMemcpy( reverse_h , reverse_d , size(reverse_h) , cudaMemcpyDeviceToHost ); _CHECK(__LINE__)
     ierr = cudaMemcpy( getmapP_h , getmapP_d , size(getmapP_h) , cudaMemcpyDeviceToHost ); _CHECK(__LINE__)
     ierr = cudaMemcpy( variable_hyperviscosity_h , variable_hyperviscosity_d , size(variable_hyperviscosity_h) , cudaMemcpyDeviceToHost ); _CHECK(__LINE__)
+    ierr = cudaMemcpy( spheremp_h , spheremp_d , size(spheremp_h) , cudaMemcpyDeviceToHost ); _CHECK(__LINE__)
 
     write(*,*) "edgebuffers"
     !These have to be in a threaded region or they complain and die
@@ -513,6 +516,7 @@ contains
     do ie = nets , nete
       qdp1_h(:,:,:,ie) = elem(ie)%state%Qdp(:,:,:,1,n0_qdp)
       dpdiss_ave_h(:,:,:,ie) = elem(ie)%derived%dpdiss_ave(:,:,:)
+      divdp_h(:,:,:,ie) = elem(ie)%derived%divdp(:,:,:)
     enddo
     !$OMP BARRIER
     !$OMP MASTER
@@ -547,6 +551,13 @@ contains
         elem(ie)%derived%divdp_proj  (:,:,k) = elem(ie)%derived%divdp_proj  (:,:,k) * elem(ie)%rspheremp(:,:)
       enddo
     enddo
+
+    do ie = nets , nete
+      divdp_h(:,:,:,ie) = elem(ie)%derived%divdp(:,:,:)
+      dpdiss_biharmonic_h(:,:,:,ie) = elem(ie)%derived%dpdiss_biharmonic(:,:,:)
+    enddo
+    ierr = cudaMemcpyAsync( divdp_d , divdp_h , size( divdp_h ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
+    ierr = cudaMemcpyAsync( dpdiss_biharmonic_d , dpdiss_biharmonic_h , size( dpdiss_biharmonic_h ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
 
     call t_stopf('precompute_divdp_cuda')
 
@@ -591,7 +602,6 @@ contains
   integer              , intent(in   )         :: DSSopt
   integer              , intent(in   )         :: rhs_multiplier
   ! local
-  real(kind=real_kind), dimension(np,np,nlev) :: dp_star
   real(kind=real_kind) :: dp0
   real(kind=real_kind) :: large,small
   integer :: ie,q,i,j,k
@@ -715,20 +725,21 @@ contains
   ierr = cudaMemcpyAsync( qtens_h , qtens_d , size(qtens_h) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
   ierr = cudathreadsynchronize()
   if ( limiter_option == 8 ) then
+    !$acc parallel loop gang vector collapse(5)
     do ie = 1 , nelemd
       do q = 1 , qsize
         do k = 1 , nlev
           do j = 1 , np
             do i = 1 , np
               if ( rhs_viss /= 0 ) Qtens_h(i,j,k,q,ie) = Qtens_h(i,j,k,q,ie) + Qtens_biharmonic_h(i,j,k,q,ie)
-              dp_star(i,j,k) = dp_h(i,j,k,ie) - dt * elem(ie)%derived%divdp(i,j,k)    ! UN-DSS'ed dp at timelevel n0+1:   
-              if ( nu_p > 0 .and. rhs_viss /= 0 ) dp_star(i,j,k) = dp_star(i,j,k) - rhs_viss * dt * nu_q * elem(ie)%derived%dpdiss_biharmonic(i,j,k) / elem(ie)%spheremp(i,j)
+              dp_star_h(i,j,k,ie) = dp_h(i,j,k,ie) - dt * divdp_h(i,j,k,ie)    ! UN-DSS'ed dp at timelevel n0+1:   
+              if ( nu_p > 0 .and. rhs_viss /= 0 ) dp_star_h(i,j,k,ie) = dp_star_h(i,j,k,ie) - rhs_viss * dt * nu_q * dpdiss_biharmonic_h(i,j,k,ie) / spheremp_h(i,j,ie)
             enddo
           enddo
         enddo
-        call limiter_optim_iter_full( Qtens_h(:,:,:,q,ie) , elem(ie)%spheremp(:,:) , qmin(:,q,ie) , qmax(:,q,ie) , dp_star(:,:,:) )  ! apply limiter to Q = Qtens / dp_star 
       enddo
     enddo
+    call limiter_optim_iter_full_loc( Qtens_h , spheremp_h , qmin , qmax , dp_star_h )  ! apply limiter to Q = Qtens / dp_star 
   endif
   ierr = cudaMemcpyAsync(qtens_d,qtens_h,size(qtens_h),cudaMemcpyHostToDevice,streams(1)); _CHECK(__LINE__)
   blockdim = dim3( np*np*numk_eul , 1 , 1 )
@@ -1464,7 +1475,7 @@ end function divergence_sphere_wk
 
 
 
-  subroutine limiter_optim_iter_full(ptens,sphweights,minp,maxp,dpmass)
+  subroutine limiter_optim_iter_full_loc(ptens,sphweights,minp,maxp,dpmass)
     !THIS IS A NEW VERSION OF LIM8, POTENTIALLY FASTER BECAUSE INCORPORATES KNOWLEDGE FROM
     !PREVIOUS ITERATIONS
     
@@ -1474,153 +1485,153 @@ end function divergence_sphere_wk
     !to a closest constraint. This way we introduce some mass change (addmass),
     !so, we redistribute addmass in the way that l2 error is smallest. 
     !This redistribution might violate constraints thus, we do a few iterations. 
-    use kinds         , only : real_kind
-    use dimensions_mod, only : np, np, nlev
-    real (kind=real_kind), dimension(np*np,nlev), intent(inout)            :: ptens
-    real (kind=real_kind), dimension(np*np     ), intent(in   )            :: sphweights
-    real (kind=real_kind), dimension(      nlev), intent(inout)            :: minp
-    real (kind=real_kind), dimension(      nlev), intent(inout)            :: maxp
-    real (kind=real_kind), dimension(np*np,nlev), intent(in   ), optional  :: dpmass
+    implicit none
+    real (kind=real_kind), dimension(np*np,nlev,qsize,nelemd), intent(inout) :: ptens
+    real (kind=real_kind), dimension(np*np           ,nelemd), intent(in   ) :: sphweights
+    real (kind=real_kind), dimension(      nlev,qsize,nelemd), intent(inout) :: minp
+    real (kind=real_kind), dimension(      nlev,qsize,nelemd), intent(inout) :: maxp
+    real (kind=real_kind), dimension(np*np,nlev      ,nelemd), intent(in   ) :: dpmass
  
-    real (kind=real_kind), dimension(np*np,nlev) :: weights
-    integer  k1, k, i, j, iter, i1, i2
+    integer :: k1, i, j, k, iter, i1, i2, q, ie
     integer :: whois_neg(np*np), whois_pos(np*np), neg_counter, pos_counter
-    real (kind=real_kind) :: addmass, weightssum, mass
+    real (kind=real_kind) :: addmass, weightssum, mass,sumc
     real (kind=real_kind) :: x(np*np),c(np*np)
     real (kind=real_kind) :: al_neg(np*np), al_pos(np*np), howmuch
     real (kind=real_kind) :: tol_limiter = 1e-15
-    integer, parameter :: maxiter = 5
+    integer :: maxiter = 5
 
-    do k = 1 , nlev
-      weights(:,k) = sphweights(:) * dpmass(:,k)
-      ptens(:,k) = ptens(:,k) / dpmass(:,k)
-    enddo
 
-    do k = 1 , nlev
-      c = weights(:,k)
-      x = ptens(:,k)
+    !$acc  parallel loop gang vector collapse(3) &
+    !$acc&   private(k1,i,j,k,iter,i1,i2,q,ie,whois_neg,whois_pos,neg_counter, &
+    !$acc&           pos_counter,addmass,weightssum,mass,x,c,al_neg,al_pos,howmuch,sumc)
+    do ie = 1 , nelemd
+      do q = 1 , qsize
+        do k = 1 , nlev
+          c = sphweights(:,ie) * dpmass(:,k,ie)
+          x = ptens(:,k,q,ie) / dpmass(:,k,ie)
+          sumc = 0d0
+          mass = 0d0
+          do i1 = 1 , np*np
+            mass = mass + c(i1)*x(i1)
+            sumc = sumc + c(i1)
+          enddo
 
-      mass = sum(c*x)
+          ! relax constraints to ensure limiter has a solution:
+          ! This is only needed if runnign with the SSP CFL>1 or 
+          ! due to roundoff errors
+          if( (mass / sumc) < minp(k,q,ie) ) then
+            minp(k,q,ie) = mass / sumc
+          endif
+          if( (mass / sumc) > maxp(k,q,ie) ) then
+            maxp(k,q,ie) = mass / sumc
+          endif
 
-      ! relax constraints to ensure limiter has a solution:
-      ! This is only needed if runnign with the SSP CFL>1 or 
-      ! due to roundoff errors
-      if( (mass / sum(c)) < minp(k) ) then
-        minp(k) = mass / sum(c)
-      endif
-      if( (mass / sum(c)) > maxp(k) ) then
-        maxp(k) = mass / sum(c)
-      endif
-
-      addmass = 0.0d0
-      pos_counter = 0;
-      neg_counter = 0;
-      
-      ! apply constraints, compute change in mass caused by constraints 
-      do k1 = 1 , np*np
-        if ( ( x(k1) >= maxp(k) ) ) then
-          addmass = addmass + ( x(k1) - maxp(k) ) * c(k1)
-          x(k1) = maxp(k)
-          whois_pos(k1) = -1
-        else
-          pos_counter = pos_counter+1;
-          whois_pos(pos_counter) = k1;
-        endif
-        if ( ( x(k1) <= minp(k) ) ) then
-          addmass = addmass - ( minp(k) - x(k1) ) * c(k1)
-          x(k1) = minp(k)
-          whois_neg(k1) = -1
-        else
-          neg_counter = neg_counter+1;
-          whois_neg(neg_counter) = k1;
-        endif
-      enddo
-      
-      ! iterate to find field that satifies constraints and is l2-norm closest to original 
-      weightssum = 0.0d0
-      if ( addmass > 0 ) then
-        do i2 = 1 , maxIter
-          weightssum = 0.0
-          do k1 = 1 , pos_counter
-            i1 = whois_pos(k1)
-            weightssum = weightssum + c(i1)
-            al_pos(i1) = maxp(k) - x(i1)
+          addmass = 0.0d0
+          pos_counter = 0
+          neg_counter = 0
+          
+          ! apply constraints, compute change in mass caused by constraints 
+          do k1 = 1 , np*np
+            if ( ( x(k1) >= maxp(k,q,ie) ) ) then
+              addmass = addmass + ( x(k1) - maxp(k,q,ie) ) * c(k1)
+              x(k1) = maxp(k,q,ie)
+              whois_pos(k1) = -1
+            else
+              pos_counter = pos_counter+1
+              whois_pos(pos_counter) = k1
+            endif
+            if ( ( x(k1) <= minp(k,q,ie) ) ) then
+              addmass = addmass - ( minp(k,q,ie) - x(k1) ) * c(k1)
+              x(k1) = minp(k,q,ie)
+              whois_neg(k1) = -1
+            else
+              neg_counter = neg_counter+1
+              whois_neg(neg_counter) = k1
+            endif
           enddo
           
-          if( ( pos_counter > 0 ) .and. ( addmass > tol_limiter * abs(mass) ) ) then
-            do k1 = 1 , pos_counter
-              i1 = whois_pos(k1)
-              howmuch = addmass / weightssum
-              if ( howmuch > al_pos(i1) ) then
-                howmuch = al_pos(i1)
-                whois_pos(k1) = -1
-              endif
-              addmass = addmass - howmuch * c(i1)
-              weightssum = weightssum - c(i1)
-              x(i1) = x(i1) + howmuch
-            enddo
-            !now sort whois_pos and get a new number for pos_counter
-            !here neg_counter and whois_neg serve as temp vars
-            neg_counter = pos_counter
-            whois_neg = whois_pos
-            whois_pos = -1
-            pos_counter = 0
-            do k1 = 1 , neg_counter
-              if ( whois_neg(k1) .ne. -1 ) then
-                pos_counter = pos_counter+1
-                whois_pos(pos_counter) = whois_neg(k1)
+          ! iterate to find field that satifies constraints and is l2-norm closest to original 
+          weightssum = 0.0d0
+          if ( addmass > 0d0 ) then
+            do i2 = 1 , maxIter
+              weightssum = 0.0d0
+              do k1 = 1 , pos_counter
+                i1 = whois_pos(k1)
+                weightssum = weightssum + c(i1)
+                al_pos(i1) = maxp(k,q,ie) - x(i1)
+              enddo
+              
+              if( ( pos_counter > 0 ) .and. ( addmass > tol_limiter * abs(mass) ) ) then
+                do k1 = 1 , pos_counter
+                  i1 = whois_pos(k1)
+                  howmuch = addmass / weightssum
+                  if ( howmuch > al_pos(i1) ) then
+                    howmuch = al_pos(i1)
+                    whois_pos(k1) = -1
+                  endif
+                  addmass = addmass - howmuch * c(i1)
+                  weightssum = weightssum - c(i1)
+                  x(i1) = x(i1) + howmuch
+                enddo
+                !now sort whois_pos and get a new number for pos_counter
+                !here neg_counter and whois_neg serve as temp vars
+                neg_counter = pos_counter
+                whois_neg = whois_pos
+                whois_pos = -1
+                pos_counter = 0
+                do k1 = 1 , neg_counter
+                  if ( whois_neg(k1) .ne. -1 ) then
+                    pos_counter = pos_counter+1
+                    whois_pos(pos_counter) = whois_neg(k1)
+                  endif
+                enddo
+              else
+                exit
               endif
             enddo
           else
-            exit
+             do i2 = 1 , maxIter
+               weightssum = 0.0d0
+               do k1 = 1 , neg_counter
+                 i1 = whois_neg(k1)
+                 weightssum = weightssum + c(i1)
+                 al_neg(i1) = x(i1) - minp(k,q,ie)
+               enddo
+               
+               if ( ( neg_counter > 0 ) .and. ( (-addmass) > tol_limiter * abs(mass) ) ) then
+                 do k1 = 1 , neg_counter
+                   i1 = whois_neg(k1)
+                   howmuch = -addmass / weightssum
+                   if ( howmuch > al_neg(i1) ) then
+                     howmuch = al_neg(i1)
+                     whois_neg(k1) = -1
+                   endif
+                   addmass = addmass + howmuch * c(i1)
+                   weightssum = weightssum - c(i1)
+                   x(i1) = x(i1) - howmuch
+                 enddo
+                 !now sort whois_pos and get a new number for pos_counter
+                 !here pos_counter and whois_pos serve as temp vars
+                 pos_counter = neg_counter
+                 whois_pos = whois_neg
+                 whois_neg = -1
+                 neg_counter = 0
+                 do k1 = 1 , pos_counter
+                   if ( whois_pos(k1) .ne. -1 ) then
+                     neg_counter = neg_counter+1
+                     whois_neg(neg_counter) = whois_pos(k1)
+                   endif
+                 enddo
+               else
+                 exit
+               endif
+             enddo
           endif
+          ptens(:,k,q,ie) = x * dpmass(:,k,ie)
         enddo
-      else
-         do i2 = 1 , maxIter
-           weightssum = 0.0
-           do k1 = 1 , neg_counter
-             i1 = whois_neg(k1)
-             weightssum = weightssum + c(i1)
-             al_neg(i1) = x(i1) - minp(k)
-           enddo
-           
-           if ( ( neg_counter > 0 ) .and. ( (-addmass) > tol_limiter * abs(mass) ) ) then
-             do k1 = 1 , neg_counter
-               i1 = whois_neg(k1)
-               howmuch = -addmass / weightssum
-               if ( howmuch > al_neg(i1) ) then
-                 howmuch = al_neg(i1)
-                 whois_neg(k1) = -1
-               endif
-               addmass = addmass + howmuch * c(i1)
-               weightssum = weightssum - c(i1)
-               x(i1) = x(i1) - howmuch
-             enddo
-             !now sort whois_pos and get a new number for pos_counter
-             !here pos_counter and whois_pos serve as temp vars
-             pos_counter = neg_counter
-             whois_pos = whois_neg
-             whois_neg = -1
-             neg_counter = 0
-             do k1 = 1 , pos_counter
-               if ( whois_pos(k1) .ne. -1 ) then
-                 neg_counter = neg_counter+1
-                 whois_neg(neg_counter) = whois_pos(k1)
-               endif
-             enddo
-           else
-             exit
-           endif
-         enddo
-      endif
-      
-      ptens(:,k) = x
+      enddo
     enddo
-    
-    do k = 1 , nlev
-      ptens(:,k) = ptens(:,k) * dpmass(:,k)
-    enddo
-  end subroutine limiter_optim_iter_full
+  end subroutine limiter_optim_iter_full_loc
 
 
 
@@ -1677,55 +1688,6 @@ end function divergence_sphere_wk
     endif
     !$OMP BARRIER
   end subroutine neighbor_minmax_loc
-
-
-
-  subroutine laplace_sphere_wk_loc(s,deriv,elem,hypervis_power,hypervis_scaling,variable_hyperviscosity,var_coef,laplace)
-    use derivative_mod, only: derivative_t
-    use element_mod, only: element_t
-    implicit none
-    !$acc routine seq
-!   input:  s = scalar
-!   ouput:  -< grad(PHI), grad(s) >   = weak divergence of grad(s)
-!     note: for this form of the operator, grad(s) does not need to be made C0
-    real(kind=real_kind), intent(in) :: s(np,np) 
-    real(kind=real_kind), intent(in) :: hypervis_power,hypervis_scaling
-    real(kind=real_kind), intent(in) :: variable_hyperviscosity(np,np)
-    logical             , intent(in) :: var_coef
-    type (derivative_t) , intent(in) :: deriv
-    type (element_t)    , intent(in) :: elem
-    real(kind=real_kind), intent(out):: laplace(np,np)
-    real(kind=real_kind) :: laplace2(np,np)
-    integer i,j
-    real(kind=real_kind) :: grads(np,np,2), oldgrads(np,np,2)
-    !$acc routine(gradient_sphere_loc) seq
-    !$acc routine(divergence_sphere_wk_loc) seq
-    grads = gradient_sphere_loc(s,deriv,elem%Dinv)
-    if (var_coef) then
-       if (hypervis_power/=0 ) then
-          ! scalar viscosity with variable coefficient
-          do j = 1 , np
-            do i = 1 , np
-              grads(i,j,1) = grads(i,j,1)*variable_hyperviscosity(i,j)
-              grads(i,j,2) = grads(i,j,2)*variable_hyperviscosity(i,j)
-            enddo
-          enddo
-       else if (hypervis_scaling /=0 ) then
-          ! tensor hv, (3)
-          do j=1,np
-             do i=1,np
-                grads(i,j,1) = sum(grads(i,j,:)*elem%tensorVisc(1,:,i,j))
-                grads(i,j,2) = sum(grads(i,j,:)*elem%tensorVisc(2,:,i,j))
-             end do
-          end do
-       else
-          ! do nothing: constant coefficient viscsoity
-       endif
-    endif
-    ! note: divergnece_sphere and divergence_sphere_wk are identical *after* bndry_exchange
-    ! if input is C_0.  Here input is not C_0, so we should use divergence_sphere_wk().  
-    laplace=divergence_sphere_wk_loc(grads,deriv,elem)
-  end subroutine laplace_sphere_wk_loc
 
 
 
@@ -1944,6 +1906,55 @@ end function divergence_sphere_wk
       enddo
     enddo
   end subroutine edgeVunpackMAX_gpu
+
+
+
+  subroutine laplace_sphere_wk_loc(s,deriv,elem,hypervis_power,hypervis_scaling,variable_hyperviscosity,var_coef,laplace)
+    use derivative_mod, only: derivative_t
+    use element_mod, only: element_t
+    implicit none
+    !$acc routine seq
+!   input:  s = scalar
+!   ouput:  -< grad(PHI), grad(s) >   = weak divergence of grad(s)
+!     note: for this form of the operator, grad(s) does not need to be made C0
+    real(kind=real_kind), intent(in) :: s(np,np) 
+    real(kind=real_kind), intent(in) :: hypervis_power,hypervis_scaling
+    real(kind=real_kind), intent(in) :: variable_hyperviscosity(np,np)
+    logical             , intent(in) :: var_coef
+    type (derivative_t) , intent(in) :: deriv
+    type (element_t)    , intent(in) :: elem
+    real(kind=real_kind), intent(out):: laplace(np,np)
+    real(kind=real_kind) :: laplace2(np,np)
+    integer i,j
+    real(kind=real_kind) :: grads(np,np,2), oldgrads(np,np,2)
+    !$acc routine(gradient_sphere_loc) seq
+    !$acc routine(divergence_sphere_wk_loc) seq
+    grads = gradient_sphere_loc(s,deriv,elem%Dinv)
+    if (var_coef) then
+       if (hypervis_power/=0 ) then
+          ! scalar viscosity with variable coefficient
+          do j = 1 , np
+            do i = 1 , np
+              grads(i,j,1) = grads(i,j,1)*variable_hyperviscosity(i,j)
+              grads(i,j,2) = grads(i,j,2)*variable_hyperviscosity(i,j)
+            enddo
+          enddo
+       else if (hypervis_scaling /=0 ) then
+          ! tensor hv, (3)
+          do j=1,np
+             do i=1,np
+                grads(i,j,1) = sum(grads(i,j,:)*elem%tensorVisc(1,:,i,j))
+                grads(i,j,2) = sum(grads(i,j,:)*elem%tensorVisc(2,:,i,j))
+             end do
+          end do
+       else
+          ! do nothing: constant coefficient viscsoity
+       endif
+    endif
+    ! note: divergnece_sphere and divergence_sphere_wk are identical *after* bndry_exchange
+    ! if input is C_0.  Here input is not C_0, so we should use divergence_sphere_wk().  
+    laplace=divergence_sphere_wk_loc(grads,deriv,elem)
+  end subroutine laplace_sphere_wk_loc
 
 
 
