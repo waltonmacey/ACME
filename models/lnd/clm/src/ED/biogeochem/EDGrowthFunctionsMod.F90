@@ -26,6 +26,7 @@ module EDGrowthFunctionsMod
   public ::  tree_sai
   public ::  c_area
   public ::  mortality_rates
+  public ::  bdead2hdbh_so
 
   logical :: DEBUG_growth = .false.
 
@@ -94,8 +95,52 @@ contains
 
   end function Hite
 
-! ============================================================================
+  subroutine bdead2hdbh_so( cohort_in,dbh,hite)
 
+     ! =========================================================================
+     ! This routine is used as a check on dbh and height, as prognosed
+     ! by structural biomass (bdead).  This assumes
+     ! Saldarriaga et al. 1988 for the relationship between bdead with dbh and h
+     ! and Obrien et al. for the relationship between dbh and h
+     ! =========================================================================
+
+     implicit none
+     type(ed_cohort_type), intent(in) :: cohort_in
+     
+     real(r8), intent(out)            :: dbh
+     real(r8), intent(out)            :: hite
+     
+     real(r8) :: dbh_max
+     real(r8) :: h_max
+     real(r8) :: bdead_max
+
+     real(r8), parameter  :: m = 0.64_r8
+     real(r8), parameter  :: c = 0.37_r8
+     real(r8), parameter  :: a1 = 0.06896_r8
+     real(r8), parameter  :: a2 = 0.572_r8
+     real(r8), parameter  :: a3 = 1.94_r8
+     real(r8), parameter  :: a4 = 0.931_r8
+
+     ! First we calculate the structural biomass at maximum allowable height
+     dbh_max   = EDecophyscon%max_dbh(cohort_in%pft)
+     h_max     = 10.0_r8**(log10(dbh_max)*m + c)
+     bdead_max = a1 * h_max**a2 * dbh_max**a3  &
+               * EDecophyscon%wood_density(cohort_in%pft)**a4
+
+     if(cohort_in%bdead.ge.bdead_max) then
+        dbh  = (cohort_in%bdead * a1**(-1) * 10_r8**(-c*a2) * dbh_max**(-m*a2) &
+             * EDecophyscon%wood_density(cohort_in%pft)**(-a4))**(1.0_r8/a3)
+        hite = (10.0_r8**(log10(dbh_max)*m + c))
+     else
+        dbh  = (cohort_in%bdead * a1**(-1) * 10_r8**(-c*a2) &
+             * EDecophyscon%wood_density(cohort_in%pft)**(-a4))**(1.0_r8/(m*a2+a3))
+        hite = (10.0_r8**(log10(dbh)*m + c))
+     end if
+
+  end subroutine bdead2hdbh_so
+
+! ============================================================================
+  
   real(r8) function Bleaf( cohort_in )
 
     ! ============================================================================
@@ -328,46 +373,50 @@ contains
 
   end function dDbhdBl
 
-! ============================================================================
+  ! ============================================================================
+  subroutine mortality_rates(cohort_in,cmort,hmort,bmort)
+     
+     ! ============================================================================
+     !  Calculate mortality rates as a function of carbon storage       
+     ! ============================================================================
+     
+     use shr_kind_mod, only : r8 => shr_kind_r8
+     use EDParamsMod,  only : ED_val_stress_mort
+     
+     implicit none    
+     
+     type (ed_cohort_type), intent(in) :: cohort_in
+     real(r8), intent(out)      :: cmort  ! carbon starvation mortality
+     real(r8), intent(out)      :: bmort  ! background mortality
+     real(r8), intent(out)      :: hmort  ! hydraulic failure mortality
+     
+     real(r8) :: frac  ! relativised stored carbohydrate
+     
+     ! 'Background' mortality (can vary as a function of density as in ED1.0 and ED2.0, but doesn't here for tractability) 
+     bmort = 0.014_r8 
+     
+     ! Proxy for hydraulic failure induced mortality. 
+     if(cohort_in%patchptr%btran_ft(cohort_in%pft) <= 0.000001_r8)then 
+        hmort = ED_val_stress_mort
+     else
+        hmort = 0.0_r8
+     endif
+     
+     ! Carbon Starvation induced mortality.
+     if ( cohort_in%dbh  >  0._r8 ) then
+        if(Bleaf(cohort_in) > 0._r8.and.cohort_in%bstore <= Bleaf(cohort_in))then
+           frac = cohort_in%bstore/(Bleaf(cohort_in))
+           cmort = max(0.0_r8,ED_val_stress_mort*(1.0_r8 - frac))
+        else
+           cmort = 0.0_r8
+        endif
+     else
+        write(iulog,*) 'dbh problem in mortality_rates', &
+              cohort_in%dbh,cohort_in%pft,cohort_in%n,cohort_in%canopy_layer,cohort_in%indexnumber
+     endif
+     
+  end subroutine mortality_rates
 
-  real(r8) function mortality_rates( cohort_in )
-
-    ! ============================================================================
-    !  Calculate mortality rates as a function of carbon storage       
-    ! ============================================================================
-
-    use EDParamsMod,  only : ED_val_stress_mort
-
-    type (ed_cohort_type), intent(in) :: cohort_in
-
-    real(r8) :: frac  ! relativised stored carbohydrate
-    real(r8) :: smort ! stress mortality     : Fraction per year
-    real(r8) :: bmort ! background mortality : Fraction per year
-
-    ! 'Background' mortality (can vary as a function of density as in ED1.0 and ED2.0, but doesn't here for tractability) 
-    bmort = 0.014_r8 
-   
-    ! Proxy for hydraulic failure induced mortality. 
-    smort = 0.0_r8
-    if(cohort_in%patchptr%btran_ft(cohort_in%pft) <= 0.000001_r8)then 
-       smort = smort + ED_val_stress_mort 
-    endif
-    
-    ! Carbon Starvation induced mortality.
-    if ( cohort_in%dbh  >  0._r8 ) then
-       if(Bleaf(cohort_in) > 0._r8.and.cohort_in%bstore <= Bleaf(cohort_in))then
-          frac = cohort_in%bstore/(Bleaf(cohort_in))
-          smort = smort + max(0.0_r8,ED_val_stress_mort*(1.0_r8 - frac))
-       endif
-    else
-       write(iulog,*) 'dbh problem in mortality_rates', &
-            cohort_in%dbh,cohort_in%pft,cohort_in%n,cohort_in%canopy_layer,cohort_in%indexnumber
-    endif
-
-    mortality_rates = smort + bmort
-
-  end function mortality_rates
-
-! ============================================================================
+  ! ============================================================================
 
 end module EDGrowthFunctionsMod
