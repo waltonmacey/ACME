@@ -1492,23 +1492,33 @@ end function divergence_sphere_wk
     real (kind=real_kind), dimension(      nlev,qsize,nelemd), intent(inout) :: maxp
     real (kind=real_kind), dimension(np*np,nlev      ,nelemd), intent(in   ) :: dpmass
  
+    real (kind=real_kind) :: weights(np*np,nlev)
     integer :: k1, i, j, k, iter, i1, i2, q, ie
     integer :: whois_neg(np*np), whois_pos(np*np), neg_counter, pos_counter
-    real (kind=real_kind) :: addmass, weightssum, mass,sumc
+    real (kind=real_kind) :: addmass, weightssum, mass,sumc,tmp
     real (kind=real_kind) :: x(np*np),c(np*np)
     real (kind=real_kind) :: al_neg(np*np), al_pos(np*np), howmuch
     real (kind=real_kind) :: tol_limiter = 1e-15
     integer :: maxiter = 5
 
 
-    !$acc  parallel loop gang vector collapse(3) &
-    !$acc&   private(k1,i,j,k,iter,i1,i2,q,ie,whois_neg,whois_pos,neg_counter, &
-    !$acc&           pos_counter,addmass,weightssum,mass,x,c,al_neg,al_pos,howmuch,sumc)
+    !$acc  parallel loop gang vector collapse(2) &
+    !$acc&   private(weights,k1,i,j,k,iter,i1,i2,q,ie,whois_neg,whois_pos,neg_counter, &
+    !$acc&           pos_counter,addmass,weightssum,mass,x,c,al_neg,al_pos,howmuch,sumc,tmp)
     do ie = 1 , nelemd
       do q = 1 , qsize
+        !$acc loop seq
         do k = 1 , nlev
-          c = sphweights(:,ie) * dpmass(:,k,ie)
-          x = ptens(:,k,q,ie) / dpmass(:,k,ie)
+          weights(:,k) = sphweights(:,ie) * dpmass(:,k,ie)
+          ptens(:,k,q,ie) = ptens(:,k,q,ie) / dpmass(:,k,ie)
+        enddo
+
+
+        !$acc loop seq
+        do k = 1 , nlev
+          c = weights(:,k)
+          x = ptens(:,k,q,ie)
+
           sumc = 0d0
           mass = 0d0
           do i1 = 1 , np*np
@@ -1552,9 +1562,9 @@ end function divergence_sphere_wk
           
           ! iterate to find field that satifies constraints and is l2-norm closest to original 
           weightssum = 0.0d0
-          if ( addmass > 0d0 ) then
+          if ( addmass > 0 ) then
             do i2 = 1 , maxIter
-              weightssum = 0.0d0
+              weightssum = 0.0
               do k1 = 1 , pos_counter
                 i1 = whois_pos(k1)
                 weightssum = weightssum + c(i1)
@@ -1569,7 +1579,8 @@ end function divergence_sphere_wk
                     howmuch = al_pos(i1)
                     whois_pos(k1) = -1
                   endif
-                  addmass = addmass - howmuch * c(i1)
+                  tmp = addmass - howmuch * c(i1)
+                  addmass = tmp
                   weightssum = weightssum - c(i1)
                   x(i1) = x(i1) + howmuch
                 enddo
@@ -1591,7 +1602,7 @@ end function divergence_sphere_wk
             enddo
           else
              do i2 = 1 , maxIter
-               weightssum = 0.0d0
+               weightssum = 0.0
                do k1 = 1 , neg_counter
                  i1 = whois_neg(k1)
                  weightssum = weightssum + c(i1)
@@ -1606,7 +1617,8 @@ end function divergence_sphere_wk
                      howmuch = al_neg(i1)
                      whois_neg(k1) = -1
                    endif
-                   addmass = addmass + howmuch * c(i1)
+                   tmp = addmass + howmuch * c(i1)
+                   addmass = tmp
                    weightssum = weightssum - c(i1)
                    x(i1) = x(i1) - howmuch
                  enddo
@@ -1627,7 +1639,13 @@ end function divergence_sphere_wk
                endif
              enddo
           endif
-          ptens(:,k,q,ie) = x * dpmass(:,k,ie)
+          
+          ptens(:,k,q,ie) = x
+        enddo
+
+        !$acc loop seq
+        do k = 1 , nlev
+          ptens(:,k,q,ie) = ptens(:,k,q,ie) * dpmass(:,k,ie)
         enddo
       enddo
     enddo
