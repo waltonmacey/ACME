@@ -1680,6 +1680,55 @@ end function divergence_sphere_wk
 
 
 
+  subroutine laplace_sphere_wk_loc(s,deriv,elem,hypervis_power,hypervis_scaling,variable_hyperviscosity,var_coef,laplace)
+    use derivative_mod, only: derivative_t
+    use element_mod, only: element_t
+    implicit none
+    !$acc routine seq
+!   input:  s = scalar
+!   ouput:  -< grad(PHI), grad(s) >   = weak divergence of grad(s)
+!     note: for this form of the operator, grad(s) does not need to be made C0
+    real(kind=real_kind), intent(in) :: s(np,np) 
+    real(kind=real_kind), intent(in) :: hypervis_power,hypervis_scaling
+    real(kind=real_kind), intent(in) :: variable_hyperviscosity(np,np)
+    logical             , intent(in) :: var_coef
+    type (derivative_t) , intent(in) :: deriv
+    type (element_t)    , intent(in) :: elem
+    real(kind=real_kind), intent(out):: laplace(np,np)
+    real(kind=real_kind) :: laplace2(np,np)
+    integer i,j
+    real(kind=real_kind) :: grads(np,np,2), oldgrads(np,np,2)
+    !$acc routine(gradient_sphere_loc) seq
+    !$acc routine(divergence_sphere_wk_loc) seq
+    grads = gradient_sphere_loc(s,deriv,elem%Dinv)
+    if (var_coef) then
+       if (hypervis_power/=0 ) then
+          ! scalar viscosity with variable coefficient
+          do j = 1 , np
+            do i = 1 , np
+              grads(i,j,1) = grads(i,j,1)*variable_hyperviscosity(i,j)
+              grads(i,j,2) = grads(i,j,2)*variable_hyperviscosity(i,j)
+            enddo
+          enddo
+       else if (hypervis_scaling /=0 ) then
+          ! tensor hv, (3)
+          do j=1,np
+             do i=1,np
+                grads(i,j,1) = sum(grads(i,j,:)*elem%tensorVisc(1,:,i,j))
+                grads(i,j,2) = sum(grads(i,j,:)*elem%tensorVisc(2,:,i,j))
+             end do
+          end do
+       else
+          ! do nothing: constant coefficient viscsoity
+       endif
+    endif
+    ! note: divergnece_sphere and divergence_sphere_wk are identical *after* bndry_exchange
+    ! if input is C_0.  Here input is not C_0, so we should use divergence_sphere_wk().  
+    laplace=divergence_sphere_wk_loc(grads,deriv,elem)
+  end subroutine laplace_sphere_wk_loc
+
+
+
   subroutine biharmonic_wk_scalar_minmax_loc(elem,qtens,deriv,edgeq,hybrid,nets,nete,emin,emax)
     use element_mod, only: element_t
     use derivative_mod, only: derivative_t
@@ -1707,7 +1756,6 @@ end function divergence_sphere_wk
     integer :: k,kptr,i,j,ie,ic,q
     real (kind=real_kind) :: lap_p(np,np)
     logical :: var_coef1
-    real(kind=real_kind) :: laplace_sphere_wk_loc
     !$acc routine(laplace_sphere_wk_loc) seq
     !if tensor hyperviscosity with tensor V is used, then biharmonic operator is (\grad\cdot V\grad) (\grad \cdot \grad) 
     !so tensor is only used on second call to laplace_sphere_wk
@@ -1721,7 +1769,7 @@ end function divergence_sphere_wk
           do k=1,nlev    !  Potential loop inversion (AAM)
             qmin_exch(:,:,k,q,ie) = emin(k,q,ie)  ! need to set all values in element for
             qmax_exch(:,:,k,q,ie) = emax(k,q,ie)  ! edgeVpack routine below
-            qtens    (:,:,k,q,ie) = laplace_sphere_wk_loc(qtens(:,:,k,q,ie),deriv,elem(ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,var_coef1)
+            call laplace_sphere_wk_loc(qtens(:,:,k,q,ie),deriv,elem(ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,var_coef1,qtens(:,:,k,q,ie))
           enddo
         enddo
       enddo
@@ -1744,7 +1792,7 @@ end function divergence_sphere_wk
         do q=1,qsize      
           do k=1,nlev
             lap_p(:,:)=elem(ie)%rspheremp(:,:)*qtens(:,:,k,q,ie)
-            qtens(:,:,k,q,ie)=laplace_sphere_wk_loc(lap_p,deriv,elem(ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,.true.)
+            call laplace_sphere_wk_loc(lap_p,deriv,elem(ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,.true.,qtens(:,:,k,q,ie))
             emin(k,q,ie)=max(min(qmin_exch(1,1,k,q,ie),qmin_exch(1,np,k,q,ie),qmin_exch(np,1,k,q,ie),qmin_exch(np,np,k,q,ie)),0d0)
             emax(k,q,ie)=    max(qmax_exch(1,1,k,q,ie),qmax_exch(1,np,k,q,ie),qmax_exch(np,1,k,q,ie),qmax_exch(np,np,k,q,ie))
           enddo
@@ -1896,55 +1944,6 @@ end function divergence_sphere_wk
       enddo
     enddo
   end subroutine edgeVunpackMAX_gpu
-
-
-
-  function laplace_sphere_wk_loc(s,deriv,elem,hypervis_power,hypervis_scaling,variable_hyperviscosity,var_coef) result(laplace)
-    use derivative_mod, only: derivative_t
-    use element_mod, only: element_t
-    implicit none
-    !$acc routine seq
-!   input:  s = scalar
-!   ouput:  -< grad(PHI), grad(s) >   = weak divergence of grad(s)
-!     note: for this form of the operator, grad(s) does not need to be made C0
-    real(kind=real_kind), intent(in) :: s(np,np) 
-    real(kind=real_kind), intent(in) :: hypervis_power,hypervis_scaling
-    real(kind=real_kind), intent(in) :: variable_hyperviscosity(np,np)
-    logical :: var_coef
-    type (derivative_t)              :: deriv
-    type (element_t)                 :: elem
-    real(kind=real_kind)             :: laplace(np,np)
-    real(kind=real_kind)             :: laplace2(np,np)
-    integer i,j
-    real(kind=real_kind) :: grads(np,np,2), oldgrads(np,np,2)
-    !$acc routine(gradient_sphere_loc) seq
-    !$acc routine(divergence_sphere_wk_loc) seq
-    grads = gradient_sphere_loc(s,deriv,elem%Dinv)
-    if (var_coef) then
-       if (hypervis_power/=0 ) then
-          ! scalar viscosity with variable coefficient
-          do j = 1 , np
-            do i = 1 , np
-              grads(i,j,1) = grads(i,j,1)*variable_hyperviscosity(i,j)
-              grads(i,j,2) = grads(i,j,2)*variable_hyperviscosity(i,j)
-            enddo
-          enddo
-       else if (hypervis_scaling /=0 ) then
-          ! tensor hv, (3)
-          do j=1,np
-             do i=1,np
-                grads(i,j,1) = sum(grads(i,j,:)*elem%tensorVisc(1,:,i,j))
-                grads(i,j,2) = sum(grads(i,j,:)*elem%tensorVisc(2,:,i,j))
-             end do
-          end do
-       else
-          ! do nothing: constant coefficient viscsoity
-       endif
-    endif
-    ! note: divergnece_sphere and divergence_sphere_wk are identical *after* bndry_exchange
-    ! if input is C_0.  Here input is not C_0, so we should use divergence_sphere_wk().  
-    laplace=divergence_sphere_wk_loc(grads,deriv,elem)
-  end function laplace_sphere_wk_loc
 
 
 
