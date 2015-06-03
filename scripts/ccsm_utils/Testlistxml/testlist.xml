@@ -4957,12 +4957,14 @@
       <test name="SMS">
         <machine compiler="intel" testtype="aux_clm45" testmods="clm/edTest">yellowstone</machine>
         <machine compiler="pgi" testtype="aux_clm45" testmods="clm/edTest">yellowstone</machine>
+        <machine compiler="intel" testtype="acme_ed" testmods="clm/edTest">edison</machine>
       </test>
     </grid>
     <grid name="f19_g16">
       <test name="SMS">
         <machine compiler="intel" testtype="aux_clm45" testmods="clm/edTest">yellowstone</machine>
         <machine compiler="pgi" testtype="aux_clm45" testmods="clm/edTest">yellowstone</machine>
+        <machine compiler="intel" testtype="acme_ed" testmods="clm/edTest">edison</machine>
       </test>
     </grid>
   </compset>
