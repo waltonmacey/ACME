@@ -674,6 +674,7 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
     use radheat,            only: radheat_init
     use radiation,          only: radiation_init
     use cloud_diagnostics,  only: cloud_diagnostics_init
+    use ec_coupling,        only: ec_active
     use stratiform,         only: stratiform_init
     use wv_saturation,      only: wv_sat_init
     use microp_driver,      only: microp_driver_init
@@ -1738,6 +1739,7 @@ subroutine tphysbc (ztodt,               &
     use cam_history,     only: outfld
     use physconst,       only: cpair, latvap, gravit
     use constituents,    only: pcnst, qmin, cnst_get_ind
+    use topog,           only: topog_tend
     use convect_deep,    only: convect_deep_tend, convect_deep_tend_2, deep_scheme_does_scav_trans
     use time_manager,    only: is_first_step, get_nstep
     use convect_shallow, only: convect_shallow_tend
@@ -2054,6 +2056,19 @@ if (l_bc_energy_fix) then
 
     call t_stopf('energy_fixer')
 
+end if
+!==================================================
+! Orograhic Forcing
+!==================================================
+if (ec_active)then
+
+   call t_startf ('topog')
+   call topog_tend(state, ptend )
+   call t_stopf ('topog')
+   call physics_update(state, ptend, ztodt, tend)
+
+! re-initialize here because topog changes column energy, moisture
+   call check_energy_timestep_init(state, tend, pbuf)
 end if
     !
     !===================================================

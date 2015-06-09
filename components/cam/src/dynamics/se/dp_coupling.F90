@@ -9,6 +9,7 @@ module dp_coupling
   use dof_mod,        only: UniquePoints, PutUniquePoints
   use dyn_comp,       only: dyn_export_t, dyn_import_t, TimeLevel
   use dyn_grid,       only: get_gcol_block_d
+  use ec_coupling,    only: ec_state_t
   use element_mod,    only: element_t
   use kinds,          only: real_kind, int_kind
   use shr_kind_mod,   only: r8=>shr_kind_r8
@@ -26,6 +27,9 @@ module dp_coupling
   use parallel_mod, only : par
   private
   public :: d_p_coupling, p_d_coupling
+
+  type(ec_state_t), public          :: prev_dyn_state ! For computing tendencies
+
 !===============================================================================
 CONTAINS
 !===============================================================================
@@ -41,6 +45,7 @@ CONTAINS
     use gravity_waves_sources, only: gws_src_fnct
     use dyn_comp,       only: frontgf_idx, frontga_idx
     use phys_control,   only: use_gw_front
+    use ec_coupling,    only: ec_state_t, dyn_state_to_elevation_classes
     implicit none
 !-----------------------------------------------------------------------
 ! !INPUT PARAMETERS:
@@ -57,12 +62,8 @@ CONTAINS
     type(element_t), pointer :: elem(:)               ! pointer to dyn_out element array
     integer (kind=int_kind)  :: ie               ! indices over elements
     integer (kind=int_kind)  :: lchnk, icol, ilyr      ! indices over chunks, columns, layers
-    real (kind=real_kind)    :: ps_tmp(npsq,nelemd)         ! temporary array to hold ps
-    real (kind=real_kind)    :: phis_tmp(npsq,nelemd)       ! temporary array to hold phis  
-    real (kind=real_kind)    :: T_tmp(npsq,pver,nelemd)     ! temporary array to hold T
-    real (kind=real_kind)    :: uv_tmp(npsq,2,pver,nelemd)     ! temporary array to hold u and v
-    real (kind=real_kind)    :: q_tmp(npsq,pver,pcnst,nelemd) ! temporary to hold advected constituents
-    real (kind=real_kind)    :: omega_tmp(npsq,pver,nelemd) ! temporary array to hold omega
+    type(ec_state_t), target  :: dyn_state
+    type(ec_state_t), pointer :: ec_state    ! Defined on elevation classes
 
     ! Frontogenesis
     real (kind=real_kind), allocatable :: frontgf(:,:,:) ! temporary arrays to hold frontogenesis
@@ -90,6 +91,9 @@ CONTAINS
     nullify(pbuf_frontgf)
     nullify(pbuf_frontga)
 
+    ! Allocate dyn_state structures
+    call dyn_state%allocate(npsq, nlev, nelemd)
+
     if (use_gw_front) then
 
        allocate(frontgf(npsq,pver,nelemd), stat=ierr)
@@ -109,29 +113,40 @@ CONTAINS
        call t_startf('UniquePoints')
        do ie=1,nelemd
           ncols = elem(ie)%idxP%NumUniquePts
-          call UniquePoints(elem(ie)%idxP, elem(ie)%state%ps_v(:,:,tl_f), ps_tmp(1:ncols,ie))
-          call UniquePoints(elem(ie)%idxP, nlev, elem(ie)%state%T(:,:,:,tl_f), T_tmp(1:ncols,:,ie))
-          call UniquePoints(elem(ie)%idxV, 2, nlev, elem(ie)%state%V(:,:,:,:,tl_f), uv_tmp(1:ncols,:,:,ie))
-          call UniquePoints(elem(ie)%idxV, nlev, elem(ie)%derived%omega_p, omega_tmp(1:ncols,:,ie))
+          call UniquePoints(elem(ie)%idxP, elem(ie)%state%ps_v(:,:,tl_f), dyn_state%ps(1:ncols,ie))
+          call UniquePoints(elem(ie)%idxP, nlev, elem(ie)%state%T(:,:,:,tl_f), dyn_state%T(1:ncols,:,ie))
+          call UniquePoints(elem(ie)%idxV, nlev, elem(ie)%state%V(:,:,1,:,tl_f), dyn_state%u(1:ncols,:,ie))
+          call UniquePoints(elem(ie)%idxV, nlev, elem(ie)%state%V(:,:,2,:,tl_f), dyn_state%v(1:ncols,:,ie))
+          call UniquePoints(elem(ie)%idxV, nlev, elem(ie)%derived%omega_p, dyn_state%omega(1:ncols,:,ie))
 
-          call UniquePoints(elem(ie)%idxP, elem(ie)%state%phis, phis_tmp(1:ncols,ie))
-          call UniquePoints(elem(ie)%idxP, nlev,pcnst, elem(ie)%state%Q(:,:,:,:), Q_tmp(1:ncols,:,:,ie))
+          call UniquePoints(elem(ie)%idxP, elem(ie)%state%phis, dyn_state%phis(1:ncols,ie))
+          call UniquePoints(elem(ie)%idxP, nlev,pcnst, elem(ie)%state%Q(:,:,:,:), dyn_state%Q(1:ncols,:,:,ie))
        end do
        call t_stopf('UniquePoints')
 
        if (use_gw_front) call gws_src_fnct(elem, tl_f, frontgf, frontga)
     else
-       ps_tmp(:,:) = 0._r8
-       T_tmp(:,:,:) = 0._r8
-       uv_tmp(:,:,:,:) = 0._r8
-       omega_tmp(:,:,:) = 0._r8
+       dyn_state%ps(:,:) = 0._r8
+       dyn_state%T(:,:,:) = 0._r8
+       dyn_state%u(:,:,:) = 0._r8
+       dyn_state%v(:,:,:) = 0._r8
+       dyn_state%omega(:,:,:) = 0._r8
        if (use_gw_front) then
           frontgf(:,:,:) = 0._r8
           frontga(:,:,:) = 0._r8
        end if
-       phis_tmp(:,:) = 0._r8
-       Q_tmp(:,:,:,:) = 0._r8
+       dyn_state%phis(:,:) = 0._r8
+       dyn_state%Q(:,:,:,:) = 0._r8
     endif !! iam .lt. par%nprocs
+
+    if (elevation_classes) then
+       call t_startf('ElevationClassDistribute')
+       ! Distribute elevation class information
+       call dyn_state_to_elevation_classes(dyn_state, prev_dyn_state, ec_state)
+       call t_stopf('ElevationClassDistribute')
+    else
+       ec_state => dyn_state
+    end if
 
     call t_startf('dpcopy')
     if (local_dp_map) then
@@ -153,13 +168,13 @@ CONTAINS
              ie = idmb3(1)
              ioff=idmb2(1)
 
-             phys_state(lchnk)%ps(icol)=ps_tmp(ioff,ie)
-             phys_state(lchnk)%phis(icol)=phis_tmp(ioff,ie)
+             phys_state(lchnk)%ps(icol)=ec_state%ps(ioff,ie)
+             phys_state(lchnk)%phis(icol)=ec_state%phis(ioff,ie)
              do ilyr=1,pver
-                phys_state(lchnk)%t(icol,ilyr)=T_tmp(ioff,ilyr,ie)	   
-                phys_state(lchnk)%u(icol,ilyr)=uv_tmp(ioff,1,ilyr,ie)
-                phys_state(lchnk)%v(icol,ilyr)=uv_tmp(ioff,2,ilyr,ie)
-                phys_state(lchnk)%omega(icol,ilyr)=omega_tmp(ioff,ilyr,ie)
+                phys_state(lchnk)%t(icol,ilyr)=ec_state%T(ioff,ilyr,ie)
+                phys_state(lchnk)%u(icol,ilyr)=ec_state%u(ioff,ilyr,ie)
+                phys_state(lchnk)%v(icol,ilyr)=ec_state%v(ioff,ilyr,ie)
+                phys_state(lchnk)%omega(icol,ilyr)=ec_state%omega(ioff,ilyr,ie)
 
                 if (use_gw_front) then
                    pbuf_frontgf(icol,ilyr) = frontgf(ioff,ilyr,ie)
@@ -169,7 +184,7 @@ CONTAINS
 
              do m=1,pcnst
                 do ilyr=1,pver
-                   phys_state(lchnk)%q(icol,ilyr,m)=Q_tmp(ioff,ilyr,m,ie)
+                   phys_state(lchnk)%q(icol,ilyr,m)=ec_state%Q(ioff,ilyr,m,ie)
                 end do
              end do
           end do
@@ -192,14 +207,14 @@ CONTAINS
                 
                 bbuffer(bpter(icol,0)+2:bpter(icol,0)+tsize-1) = 0.0_r8
                 
-                bbuffer(bpter(icol,0))   = ps_tmp(icol,ie)
-                bbuffer(bpter(icol,0)+1) = phis_tmp(icol,ie)
+                bbuffer(bpter(icol,0))   = ec_state%ps(icol,ie)
+                bbuffer(bpter(icol,0)+1) = ec_state%phis(icol,ie)
 
                 do ilyr=1,pver
-                   bbuffer(bpter(icol,ilyr))   = T_tmp(icol,ilyr,ie)
-                   bbuffer(bpter(icol,ilyr)+1) = uv_tmp(icol,1,ilyr,ie)
-                   bbuffer(bpter(icol,ilyr)+2) = uv_tmp(icol,2,ilyr,ie)
-                   bbuffer(bpter(icol,ilyr)+3) = omega_tmp(icol,ilyr,ie)
+                   bbuffer(bpter(icol,ilyr))   = ec_state%T(icol,ilyr,ie)
+                   bbuffer(bpter(icol,ilyr)+1) = ec_state%u(icol,ilyr,ie)
+                   bbuffer(bpter(icol,ilyr)+2) = ec_state%v(icol,ilyr,ie)
+                   bbuffer(bpter(icol,ilyr)+3) = ec_state%omega(icol,ilyr,ie)
 
                    if (use_gw_front) then
                       bbuffer(bpter(icol,ilyr)+4) = frontgf(icol,ilyr,ie)
@@ -207,7 +222,7 @@ CONTAINS
                    end if
 
                    do m=1,pcnst
-                      bbuffer(bpter(icol,ilyr)+tsize-pcnst-1+m) = Q_tmp(icol,ilyr,m,ie)
+                      bbuffer(bpter(icol,ilyr)+tsize-pcnst-1+m) = ec_state%Q(icol,ilyr,m,ie)
                    end do
                 end do
 
@@ -295,9 +310,12 @@ CONTAINS
          end do
       end do
    endif
-   
-       
-  end subroutine d_p_coupling
+
+   ! Finally, store the dynamics state for future tendency calculations
+   prev_dyn_state%copy(dyn_state)
+   deallocate(dyn_state) ! Better safe than screwed by bad compiler
+
+ end subroutine d_p_coupling
 
   subroutine p_d_coupling(phys_state, phys_tend,  dyn_in)
     use shr_vmath_mod, only: shr_vmath_log
@@ -318,10 +336,8 @@ CONTAINS
     integer (kind=int_kind)  :: ie, iep               ! indices over elements
     integer (kind=int_kind)  :: lchnk, icol, ilyr      ! indices over chunks, columns, layers
 
-    real (kind=real_kind)    :: T_tmp(npsq,pver,nelemd)       ! temporary array to hold T
-    real (kind=real_kind)    :: uv_tmp(npsq,2,pver,nelemd)    ! temporary array to hold uv
-!   real (kind=real_kind)    :: omega_tmp(npsq,pver,nelemd)   ! temporary array to hold omega
-    real (kind=real_kind)    :: q_tmp(npsq,pver,pcnst,nelemd) ! temporary array to hold q
+    type(ec_state_t), target  :: ec_tend    ! Defined on elevation classes
+    type(ec_state_t), pointer :: dyn_tend
     integer (kind=int_kind)  :: ioff, m, i, j, k
     integer(kind=int_kind)   :: pgcols(pcols), idmb1(1), idmb2(1), idmb3(1)
 
@@ -337,11 +353,9 @@ CONTAINS
        nullify(elem)
     end if
 
-    T_tmp=0.0_r8
-    uv_tmp=0.0_r8
-    q_tmp=0.0_r8
-
     if(adiabatic) return
+
+    call ec_tend%allocate(nphys, pver, nelem, pcnst)
 
     call t_startf('pd_copy')
     if(local_dp_map) then
@@ -357,12 +371,12 @@ CONTAINS
              ioff=idmb2(1)
 
              do ilyr=1,pver
-                T_tmp(ioff,ilyr,ie)      = phys_tend(lchnk)%dtdt(icol,ilyr)
-                uv_tmp(ioff,1,ilyr,ie)   = phys_tend(lchnk)%dudt(icol,ilyr)
-                uv_tmp(ioff,2,ilyr,ie)   = phys_tend(lchnk)%dvdt(icol,ilyr)
+                ec_tend%T(ioff,ilyr,ie) = phys_tend(lchnk)%dtdt(icol,ilyr)
+                ec_tend%u(ioff,ilyr,ie) = phys_tend(lchnk)%dudt(icol,ilyr)
+                ec_tend%v(ioff,ilyr,ie) = phys_tend(lchnk)%dvdt(icol,ilyr)
 
                 do m=1,pcnst
-                   q_tmp(ioff,ilyr,m,ie) = phys_state(lchnk)%q(icol,ilyr,m)
+                   ec_tend%Q(ioff,ilyr,m,ie) = phys_state(lchnk)%q(icol,ilyr,m)
                 end do
              end do
 
@@ -417,18 +431,18 @@ CONTAINS
 
                 do ilyr=1,pver
 
-                   T_tmp   (icol,ilyr,ie)   = bbuffer(bpter(icol,ilyr))
-                   uv_tmp  (icol,1,ilyr,ie) = bbuffer(bpter(icol,ilyr)+1)
-                   uv_tmp  (icol,2,ilyr,ie) = bbuffer(bpter(icol,ilyr)+2)
+                   ec_tend%T(icol,ilyr,ie) = bbuffer(bpter(icol,ilyr))
+                   ec_tend%u(icol,ilyr,ie) = bbuffer(bpter(icol,ilyr)+1)
+                   ec_tend%v(icol,ilyr,ie) = bbuffer(bpter(icol,ilyr)+2)
 
                    do m=1,pcnst
-                      q_tmp(icol,ilyr,m,ie) = bbuffer(bpter(icol,ilyr)+2+m)
+                      ec_tend%q(icol,ilyr,m,ie) = bbuffer(bpter(icol,ilyr)+2+m)
                    end do
 
                 end do
-                
+
              end do
-             
+
           end do
        endif
        deallocate( bbuffer )
@@ -436,18 +450,31 @@ CONTAINS
        
     end if
     call t_stopf('pd_copy')
+
+    if (elevation_classes) then
+       call t_startf('ElevationClassAverage')
+       ! Distribute elevation class information
+       call elevation_classes_to_dyn_tend(ec_tend, dyn_tend)
+       call t_stopf('ElevationClassAverage')
+    else
+       dyn_tend => ec_tend
+    end if
+
     if(iam < par%nprocs) then
        call t_startf('putUniquePoints')
        do ie=1,nelemd
           ncols = elem(ie)%idxP%NumUniquePts
-          call putUniquePoints(elem(ie)%idxP, nlev, T_tmp(1:ncols,:,ie), elem(ie)%derived%fT(:,:,:,1))
-          call putUniquePoints(elem(ie)%idxV, 2, nlev, uv_tmp(1:ncols,:,:,ie), &
-               elem(ie)%derived%fM(:,:,:,:,1))
-          call putUniquePoints(elem(ie)%idxV, nlev,pcnst, q_tmp(1:ncols,:,:,ie), &
+          call putUniquePoints(elem(ie)%idxP, nlev, dyn_tend%T(1:ncols,:,ie), elem(ie)%derived%fT(:,:,:,1))
+          call putUniquePoints(elem(ie)%idxV, nlev, dyn_tend%u(1:ncols,:,ie), &
+               elem(ie)%derived%fM(:,:,1,:,1))
+          call putUniquePoints(elem(ie)%idxV, nlev, dyn_tend%v(1:ncols,:,ie), &
+               elem(ie)%derived%fM(:,:,2,:,1))
+          call putUniquePoints(elem(ie)%idxV, nlev,pcnst, dyn_tend%q(1:ncols,:,:,ie), &
                elem(ie)%derived%fQ(:,:,:,:,1))
        end do
        call t_stopf('putUniquePoints')
     end if
+
   end subroutine p_d_coupling
 
   subroutine derived_phys(phys_state, phys_tend, pbuf2d)
