@@ -97,38 +97,38 @@ module cuda_mod
   real(kind=real_kind) ,device,allocatable,dimension(:,:,:,:)     :: z2_d
   integer              ,device,allocatable,dimension(:,:,:,:)     :: kid_d
   real(kind=real_kind) ,device,allocatable,dimension(:)           :: dp0_d
+  real(kind=real_kind) ,device,allocatable,dimension(:,:,:,:,:)   :: qmin_exch
+  real(kind=real_kind) ,device,allocatable,dimension(:,:,:,:,:)   :: qmax_exch
 
   !PINNED Host arrays
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:)       :: spheremp_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:,:,:) :: qdp_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:)     :: qdp1_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:,:)   :: vstar_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:,:)   :: qtens_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:)     :: dp_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:)     :: divdp_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:)     :: divdp_proj_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:)     :: dp_star_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:)     :: dp_np1_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:)     :: dpdiss_ave_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:)       :: sendbuf_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:)       :: recvbuf_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:,:)   :: qtens_biharmonic_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:)       :: variable_hyperviscosity_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:)       :: qmin
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:)       :: qmax
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:,:)   :: qmin_exch
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:,:)   :: qmax_exch
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:)     :: dpdiss_biharmonic_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:)     :: dpo_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:,:)   :: ppmdx_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:)     :: z1_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:,:,:)     :: z2_h
-  real(kind=real_kind),pinned,allocatable,dimension(:,:)         :: edgebuf_Q2
-  integer             ,pinned,allocatable,dimension(:,:,:,:)     :: kid_h
-  real(kind=real_kind),pinned,allocatable,dimension(:)           :: dp0_h
-  logical             ,pinned,allocatable,dimension(:,:)         :: reverse_h
-  integer             ,pinned,allocatable,dimension(:,:)         :: putmapP_h
-  integer             ,pinned,allocatable,dimension(:,:)         :: getmapP_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:)       :: spheremp_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:,:,:,:) :: qdp_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:,:)     :: qdp1_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:,:,:)   :: vstar_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:,:,:)   :: qtens_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:,:)     :: dp_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:,:)     :: divdp_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:,:)     :: divdp_proj_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:,:)     :: dp_star_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:,:)     :: dp_np1_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:,:)     :: dpdiss_ave_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:)       :: sendbuf_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:)       :: recvbuf_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:,:,:)   :: qtens_biharmonic_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:)       :: variable_hyperviscosity_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:)       :: qmin
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:)       :: qmax
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:,:)     :: dpdiss_biharmonic_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:,:)     :: dpo_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:,:,:)   :: ppmdx_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:,:)     :: z1_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:,:,:)     :: z2_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:,:)         :: edgebuf_Q2
+  integer              ,pinned,allocatable,dimension(:,:,:,:)     :: kid_h
+  real(kind=real_kind) ,pinned,allocatable,dimension(:)           :: dp0_h
+  logical              ,pinned,allocatable,dimension(:,:)         :: reverse_h
+  integer              ,pinned,allocatable,dimension(:,:)         :: putmapP_h
+  integer              ,pinned,allocatable,dimension(:,:)         :: getmapP_h
 
   !Normal Host arrays
   integer,allocatable,dimension(:)   :: send_nelem
@@ -516,7 +516,6 @@ contains
     do ie = nets , nete
       qdp1_h(:,:,:,ie) = elem(ie)%state%Qdp(:,:,:,1,n0_qdp)
       dpdiss_ave_h(:,:,:,ie) = elem(ie)%derived%dpdiss_ave(:,:,:)
-      divdp_h(:,:,:,ie) = elem(ie)%derived%divdp(:,:,:)
     enddo
     !$OMP BARRIER
     !$OMP MASTER
@@ -602,7 +601,7 @@ contains
   integer              , intent(in   )         :: DSSopt
   integer              , intent(in   )         :: rhs_multiplier
   ! local
-  real(kind=real_kind) :: dp0
+  real(kind=real_kind) :: dp0,tmp
   real(kind=real_kind) :: large,small
   integer :: ie,q,i,j,k
   integer :: rhs_viss = 0
@@ -660,33 +659,34 @@ contains
     ! initialize dp, and compute Q from Qdp (and store Q in Qtens_biharmonic)
     !$OMP BARRIER
     if (hybrid%ithr == 0) then
-      !$acc parallel loop gang vector collapse(3) deviceptr(qdp_d)
+      ierr = cudaMemcpy( dp_d , dp_h , size( dp_h ) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
+      !$acc parallel loop gang vector collapse(3) deviceptr(qdp_d,dp0_d,dpdiss_ave_d,qmin_d,qmax_d,dp_d)
       do ie = 1 , nelemd
         do q = 1 , qsize
           do k = 1 , nlev    
-            qtens_biharmonic_h(:,:,k,q,ie) = qdp_d(:,:,k,q,n0_qdp,ie) / dp_h(:,:,k,ie)
+            qtens_biharmonic_d(:,:,k,q,ie) = qdp_d(:,:,k,q,n0_qdp,ie) / dp_d(:,:,k,ie)
             if ( rhs_multiplier == 0 .or. rhs_multiplier == 2 ) then  !reset qmin,qmax before computing
-              qmin(k,q,ie) = large
-              qmax(k,q,ie) = small
+              qmin_d(k,q,ie) = large
+              qmax_d(k,q,ie) = small
             endif
             do j = 1 , np
               do i = 1 , np
-                qmin(k,q,ie) = max(min(qmin(k,q,ie),qtens_biharmonic_h(i,j,k,q,ie)),0d0)
-                qmax(k,q,ie) =     max(qmax(k,q,ie),qtens_biharmonic_h(i,j,k,q,ie))
+                qmin_d(k,q,ie) = max(min(qmin_d(k,q,ie),qtens_biharmonic_d(i,j,k,q,ie)),0d0)
+                qmax_d(k,q,ie) =     max(qmax_d(k,q,ie),qtens_biharmonic_d(i,j,k,q,ie))
               enddo
             enddo
             ! two scalings depending on nu_p:
             ! nu_p=0:    qtens_biharmonic *= dp0                   (apply viscsoity only to q)
             ! nu_p>0):   qtens_biharmonic *= elem()%psdiss_ave      (for consistency, if nu_p=nu_q)
             ! NOTE: divide by dp0 since we multiply by dp0 below
-            if ( nu_p > 0 .and. rhs_multiplier == 2 ) qtens_biharmonic_h(:,:,k,q,ie) = qtens_biharmonic_h(:,:,k,q,ie)*dpdiss_ave_h(:,:,k,ie)/dp0_h(k)
+            if ( nu_p > 0 .and. rhs_multiplier == 2 ) qtens_biharmonic_d(:,:,k,q,ie) = qtens_biharmonic_d(:,:,k,q,ie)*dpdiss_ave_d(:,:,k,ie)/dp0_d(k)
           enddo
         enddo
       enddo
     endif
     !$OMP BARRIER
-    if ( rhs_multiplier == 0 ) call neighbor_minmax_loc(elem,hybrid,edgeAdvQ2,nets,nete,qmin,qmax)   ! update qmin/qmax based on neighbor data for lim8
-    if ( rhs_multiplier == 2 ) call biharmonic_wk_scalar_minmax_loc( elem , qtens_biharmonic_h , deriv , edgeAdvQ3 , hybrid , nets , nete , qmin , qmax )
+    if ( rhs_multiplier == 0 ) call neighbor_minmax_loc(elem,hybrid,edgeAdvQ2,nets,nete,qmin_d,qmax_d)   ! update qmin/qmax based on neighbor data for lim8
+    if ( rhs_multiplier == 2 ) call biharmonic_wk_scalar_minmax_loc( elem , qtens_biharmonic_d , deriv , edgeAdvQ3 , hybrid , nets , nete , qmin_d , qmax_d )
     !$OMP BARRIER
     if (hybrid%ithr == 0) then
       if ( rhs_multiplier == 2 ) then
@@ -698,7 +698,7 @@ contains
             do k = 1 , nlev
               do j = 1 , np
                 do i = 1 , np
-                  qtens_biharmonic_h(i,j,k,q,ie) = -rhs_viss*dt*nu_q*dp0_d(k)*qtens_biharmonic_h(i,j,k,q,ie) / spheremp_d(i,j,ie)
+                  qtens_biharmonic_d(i,j,k,q,ie) = -rhs_viss*dt*nu_q*dp0_d(k)*qtens_biharmonic_d(i,j,k,q,ie) / spheremp_d(i,j,ie)
                 enddo
               enddo
             enddo
@@ -715,33 +715,31 @@ contains
   call copy_qdp_h2d(elem,n0_qdp)
   !$OMP BARRIER
   !$OMP MASTER
-  ierr = cudaMemcpyAsync( dp_d    , dp_h    , size( dp_h    ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
   ierr = cudaMemcpyAsync( vstar_d , vstar_h , size( vstar_h ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
   blockdim = dim3( np*np*numk_eul , 1 , 1 )
   griddim  = dim3( int(ceiling(dble(nlev)/numk_eul))*qsize_d*nelemd , 1 , 1 )
   call euler_step_kernel1<<<griddim,blockdim,0,streams(1)>>>( qdp_d , qtens_d , spheremp_d , vstar_d , metdet_d , rmetdet_d , dinv_d , deriv_dvv_d , &
                                                               n0_qdp , np1_qdp , rhs_viss , dt , 1 , nelemd ); _CHECK(__LINE__)
 
-  ierr = cudaMemcpyAsync( qtens_h , qtens_d , size(qtens_h) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
   ierr = cudathreadsynchronize()
   if ( limiter_option == 8 ) then
-    !$acc parallel loop gang vector collapse(5)
+    !$acc parallel loop gang vector collapse(5) deviceptr(qtens_d,dp_star_d,dp_d,divdp_d,spheremp_d,qtens_biharmonic_d) private(tmp)
     do ie = 1 , nelemd
       do q = 1 , qsize
         do k = 1 , nlev
           do j = 1 , np
             do i = 1 , np
-              if ( rhs_viss /= 0 ) Qtens_h(i,j,k,q,ie) = Qtens_h(i,j,k,q,ie) + Qtens_biharmonic_h(i,j,k,q,ie)
-              dp_star_h(i,j,k,ie) = dp_h(i,j,k,ie) - dt * divdp_h(i,j,k,ie)    ! UN-DSS'ed dp at timelevel n0+1:   
-              if ( nu_p > 0 .and. rhs_viss /= 0 ) dp_star_h(i,j,k,ie) = dp_star_h(i,j,k,ie) - rhs_viss * dt * nu_q * dpdiss_biharmonic_h(i,j,k,ie) / spheremp_h(i,j,ie)
+              if ( rhs_viss /= 0 ) Qtens_d(i,j,k,q,ie) = Qtens_d(i,j,k,q,ie) + Qtens_biharmonic_d(i,j,k,q,ie)
+              tmp = dp_d(i,j,k,ie) - dt * divdp_d(i,j,k,ie)    ! UN-DSS'ed dp at timelevel n0+1:   
+              if ( nu_p > 0 .and. rhs_viss /= 0 ) tmp = tmp - rhs_viss * dt * nu_q * dpdiss_biharmonic_d(i,j,k,ie) / spheremp_d(i,j,ie)
+              dp_star_d(i,j,k,ie) = tmp
             enddo
           enddo
         enddo
       enddo
     enddo
-    call limiter_optim_iter_full_loc( Qtens_h , spheremp_h , qmin , qmax , dp_star_h )  ! apply limiter to Q = Qtens / dp_star 
+    call limiter_optim_iter_full_loc( Qtens_d , spheremp_d , qmin_d , qmax_d , dp_star_d )  ! apply limiter to Q = Qtens / dp_star 
   endif
-  ierr = cudaMemcpyAsync(qtens_d,qtens_h,size(qtens_h),cudaMemcpyHostToDevice,streams(1)); _CHECK(__LINE__)
   blockdim = dim3( np*np*numk_eul , 1 , 1 )
   griddim  = dim3( int(ceiling(dble(nlev)/numk_eul))*qsize_d*nelemd , 1 , 1 )
   call euler_step_kernel2<<<griddim,blockdim,0,streams(1)>>>( qdp_d , qtens_d , spheremp_d , np1_qdp , 1 , nelemd ); _CHECK(__LINE__)
@@ -1486,41 +1484,39 @@ end function divergence_sphere_wk
     !so, we redistribute addmass in the way that l2 error is smallest. 
     !This redistribution might violate constraints thus, we do a few iterations. 
     implicit none
-    real (kind=real_kind), dimension(np*np,nlev,qsize,nelemd), intent(inout) :: ptens
-    real (kind=real_kind), dimension(np*np           ,nelemd), intent(in   ) :: sphweights
-    real (kind=real_kind), dimension(      nlev,qsize,nelemd), intent(inout) :: minp
-    real (kind=real_kind), dimension(      nlev,qsize,nelemd), intent(inout) :: maxp
-    real (kind=real_kind), dimension(np*np,nlev      ,nelemd), intent(in   ) :: dpmass
+    real (kind=real_kind), dimension(np*np,nlev,qsize,nelemd), intent(inout) , device :: ptens
+    real (kind=real_kind), dimension(np*np           ,nelemd), intent(in   ) , device :: sphweights
+    real (kind=real_kind), dimension(      nlev,qsize,nelemd), intent(inout) , device :: minp
+    real (kind=real_kind), dimension(      nlev,qsize,nelemd), intent(inout) , device :: maxp
+    real (kind=real_kind), dimension(np*np,nlev      ,nelemd), intent(in   ) , device :: dpmass
  
-    real (kind=real_kind) :: weights(np*np,nlev)
     integer :: k1, i, j, k, iter, i1, i2, q, ie
-    integer :: whois_neg(np*np), whois_pos(np*np), neg_counter, pos_counter
+    integer :: whois_neg(np*np), whois_pos(np*np)
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!!!!!!!!!!!!!!!!!!!!!! OPENACC WORKAROUND !!!!!!!!!!!!!!!!!!!!!!!
+    ! These should be integers, but for some strange reason, the
+    ! OpenACC kernel gives wrong answers unless you make them reals
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    real (kind=real_kind) :: neg_counter, pos_counter
     real (kind=real_kind) :: addmass, weightssum, mass,sumc,tmp
     real (kind=real_kind) :: x(np*np),c(np*np)
     real (kind=real_kind) :: al_neg(np*np), al_pos(np*np), howmuch
     real (kind=real_kind) :: tol_limiter = 1e-15
     integer :: maxiter = 5
 
-
-    !$acc  parallel loop gang vector collapse(2) &
-    !$acc&   private(weights,k1,i,j,k,iter,i1,i2,q,ie,whois_neg,whois_pos,neg_counter, &
-    !$acc&           pos_counter,addmass,weightssum,mass,x,c,al_neg,al_pos,howmuch,sumc,tmp)
+    !$acc  parallel loop gang vector collapse(3) &
+    !$acc&   private(k1,i,j,k,iter,i1,i2,q,ie,whois_neg,whois_pos,neg_counter, &
+    !$acc&           pos_counter,addmass,weightssum,mass,x,c,al_neg,al_pos,howmuch,sumc,tmp) &
+    !$acc&   deviceptr(ptens,sphweights,minp,maxp,dpmass)
     do ie = 1 , nelemd
       do q = 1 , qsize
-        !$acc loop seq
         do k = 1 , nlev
-          weights(:,k) = sphweights(:,ie) * dpmass(:,k,ie)
-          ptens(:,k,q,ie) = ptens(:,k,q,ie) / dpmass(:,k,ie)
-        enddo
-
-
-        !$acc loop seq
-        do k = 1 , nlev
-          c = weights(:,k)
-          x = ptens(:,k,q,ie)
+          c = sphweights(:,ie) * dpmass(:,k,ie)
+          x = ptens(:,k,q,ie) / dpmass(:,k,ie)
 
           sumc = 0d0
           mass = 0d0
+          !$acc loop seq
           do i1 = 1 , np*np
             mass = mass + c(i1)*x(i1)
             sumc = sumc + c(i1)
@@ -1541,6 +1537,7 @@ end function divergence_sphere_wk
           neg_counter = 0
           
           ! apply constraints, compute change in mass caused by constraints 
+          !$acc loop seq
           do k1 = 1 , np*np
             if ( ( x(k1) >= maxp(k,q,ie) ) ) then
               addmass = addmass + ( x(k1) - maxp(k,q,ie) ) * c(k1)
@@ -1563,8 +1560,10 @@ end function divergence_sphere_wk
           ! iterate to find field that satifies constraints and is l2-norm closest to original 
           weightssum = 0.0d0
           if ( addmass > 0 ) then
+            !$acc loop seq
             do i2 = 1 , maxIter
               weightssum = 0.0
+              !$acc loop seq
               do k1 = 1 , pos_counter
                 i1 = whois_pos(k1)
                 weightssum = weightssum + c(i1)
@@ -1572,6 +1571,7 @@ end function divergence_sphere_wk
               enddo
               
               if( ( pos_counter > 0 ) .and. ( addmass > tol_limiter * abs(mass) ) ) then
+                !$acc loop seq
                 do k1 = 1 , pos_counter
                   i1 = whois_pos(k1)
                   howmuch = addmass / weightssum
@@ -1590,6 +1590,7 @@ end function divergence_sphere_wk
                 whois_neg = whois_pos
                 whois_pos = -1
                 pos_counter = 0
+                !$acc loop seq
                 do k1 = 1 , neg_counter
                   if ( whois_neg(k1) .ne. -1 ) then
                     pos_counter = pos_counter+1
@@ -1601,51 +1602,50 @@ end function divergence_sphere_wk
               endif
             enddo
           else
-             do i2 = 1 , maxIter
-               weightssum = 0.0
-               do k1 = 1 , neg_counter
-                 i1 = whois_neg(k1)
-                 weightssum = weightssum + c(i1)
-                 al_neg(i1) = x(i1) - minp(k,q,ie)
-               enddo
-               
-               if ( ( neg_counter > 0 ) .and. ( (-addmass) > tol_limiter * abs(mass) ) ) then
-                 do k1 = 1 , neg_counter
-                   i1 = whois_neg(k1)
-                   howmuch = -addmass / weightssum
-                   if ( howmuch > al_neg(i1) ) then
-                     howmuch = al_neg(i1)
-                     whois_neg(k1) = -1
-                   endif
-                   tmp = addmass + howmuch * c(i1)
-                   addmass = tmp
-                   weightssum = weightssum - c(i1)
-                   x(i1) = x(i1) - howmuch
-                 enddo
-                 !now sort whois_pos and get a new number for pos_counter
-                 !here pos_counter and whois_pos serve as temp vars
-                 pos_counter = neg_counter
-                 whois_pos = whois_neg
-                 whois_neg = -1
-                 neg_counter = 0
-                 do k1 = 1 , pos_counter
-                   if ( whois_pos(k1) .ne. -1 ) then
-                     neg_counter = neg_counter+1
-                     whois_neg(neg_counter) = whois_pos(k1)
-                   endif
-                 enddo
-               else
-                 exit
-               endif
-             enddo
+            !$acc loop seq
+            do i2 = 1 , maxIter
+              weightssum = 0.0
+              !$acc loop seq
+              do k1 = 1 , neg_counter
+                i1 = whois_neg(k1)
+                weightssum = weightssum + c(i1)
+                al_neg(i1) = x(i1) - minp(k,q,ie)
+              enddo
+              
+              if ( ( neg_counter > 0 ) .and. ( (-addmass) > tol_limiter * abs(mass) ) ) then
+                !$acc loop seq
+                do k1 = 1 , neg_counter
+                  i1 = whois_neg(k1)
+                  howmuch = -addmass / weightssum
+                  if ( howmuch > al_neg(i1) ) then
+                    howmuch = al_neg(i1)
+                    whois_neg(k1) = -1
+                  endif
+                  tmp = addmass + howmuch * c(i1)
+                  addmass = tmp
+                  weightssum = weightssum - c(i1)
+                  x(i1) = x(i1) - howmuch
+                enddo
+                !now sort whois_pos and get a new number for pos_counter
+                !here pos_counter and whois_pos serve as temp vars
+                pos_counter = neg_counter
+                whois_pos = whois_neg
+                whois_neg = -1
+                neg_counter = 0
+                !$acc loop seq
+                do k1 = 1 , pos_counter
+                  if ( whois_pos(k1) .ne. -1 ) then
+                    neg_counter = neg_counter+1
+                    whois_neg(neg_counter) = whois_pos(k1)
+                  endif
+                enddo
+              else
+                exit
+              endif
+            enddo
           endif
           
-          ptens(:,k,q,ie) = x
-        enddo
-
-        !$acc loop seq
-        do k = 1 , nlev
-          ptens(:,k,q,ie) = ptens(:,k,q,ie) * dpmass(:,k,ie)
+          ptens(:,k,q,ie) = x * dpmass(:,k,ie)
         enddo
       enddo
     enddo
@@ -1661,17 +1661,17 @@ end function divergence_sphere_wk
     use bndry_mod, only: bndry_exchangeV
     use perf_mod, only: t_startf, t_stopf
     implicit none
-    integer              , intent(in   ) :: nets,nete
-    type (element_t)     , intent(in   ) :: elem(:)
-    type (hybrid_t)      , intent(in   ) :: hybrid
-    type (EdgeBuffer_t)  , intent(inout) :: edgeMinMax
-    real (kind=real_kind), intent(inout) :: min_neigh(nlev,qsize,nelemd)
-    real (kind=real_kind), intent(inout) :: max_neigh(nlev,qsize,nelemd)
+    integer                      , intent(in   ) :: nets,nete
+    type (element_t)             , intent(in   ) :: elem(:)
+    type (hybrid_t)              , intent(in   ) :: hybrid
+    type (EdgeBuffer_t)          , intent(inout) :: edgeMinMax
+    real (kind=real_kind), device, intent(inout) :: min_neigh(nlev,qsize,nelemd)
+    real (kind=real_kind), device, intent(inout) :: max_neigh(nlev,qsize,nelemd)
     ! local
     integer :: ie,k,q
     !$OMP BARRIER
     if (hybrid%ithr == 0) then
-      !$acc parallel loop gang vector collapse(3)
+      !$acc parallel loop gang vector collapse(3) deviceptr(min_neigh,max_neigh,qmin_exch,qmax_exch)
       do ie=1,nelemd
         do q=1,qsize
           do k=1,nlev
@@ -1693,7 +1693,7 @@ end function divergence_sphere_wk
     if (hybrid%ithr == 0) then
       call edgeVunpackMin_gpu(edgeMinMax%buf,qmin_exch,edgeMinMax%nlyr,nlev*qsize,0         ,getmapP_d)
       call edgeVunpackMax_gpu(edgeMinMax%buf,qmax_exch,edgeMinMax%nlyr,nlev*qsize,nlev*qsize,getmapP_d)
-      !$acc parallel loop gang vector collapse(3)
+      !$acc parallel loop gang vector collapse(3) deviceptr(min_neigh,max_neigh,qmin_exch,qmax_exch)
       do ie=1,nelemd
         do q=1,qsize
           do k=1,nlev
@@ -1725,14 +1725,14 @@ end function divergence_sphere_wk
     !    note: emin/emax must be initialized with Q element min/max.  
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     implicit none
-    type (element_t)     , intent(inout), target :: elem(:)
-    real (kind=real_kind), intent(inout)         :: qtens(np,np,nlev,qsize,nelemd)
-    type (derivative_t)  , intent(in   )         :: deriv
-    type (EdgeBuffer_t)  , intent(inout)         :: edgeq
-    type (hybrid_t)      , intent(in   )         :: hybrid
-    integer              , intent(in   )         :: nets,nete
-    real (kind=real_kind), intent(  out)         :: emin(nlev,qsize,nelemd)
-    real (kind=real_kind), intent(  out)         :: emax(nlev,qsize,nelemd)
+    type (element_t)             , intent(inout), target :: elem(:)
+    real (kind=real_kind), device, intent(inout)         :: qtens(np,np,nlev,qsize,nelemd)
+    type (derivative_t)          , intent(in   )         :: deriv
+    type (EdgeBuffer_t)          , intent(inout)         :: edgeq
+    type (hybrid_t)              , intent(in   )         :: hybrid
+    integer                      , intent(in   )         :: nets,nete
+    real (kind=real_kind), device, intent(  out)         :: emin(nlev,qsize,nelemd)
+    real (kind=real_kind), device, intent(  out)         :: emax(nlev,qsize,nelemd)
     integer :: k,kptr,i,j,ie,ic,q
     real (kind=real_kind) :: lap_p(np,np)
     logical :: var_coef1
@@ -1743,13 +1743,15 @@ end function divergence_sphere_wk
     if(hypervis_scaling > 0)    var_coef1 = .false.
     !$OMP BARRIER
     if (hybrid%ithr == 0) then
-      !$acc parallel loop gang vector collapse(3)
+      !$acc parallel loop gang vector collapse(3) deviceptr(emin,emax,qtens,qmin_exch,qmax_exch) private(lap_p)
       do ie=1,nelemd
         do q=1,qsize      
           do k=1,nlev    !  Potential loop inversion (AAM)
             qmin_exch(:,:,k,q,ie) = emin(k,q,ie)  ! need to set all values in element for
             qmax_exch(:,:,k,q,ie) = emax(k,q,ie)  ! edgeVpack routine below
-            call laplace_sphere_wk_loc(qtens(:,:,k,q,ie),deriv,elem(ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,var_coef1,qtens(:,:,k,q,ie))
+            lap_p = qtens(:,:,k,q,ie)
+            call laplace_sphere_wk_loc(lap_p,deriv,elem(ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,var_coef1,lap_p)
+            qtens(:,:,k,q,ie) = lap_p
           enddo
         enddo
       enddo
@@ -1766,13 +1768,14 @@ end function divergence_sphere_wk
       call edgeVunpack_gpu   (edgeq%buf,    qtens,edgeq%nlyr,qsize*nlev,           0,getmapP_d)
       call edgeVunpackMin_gpu(edgeq%buf,qmin_exch,edgeq%nlyr,qsize*nlev,  qsize*nlev,getmapP_d)
       call edgeVunpackMax_gpu(edgeq%buf,qmax_exch,edgeq%nlyr,qsize*nlev,2*qsize*nlev,getmapP_d)
-      !$acc parallel loop gang vector collapse(3)
+      !$acc parallel loop gang vector collapse(3) deviceptr(emin,emax,qtens,qmin_exch,qmax_exch) private(lap_p)
       do ie=1,nelemd
         ! apply inverse mass matrix, then apply laplace again
         do q=1,qsize      
           do k=1,nlev
             lap_p(:,:)=elem(ie)%rspheremp(:,:)*qtens(:,:,k,q,ie)
-            call laplace_sphere_wk_loc(lap_p,deriv,elem(ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,.true.,qtens(:,:,k,q,ie))
+            call laplace_sphere_wk_loc(lap_p,deriv,elem(ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,.true.,lap_p)
+            qtens(:,:,k,q,ie) = lap_p
             emin(k,q,ie)=max(min(qmin_exch(1,1,k,q,ie),qmin_exch(1,np,k,q,ie),qmin_exch(np,1,k,q,ie),qmin_exch(np,np,k,q,ie)),0d0)
             emax(k,q,ie)=    max(qmax_exch(1,1,k,q,ie),qmax_exch(1,np,k,q,ie),qmax_exch(np,1,k,q,ie),qmax_exch(np,np,k,q,ie))
           enddo
@@ -1790,16 +1793,16 @@ end function divergence_sphere_wk
     use edge_mod, only: edgeDescriptor_t
     use perf_mod, only: t_startf, t_stopf
     implicit none
-    real (kind=real_kind)  , intent(inout) :: edge_buf(nlyr,nbuf)
-    real (kind=real_kind)  , intent(in   ) :: v(np,np,vlyr,nelemd)
-    integer                , intent(in   ) :: nlyr
-    integer                , intent(in   ) :: vlyr
-    integer                , intent(in   ) :: kptr
-    integer, device        , intent(in   ) :: putmapP(max_neigh_edges,nelemd)
-    logical, device        , intent(in   ) :: reverse(max_neigh_edges,nelemd)
+    real (kind=real_kind)         , intent(inout) :: edge_buf(nlyr,nbuf)
+    real (kind=real_kind), device , intent(in   ) :: v(np,np,vlyr,nelemd)
+    integer                       , intent(in   ) :: nlyr
+    integer                       , intent(in   ) :: vlyr
+    integer                       , intent(in   ) :: kptr
+    integer              , device , intent(in   ) :: putmapP(max_neigh_edges,nelemd)
+    logical              , device , intent(in   ) :: reverse(max_neigh_edges,nelemd)
     integer :: i,k,ir,ll,ie
     call t_startf('edge_pack')
-    !$acc parallel loop gang vector collapse(2) deviceptr(putmapP,reverse) private(i,ll,ir)
+    !$acc parallel loop gang vector collapse(2) deviceptr(putmapP,reverse,v) private(i,ll,ir)
     do ie=1,nelemd
       do k=1,vlyr
         !$acc loop seq
@@ -1835,15 +1838,15 @@ end function divergence_sphere_wk
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
     use perf_mod, only: t_startf, t_stopf
     implicit none
-    real (kind=real_kind)  , intent(in   ) :: edge_buf(nlyr,nbuf)
-    real (kind=real_kind)  , intent(inout) :: v(np,np,vlyr,nelemd)
-    integer                , intent(in   ) :: nlyr
-    integer                , intent(in   ) :: vlyr
-    integer                , intent(in   ) :: kptr
-    integer, device        , intent(in   ) :: getmapP(max_neigh_edges,nelemd)
+    real (kind=real_kind)         , intent(in   ) :: edge_buf(nlyr,nbuf)
+    real (kind=real_kind), device , intent(inout) :: v(np,np,vlyr,nelemd)
+    integer                       , intent(in   ) :: nlyr
+    integer                       , intent(in   ) :: vlyr
+    integer                       , intent(in   ) :: kptr
+    integer              , device , intent(in   ) :: getmapP(max_neigh_edges,nelemd)
     integer :: i,k,ll,ie
     call t_startf('edge_unpack')
-    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP) private(ll,i)
+    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP,v) private(ll,i)
     do ie = 1 , nelemd
       do k = 1 , vlyr
         do i = 1 , np
@@ -1868,14 +1871,14 @@ end function divergence_sphere_wk
   subroutine edgeVunpackMIN_gpu(edge_buf,v,nlyr,vlyr,kptr,getmapP)
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
     implicit none
-    real (kind=real_kind)  , intent(in   ) :: edge_buf(nlyr,nbuf)
-    real (kind=real_kind)  , intent(inout) :: v(np,np,vlyr,nelemd)
-    integer                , intent(in   ) :: nlyr
-    integer                , intent(in   ) :: vlyr
-    integer                , intent(in   ) :: kptr
-    integer, device        , intent(in   ) :: getmapP(max_neigh_edges,nelemd)
+    real (kind=real_kind)         , intent(in   ) :: edge_buf(nlyr,nbuf)
+    real (kind=real_kind), device , intent(inout) :: v(np,np,vlyr,nelemd)
+    integer                       , intent(in   ) :: nlyr
+    integer                       , intent(in   ) :: vlyr
+    integer                       , intent(in   ) :: kptr
+    integer              , device , intent(in   ) :: getmapP(max_neigh_edges,nelemd)
     integer :: i,k,ll,ie
-    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP) private(ll,i)
+    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP,v) private(ll,i)
     do ie = 1 , nelemd
       do k = 1 , vlyr
         do i = 1 , np
@@ -1899,14 +1902,14 @@ end function divergence_sphere_wk
   subroutine edgeVunpackMAX_gpu(edge_buf,v,nlyr,vlyr,kptr,getmapP)
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
     implicit none
-    real (kind=real_kind)  , intent(in   ) :: edge_buf(nlyr,nbuf)
-    real (kind=real_kind)  , intent(inout) :: v(np,np,vlyr,nelemd)
-    integer                , intent(in   ) :: nlyr
-    integer                , intent(in   ) :: vlyr
-    integer                , intent(in   ) :: kptr
-    integer, device        , intent(in   ) :: getmapP(max_neigh_edges,nelemd)
+    real (kind=real_kind)         , intent(in   ) :: edge_buf(nlyr,nbuf)
+    real (kind=real_kind), device , intent(inout) :: v(np,np,vlyr,nelemd)
+    integer                       , intent(in   ) :: nlyr
+    integer                       , intent(in   ) :: vlyr
+    integer                       , intent(in   ) :: kptr
+    integer              , device , intent(in   ) :: getmapP(max_neigh_edges,nelemd)
     integer :: i,k,ll,ie
-    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP) private(ll,i)
+    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP,v) private(ll,i)
     do ie = 1 , nelemd
       do k = 1 , vlyr
         do i = 1 , np
@@ -1947,7 +1950,7 @@ end function divergence_sphere_wk
     real(kind=real_kind) :: grads(np,np,2), oldgrads(np,np,2)
     !$acc routine(gradient_sphere_loc) seq
     !$acc routine(divergence_sphere_wk_loc) seq
-    grads = gradient_sphere_loc(s,deriv,elem%Dinv)
+    call gradient_sphere_loc(s,deriv,elem%Dinv,grads)
     if (var_coef) then
        if (hypervis_power/=0 ) then
           ! scalar viscosity with variable coefficient
@@ -1971,12 +1974,12 @@ end function divergence_sphere_wk
     endif
     ! note: divergnece_sphere and divergence_sphere_wk are identical *after* bndry_exchange
     ! if input is C_0.  Here input is not C_0, so we should use divergence_sphere_wk().  
-    laplace=divergence_sphere_wk_loc(grads,deriv,elem)
+    call divergence_sphere_wk_loc(grads,deriv,elem,laplace)
   end subroutine laplace_sphere_wk_loc
 
 
 
-  function divergence_sphere_wk_loc(v,deriv,elem) result(div)
+  subroutine divergence_sphere_wk_loc(v,deriv,elem,div)
     use physical_constants, only: rrearth
     use derivative_mod, only: derivative_t
     use element_mod, only: element_t
@@ -1988,10 +1991,10 @@ end function divergence_sphere_wk
 !   (the integrated by parts version of < psi div(v) > )
 !   note: after DSS, divergence_sphere() and divergence_sphere_wk() 
 !   are identical to roundoff, as theory predicts.
-    real(kind=real_kind), intent(in) :: v(np,np,2)  ! in lat-lon coordinates
-    type (derivative_t)              :: deriv
-    type (element_t)                 :: elem
-    real(kind=real_kind) :: div(np,np)
+    real(kind=real_kind), intent(in   ) :: v(np,np,2)  ! in lat-lon coordinates
+    type (derivative_t)                 :: deriv
+    type (element_t)                    :: elem
+    real(kind=real_kind), intent(  out) :: div(np,np)
     integer i,j,m,n
     real(kind=real_kind) :: vtemp(np,np,2)
     real(kind=real_kind) :: ggtemp(np,np,2)
@@ -2013,24 +2016,22 @@ end function divergence_sphere_wk
           enddo
        end do
     end do
-  end function divergence_sphere_wk_loc
+  end subroutine divergence_sphere_wk_loc
 
 
 
-  function gradient_sphere_loc(s,deriv,Dinv) result(ds)
+  subroutine gradient_sphere_loc(s,deriv,Dinv,ds)
     use physical_constants, only: rrearth
     use derivative_mod, only: derivative_t
     implicit none
     !$acc routine seq
 !   input s:  scalar
 !   output  ds: spherical gradient of s, lat-lon coordinates
-    type (derivative_t)              :: deriv
-    real(kind=real_kind), intent(in), dimension(2,2,np,np) :: Dinv
-    real(kind=real_kind), intent(in) :: s(np,np)
-    real(kind=real_kind) :: ds(np,np,2)
-    integer i
-    integer j
-    integer l
+    type (derivative_t) , intent(in   ) :: deriv
+    real(kind=real_kind), intent(in   ) :: Dinv(2,2,np,np)
+    real(kind=real_kind), intent(in   ) :: s(np,np)
+    real(kind=real_kind), intent(  out) :: ds(np,np,2)
+    integer :: i, j, l
     real(kind=real_kind) ::  dsdx00
     real(kind=real_kind) ::  dsdy00
     real(kind=real_kind) ::  v1(np,np),v2(np,np)
@@ -2053,7 +2054,7 @@ end function divergence_sphere_wk
           ds(i,j,2)=Dinv(1,2,i,j)*v1(i,j) + Dinv(2,2,i,j)*v2(i,j)
        enddo
     enddo
-  end function gradient_sphere_loc
+  end subroutine gradient_sphere_loc
 
 
 
