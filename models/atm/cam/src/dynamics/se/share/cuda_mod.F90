@@ -76,6 +76,10 @@ module cuda_mod
   real (kind=real_kind),device,allocatable,dimension(:,:,:,:)     :: dpdiss_biharmonic_d
   real (kind=real_kind),device,allocatable,dimension(:,:,:)       :: rmetdet_d
   real (kind=real_kind),device,allocatable,dimension(:,:)         :: edgebuf_d
+  real (kind=real_kind),device,allocatable,dimension(:,:)         :: edgebuf_Q2_d
+  real (kind=real_kind),device,allocatable,dimension(:,:)         :: edgebuf_Q3_d
+  real (kind=real_kind),device,allocatable,dimension(:,:)         :: recvbuf_Q2_d
+  real (kind=real_kind),device,allocatable,dimension(:,:)         :: recvbuf_Q3_d
   real (kind=real_kind),device,allocatable,dimension(:)           :: hyai_d
   real (kind=real_kind),device,allocatable,dimension(:)           :: hybi_d
   logical              ,device,allocatable,dimension(:,:)         :: reverse_d
@@ -129,6 +133,10 @@ module cuda_mod
   logical              ,pinned,allocatable,dimension(:,:)         :: reverse_h
   integer              ,pinned,allocatable,dimension(:,:)         :: putmapP_h
   integer              ,pinned,allocatable,dimension(:,:)         :: getmapP_h
+  real (kind=real_kind),pinned,allocatable,dimension(:,:)         :: edgebuf_Q2_h
+  real (kind=real_kind),pinned,allocatable,dimension(:,:)         :: edgebuf_Q3_h
+  real (kind=real_kind),pinned,allocatable,dimension(:,:)         :: recvbuf_Q2_h
+  real (kind=real_kind),pinned,allocatable,dimension(:,:)         :: recvbuf_Q3_h
 
   !Normal Host arrays
   integer,allocatable,dimension(:)   :: send_nelem
@@ -256,6 +264,10 @@ contains
     allocate( putmapP_d                (max_neigh_edges              ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( getmapP_d                (max_neigh_edges              ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( edgebuf_d                (nlev*qsize_d,nbuf                   ) , stat = ierr ); _CHECK(__LINE__)
+    allocate( edgebuf_Q2_d             (nlev*qsize_d*2,nbuf                 ) , stat = ierr ); _CHECK(__LINE__)
+    allocate( edgebuf_Q3_d             (nlev*qsize_d*3,nbuf                 ) , stat = ierr ); _CHECK(__LINE__)
+    allocate( recvbuf_Q2_d             (nlev*qsize_d*2,nbuf                 ) , stat = ierr ); _CHECK(__LINE__)
+    allocate( recvbuf_Q3_d             (nlev*qsize_d*3,nbuf                 ) , stat = ierr ); _CHECK(__LINE__)
     allocate( recv_internal_indices_d  (nelemd                              ) , stat = ierr ); _CHECK(__LINE__)
     allocate( recv_external_indices_d  (nelemd                              ) , stat = ierr ); _CHECK(__LINE__)
     allocate( dpo_d                    (np,np,   1-gs:nlev+gs        ,nelemd) , stat = ierr ); _CHECK(__LINE__)
@@ -293,6 +305,10 @@ contains
     allocate( reverse_h                (max_neigh_edges              ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( putmapP_h                (max_neigh_edges              ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( getmapP_h                (max_neigh_edges              ,nelemd) , stat = ierr ); _CHECK(__LINE__)
+    allocate( edgebuf_Q2_h             (nlev*qsize_d*2,nbuf                 ) , stat = ierr ); _CHECK(__LINE__)
+    allocate( edgebuf_Q3_h             (nlev*qsize_d*3,nbuf                 ) , stat = ierr ); _CHECK(__LINE__)
+    allocate( recvbuf_Q2_h             (nlev*qsize_d*2,nbuf                 ) , stat = ierr ); _CHECK(__LINE__)
+    allocate( recvbuf_Q3_h             (nlev*qsize_d*3,nbuf                 ) , stat = ierr ); _CHECK(__LINE__)
 
     ! The PGI compiler with cuda enabled errors when allocating arrays of zero
     !   size - here when using only one MPI task
@@ -685,8 +701,8 @@ contains
       enddo
     endif
     !$OMP BARRIER
-    if ( rhs_multiplier == 0 ) call neighbor_minmax_loc(elem,hybrid,edgeAdvQ2,nets,nete,qmin_d,qmax_d)   ! update qmin/qmax based on neighbor data for lim8
-    if ( rhs_multiplier == 2 ) call biharmonic_wk_scalar_minmax_loc( elem , qtens_biharmonic_d , deriv , edgeAdvQ3 , hybrid , nets , nete , qmin_d , qmax_d )
+    if ( rhs_multiplier == 0 ) call neighbor_minmax_loc(elem,hybrid,nets,nete,qmin_d,qmax_d)   ! update qmin/qmax based on neighbor data for lim8
+    if ( rhs_multiplier == 2 ) call biharmonic_wk_scalar_minmax_loc( elem , qtens_biharmonic_d , deriv , hybrid , nets , nete , qmin_d , qmax_d )
     !$OMP BARRIER
     if (hybrid%ithr == 0) then
       if ( rhs_multiplier == 2 ) then
@@ -1653,7 +1669,7 @@ end function divergence_sphere_wk
 
 
 
-  subroutine neighbor_minmax_loc(elem,hybrid,edgeMinMax,nets,nete,min_neigh,max_neigh)
+  subroutine neighbor_minmax_loc(elem,hybrid,nets,nete,min_neigh,max_neigh)
     ! compute Q min&max over the element and all its neighbors
     use element_mod, only: element_t
     use hybrid_mod, only: hybrid_t
@@ -1664,7 +1680,6 @@ end function divergence_sphere_wk
     integer                      , intent(in   ) :: nets,nete
     type (element_t)             , intent(in   ) :: elem(:)
     type (hybrid_t)              , intent(in   ) :: hybrid
-    type (EdgeBuffer_t)          , intent(inout) :: edgeMinMax
     real (kind=real_kind), device, intent(inout) :: min_neigh(nlev,qsize,nelemd)
     real (kind=real_kind), device, intent(inout) :: max_neigh(nlev,qsize,nelemd)
     ! local
@@ -1680,19 +1695,19 @@ end function divergence_sphere_wk
           enddo
         enddo
       enddo
-      call edgeVpack_gpu(edgeMinMax%buf,qmin_exch,edgeMinMax%nlyr,nlev*qsize,0         ,putmapP_d,reverse_d)
-      call edgeVpack_gpu(edgeMinMax%buf,qmax_exch,edgeMinMax%nlyr,nlev*qsize,nlev*qsize,putmapP_d,reverse_d)
+      call edgeVpack_gpu(edgebuf_Q2_d,qmin_exch,nlev*qsize*2,nlev*qsize,0         ,putmapP_d,reverse_d)
+      call edgeVpack_gpu(edgebuf_Q2_d,qmax_exch,nlev*qsize*2,nlev*qsize,nlev*qsize,putmapP_d,reverse_d)
     endif
     !$OMP BARRIER
   
     call t_startf('nmm_bexchV')
-    call bndry_exchangeV(hybrid,edgeMinMax)
+    call bndry_exchangeV_loc(hybrid,edgebuf_Q2_d,recvbuf_Q2_d,edgebuf_Q2_h,recvbuf_Q2_h,nlev*qsize*2)
     call t_stopf('nmm_bexchV')
        
     !$OMP BARRIER
     if (hybrid%ithr == 0) then
-      call edgeVunpackMin_gpu(edgeMinMax%buf,qmin_exch,edgeMinMax%nlyr,nlev*qsize,0         ,getmapP_d)
-      call edgeVunpackMax_gpu(edgeMinMax%buf,qmax_exch,edgeMinMax%nlyr,nlev*qsize,nlev*qsize,getmapP_d)
+      call edgeVunpackMin_gpu(edgebuf_Q2_d,qmin_exch,nlev*qsize*2,nlev*qsize,0         ,getmapP_d)
+      call edgeVunpackMax_gpu(edgebuf_Q2_d,qmax_exch,nlev*qsize*2,nlev*qsize,nlev*qsize,getmapP_d)
       !$acc parallel loop gang vector collapse(3) deviceptr(min_neigh,max_neigh,qmin_exch,qmax_exch)
       do ie=1,nelemd
         do q=1,qsize
@@ -1709,7 +1724,7 @@ end function divergence_sphere_wk
 
 
 
-  subroutine biharmonic_wk_scalar_minmax_loc(elem,qtens,deriv,edgeq,hybrid,nets,nete,emin,emax)
+  subroutine biharmonic_wk_scalar_minmax_loc(elem,qtens,deriv,hybrid,nets,nete,emin,emax)
     use element_mod, only: element_t
     use derivative_mod, only: derivative_t
     use hybrid_mod, only: hybrid_t
@@ -1728,7 +1743,6 @@ end function divergence_sphere_wk
     type (element_t)             , intent(inout), target :: elem(:)
     real (kind=real_kind), device, intent(inout)         :: qtens(np,np,nlev,qsize,nelemd)
     type (derivative_t)          , intent(in   )         :: deriv
-    type (EdgeBuffer_t)          , intent(inout)         :: edgeq
     type (hybrid_t)              , intent(in   )         :: hybrid
     integer                      , intent(in   )         :: nets,nete
     real (kind=real_kind), device, intent(  out)         :: emin(nlev,qsize,nelemd)
@@ -1743,38 +1757,38 @@ end function divergence_sphere_wk
     if(hypervis_scaling > 0)    var_coef1 = .false.
     !$OMP BARRIER
     if (hybrid%ithr == 0) then
-      !$acc parallel loop gang vector collapse(3) deviceptr(emin,emax,qtens,qmin_exch,qmax_exch) private(lap_p)
+      !$acc parallel loop gang vector collapse(3) deviceptr(emin,emax,qtens,qmin_exch,qmax_exch,deriv_dvv_d) private(lap_p)
       do ie=1,nelemd
         do q=1,qsize      
           do k=1,nlev    !  Potential loop inversion (AAM)
             qmin_exch(:,:,k,q,ie) = emin(k,q,ie)  ! need to set all values in element for
             qmax_exch(:,:,k,q,ie) = emax(k,q,ie)  ! edgeVpack routine below
             lap_p = qtens(:,:,k,q,ie)
-            call laplace_sphere_wk_loc(lap_p,deriv,elem(ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,var_coef1,lap_p)
+            call laplace_sphere_wk_loc(lap_p,deriv_dvv_d,elem(ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,var_coef1,lap_p)
             qtens(:,:,k,q,ie) = lap_p
           enddo
         enddo
       enddo
-      call edgeVpack_gpu(edgeq%buf,    qtens,edgeq%nlyr,nlev*qsize,           0,putmapP_d,reverse_d)
-      call edgeVpack_gpu(edgeq%buf,qmin_exch,edgeq%nlyr,nlev*qsize,  nlev*qsize,putmapP_d,reverse_d)
-      call edgeVpack_gpu(edgeq%buf,qmax_exch,edgeq%nlyr,nlev*qsize,2*nlev*qsize,putmapP_d,reverse_d)
+      call edgeVpack_gpu(edgebuf_Q3_d,    qtens,nlev*qsize*3,nlev*qsize,           0,putmapP_d,reverse_d)
+      call edgeVpack_gpu(edgebuf_Q3_d,qmin_exch,nlev*qsize*3,nlev*qsize,  nlev*qsize,putmapP_d,reverse_d)
+      call edgeVpack_gpu(edgebuf_Q3_d,qmax_exch,nlev*qsize*3,nlev*qsize,2*nlev*qsize,putmapP_d,reverse_d)
     endif
     !$OMP BARRIER
     call t_startf('biwkscmm_bexchV')
-    call bndry_exchangeV(hybrid,edgeq)
+    call bndry_exchangeV_loc(hybrid,edgebuf_Q3_d,recvbuf_Q3_d,edgebuf_Q3_h,recvbuf_Q3_h,nlev*qsize*3)
     call t_stopf('biwkscmm_bexchV')
     !$OMP BARRIER
     if (hybrid%ithr == 0) then
-      call edgeVunpack_gpu   (edgeq%buf,    qtens,edgeq%nlyr,qsize*nlev,           0,getmapP_d)
-      call edgeVunpackMin_gpu(edgeq%buf,qmin_exch,edgeq%nlyr,qsize*nlev,  qsize*nlev,getmapP_d)
-      call edgeVunpackMax_gpu(edgeq%buf,qmax_exch,edgeq%nlyr,qsize*nlev,2*qsize*nlev,getmapP_d)
+      call edgeVunpack_gpu   (edgebuf_Q3_d,    qtens,nlev*qsize*3,qsize*nlev,           0,getmapP_d)
+      call edgeVunpackMin_gpu(edgebuf_Q3_d,qmin_exch,nlev*qsize*3,qsize*nlev,  qsize*nlev,getmapP_d)
+      call edgeVunpackMax_gpu(edgebuf_Q3_d,qmax_exch,nlev*qsize*3,qsize*nlev,2*qsize*nlev,getmapP_d)
       !$acc parallel loop gang vector collapse(3) deviceptr(emin,emax,qtens,qmin_exch,qmax_exch) private(lap_p)
       do ie=1,nelemd
         ! apply inverse mass matrix, then apply laplace again
         do q=1,qsize      
           do k=1,nlev
             lap_p(:,:)=elem(ie)%rspheremp(:,:)*qtens(:,:,k,q,ie)
-            call laplace_sphere_wk_loc(lap_p,deriv,elem(ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,.true.,lap_p)
+            call laplace_sphere_wk_loc(lap_p,deriv_dvv_d,elem(ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,.true.,lap_p)
             qtens(:,:,k,q,ie) = lap_p
             emin(k,q,ie)=max(min(qmin_exch(1,1,k,q,ie),qmin_exch(1,np,k,q,ie),qmin_exch(np,1,k,q,ie),qmin_exch(np,np,k,q,ie)),0d0)
             emax(k,q,ie)=    max(qmax_exch(1,1,k,q,ie),qmax_exch(1,np,k,q,ie),qmax_exch(np,1,k,q,ie),qmax_exch(np,np,k,q,ie))
@@ -1793,7 +1807,7 @@ end function divergence_sphere_wk
     use edge_mod, only: edgeDescriptor_t
     use perf_mod, only: t_startf, t_stopf
     implicit none
-    real (kind=real_kind)         , intent(inout) :: edge_buf(nlyr,nbuf)
+    real (kind=real_kind), device , intent(inout) :: edge_buf(nlyr,nbuf)
     real (kind=real_kind), device , intent(in   ) :: v(np,np,vlyr,nelemd)
     integer                       , intent(in   ) :: nlyr
     integer                       , intent(in   ) :: vlyr
@@ -1802,7 +1816,7 @@ end function divergence_sphere_wk
     logical              , device , intent(in   ) :: reverse(max_neigh_edges,nelemd)
     integer :: i,k,ir,ll,ie
     call t_startf('edge_pack')
-    !$acc parallel loop gang vector collapse(2) deviceptr(putmapP,reverse,v) private(i,ll,ir)
+    !$acc parallel loop gang vector collapse(2) deviceptr(putmapP,reverse,v,edge_buf) private(i,ll,ir)
     do ie=1,nelemd
       do k=1,vlyr
         !$acc loop seq
@@ -1838,7 +1852,7 @@ end function divergence_sphere_wk
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
     use perf_mod, only: t_startf, t_stopf
     implicit none
-    real (kind=real_kind)         , intent(in   ) :: edge_buf(nlyr,nbuf)
+    real (kind=real_kind), device , intent(in   ) :: edge_buf(nlyr,nbuf)
     real (kind=real_kind), device , intent(inout) :: v(np,np,vlyr,nelemd)
     integer                       , intent(in   ) :: nlyr
     integer                       , intent(in   ) :: vlyr
@@ -1846,7 +1860,7 @@ end function divergence_sphere_wk
     integer              , device , intent(in   ) :: getmapP(max_neigh_edges,nelemd)
     integer :: i,k,ll,ie
     call t_startf('edge_unpack')
-    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP,v) private(ll,i)
+    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP,v,edge_buf) private(ll,i)
     do ie = 1 , nelemd
       do k = 1 , vlyr
         do i = 1 , np
@@ -1871,14 +1885,14 @@ end function divergence_sphere_wk
   subroutine edgeVunpackMIN_gpu(edge_buf,v,nlyr,vlyr,kptr,getmapP)
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
     implicit none
-    real (kind=real_kind)         , intent(in   ) :: edge_buf(nlyr,nbuf)
+    real (kind=real_kind), device , intent(in   ) :: edge_buf(nlyr,nbuf)
     real (kind=real_kind), device , intent(inout) :: v(np,np,vlyr,nelemd)
     integer                       , intent(in   ) :: nlyr
     integer                       , intent(in   ) :: vlyr
     integer                       , intent(in   ) :: kptr
     integer              , device , intent(in   ) :: getmapP(max_neigh_edges,nelemd)
     integer :: i,k,ll,ie
-    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP,v) private(ll,i)
+    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP,v,edge_buf) private(ll,i)
     do ie = 1 , nelemd
       do k = 1 , vlyr
         do i = 1 , np
@@ -1902,14 +1916,14 @@ end function divergence_sphere_wk
   subroutine edgeVunpackMAX_gpu(edge_buf,v,nlyr,vlyr,kptr,getmapP)
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
     implicit none
-    real (kind=real_kind)         , intent(in   ) :: edge_buf(nlyr,nbuf)
+    real (kind=real_kind), device , intent(in   ) :: edge_buf(nlyr,nbuf)
     real (kind=real_kind), device , intent(inout) :: v(np,np,vlyr,nelemd)
     integer                       , intent(in   ) :: nlyr
     integer                       , intent(in   ) :: vlyr
     integer                       , intent(in   ) :: kptr
     integer              , device , intent(in   ) :: getmapP(max_neigh_edges,nelemd)
     integer :: i,k,ll,ie
-    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP,v) private(ll,i)
+    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP,v,edge_buf) private(ll,i)
     do ie = 1 , nelemd
       do k = 1 , vlyr
         do i = 1 , np
@@ -1930,27 +1944,26 @@ end function divergence_sphere_wk
 
 
 
-  subroutine laplace_sphere_wk_loc(s,deriv,elem,hypervis_power,hypervis_scaling,variable_hyperviscosity,var_coef,laplace)
-    use derivative_mod, only: derivative_t
+  subroutine laplace_sphere_wk_loc(s,deriv_dvv,elem,hypervis_power,hypervis_scaling,variable_hyperviscosity,var_coef,laplace)
     use element_mod, only: element_t
     implicit none
     !$acc routine seq
 !   input:  s = scalar
 !   ouput:  -< grad(PHI), grad(s) >   = weak divergence of grad(s)
 !     note: for this form of the operator, grad(s) does not need to be made C0
-    real(kind=real_kind), intent(in) :: s(np,np) 
-    real(kind=real_kind), intent(in) :: hypervis_power,hypervis_scaling
-    real(kind=real_kind), intent(in) :: variable_hyperviscosity(np,np)
-    logical             , intent(in) :: var_coef
-    type (derivative_t) , intent(in) :: deriv
-    type (element_t)    , intent(in) :: elem
-    real(kind=real_kind), intent(out):: laplace(np,np)
+    real(kind=real_kind), intent(in)         :: s(np,np) 
+    real(kind=real_kind), intent(in)         :: hypervis_power,hypervis_scaling
+    real(kind=real_kind), intent(in)         :: variable_hyperviscosity(np,np)
+    logical             , intent(in)         :: var_coef
+    real(kind=real_kind), intent(in), device :: deriv_dvv(np,np)
+    type (element_t)    , intent(in)         :: elem
+    real(kind=real_kind), intent(out)        :: laplace(np,np)
     real(kind=real_kind) :: laplace2(np,np)
     integer i,j
     real(kind=real_kind) :: grads(np,np,2), oldgrads(np,np,2)
     !$acc routine(gradient_sphere_loc) seq
     !$acc routine(divergence_sphere_wk_loc) seq
-    call gradient_sphere_loc(s,deriv,elem%Dinv,grads)
+    call gradient_sphere_loc(s,deriv_dvv,elem%Dinv,grads)
     if (var_coef) then
        if (hypervis_power/=0 ) then
           ! scalar viscosity with variable coefficient
@@ -1974,14 +1987,13 @@ end function divergence_sphere_wk
     endif
     ! note: divergnece_sphere and divergence_sphere_wk are identical *after* bndry_exchange
     ! if input is C_0.  Here input is not C_0, so we should use divergence_sphere_wk().  
-    call divergence_sphere_wk_loc(grads,deriv,elem,laplace)
+    call divergence_sphere_wk_loc(grads,deriv_dvv,elem,laplace)
   end subroutine laplace_sphere_wk_loc
 
 
 
-  subroutine divergence_sphere_wk_loc(v,deriv,elem,div)
+  subroutine divergence_sphere_wk_loc(v,deriv_dvv,elem,div)
     use physical_constants, only: rrearth
-    use derivative_mod, only: derivative_t
     use element_mod, only: element_t
     implicit none
     !$acc routine seq
@@ -1991,10 +2003,10 @@ end function divergence_sphere_wk
 !   (the integrated by parts version of < psi div(v) > )
 !   note: after DSS, divergence_sphere() and divergence_sphere_wk() 
 !   are identical to roundoff, as theory predicts.
-    real(kind=real_kind), intent(in   ) :: v(np,np,2)  ! in lat-lon coordinates
-    type (derivative_t)                 :: deriv
-    type (element_t)                    :: elem
-    real(kind=real_kind), intent(  out) :: div(np,np)
+    real(kind=real_kind), intent(in   )         :: v(np,np,2)  ! in lat-lon coordinates
+    real(kind=real_kind), intent(in   ), device :: deriv_dvv(np,np)
+    type (element_t)                            :: elem
+    real(kind=real_kind), intent(  out)         :: div(np,np)
     integer i,j,m,n
     real(kind=real_kind) :: vtemp(np,np,2)
     real(kind=real_kind) :: ggtemp(np,np,2)
@@ -2011,8 +2023,8 @@ end function divergence_sphere_wk
        do m=1,np
           div(m,n)=0
           do j=1,np
-             div(m,n)=div(m,n)-(  elem%spheremp(j,n)*vtemp(j,n,1)*deriv%Dvv(m,j) &
-                                + elem%spheremp(m,j)*vtemp(m,j,2)*deriv%Dvv(n,j) ) * rrearth
+             div(m,n)=div(m,n)-(  elem%spheremp(j,n)*vtemp(j,n,1)*deriv_dvv(m,j) &
+                                + elem%spheremp(m,j)*vtemp(m,j,2)*deriv_dvv(n,j) ) * rrearth
           enddo
        end do
     end do
@@ -2020,17 +2032,16 @@ end function divergence_sphere_wk
 
 
 
-  subroutine gradient_sphere_loc(s,deriv,Dinv,ds)
+  subroutine gradient_sphere_loc(s,deriv_dvv,Dinv,ds)
     use physical_constants, only: rrearth
-    use derivative_mod, only: derivative_t
     implicit none
     !$acc routine seq
 !   input s:  scalar
 !   output  ds: spherical gradient of s, lat-lon coordinates
-    type (derivative_t) , intent(in   ) :: deriv
-    real(kind=real_kind), intent(in   ) :: Dinv(2,2,np,np)
-    real(kind=real_kind), intent(in   ) :: s(np,np)
-    real(kind=real_kind), intent(  out) :: ds(np,np,2)
+    real(kind=real_kind), intent(in   ), device :: deriv_dvv(np,np)
+    real(kind=real_kind), intent(in   )         :: Dinv(2,2,np,np)
+    real(kind=real_kind), intent(in   )         :: s(np,np)
+    real(kind=real_kind), intent(  out)         :: ds(np,np,2)
     integer :: i, j, l
     real(kind=real_kind) ::  dsdx00
     real(kind=real_kind) ::  dsdy00
@@ -2040,8 +2051,8 @@ end function divergence_sphere_wk
           dsdx00=0.0d0
           dsdy00=0.0d0
           do i=1,np
-             dsdx00 = dsdx00 + deriv%dvv(i,l)*s(i,j)
-             dsdy00 = dsdy00 + deriv%dvv(i,l)*s(j,i)
+             dsdx00 = dsdx00 + deriv_dvv(i,l)*s(i,j)
+             dsdy00 = dsdy00 + deriv_dvv(i,l)*s(j,i)
           end do
           v1(l,j) = dsdx00*rrearth
           v2(j,l) = dsdy00*rrearth
@@ -2055,6 +2066,98 @@ end function divergence_sphere_wk
        enddo
     enddo
   end subroutine gradient_sphere_loc
+
+
+
+  subroutine bndry_exchangeV_loc(hybrid,sendbuf_dev,recvbuf_dev,sendbuf_hst,recvbuf_hst,nlyr)
+    use hybrid_mod, only : hybrid_t
+    use kinds, only : log_kind
+    use schedule_mod, only : schedule_t, cycle_t, schedule
+    use dimensions_mod, only: nelemd, np
+#ifdef _MPI
+    use parallel_mod, only : abortmp, status, srequest, rrequest, &
+         mpireal_t, mpiinteger_t, mpi_success
+#else
+    use parallel_mod, only : abortmp
+#endif
+    implicit none
+    type (hybrid_t)              , intent(in   ) :: hybrid
+    real (kind=real_kind), device, intent(inout) :: sendbuf_dev(nlyr,nbuf)
+    real (kind=real_kind), device, intent(inout) :: recvbuf_dev(nlyr,nbuf)
+    real (kind=real_kind)        , intent(inout) :: sendbuf_hst(nlyr,nbuf)
+    real (kind=real_kind)        , intent(inout) :: recvbuf_hst(nlyr,nbuf)
+    integer                      , intent(in   ) :: nlyr
+    type (Schedule_t),pointer     :: pSchedule
+    type (Cycle_t),pointer        :: pCycle
+    integer                       :: dest,length,tag
+    integer                       :: icycle,ierr
+    integer                       :: iptr,source
+    integer                       :: nSendCycles,nRecvCycles
+    integer                       :: errorcode,errorlen
+    character*(80) :: errorstring
+    integer        :: i
+    if(hybrid%ithr == 0) then 
+#ifdef _MPI
+      ! Setup the pointer to proper Schedule
+#ifdef _PREDICT
+      pSchedule => Schedule(iam)
+#else
+      pSchedule => Schedule(1)
+#endif
+      nSendCycles = pSchedule%nSendCycles
+      nRecvCycles = pSchedule%nRecvCycles
+
+      !==================================================
+      !  Post the Receives 
+      !==================================================
+      do icycle=1,nRecvCycles
+        pCycle      => pSchedule%RecvCycle(icycle)
+        source      =  pCycle%source - 1
+        length      =  nlyr * pCycle%lengthP
+        tag         =  pCycle%tag
+        iptr        =  pCycle%ptrP
+        call MPI_Irecv(recvbuf_hst(1,iptr),length,MPIreal_t, source,tag,hybrid%par%comm,Rrequest(icycle),ierr)
+        if(ierr .ne. MPI_SUCCESS) then
+          errorcode=ierr
+          call MPI_Error_String(errorcode,errorstring,errorlen,ierr)
+          print *,'bndry_exchangeV: Error after call to MPI_Irecv: ',errorstring
+        endif
+      enddo    ! icycle
+
+      !==================================================
+      !  Fire off the sends
+      !==================================================
+      do icycle=1,nSendCycles
+        pCycle      => pSchedule%SendCycle(icycle)
+        dest        =  pCycle%dest - 1
+        length      =  nlyr * pCycle%lengthP
+        tag         =  pCycle%tag
+        iptr        =  pCycle%ptrP
+        if (pCycle%lengthP > 0) ierr = cudaMemCpy(sendbuf_hst(1,iptr),sendbuf_dev(1,iptr),size(sendbuf_hst(1:nlyr,iptr:iptr+pCycle%lengthP-1)),cudaMemcpyDeviceToHost)
+        call MPI_Isend(sendbuf_hst(1,iptr),length,MPIreal_t,dest,tag,hybrid%par%comm,Srequest(icycle),ierr)
+        if(ierr .ne. MPI_SUCCESS) then
+          errorcode=ierr
+          call MPI_Error_String(errorcode,errorstring,errorlen,ierr)
+          print *,'bndry_exchangeV: Error after call to MPI_Isend: ',errorstring
+        endif
+      enddo    ! icycle
+
+      !==================================================
+      !  Wait for all the receives to complete
+      !==================================================
+      call MPI_Waitall(nSendCycles,Srequest,status,ierr)
+      call MPI_Waitall(nRecvCycles,Rrequest,status,ierr)
+
+      do icycle=1,nRecvCycles
+        pCycle         => pSchedule%RecvCycle(icycle)
+        length         =  pCycle%lengthP
+        iptr           =  pCycle%ptrP
+        if (length > 0) ierr = cudaMemCpy(sendbuf_dev(1,iptr),recvbuf_hst(1,iptr),size(recvbuf_hst(1:nlyr,iptr:iptr+length-1)),cudaMemcpyHostToDevice)
+      enddo   ! icycle
+#endif
+    endif  ! if (hybrid%ithr == 0)
+    !$OMP BARRIER
+  end subroutine bndry_exchangeV_loc
 
 
 
