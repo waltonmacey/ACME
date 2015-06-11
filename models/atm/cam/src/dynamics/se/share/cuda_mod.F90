@@ -138,6 +138,10 @@ module cuda_mod
   real (kind=real_kind),pinned,allocatable,dimension(:,:)         :: recvbuf_Q2_h
   real (kind=real_kind),pinned,allocatable,dimension(:,:)         :: recvbuf_Q3_h
 
+  !OpenACC data structures
+  real (kind=real_kind),allocatable,dimension(:,:)         :: deriv_dvv_acc
+  !$acc declare device_resident( deriv_dvv_acc )
+
   !Normal Host arrays
   integer,allocatable,dimension(:)   :: send_nelem
   integer,allocatable,dimension(:)   :: recv_nelem
@@ -310,6 +314,9 @@ contains
     allocate( recvbuf_Q2_h             (nlev*qsize_d*2,nbuf                 ) , stat = ierr ); _CHECK(__LINE__)
     allocate( recvbuf_Q3_h             (nlev*qsize_d*3,nbuf                 ) , stat = ierr ); _CHECK(__LINE__)
 
+    !OpenACC arrays
+    allocate( deriv_dvv_acc            (np,np                               ) , stat = ierr ); _CHECK(__LINE__)
+
     ! The PGI compiler with cuda enabled errors when allocating arrays of zero
     !   size - here when using only one MPI task
     if (nSendCycles > 0) then
@@ -336,9 +343,10 @@ contains
     allocate( elem_computed            (nelemd                                ) , stat = ierr ); _CHECK(__LINE__)
     write(*,*) "send data from host to device"
     !Copy over data to the device
-    ierr = cudaMemcpy( deriv_dvv_d , deriv%dvv    , size( deriv%dvv    ) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
-    ierr = cudaMemcpy( hyai_d      , hvcoord%hyai , size( hvcoord%hyai ) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
-    ierr = cudaMemcpy( hybi_d      , hvcoord%hybi , size( hvcoord%hybi ) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
+    ierr = cudaMemcpy( deriv_dvv_d   , deriv%dvv    , size( deriv%dvv    ) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
+    ierr = cudaMemcpy( deriv_dvv_acc , deriv%dvv    , size( deriv%dvv    ) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
+    ierr = cudaMemcpy( hyai_d        , hvcoord%hyai , size( hvcoord%hyai ) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
+    ierr = cudaMemcpy( hybi_d        , hvcoord%hybi , size( hvcoord%hybi ) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
     do ie = 1,nelemd
       dinv_t(:,:,1,1) = elem(ie)%dinv(1,1,:,:)
       dinv_t(:,:,1,2) = elem(ie)%dinv(1,2,:,:)
@@ -1757,14 +1765,14 @@ end function divergence_sphere_wk
     if(hypervis_scaling > 0)    var_coef1 = .false.
     !$OMP BARRIER
     if (hybrid%ithr == 0) then
-      !$acc parallel loop gang vector collapse(3) deviceptr(emin,emax,qtens,qmin_exch,qmax_exch,deriv_dvv_d) private(lap_p)
+      !$acc parallel loop gang vector collapse(3) deviceptr(emin,emax,qtens,qmin_exch,qmax_exch) private(lap_p)
       do ie=1,nelemd
         do q=1,qsize      
           do k=1,nlev    !  Potential loop inversion (AAM)
             qmin_exch(:,:,k,q,ie) = emin(k,q,ie)  ! need to set all values in element for
             qmax_exch(:,:,k,q,ie) = emax(k,q,ie)  ! edgeVpack routine below
             lap_p = qtens(:,:,k,q,ie)
-            call laplace_sphere_wk_loc(lap_p,deriv_dvv_d,elem(ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,var_coef1,lap_p)
+            call laplace_sphere_wk_loc(lap_p,deriv_dvv_acc,elem(ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,var_coef1,lap_p)
             qtens(:,:,k,q,ie) = lap_p
           enddo
         enddo
@@ -1788,7 +1796,7 @@ end function divergence_sphere_wk
         do q=1,qsize      
           do k=1,nlev
             lap_p(:,:)=elem(ie)%rspheremp(:,:)*qtens(:,:,k,q,ie)
-            call laplace_sphere_wk_loc(lap_p,deriv_dvv_d,elem(ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,.true.,lap_p)
+            call laplace_sphere_wk_loc(lap_p,deriv_dvv_acc,elem(ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,.true.,lap_p)
             qtens(:,:,k,q,ie) = lap_p
             emin(k,q,ie)=max(min(qmin_exch(1,1,k,q,ie),qmin_exch(1,np,k,q,ie),qmin_exch(np,1,k,q,ie),qmin_exch(np,np,k,q,ie)),0d0)
             emax(k,q,ie)=    max(qmax_exch(1,1,k,q,ie),qmax_exch(1,np,k,q,ie),qmax_exch(np,1,k,q,ie),qmax_exch(np,np,k,q,ie))
@@ -1950,14 +1958,14 @@ end function divergence_sphere_wk
     !$acc routine seq
 !   input:  s = scalar
 !   ouput:  -< grad(PHI), grad(s) >   = weak divergence of grad(s)
-!     note: for this form of the operator, grad(s) does not need to be made C0
-    real(kind=real_kind), intent(in)         :: s(np,np) 
-    real(kind=real_kind), intent(in)         :: hypervis_power,hypervis_scaling
-    real(kind=real_kind), intent(in)         :: variable_hyperviscosity(np,np)
-    logical             , intent(in)         :: var_coef
-    real(kind=real_kind), intent(in), device :: deriv_dvv(np,np)
-    type (element_t)    , intent(in)         :: elem
-    real(kind=real_kind), intent(out)        :: laplace(np,np)
+!     note: for this form of the operarad(s) does not need to be made C0
+    real(kind=real_kind), intent(in)   :: s(np,np) 
+    real(kind=real_kind), intent(in)   :: hypervis_power,hypervis_scaling
+    real(kind=real_kind), intent(in)   :: variable_hyperviscosity(np,np)
+    logical             , intent(in)   :: var_coef
+    real(kind=real_kind), intent(in)   :: deriv_dvv(np,np)
+    type (element_t)    , intent(in)   :: elem
+    real(kind=real_kind), intent(out)  :: laplace(np,np)
     real(kind=real_kind) :: laplace2(np,np)
     integer i,j
     real(kind=real_kind) :: grads(np,np,2), oldgrads(np,np,2)
@@ -2003,10 +2011,10 @@ end function divergence_sphere_wk
 !   (the integrated by parts version of < psi div(v) > )
 !   note: after DSS, divergence_sphere() and divergence_sphere_wk() 
 !   are identical to roundoff, as theory predicts.
-    real(kind=real_kind), intent(in   )         :: v(np,np,2)  ! in lat-lon coordinates
-    real(kind=real_kind), intent(in   ), device :: deriv_dvv(np,np)
-    type (element_t)                            :: elem
-    real(kind=real_kind), intent(  out)         :: div(np,np)
+    real(kind=real_kind), intent(in   ) :: v(np,np,2)  ! in lat-lon coordinates
+    real(kind=real_kind), intent(in   ) :: deriv_dvv(np,np)
+    type (element_t)                    :: elem
+    real(kind=real_kind), intent(  out) :: div(np,np)
     integer i,j,m,n
     real(kind=real_kind) :: vtemp(np,np,2)
     real(kind=real_kind) :: ggtemp(np,np,2)
@@ -2038,10 +2046,10 @@ end function divergence_sphere_wk
     !$acc routine seq
 !   input s:  scalar
 !   output  ds: spherical gradient of s, lat-lon coordinates
-    real(kind=real_kind), intent(in   ), device :: deriv_dvv(np,np)
-    real(kind=real_kind), intent(in   )         :: Dinv(2,2,np,np)
-    real(kind=real_kind), intent(in   )         :: s(np,np)
-    real(kind=real_kind), intent(  out)         :: ds(np,np,2)
+    real(kind=real_kind), intent(in   ) :: deriv_dvv(np,np)
+    real(kind=real_kind), intent(in   ) :: Dinv(2,2,np,np)
+    real(kind=real_kind), intent(in   ) :: s(np,np)
+    real(kind=real_kind), intent(  out) :: ds(np,np,2)
     integer :: i, j, l
     real(kind=real_kind) ::  dsdx00
     real(kind=real_kind) ::  dsdy00
