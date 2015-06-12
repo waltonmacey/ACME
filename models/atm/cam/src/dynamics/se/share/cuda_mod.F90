@@ -140,7 +140,8 @@ module cuda_mod
 
   !OpenACC data structures
   real (kind=real_kind),allocatable,dimension(:,:)         :: deriv_dvv_acc
-  !$acc declare device_resident( deriv_dvv_acc )
+  real (kind=real_kind),allocatable,dimension(:,:,:,:,:)   :: dinv_acc
+  real (kind=real_kind),allocatable,dimension(:,:,:,:,:)   :: tensorvisc_acc
 
   !Normal Host arrays
   integer,allocatable,dimension(:)   :: send_nelem
@@ -316,6 +317,8 @@ contains
 
     !OpenACC arrays
     allocate( deriv_dvv_acc            (np,np                               ) , stat = ierr ); _CHECK(__LINE__)
+    allocate( dinv_acc                 (np,np,2,2                    ,nelemd) , stat = ierr ); _CHECK(__LINE__)
+    allocate( tensorvisc_acc           (2,2,np,np                    ,nelemd) , stat = ierr ); _CHECK(__LINE__)
 
     ! The PGI compiler with cuda enabled errors when allocating arrays of zero
     !   size - here when using only one MPI task
@@ -344,7 +347,7 @@ contains
     write(*,*) "send data from host to device"
     !Copy over data to the device
     ierr = cudaMemcpy( deriv_dvv_d   , deriv%dvv    , size( deriv%dvv    ) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
-    ierr = cudaMemcpy( deriv_dvv_acc , deriv%dvv    , size( deriv%dvv    ) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
+    deriv_dvv_acc = deriv%dvv
     ierr = cudaMemcpy( hyai_d        , hvcoord%hyai , size( hvcoord%hyai ) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
     ierr = cudaMemcpy( hybi_d        , hvcoord%hybi , size( hvcoord%hybi ) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
     do ie = 1,nelemd
@@ -352,6 +355,7 @@ contains
       dinv_t(:,:,1,2) = elem(ie)%dinv(1,2,:,:)
       dinv_t(:,:,2,1) = elem(ie)%dinv(2,1,:,:)
       dinv_t(:,:,2,2) = elem(ie)%dinv(2,2,:,:)
+      tensorvisc_acc(:,:,:,:,ie) = elem(ie)%tensorvisc
       ierr = cudaMemcpy( qdp_d                    (1,1,1,1,1,ie) , elem(ie)%state%Qdp               , size(elem(ie)%state%Qdp              ) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
       ierr = cudaMemcpy( spheremp_d               (1,1      ,ie) , elem(ie)%spheremp                , size(elem(ie)%spheremp               ) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
       ierr = cudaMemcpy( rspheremp_d              (1,1      ,ie) , elem(ie)%rspheremp               , size(elem(ie)%rspheremp              ) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
@@ -374,6 +378,7 @@ contains
     ierr = cudaMemcpy( getmapP_h , getmapP_d , size(getmapP_h) , cudaMemcpyDeviceToHost ); _CHECK(__LINE__)
     ierr = cudaMemcpy( variable_hyperviscosity_h , variable_hyperviscosity_d , size(variable_hyperviscosity_h) , cudaMemcpyDeviceToHost ); _CHECK(__LINE__)
     ierr = cudaMemcpy( spheremp_h , spheremp_d , size(spheremp_h) , cudaMemcpyDeviceToHost ); _CHECK(__LINE__)
+    ierr = cudaMemcpy( dinv_acc , dinv_d , size(dinv_d) , cudaMemcpyDeviceToHost ); _CHECK(__LINE__)
 
     write(*,*) "edgebuffers"
     !These have to be in a threaded region or they complain and die
@@ -453,6 +458,8 @@ contains
     ierr = cudaMemcpy(recv_external_indices_d,recv_external_indices,size(recv_external_indices),cudaMemcpyHostToDevice); _CHECK(__LINE__)
 
     write(*,*)"done cuda_mod_init"
+    !$acc enter data pcreate(deriv_dvv_acc,variable_hyperviscosity_h,dinv_acc,spheremp_h,tensorvisc_acc)
+    !$acc update device(deriv_dvv_acc,variable_hyperviscosity_h,dinv_acc,spheremp_h,tensorvisc_acc)
 !$OMP END MASTER
 !$OMP BARRIER
   end subroutine cuda_mod_init
@@ -1762,17 +1769,19 @@ end function divergence_sphere_wk
     !if tensor hyperviscosity with tensor V is used, then biharmonic operator is (\grad\cdot V\grad) (\grad \cdot \grad) 
     !so tensor is only used on second call to laplace_sphere_wk
     var_coef1 = .true.
-    if(hypervis_scaling > 0)    var_coef1 = .false.
+    if(hypervis_scaling > 0) var_coef1 = .false.
     !$OMP BARRIER
     if (hybrid%ithr == 0) then
-      !$acc parallel loop gang vector collapse(3) deviceptr(emin,emax,qtens,qmin_exch,qmax_exch) private(lap_p)
+      !$acc enter data pcopyin(hypervis_power,hypervis_scaling,var_coef1)
+      !$acc  parallel loop gang vector collapse(3) deviceptr(emin,emax,qtens,qmin_exch,qmax_exch) private(lap_p) &
+      !$acc& present(deriv_dvv_acc,variable_hyperviscosity_h,dinv_acc,tensorvisc_acc,spheremp_h,hypervis_power,hypervis_scaling,var_coef1)
       do ie=1,nelemd
         do q=1,qsize      
           do k=1,nlev    !  Potential loop inversion (AAM)
             qmin_exch(:,:,k,q,ie) = emin(k,q,ie)  ! need to set all values in element for
             qmax_exch(:,:,k,q,ie) = emax(k,q,ie)  ! edgeVpack routine below
             lap_p = qtens(:,:,k,q,ie)
-            call laplace_sphere_wk_loc(lap_p,deriv_dvv_acc,elem(ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,var_coef1,lap_p)
+            call laplace_sphere_wk_loc(lap_p,deriv_dvv_acc,dinv_acc(:,:,:,:,ie),spheremp_h(:,:,ie),tensorvisc_acc(:,:,:,:,ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,var_coef1,lap_p)
             qtens(:,:,k,q,ie) = lap_p
           enddo
         enddo
@@ -1790,13 +1799,14 @@ end function divergence_sphere_wk
       call edgeVunpack_gpu   (edgebuf_Q3_d,    qtens,nlev*qsize*3,qsize*nlev,           0,getmapP_d)
       call edgeVunpackMin_gpu(edgebuf_Q3_d,qmin_exch,nlev*qsize*3,qsize*nlev,  qsize*nlev,getmapP_d)
       call edgeVunpackMax_gpu(edgebuf_Q3_d,qmax_exch,nlev*qsize*3,qsize*nlev,2*qsize*nlev,getmapP_d)
-      !$acc parallel loop gang vector collapse(3) deviceptr(emin,emax,qtens,qmin_exch,qmax_exch) private(lap_p)
+      !$acc  parallel loop gang vector collapse(3) deviceptr(emin,emax,qtens,qmin_exch,qmax_exch,rspheremp_d) private(lap_p) &
+      !$acc& present(deriv_dvv_acc,variable_hyperviscosity_h,dinv_acc,tensorvisc_acc,spheremp_h,hypervis_power,hypervis_scaling,var_coef1)
       do ie=1,nelemd
         ! apply inverse mass matrix, then apply laplace again
         do q=1,qsize      
           do k=1,nlev
-            lap_p(:,:)=elem(ie)%rspheremp(:,:)*qtens(:,:,k,q,ie)
-            call laplace_sphere_wk_loc(lap_p,deriv_dvv_acc,elem(ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,.true.,lap_p)
+            lap_p(:,:)=rspheremp_d(:,:,ie)*qtens(:,:,k,q,ie)
+            call laplace_sphere_wk_loc(lap_p,deriv_dvv_acc,dinv_acc(:,:,:,:,ie),spheremp_h(:,:,ie),tensorvisc_acc(:,:,:,:,ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,.true.,lap_p)
             qtens(:,:,k,q,ie) = lap_p
             emin(k,q,ie)=max(min(qmin_exch(1,1,k,q,ie),qmin_exch(1,np,k,q,ie),qmin_exch(np,1,k,q,ie),qmin_exch(np,np,k,q,ie)),0d0)
             emax(k,q,ie)=    max(qmax_exch(1,1,k,q,ie),qmax_exch(1,np,k,q,ie),qmax_exch(np,1,k,q,ie),qmax_exch(np,np,k,q,ie))
@@ -1952,26 +1962,29 @@ end function divergence_sphere_wk
 
 
 
-  subroutine laplace_sphere_wk_loc(s,deriv_dvv,elem,hypervis_power,hypervis_scaling,variable_hyperviscosity,var_coef,laplace)
+  subroutine laplace_sphere_wk_loc(s,deriv_dvv,dinv,spheremp,tensorvisc,hypervis_power,hypervis_scaling,variable_hyperviscosity,var_coef,laplace)
     use element_mod, only: element_t
+    use derivative_mod, only: derivative_t
     implicit none
     !$acc routine seq
 !   input:  s = scalar
 !   ouput:  -< grad(PHI), grad(s) >   = weak divergence of grad(s)
 !     note: for this form of the operarad(s) does not need to be made C0
     real(kind=real_kind), intent(in)   :: s(np,np) 
+    real(kind=real_kind), intent(in)   :: dinv(np,np,2,2)
+    real(kind=real_kind), intent(in)   :: tensorvisc(2,2,np,np)
+    real(kind=real_kind), intent(in)   :: spheremp(np,np)
     real(kind=real_kind), intent(in)   :: hypervis_power,hypervis_scaling
     real(kind=real_kind), intent(in)   :: variable_hyperviscosity(np,np)
     logical             , intent(in)   :: var_coef
     real(kind=real_kind), intent(in)   :: deriv_dvv(np,np)
-    type (element_t)    , intent(in)   :: elem
     real(kind=real_kind), intent(out)  :: laplace(np,np)
     real(kind=real_kind) :: laplace2(np,np)
     integer i,j
     real(kind=real_kind) :: grads(np,np,2), oldgrads(np,np,2)
     !$acc routine(gradient_sphere_loc) seq
     !$acc routine(divergence_sphere_wk_loc) seq
-    call gradient_sphere_loc(s,deriv_dvv,elem%Dinv,grads)
+    call gradient_sphere_loc(s,deriv_dvv,dinv,grads)
     if (var_coef) then
        if (hypervis_power/=0 ) then
           ! scalar viscosity with variable coefficient
@@ -1985,8 +1998,8 @@ end function divergence_sphere_wk
           ! tensor hv, (3)
           do j=1,np
              do i=1,np
-                grads(i,j,1) = sum(grads(i,j,:)*elem%tensorVisc(1,:,i,j))
-                grads(i,j,2) = sum(grads(i,j,:)*elem%tensorVisc(2,:,i,j))
+                grads(i,j,1) = sum(grads(i,j,:)*tensorVisc(1,:,i,j))
+                grads(i,j,2) = sum(grads(i,j,:)*tensorVisc(2,:,i,j))
              end do
           end do
        else
@@ -1995,14 +2008,15 @@ end function divergence_sphere_wk
     endif
     ! note: divergnece_sphere and divergence_sphere_wk are identical *after* bndry_exchange
     ! if input is C_0.  Here input is not C_0, so we should use divergence_sphere_wk().  
-    call divergence_sphere_wk_loc(grads,deriv_dvv,elem,laplace)
+    call divergence_sphere_wk_loc(grads,deriv_dvv,dinv,spheremp,laplace)
   end subroutine laplace_sphere_wk_loc
 
 
 
-  subroutine divergence_sphere_wk_loc(v,deriv_dvv,elem,div)
+  subroutine divergence_sphere_wk_loc(v,deriv_dvv,dinv,spheremp,div)
     use physical_constants, only: rrearth
     use element_mod, only: element_t
+    use derivative_mod, only: derivative_t
     implicit none
     !$acc routine seq
 !   input:  v = velocity in lat-lon coordinates
@@ -2013,7 +2027,8 @@ end function divergence_sphere_wk
 !   are identical to roundoff, as theory predicts.
     real(kind=real_kind), intent(in   ) :: v(np,np,2)  ! in lat-lon coordinates
     real(kind=real_kind), intent(in   ) :: deriv_dvv(np,np)
-    type (element_t)                    :: elem
+    real(kind=real_kind), intent(in   ) :: Dinv(np,np,2,2)
+    real(kind=real_kind), intent(in   ) :: spheremp(np,np)
     real(kind=real_kind), intent(  out) :: div(np,np)
     integer i,j,m,n
     real(kind=real_kind) :: vtemp(np,np,2)
@@ -2023,16 +2038,16 @@ end function divergence_sphere_wk
     real(kind=real_kind) :: xtmp
     do j=1,np
        do i=1,np
-          vtemp(i,j,1)=(elem%Dinv(1,1,i,j)*v(i,j,1) + elem%Dinv(1,2,i,j)*v(i,j,2))
-          vtemp(i,j,2)=(elem%Dinv(2,1,i,j)*v(i,j,1) + elem%Dinv(2,2,i,j)*v(i,j,2))
+          vtemp(i,j,1)=(Dinv(i,j,1,1)*v(i,j,1) + Dinv(i,j,1,2)*v(i,j,2))
+          vtemp(i,j,2)=(Dinv(i,j,2,1)*v(i,j,1) + Dinv(i,j,2,2)*v(i,j,2))
        enddo
     enddo
     do n=1,np
        do m=1,np
           div(m,n)=0
           do j=1,np
-             div(m,n)=div(m,n)-(  elem%spheremp(j,n)*vtemp(j,n,1)*deriv_dvv(m,j) &
-                                + elem%spheremp(m,j)*vtemp(m,j,2)*deriv_dvv(n,j) ) * rrearth
+             div(m,n)=div(m,n)-(  spheremp(j,n)*vtemp(j,n,1)*deriv_dvv(m,j) &
+                                + spheremp(m,j)*vtemp(m,j,2)*deriv_dvv(n,j) ) * rrearth
           enddo
        end do
     end do
@@ -2040,14 +2055,15 @@ end function divergence_sphere_wk
 
 
 
-  subroutine gradient_sphere_loc(s,deriv_dvv,Dinv,ds)
+  subroutine gradient_sphere_loc(s,deriv_dvv,dinv,ds)
     use physical_constants, only: rrearth
+    use derivative_mod, only: derivative_t
     implicit none
     !$acc routine seq
 !   input s:  scalar
 !   output  ds: spherical gradient of s, lat-lon coordinates
     real(kind=real_kind), intent(in   ) :: deriv_dvv(np,np)
-    real(kind=real_kind), intent(in   ) :: Dinv(2,2,np,np)
+    real(kind=real_kind), intent(in   ) :: Dinv(np,np,2,2)
     real(kind=real_kind), intent(in   ) :: s(np,np)
     real(kind=real_kind), intent(  out) :: ds(np,np,2)
     integer :: i, j, l
@@ -2069,8 +2085,8 @@ end function divergence_sphere_wk
     ! convert covarient to latlon
     do j=1,np
        do i=1,np
-          ds(i,j,1)=Dinv(1,1,i,j)*v1(i,j) + Dinv(2,1,i,j)*v2(i,j)
-          ds(i,j,2)=Dinv(1,2,i,j)*v1(i,j) + Dinv(2,2,i,j)*v2(i,j)
+          ds(i,j,1)=Dinv(i,j,1,1)*v1(i,j) + Dinv(i,j,2,1)*v2(i,j)
+          ds(i,j,2)=Dinv(i,j,1,2)*v1(i,j) + Dinv(i,j,2,2)*v2(i,j)
        enddo
     enddo
   end subroutine gradient_sphere_loc
