@@ -654,6 +654,8 @@ contains
     vstar_h(:,:,:,1,ie) = elem(ie)%derived%vn0(:,:,1,:) / dp_h(:,:,:,ie)
     vstar_h(:,:,:,2,ie) = elem(ie)%derived%vn0(:,:,2,:) / dp_h(:,:,:,ie)
   enddo
+  !$OMP BARRIER
+  if (hybrid%ithr == 0) ierr = cudaMemcpy( dp_d , dp_h , size( dp_h ) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   compute Q min/max values for lim8
@@ -690,7 +692,6 @@ contains
     ! initialize dp, and compute Q from Qdp (and store Q in Qtens_biharmonic)
     !$OMP BARRIER
     if (hybrid%ithr == 0) then
-      ierr = cudaMemcpy( dp_d , dp_h , size( dp_h ) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
       !$acc parallel loop gang vector collapse(3) deviceptr(qdp_d,dp0_d,dpdiss_ave_d,qmin_d,qmax_d,dp_d)
       do ie = 1 , nelemd
         do q = 1 , qsize
@@ -743,7 +744,6 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   2D Advection step
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  call copy_qdp_h2d(elem,n0_qdp)
   !$OMP BARRIER
   !$OMP MASTER
   ierr = cudaMemcpyAsync( vstar_d , vstar_h , size( vstar_h ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
@@ -787,7 +787,6 @@ contains
   call euler_hypervis_kernel_last<<<griddim,blockdim,0,streams(1)>>>( qdp_d , rspheremp_d , 1 , nelemd , np1_qdp ); _CHECK(__LINE__)
   !$OMP END MASTER
   !$OMP BARRIER
-  call copy_qdp_d2h(elem,np1_qdp)
 
   call t_stopf('euler_step_cuda')
   !call t_stopf('euler_step')
@@ -805,16 +804,25 @@ subroutine qdp_time_avg_cuda( elem , rkstage , n0_qdp , np1_qdp , limiter_option
   type(dim3) :: griddim , blockdim
   integer :: ierr
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  call copy_qdp_h2d(elem,np1_qdp)
-  call copy_qdp_h2d(elem,n0_qdp)
 !$OMP BARRIER
 !$OMP MASTER
   blockdim = dim3( np      , np     , nlev )
   griddim  = dim3( qsize_d , nelemd , 1    )
   call qdp_time_avg_kernel<<<griddim,blockdim,0,streams(1)>>>( qdp_d , rkstage , n0_qdp , np1_qdp , 1 , nelemd ); _CHECK(__LINE__)
+  if (limiter_option == 8) then
+    blockdim = dim3( np , np , nlev )
+    griddim  = dim3( nelemd , 1 , 1 )
+    call pack_qdp1<<<griddim,blockdim,0,streams(1)>>>( qdp1_d , qdp_d , np1_qdp , 1 , nelemd ); _CHECK(__LINE__)
+    ierr = cudaMemcpyAsync( qdp1_h , qdp1_d , size( qdp1_h ) , cudaMemcpyDeviceToHost , streams(1) ); _CHECK(__LINE__)
+    ierr = cudaStreamSynchronize(streams(1))
+  endif
 !$OMP END MASTER
 !$OMP BARRIER
-  call copy_qdp_d2h(elem,np1_qdp)
+  if (limiter_option == 8) then
+    do ie = nets , nete
+      elem(ie)%state%Qdp(:,:,:,1,np1_qdp) = qdp1_h(:,:,:,ie)
+    enddo
+  endif
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 end subroutine qdp_time_avg_cuda
 
