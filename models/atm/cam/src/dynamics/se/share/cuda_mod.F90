@@ -632,7 +632,7 @@ contains
   integer              , intent(in   )         :: DSSopt
   integer              , intent(in   )         :: rhs_multiplier
   ! local
-  real(kind=real_kind) :: dp0,tmp
+  real(kind=real_kind) :: dp0,tmp,tmp_min,tmp_max,qtens_tmp(np,np)
   real(kind=real_kind) :: large,small
   integer :: ie,q,i,j,k
   integer :: rhs_viss = 0
@@ -655,7 +655,10 @@ contains
     vstar_h(:,:,:,2,ie) = elem(ie)%derived%vn0(:,:,2,:) / dp_h(:,:,:,ie)
   enddo
   !$OMP BARRIER
-  if (hybrid%ithr == 0) ierr = cudaMemcpy( dp_d , dp_h , size( dp_h ) , cudaMemcpyHostToDevice ); _CHECK(__LINE__)
+  if (hybrid%ithr == 0) then
+    ierr = cudaMemcpyAsync( dp_d , dp_h , size( dp_h ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
+    ierr = cudaStreamSynchronize(streams(1))
+  endif
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   compute Q min/max values for lim8
@@ -692,39 +695,42 @@ contains
     ! initialize dp, and compute Q from Qdp (and store Q in Qtens_biharmonic)
     !$OMP BARRIER
     if (hybrid%ithr == 0) then
-      !$acc parallel loop gang vector collapse(3) deviceptr(qdp_d,dp0_d,dpdiss_ave_d,qmin_d,qmax_d,dp_d)
+      !$acc parallel loop gang vector collapse(3) deviceptr(qdp_d,dp0_d,dpdiss_ave_d,qmin_d,qmax_d,dp_d) private(tmp_min,tmp_max,qtens_tmp) vector_length(512) async(1)
       do ie = 1 , nelemd
         do q = 1 , qsize
           do k = 1 , nlev    
-            qtens_biharmonic_d(:,:,k,q,ie) = qdp_d(:,:,k,q,n0_qdp,ie) / dp_d(:,:,k,ie)
+            !$acc cache(qtens_tmp)
+            qtens_tmp(:,:) = qdp_d(:,:,k,q,n0_qdp,ie) / dp_d(:,:,k,ie)
+            tmp_min = qmin_d(k,q,ie)
+            tmp_max = qmax_d(k,q,ie)
             if ( rhs_multiplier == 0 .or. rhs_multiplier == 2 ) then  !reset qmin,qmax before computing
-              qmin_d(k,q,ie) = large
-              qmax_d(k,q,ie) = small
+              tmp_min = large
+              tmp_max = small
             endif
             do j = 1 , np
               do i = 1 , np
-                qmin_d(k,q,ie) = max(min(qmin_d(k,q,ie),qtens_biharmonic_d(i,j,k,q,ie)),0d0)
-                qmax_d(k,q,ie) =     max(qmax_d(k,q,ie),qtens_biharmonic_d(i,j,k,q,ie))
+                tmp_min = max(min(tmp_min,qtens_tmp(i,j)),0d0)
+                tmp_max =     max(tmp_max,qtens_tmp(i,j))
               enddo
             enddo
+            qmin_d(k,q,ie) = tmp_min
+            qmax_d(k,q,ie) = tmp_max
             ! two scalings depending on nu_p:
             ! nu_p=0:    qtens_biharmonic *= dp0                   (apply viscsoity only to q)
             ! nu_p>0):   qtens_biharmonic *= elem()%psdiss_ave      (for consistency, if nu_p=nu_q)
             ! NOTE: divide by dp0 since we multiply by dp0 below
-            if ( nu_p > 0 .and. rhs_multiplier == 2 ) qtens_biharmonic_d(:,:,k,q,ie) = qtens_biharmonic_d(:,:,k,q,ie)*dpdiss_ave_d(:,:,k,ie)/dp0_d(k)
+            if ( nu_p > 0 .and. rhs_multiplier == 2 ) qtens_biharmonic_d(:,:,k,q,ie) = qtens_tmp(:,:)*dpdiss_ave_d(:,:,k,ie)/dp0_d(k)
           enddo
         enddo
       enddo
     endif
-    !$OMP BARRIER
     if ( rhs_multiplier == 0 ) call neighbor_minmax_loc(elem,hybrid,nets,nete,qmin_d,qmax_d)   ! update qmin/qmax based on neighbor data for lim8
     if ( rhs_multiplier == 2 ) call biharmonic_wk_scalar_minmax_loc( elem , qtens_biharmonic_d , deriv , hybrid , nets , nete , qmin_d , qmax_d )
-    !$OMP BARRIER
     if (hybrid%ithr == 0) then
       if ( rhs_multiplier == 2 ) then
         !compute biharmonic mixing term
         rhs_viss = 3
-        !$acc parallel loop gang vector collapse(5) deviceptr(spheremp_d,dp0_d)
+        !$acc parallel loop gang vector collapse(5) deviceptr(spheremp_d,dp0_d) async(1)
         do ie = 1 , nelemd
           do q = 1 , qsize
             do k = 1 , nlev
@@ -737,6 +743,7 @@ contains
           enddo
         enddo
       endif
+      !$acc wait(1)
     endif
     !$OMP BARRIER
   endif  ! compute biharmonic mixing term and qmin/qmax
@@ -754,7 +761,7 @@ contains
 
   ierr = cudathreadsynchronize()
   if ( limiter_option == 8 ) then
-    !$acc parallel loop gang vector collapse(5) deviceptr(qtens_d,dp_star_d,dp_d,divdp_d,spheremp_d,qtens_biharmonic_d) private(tmp)
+    !$acc parallel loop gang vector collapse(5) deviceptr(qtens_d,dp_star_d,dp_d,divdp_d,spheremp_d,qtens_biharmonic_d) private(tmp) async(1)
     do ie = 1 , nelemd
       do q = 1 , qsize
         do k = 1 , nlev
@@ -770,6 +777,7 @@ contains
       enddo
     enddo
     call limiter_optim_iter_full_loc( Qtens_d , spheremp_d , qmin_d , qmax_d , dp_star_d )  ! apply limiter to Q = Qtens / dp_star 
+    !$acc wait(1)
   endif
   blockdim = dim3( np*np*numk_eul , 1 , 1 )
   griddim  = dim3( int(ceiling(dble(nlev)/numk_eul))*qsize_d*nelemd , 1 , 1 )
@@ -1537,7 +1545,7 @@ end function divergence_sphere_wk
     ! OpenACC kernel gives wrong answers unless you make them reals
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     real (kind=real_kind) :: neg_counter, pos_counter
-    real (kind=real_kind) :: addmass, weightssum, mass,sumc,tmp
+    real (kind=real_kind) :: addmass, weightssum, mass,sumc,tmp,min_tmp,max_tmp
     real (kind=real_kind) :: x(np*np),c(np*np)
     real (kind=real_kind) :: al_neg(np*np), al_pos(np*np), howmuch
     real (kind=real_kind) :: tol_limiter = 1e-15
@@ -1546,10 +1554,13 @@ end function divergence_sphere_wk
     !$acc  parallel loop gang vector collapse(3) &
     !$acc&   private(k1,i,j,k,iter,i1,i2,q,ie,whois_neg,whois_pos,neg_counter, &
     !$acc&           pos_counter,addmass,weightssum,mass,x,c,al_neg,al_pos,howmuch,sumc,tmp) &
-    !$acc&   deviceptr(ptens,sphweights,minp,maxp,dpmass)
+    !$acc&   deviceptr(ptens,sphweights,minp,maxp,dpmass) vector_length(512) async(1)
     do ie = 1 , nelemd
       do q = 1 , qsize
         do k = 1 , nlev
+          !$acc cache(c,x,al_neg,al_pos,whois_neg,whois_pos)
+          min_tmp = minp(k,q,ie)
+          max_tmp = maxp(k,q,ie)
           c = sphweights(:,ie) * dpmass(:,k,ie)
           x = ptens(:,k,q,ie) / dpmass(:,k,ie)
 
@@ -1564,11 +1575,11 @@ end function divergence_sphere_wk
           ! relax constraints to ensure limiter has a solution:
           ! This is only needed if runnign with the SSP CFL>1 or 
           ! due to roundoff errors
-          if( (mass / sumc) < minp(k,q,ie) ) then
-            minp(k,q,ie) = mass / sumc
+          if( (mass / sumc) < min_tmp ) then
+            min_tmp = mass / sumc
           endif
-          if( (mass / sumc) > maxp(k,q,ie) ) then
-            maxp(k,q,ie) = mass / sumc
+          if( (mass / sumc) > max_tmp ) then
+            max_tmp = mass / sumc
           endif
 
           addmass = 0.0d0
@@ -1578,17 +1589,17 @@ end function divergence_sphere_wk
           ! apply constraints, compute change in mass caused by constraints 
           !$acc loop seq
           do k1 = 1 , np*np
-            if ( ( x(k1) >= maxp(k,q,ie) ) ) then
-              addmass = addmass + ( x(k1) - maxp(k,q,ie) ) * c(k1)
-              x(k1) = maxp(k,q,ie)
+            if ( ( x(k1) >= max_tmp ) ) then
+              addmass = addmass + ( x(k1) - max_tmp ) * c(k1)
+              x(k1) = max_tmp
               whois_pos(k1) = -1
             else
               pos_counter = pos_counter+1
               whois_pos(pos_counter) = k1
             endif
-            if ( ( x(k1) <= minp(k,q,ie) ) ) then
-              addmass = addmass - ( minp(k,q,ie) - x(k1) ) * c(k1)
-              x(k1) = minp(k,q,ie)
+            if ( ( x(k1) <= min_tmp ) ) then
+              addmass = addmass - ( min_tmp - x(k1) ) * c(k1)
+              x(k1) = min_tmp
               whois_neg(k1) = -1
             else
               neg_counter = neg_counter+1
@@ -1606,7 +1617,7 @@ end function divergence_sphere_wk
               do k1 = 1 , pos_counter
                 i1 = whois_pos(k1)
                 weightssum = weightssum + c(i1)
-                al_pos(i1) = maxp(k,q,ie) - x(i1)
+                al_pos(i1) = max_tmp - x(i1)
               enddo
               
               if( ( pos_counter > 0 ) .and. ( addmass > tol_limiter * abs(mass) ) ) then
@@ -1648,7 +1659,7 @@ end function divergence_sphere_wk
               do k1 = 1 , neg_counter
                 i1 = whois_neg(k1)
                 weightssum = weightssum + c(i1)
-                al_neg(i1) = x(i1) - minp(k,q,ie)
+                al_neg(i1) = x(i1) - min_tmp
               enddo
               
               if ( ( neg_counter > 0 ) .and. ( (-addmass) > tol_limiter * abs(mass) ) ) then
@@ -1685,6 +1696,8 @@ end function divergence_sphere_wk
           endif
           
           ptens(:,k,q,ie) = x * dpmass(:,k,ie)
+          minp(k,q,ie) = min_tmp
+          maxp(k,q,ie) = max_tmp
         enddo
       enddo
     enddo
@@ -1707,9 +1720,8 @@ end function divergence_sphere_wk
     real (kind=real_kind), device, intent(inout) :: max_neigh(nlev,qsize,nelemd)
     ! local
     integer :: ie,k,q
-    !$OMP BARRIER
     if (hybrid%ithr == 0) then
-      !$acc parallel loop gang vector collapse(3) deviceptr(min_neigh,max_neigh,qmin_exch,qmax_exch)
+      !$acc parallel loop gang vector collapse(3) deviceptr(min_neigh,max_neigh,qmin_exch,qmax_exch) async(1)
       do ie=1,nelemd
         do q=1,qsize
           do k=1,nlev
@@ -1720,18 +1732,17 @@ end function divergence_sphere_wk
       enddo
       call edgeVpack_gpu(edgebuf_Q2_d,qmin_exch,nlev*qsize*2,nlev*qsize,0         ,putmapP_d,reverse_d)
       call edgeVpack_gpu(edgebuf_Q2_d,qmax_exch,nlev*qsize*2,nlev*qsize,nlev*qsize,putmapP_d,reverse_d)
+      !$acc wait(1)
     endif
-    !$OMP BARRIER
   
     call t_startf('nmm_bexchV')
     call bndry_exchangeV_loc(hybrid,edgebuf_Q2_d,recvbuf_Q2_d,edgebuf_Q2_h,recvbuf_Q2_h,nlev*qsize*2)
     call t_stopf('nmm_bexchV')
        
-    !$OMP BARRIER
     if (hybrid%ithr == 0) then
       call edgeVunpackMin_gpu(edgebuf_Q2_d,qmin_exch,nlev*qsize*2,nlev*qsize,0         ,getmapP_d)
       call edgeVunpackMax_gpu(edgebuf_Q2_d,qmax_exch,nlev*qsize*2,nlev*qsize,nlev*qsize,getmapP_d)
-      !$acc parallel loop gang vector collapse(3) deviceptr(min_neigh,max_neigh,qmin_exch,qmax_exch)
+      !$acc parallel loop gang vector collapse(3) deviceptr(min_neigh,max_neigh,qmin_exch,qmax_exch) async(1)
       do ie=1,nelemd
         do q=1,qsize
           do k=1,nlev
@@ -1742,7 +1753,6 @@ end function divergence_sphere_wk
         enddo
       enddo
     endif
-    !$OMP BARRIER
   end subroutine neighbor_minmax_loc
 
 
@@ -1778,11 +1788,10 @@ end function divergence_sphere_wk
     !so tensor is only used on second call to laplace_sphere_wk
     var_coef1 = .true.
     if(hypervis_scaling > 0) var_coef1 = .false.
-    !$OMP BARRIER
     if (hybrid%ithr == 0) then
       !$acc enter data pcopyin(hypervis_power,hypervis_scaling,var_coef1)
       !$acc  parallel loop gang vector collapse(3) deviceptr(emin,emax,qtens,qmin_exch,qmax_exch) private(lap_p) &
-      !$acc& present(deriv_dvv_acc,variable_hyperviscosity_h,dinv_acc,tensorvisc_acc,spheremp_h,hypervis_power,hypervis_scaling,var_coef1)
+      !$acc& present(deriv_dvv_acc,variable_hyperviscosity_h,dinv_acc,tensorvisc_acc,spheremp_h,hypervis_power,hypervis_scaling,var_coef1) async(1)
       do ie=1,nelemd
         do q=1,qsize      
           do k=1,nlev    !  Potential loop inversion (AAM)
@@ -1797,20 +1806,20 @@ end function divergence_sphere_wk
       call edgeVpack_gpu(edgebuf_Q3_d,    qtens,nlev*qsize*3,nlev*qsize,           0,putmapP_d,reverse_d)
       call edgeVpack_gpu(edgebuf_Q3_d,qmin_exch,nlev*qsize*3,nlev*qsize,  nlev*qsize,putmapP_d,reverse_d)
       call edgeVpack_gpu(edgebuf_Q3_d,qmax_exch,nlev*qsize*3,nlev*qsize,2*nlev*qsize,putmapP_d,reverse_d)
+      !$acc wait(1)
     endif
-    !$OMP BARRIER
+
     call t_startf('biwkscmm_bexchV')
     call bndry_exchangeV_loc(hybrid,edgebuf_Q3_d,recvbuf_Q3_d,edgebuf_Q3_h,recvbuf_Q3_h,nlev*qsize*3)
     call t_stopf('biwkscmm_bexchV')
-    !$OMP BARRIER
+
     if (hybrid%ithr == 0) then
       call edgeVunpack_gpu   (edgebuf_Q3_d,    qtens,nlev*qsize*3,qsize*nlev,           0,getmapP_d)
       call edgeVunpackMin_gpu(edgebuf_Q3_d,qmin_exch,nlev*qsize*3,qsize*nlev,  qsize*nlev,getmapP_d)
       call edgeVunpackMax_gpu(edgebuf_Q3_d,qmax_exch,nlev*qsize*3,qsize*nlev,2*qsize*nlev,getmapP_d)
       !$acc  parallel loop gang vector collapse(3) deviceptr(emin,emax,qtens,qmin_exch,qmax_exch,rspheremp_d) private(lap_p) &
-      !$acc& present(deriv_dvv_acc,variable_hyperviscosity_h,dinv_acc,tensorvisc_acc,spheremp_h,hypervis_power,hypervis_scaling,var_coef1)
+      !$acc& present(deriv_dvv_acc,variable_hyperviscosity_h,dinv_acc,tensorvisc_acc,spheremp_h,hypervis_power,hypervis_scaling,var_coef1) async(1)
       do ie=1,nelemd
-        ! apply inverse mass matrix, then apply laplace again
         do q=1,qsize      
           do k=1,nlev
             lap_p(:,:)=rspheremp_d(:,:,ie)*qtens(:,:,k,q,ie)
@@ -1822,7 +1831,6 @@ end function divergence_sphere_wk
         enddo
       enddo
     endif
-    !$OMP BARRIER
   end subroutine biharmonic_wk_scalar_minmax_loc
 
 
@@ -1842,7 +1850,7 @@ end function divergence_sphere_wk
     logical              , device , intent(in   ) :: reverse(max_neigh_edges,nelemd)
     integer :: i,k,ir,ll,ie
     call t_startf('edge_pack')
-    !$acc parallel loop gang vector collapse(2) deviceptr(putmapP,reverse,v,edge_buf) private(i,ll,ir)
+    !$acc parallel loop gang vector collapse(2) deviceptr(putmapP,reverse,v,edge_buf) private(i,ll,ir) async(1)
     do ie=1,nelemd
       do k=1,vlyr
         !$acc loop seq
@@ -1886,7 +1894,7 @@ end function divergence_sphere_wk
     integer              , device , intent(in   ) :: getmapP(max_neigh_edges,nelemd)
     integer :: i,k,ll,ie
     call t_startf('edge_unpack')
-    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP,v,edge_buf) private(ll,i)
+    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP,v,edge_buf) private(ll,i) async(1)
     do ie = 1 , nelemd
       do k = 1 , vlyr
         do i = 1 , np
@@ -1918,7 +1926,7 @@ end function divergence_sphere_wk
     integer                       , intent(in   ) :: kptr
     integer              , device , intent(in   ) :: getmapP(max_neigh_edges,nelemd)
     integer :: i,k,ll,ie
-    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP,v,edge_buf) private(ll,i)
+    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP,v,edge_buf) private(ll,i) async(1)
     do ie = 1 , nelemd
       do k = 1 , vlyr
         do i = 1 , np
@@ -1949,7 +1957,7 @@ end function divergence_sphere_wk
     integer                       , intent(in   ) :: kptr
     integer              , device , intent(in   ) :: getmapP(max_neigh_edges,nelemd)
     integer :: i,k,ll,ie
-    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP,v,edge_buf) private(ll,i)
+    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP,v,edge_buf) private(ll,i) async(1)
     do ie = 1 , nelemd
       do k = 1 , vlyr
         do i = 1 , np
@@ -2161,11 +2169,16 @@ end function divergence_sphere_wk
       !==================================================
       do icycle=1,nSendCycles
         pCycle      => pSchedule%SendCycle(icycle)
+        iptr        =  pCycle%ptrP
+        if (pCycle%lengthP > 0) ierr = cudaMemCpyAsync(sendbuf_hst(1,iptr),sendbuf_dev(1,iptr),size(sendbuf_hst(1:nlyr,iptr:iptr+pCycle%lengthP-1)),cudaMemcpyDeviceToHost,streams(1))
+      enddo
+      ierr = cudaStreamSynchronize(streams(1))
+      do icycle=1,nSendCycles
+        pCycle      => pSchedule%SendCycle(icycle)
         dest        =  pCycle%dest - 1
         length      =  nlyr * pCycle%lengthP
         tag         =  pCycle%tag
         iptr        =  pCycle%ptrP
-        if (pCycle%lengthP > 0) ierr = cudaMemCpy(sendbuf_hst(1,iptr),sendbuf_dev(1,iptr),size(sendbuf_hst(1:nlyr,iptr:iptr+pCycle%lengthP-1)),cudaMemcpyDeviceToHost)
         call MPI_Isend(sendbuf_hst(1,iptr),length,MPIreal_t,dest,tag,hybrid%par%comm,Srequest(icycle),ierr)
         if(ierr .ne. MPI_SUCCESS) then
           errorcode=ierr
@@ -2184,8 +2197,9 @@ end function divergence_sphere_wk
         pCycle         => pSchedule%RecvCycle(icycle)
         length         =  pCycle%lengthP
         iptr           =  pCycle%ptrP
-        if (length > 0) ierr = cudaMemCpy(sendbuf_dev(1,iptr),recvbuf_hst(1,iptr),size(recvbuf_hst(1:nlyr,iptr:iptr+length-1)),cudaMemcpyHostToDevice)
+        if (length > 0) ierr = cudaMemCpyAsync(sendbuf_dev(1,iptr),recvbuf_hst(1,iptr),size(recvbuf_hst(1:nlyr,iptr:iptr+length-1)),cudaMemcpyHostToDevice,streams(1))
       enddo   ! icycle
+      ierr = cudaStreamSynchronize(streams(1))
 #endif
     endif  ! if (hybrid%ithr == 0)
     !$OMP BARRIER
