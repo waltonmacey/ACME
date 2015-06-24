@@ -695,34 +695,58 @@ contains
     ! initialize dp, and compute Q from Qdp (and store Q in Qtens_biharmonic)
     !$OMP BARRIER
     if (hybrid%ithr == 0) then
-      !$acc parallel loop gang vector collapse(3) deviceptr(qdp_d,dp0_d,dpdiss_ave_d,qmin_d,qmax_d,dp_d) private(tmp_min,tmp_max,qtens_tmp) vector_length(512) async(1)
+      !$acc parallel loop gang vector collapse(5) deviceptr(qdp_d,dp_d,qtens_biharmonic_d) async(1)
       do ie = 1 , nelemd
         do q = 1 , qsize
           do k = 1 , nlev    
-            !$acc cache(qtens_tmp)
-            qtens_tmp(:,:) = qdp_d(:,:,k,q,n0_qdp,ie) / dp_d(:,:,k,ie)
-            tmp_min = qmin_d(k,q,ie)
-            tmp_max = qmax_d(k,q,ie)
-            if ( rhs_multiplier == 0 .or. rhs_multiplier == 2 ) then  !reset qmin,qmax before computing
-              tmp_min = large
-              tmp_max = small
-            endif
             do j = 1 , np
               do i = 1 , np
-                tmp_min = max(min(tmp_min,qtens_tmp(i,j)),0d0)
-                tmp_max =     max(tmp_max,qtens_tmp(i,j))
+                qtens_biharmonic_d(i,j,k,q,ie) = qdp_d(i,j,k,q,n0_qdp,ie) / dp_d(i,j,k,ie)
               enddo
             enddo
-            qmin_d(k,q,ie) = tmp_min
-            qmax_d(k,q,ie) = tmp_max
-            ! two scalings depending on nu_p:
-            ! nu_p=0:    qtens_biharmonic *= dp0                   (apply viscsoity only to q)
-            ! nu_p>0):   qtens_biharmonic *= elem()%psdiss_ave      (for consistency, if nu_p=nu_q)
-            ! NOTE: divide by dp0 since we multiply by dp0 below
-            if ( nu_p > 0 .and. rhs_multiplier == 2 ) qtens_biharmonic_d(:,:,k,q,ie) = qtens_tmp(:,:)*dpdiss_ave_d(:,:,k,ie)/dp0_d(k)
           enddo
         enddo
       enddo
+      !$acc parallel loop gang vector collapse(3) deviceptr(qmin_d,qmax_d,qtens_biharmonic_d) private(tmp_min,tmp_max) async(1)
+      do ie = 1 , nelemd
+        do q = 1 , qsize
+          do k = 1 , nlev    
+            if ( rhs_multiplier == 0 .or. rhs_multiplier == 2 ) then
+              tmp_min = large
+              tmp_max = small
+            else
+              tmp_min = qmin_d(k,q,ie)
+              tmp_max = qmax_d(k,q,ie)
+            endif
+            do j = 1 , np
+              do i = 1 , np
+                tmp_min = min(tmp_min,qtens_biharmonic_d(i,j,k,q,ie))
+                tmp_max = max(tmp_max,qtens_biharmonic_d(i,j,k,q,ie))
+              enddo
+            enddo
+            qmin_d(k,q,ie) = max(tmp_min,0d0)
+            qmax_d(k,q,ie) = tmp_max
+          enddo
+        enddo
+      enddo
+      if ( nu_p > 0 .and. rhs_multiplier == 2 ) then
+        !$acc parallel loop gang vector collapse(5) deviceptr(qtens_biharmonic_d,dpdiss_ave_d,dp0_d) private(tmp_min,tmp_max) async(1)
+        do ie = 1 , nelemd
+          do q = 1 , qsize
+            do k = 1 , nlev
+              do j = 1 , np
+                do i = 1 , np
+                  ! two scalings depending on nu_p:
+                  ! nu_p=0:    qtens_biharmonic *= dp0                   (apply viscsoity only to q)
+                  ! nu_p>0):   qtens_biharmonic *= elem()%psdiss_ave      (for consistency, if nu_p=nu_q)
+                  ! NOTE: divide by dp0 since we multiply by dp0 below
+                  qtens_biharmonic_d(i,j,k,q,ie) = qtens_biharmonic_d(i,j,k,q,ie)*dpdiss_ave_d(i,j,k,ie)/dp0_d(k)
+                enddo
+              enddo
+            enddo
+          enddo
+        enddo
+      endif
     endif
     if ( rhs_multiplier == 0 ) call neighbor_minmax_loc(elem,hybrid,nets,nete,qmin_d,qmax_d)   ! update qmin/qmax based on neighbor data for lim8
     if ( rhs_multiplier == 2 ) call biharmonic_wk_scalar_minmax_loc( elem , qtens_biharmonic_d , deriv , hybrid , nets , nete , qmin_d , qmax_d )
@@ -1719,14 +1743,35 @@ end function divergence_sphere_wk
     real (kind=real_kind), device, intent(inout) :: min_neigh(nlev,qsize,nelemd)
     real (kind=real_kind), device, intent(inout) :: max_neigh(nlev,qsize,nelemd)
     ! local
-    integer :: ie,k,q
+    integer :: ie,kk,q,ks,i,j,k
+    integer, parameter :: kchunk = 8
+    real (kind=real_kind) :: min_tmp(kchunk), max_tmp(kchunk)
     if (hybrid%ithr == 0) then
-      !$acc parallel loop gang vector collapse(3) deviceptr(min_neigh,max_neigh,qmin_exch,qmax_exch) async(1)
+      !$acc parallel loop gang collapse(3) deviceptr(min_neigh,max_neigh,qmin_exch,qmax_exch) private(min_tmp,max_tmp) async(1) vector_length(np*np*kchunk)
       do ie=1,nelemd
         do q=1,qsize
-          do k=1,nlev
-            qmin_exch(:,:,k,q,ie) = min_neigh(k,q,ie)
-            qmax_exch(:,:,k,q,ie) = max_neigh(k,q,ie)
+          do ks=1,nlev/kchunk+1
+            !$acc cache(min_tmp,max_tmp)
+            !$acc loop vector
+            do kk=1,kchunk
+              k = (ks-1)*kchunk+kk
+              if (k <= nlev) then
+                min_tmp(kk) = min_neigh(k,q,ie)
+                max_tmp(kk) = max_neigh(k,q,ie)
+              endif
+            enddo
+            !$acc loop collapse(3) vector
+            do kk=1,kchunk
+              do j=1,np
+                do i=1,np
+                  k = (ks-1)*kchunk+kk
+                  if (k <= nlev) then
+                    qmin_exch(i,j,k,q,ie) = min_tmp(kk)
+                    qmax_exch(i,j,k,q,ie) = max_tmp(kk)
+                  endif
+                enddo
+              enddo
+            enddo
           enddo
         enddo
       enddo
@@ -1780,9 +1825,11 @@ end function divergence_sphere_wk
     integer                      , intent(in   )         :: nets,nete
     real (kind=real_kind), device, intent(  out)         :: emin(nlev,qsize,nelemd)
     real (kind=real_kind), device, intent(  out)         :: emax(nlev,qsize,nelemd)
-    integer :: k,kptr,i,j,ie,ic,q
+    integer :: k,kptr,i,j,ie,ic,q,ks,kk
     real (kind=real_kind) :: lap_p(np,np)
     logical :: var_coef1
+    integer, parameter :: kchunk = 8
+    real (kind=real_kind) :: min_tmp(kchunk), max_tmp(kchunk)
     !$acc routine(laplace_sphere_wk_loc) seq
     !if tensor hyperviscosity with tensor V is used, then biharmonic operator is (\grad\cdot V\grad) (\grad \cdot \grad) 
     !so tensor is only used on second call to laplace_sphere_wk
@@ -1790,13 +1837,39 @@ end function divergence_sphere_wk
     if(hypervis_scaling > 0) var_coef1 = .false.
     if (hybrid%ithr == 0) then
       !$acc enter data pcopyin(hypervis_power,hypervis_scaling,var_coef1)
+      !$acc parallel loop gang collapse(3) deviceptr(emin,emax,qmin_exch,qmax_exch) private(min_tmp,max_tmp) async(1) vector_length(np*np*kchunk)
+      do ie=1,nelemd
+        do q=1,qsize
+          do ks=1,nlev/kchunk+1
+            !$acc cache(min_tmp,max_tmp)
+            !$acc loop vector
+            do kk=1,kchunk
+              k = (ks-1)*kchunk+kk
+              if (k <= nlev) then
+                min_tmp(kk) = emin(k,q,ie)
+                max_tmp(kk) = emax(k,q,ie)
+              endif
+            enddo
+            !$acc loop collapse(3) vector
+            do kk=1,kchunk
+              do j=1,np
+                do i=1,np
+                  k = (ks-1)*kchunk+kk
+                  if (k <= nlev) then
+                    qmin_exch(i,j,k,q,ie) = min_tmp(kk)
+                    qmax_exch(i,j,k,q,ie) = max_tmp(kk)
+                  endif
+                enddo
+              enddo
+            enddo
+          enddo
+        enddo
+      enddo
       !$acc  parallel loop gang vector collapse(3) deviceptr(emin,emax,qtens,qmin_exch,qmax_exch) private(lap_p) &
       !$acc& present(deriv_dvv_acc,variable_hyperviscosity_h,dinv_acc,tensorvisc_acc,spheremp_h,hypervis_power,hypervis_scaling,var_coef1) async(1)
       do ie=1,nelemd
         do q=1,qsize      
           do k=1,nlev    !  Potential loop inversion (AAM)
-            qmin_exch(:,:,k,q,ie) = emin(k,q,ie)  ! need to set all values in element for
-            qmax_exch(:,:,k,q,ie) = emax(k,q,ie)  ! edgeVpack routine below
             lap_p = qtens(:,:,k,q,ie)
             call laplace_sphere_wk_loc(lap_p,deriv_dvv_acc,dinv_acc(:,:,:,:,ie),spheremp_h(:,:,ie),tensorvisc_acc(:,:,:,:,ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,var_coef1,lap_p)
             qtens(:,:,k,q,ie) = lap_p
@@ -1853,14 +1926,12 @@ end function divergence_sphere_wk
     !$acc parallel loop gang vector collapse(2) deviceptr(putmapP,reverse,v,edge_buf) private(i,ll,ir) async(1)
     do ie=1,nelemd
       do k=1,vlyr
-        !$acc loop seq
         do i=1,np
           edge_buf(kptr+k,putmapP(south,ie)+i) = v(i ,1 ,k,ie)
           edge_buf(kptr+k,putmapP(east ,ie)+i) = v(np,i ,k,ie)
           edge_buf(kptr+k,putmapP(north,ie)+i) = v(i ,np,k,ie)
           edge_buf(kptr+k,putmapP(west ,ie)+i) = v(1 ,i ,k,ie)
         enddo
-        !$acc loop seq
         do i=1,np
           ir = np-i+1
           if(reverse(south,ie)) edge_buf(kptr+k,putmapP(south,ie)+ir) = v(i ,1 ,k,ie)
@@ -1868,7 +1939,6 @@ end function divergence_sphere_wk
           if(reverse(north,ie)) edge_buf(kptr+k,putmapP(north,ie)+ir) = v(i ,np,k,ie)
           if(reverse(west ,ie)) edge_buf(kptr+k,putmapP(west ,ie)+ir) = v(1 ,i ,k,ie)
         enddo
-        !$acc loop seq
         do i = 0 , max_corner_elem-1
           ll = swest+0*max_corner_elem+i ; if (putmapP(ll,ie) /= -1) edge_buf(kptr+k,putmapP(ll,ie)+1) = v(1  ,1 ,k,ie)
           ll = swest+1*max_corner_elem+i ; if (putmapP(ll,ie) /= -1) edge_buf(kptr+k,putmapP(ll,ie)+1) = v(np ,1 ,k,ie)
@@ -1892,22 +1962,55 @@ end function divergence_sphere_wk
     integer                       , intent(in   ) :: vlyr
     integer                       , intent(in   ) :: kptr
     integer              , device , intent(in   ) :: getmapP(max_neigh_edges,nelemd)
-    integer :: i,k,ll,ie
+    integer :: i,k,ll,ie,kc,kk,j,loc_ind,glob_k,ij
+    integer, parameter :: kchunk = 64
+    real(kind=real_kind) :: vtmp(np*np+1,kchunk)
     call t_startf('edge_unpack')
-    !$acc parallel loop gang vector collapse(2) deviceptr(getmapP,v,edge_buf) private(ll,i) async(1)
+    !$acc parallel loop gang collapse(2) deviceptr(getmapP,v,edge_buf) private(ll,i,vtmp) async(1) vector_length(kchunk)
     do ie = 1 , nelemd
-      do k = 1 , vlyr
-        do i = 1 , np
-          v(i ,1 ,k,ie) = v(i ,1 ,k,ie) + edge_buf(kptr+k,getmapP(south,ie)+i)
-          v(np,i ,k,ie) = v(np,i ,k,ie) + edge_buf(kptr+k,getmapP(east ,ie)+i)
-          v(i ,np,k,ie) = v(i ,np,k,ie) + edge_buf(kptr+k,getmapP(north,ie)+i)
-          v(1 ,i ,k,ie) = v(1 ,i ,k,ie) + edge_buf(kptr+k,getmapP(west ,ie)+i)
+      do kc = 1 , vlyr/kchunk+1
+        !$acc cache(vtmp)
+        !$acc loop vector
+        do kk = 1 , kchunk
+          do ll = 1 , np*np
+            loc_ind = (ll-1)*kchunk+kk-1
+            i = modulo(loc_ind,np)+1
+            j = modulo(loc_ind/np,np)+1
+            ij = (j-1)*np+i
+            k = loc_ind/np/np+1
+            glob_k = (kc-1)*kchunk+k
+            if (glob_k <= vlyr) vtmp(ij,k) = v(i,j,glob_k,ie)
+          enddo
         enddo
-        do i = 0 , max_corner_elem-1
-          ll = swest+0*max_corner_elem+i; if(getmapP(ll,ie) /= -1) v(1 ,1 ,k,ie) = v(1 ,1 ,k,ie) + edge_buf(kptr+k,getmapP(ll,ie)+1)
-          ll = swest+1*max_corner_elem+i; if(getmapP(ll,ie) /= -1) v(np,1 ,k,ie) = v(np,1 ,k,ie) + edge_buf(kptr+k,getmapP(ll,ie)+1)
-          ll = swest+2*max_corner_elem+i; if(getmapP(ll,ie) /= -1) v(1 ,np,k,ie) = v(1 ,np,k,ie) + edge_buf(kptr+k,getmapP(ll,ie)+1)
-          ll = swest+3*max_corner_elem+i; if(getmapP(ll,ie) /= -1) v(np,np,k,ie) = v(np,np,k,ie) + edge_buf(kptr+k,getmapP(ll,ie)+1)
+        !$acc loop vector
+        do kk = 1 , kchunk
+          k = (kc-1)*kchunk+kk
+          if (k <= vlyr) then
+            do i = 1 , np
+              vtmp(i +(1 -1)*np,kk) = vtmp(i +(1 -1)*np,kk) + edge_buf(kptr+k,getmapP(south,ie)+i)
+              vtmp(np+(i -1)*np,kk) = vtmp(np+(i -1)*np,kk) + edge_buf(kptr+k,getmapP(east ,ie)+i)
+              vtmp(i +(np-1)*np,kk) = vtmp(i +(np-1)*np,kk) + edge_buf(kptr+k,getmapP(north,ie)+i)
+              vtmp(1 +(i -1)*np,kk) = vtmp(1 +(i -1)*np,kk) + edge_buf(kptr+k,getmapP(west ,ie)+i)
+            enddo
+            do i = 0 , max_corner_elem-1
+              ll = swest+0*max_corner_elem+i; if(getmapP(ll,ie) /= -1) vtmp(1 +(1 -1)*np,kk) = vtmp(1 +(1 -1)*np,kk) + edge_buf(kptr+k,getmapP(ll,ie)+1)
+              ll = swest+1*max_corner_elem+i; if(getmapP(ll,ie) /= -1) vtmp(np+(1 -1)*np,kk) = vtmp(np+(1 -1)*np,kk) + edge_buf(kptr+k,getmapP(ll,ie)+1)
+              ll = swest+2*max_corner_elem+i; if(getmapP(ll,ie) /= -1) vtmp(1 +(np-1)*np,kk) = vtmp(1 +(np-1)*np,kk) + edge_buf(kptr+k,getmapP(ll,ie)+1)
+              ll = swest+3*max_corner_elem+i; if(getmapP(ll,ie) /= -1) vtmp(np+(np-1)*np,kk) = vtmp(np+(np-1)*np,kk) + edge_buf(kptr+k,getmapP(ll,ie)+1)
+            enddo
+          endif
+        enddo
+        !$acc loop vector
+        do kk = 1 , kchunk
+          do ll = 1 , np*np
+            loc_ind = (ll-1)*kchunk+kk-1
+            i = modulo(loc_ind,np)+1
+            j = modulo(loc_ind/np,np)+1
+            ij = (j-1)*np+i
+            k = loc_ind/np/np+1
+            glob_k = (kc-1)*kchunk+k
+            if (glob_k <= vlyr) v(i,j,glob_k,ie) = vtmp(ij,k)
+          enddo
         enddo
       enddo
     enddo
