@@ -1826,11 +1826,9 @@ end function divergence_sphere_wk
     real (kind=real_kind), device, intent(  out)         :: emin(nlev,qsize,nelemd)
     real (kind=real_kind), device, intent(  out)         :: emax(nlev,qsize,nelemd)
     integer :: k,kptr,i,j,ie,ic,q,ks,kk
-    real (kind=real_kind) :: lap_p(np,np)
     logical :: var_coef1
     integer, parameter :: kchunk = 8
     real (kind=real_kind) :: min_tmp(kchunk), max_tmp(kchunk)
-    !$acc routine(laplace_sphere_wk_loc) seq
     !if tensor hyperviscosity with tensor V is used, then biharmonic operator is (\grad\cdot V\grad) (\grad \cdot \grad) 
     !so tensor is only used on second call to laplace_sphere_wk
     var_coef1 = .true.
@@ -1865,17 +1863,7 @@ end function divergence_sphere_wk
           enddo
         enddo
       enddo
-      !$acc  parallel loop gang vector collapse(3) deviceptr(emin,emax,qtens,qmin_exch,qmax_exch) private(lap_p) &
-      !$acc& present(deriv_dvv_acc,variable_hyperviscosity_h,dinv_acc,tensorvisc_acc,spheremp_h,hypervis_power,hypervis_scaling,var_coef1) async(1)
-      do ie=1,nelemd
-        do q=1,qsize      
-          do k=1,nlev    !  Potential loop inversion (AAM)
-            lap_p = qtens(:,:,k,q,ie)
-            call laplace_sphere_wk_loc(lap_p,deriv_dvv_acc,dinv_acc(:,:,:,:,ie),spheremp_h(:,:,ie),tensorvisc_acc(:,:,:,:,ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,var_coef1,lap_p)
-            qtens(:,:,k,q,ie) = lap_p
-          enddo
-        enddo
-      enddo
+      call laplace_sphere_wk_loc(qtens,deriv_dvv_acc,dinv_acc,spheremp_h,tensorvisc_acc,hypervis_power,hypervis_scaling,variable_hyperviscosity_h,var_coef1,qtens)
       call edgeVpack_gpu(edgebuf_Q3_d,    qtens,nlev*qsize*3,nlev*qsize,           0,putmapP_d,reverse_d)
       call edgeVpack_gpu(edgebuf_Q3_d,qmin_exch,nlev*qsize*3,nlev*qsize,  nlev*qsize,putmapP_d,reverse_d)
       call edgeVpack_gpu(edgebuf_Q3_d,qmax_exch,nlev*qsize*3,nlev*qsize,2*nlev*qsize,putmapP_d,reverse_d)
@@ -1890,14 +1878,23 @@ end function divergence_sphere_wk
       call edgeVunpack_gpu   (edgebuf_Q3_d,    qtens,nlev*qsize*3,qsize*nlev,           0,getmapP_d)
       call edgeVunpackMin_gpu(edgebuf_Q3_d,qmin_exch,nlev*qsize*3,qsize*nlev,  qsize*nlev,getmapP_d)
       call edgeVunpackMax_gpu(edgebuf_Q3_d,qmax_exch,nlev*qsize*3,qsize*nlev,2*qsize*nlev,getmapP_d)
-      !$acc  parallel loop gang vector collapse(3) deviceptr(emin,emax,qtens,qmin_exch,qmax_exch,rspheremp_d) private(lap_p) &
-      !$acc& present(deriv_dvv_acc,variable_hyperviscosity_h,dinv_acc,tensorvisc_acc,spheremp_h,hypervis_power,hypervis_scaling,var_coef1) async(1)
+      !$acc parallel loop gang vector collapse(5) deviceptr(qtens,rspheremp_d)
       do ie=1,nelemd
         do q=1,qsize      
           do k=1,nlev
-            lap_p(:,:)=rspheremp_d(:,:,ie)*qtens(:,:,k,q,ie)
-            call laplace_sphere_wk_loc(lap_p,deriv_dvv_acc,dinv_acc(:,:,:,:,ie),spheremp_h(:,:,ie),tensorvisc_acc(:,:,:,:,ie),hypervis_power,hypervis_scaling,variable_hyperviscosity_h,.true.,lap_p)
-            qtens(:,:,k,q,ie) = lap_p
+            do j=1,np
+              do i=1,np
+                qtens(i,j,k,q,ie)=rspheremp_d(i,j,ie)*qtens(i,j,k,q,ie)
+              enddo
+            enddo
+          enddo
+        enddo
+      enddo
+      call laplace_sphere_wk_loc(qtens,deriv_dvv_acc,dinv_acc,spheremp_h,tensorvisc_acc,hypervis_power,hypervis_scaling,variable_hyperviscosity_h,.true.,qtens)
+      !$acc parallel loop gang vector collapse(3) deviceptr(emin,emax,qmin_exch,qmax_exch)
+      do ie=1,nelemd
+        do q=1,qsize      
+          do k=1,nlev
             emin(k,q,ie)=max(min(qmin_exch(1,1,k,q,ie),qmin_exch(1,np,k,q,ie),qmin_exch(np,1,k,q,ie),qmin_exch(np,np,k,q,ie)),0d0)
             emax(k,q,ie)=    max(qmax_exch(1,1,k,q,ie),qmax_exch(1,np,k,q,ie),qmax_exch(np,1,k,q,ie),qmax_exch(np,np,k,q,ie))
           enddo
@@ -2084,131 +2081,111 @@ end function divergence_sphere_wk
   subroutine laplace_sphere_wk_loc(s,deriv_dvv,dinv,spheremp,tensorvisc,hypervis_power,hypervis_scaling,variable_hyperviscosity,var_coef,laplace)
     use element_mod, only: element_t
     use derivative_mod, only: derivative_t
+    use physical_constants, only: rrearth
     implicit none
-    !$acc routine seq
 !   input:  s = scalar
 !   ouput:  -< grad(PHI), grad(s) >   = weak divergence of grad(s)
 !     note: for this form of the operarad(s) does not need to be made C0
-    real(kind=real_kind), intent(in)   :: s(np,np) 
-    real(kind=real_kind), intent(in)   :: dinv(np,np,2,2)
-    real(kind=real_kind), intent(in)   :: tensorvisc(2,2,np,np)
-    real(kind=real_kind), intent(in)   :: spheremp(np,np)
+    real(kind=real_kind), intent(in), device   :: s(np,np,nlev,qsize,nelemd) 
+    real(kind=real_kind), intent(in)   :: dinv(np,np,2,2,nelemd)
+    real(kind=real_kind), intent(in)   :: tensorvisc(2,2,np,np,nelemd)
+    real(kind=real_kind), intent(in)   :: spheremp(np,np,nelemd)
     real(kind=real_kind), intent(in)   :: hypervis_power,hypervis_scaling
-    real(kind=real_kind), intent(in)   :: variable_hyperviscosity(np,np)
+    real(kind=real_kind), intent(in)   :: variable_hyperviscosity(np,np,nelemd)
     logical             , intent(in)   :: var_coef
     real(kind=real_kind), intent(in)   :: deriv_dvv(np,np)
-    real(kind=real_kind), intent(out)  :: laplace(np,np)
-    real(kind=real_kind) :: laplace2(np,np)
-    integer i,j
-    real(kind=real_kind) :: grads(np,np,2), oldgrads(np,np,2)
-    !$acc routine(gradient_sphere_loc) seq
-    !$acc routine(divergence_sphere_wk_loc) seq
-    call gradient_sphere_loc(s,deriv_dvv,dinv,grads)
-    if (var_coef) then
-       if (hypervis_power/=0 ) then
-          ! scalar viscosity with variable coefficient
-          do j = 1 , np
-            do i = 1 , np
-              grads(i,j,1) = grads(i,j,1)*variable_hyperviscosity(i,j)
-              grads(i,j,2) = grads(i,j,2)*variable_hyperviscosity(i,j)
+    real(kind=real_kind), intent(out), device  :: laplace(np,np,nlev,qsize,nelemd)
+    integer i,j,ie,q,ks,kk,k,l
+    real(kind=real_kind) :: dsdx00
+    real(kind=real_kind) :: dsdy00
+    integer, parameter :: kchunk = 8
+    real(kind=real_kind) :: grads(np,np,kchunk,2), lap_p(np,np,kchunk)
+    real(kind=real_kind) :: vtemp(np,np,kchunk,2)
+    !$acc parallel loop gang collapse(3) private(lap_p,grads) present(dinv,tensorvisc,spheremp,hypervis_power,hypervis_scaling,variable_hyperviscosity,deriv_dvv) deviceptr(s,laplace)
+    do ie = 1 , nelemd
+      do q = 1 , qsize
+        do ks = 1 , nlev/kchunk+1
+          !$acc cache(lap_p,grads,vtemp)
+          !$acc loop vector collapse(3)
+          do kk = 1 , kchunk
+            do j = 1 , np
+              do i = 1 , np
+                k = (ks-1)*kchunk+kk
+                if (k <= nlev) lap_p(i,j,kk) = s(i,j,k,q,ie)
+              enddo
             enddo
           enddo
-       else if (hypervis_scaling /=0 ) then
-          ! tensor hv, (3)
-          do j=1,np
-             do i=1,np
-                grads(i,j,1) = sum(grads(i,j,:)*tensorVisc(1,:,i,j))
-                grads(i,j,2) = sum(grads(i,j,:)*tensorVisc(2,:,i,j))
-             end do
-          end do
-       else
-          ! do nothing: constant coefficient viscsoity
-       endif
-    endif
-    ! note: divergnece_sphere and divergence_sphere_wk are identical *after* bndry_exchange
-    ! if input is C_0.  Here input is not C_0, so we should use divergence_sphere_wk().  
-    call divergence_sphere_wk_loc(grads,deriv_dvv,dinv,spheremp,laplace)
-  end subroutine laplace_sphere_wk_loc
-
-
-
-  subroutine divergence_sphere_wk_loc(v,deriv_dvv,dinv,spheremp,div)
-    use physical_constants, only: rrearth
-    use element_mod, only: element_t
-    use derivative_mod, only: derivative_t
-    implicit none
-    !$acc routine seq
-!   input:  v = velocity in lat-lon coordinates
-!   ouput:  div(v)  spherical divergence of v, integrated by parts
-!   Computes  -< grad(psi) dot v > 
-!   (the integrated by parts version of < psi div(v) > )
-!   note: after DSS, divergence_sphere() and divergence_sphere_wk() 
-!   are identical to roundoff, as theory predicts.
-    real(kind=real_kind), intent(in   ) :: v(np,np,2)  ! in lat-lon coordinates
-    real(kind=real_kind), intent(in   ) :: deriv_dvv(np,np)
-    real(kind=real_kind), intent(in   ) :: Dinv(np,np,2,2)
-    real(kind=real_kind), intent(in   ) :: spheremp(np,np)
-    real(kind=real_kind), intent(  out) :: div(np,np)
-    integer i,j,m,n
-    real(kind=real_kind) :: vtemp(np,np,2)
-    real(kind=real_kind) :: ggtemp(np,np,2)
-    real(kind=real_kind) :: gtemp(np,np,2)
-    real(kind=real_kind) :: psi(np,np)
-    real(kind=real_kind) :: xtmp
-    do j=1,np
-       do i=1,np
-          vtemp(i,j,1)=(Dinv(i,j,1,1)*v(i,j,1) + Dinv(i,j,1,2)*v(i,j,2))
-          vtemp(i,j,2)=(Dinv(i,j,2,1)*v(i,j,1) + Dinv(i,j,2,2)*v(i,j,2))
-       enddo
-    enddo
-    do n=1,np
-       do m=1,np
-          div(m,n)=0
-          do j=1,np
-             div(m,n)=div(m,n)-(  spheremp(j,n)*vtemp(j,n,1)*deriv_dvv(m,j) &
-                                + spheremp(m,j)*vtemp(m,j,2)*deriv_dvv(n,j) ) * rrearth
+          !$acc loop vector collapse(3)
+          do kk=1,kchunk
+            do j=1,np
+              do i=1,np
+                dsdx00 = 0.0d0
+                dsdy00 = 0.0d0
+                do l=1,np
+                  dsdx00 = dsdx00 + deriv_dvv(l,i)*lap_p(l,j,kk)
+                  dsdy00 = dsdy00 + deriv_dvv(l,j)*lap_p(i,l,kk)
+                enddo
+                dsdx00 = dsdx00*rrearth
+                dsdy00 = dsdy00*rrearth
+                grads(i,j,kk,1) = Dinv(i,j,1,1,ie)*dsdx00 + Dinv(i,j,2,1,ie)*dsdy00
+                grads(i,j,kk,2) = Dinv(i,j,1,2,ie)*dsdx00 + Dinv(i,j,2,2,ie)*dsdy00
+              enddo
+            enddo
           enddo
-       end do
-    end do
-  end subroutine divergence_sphere_wk_loc
-
-
-
-  subroutine gradient_sphere_loc(s,deriv_dvv,dinv,ds)
-    use physical_constants, only: rrearth
-    use derivative_mod, only: derivative_t
-    implicit none
-    !$acc routine seq
-!   input s:  scalar
-!   output  ds: spherical gradient of s, lat-lon coordinates
-    real(kind=real_kind), intent(in   ) :: deriv_dvv(np,np)
-    real(kind=real_kind), intent(in   ) :: Dinv(np,np,2,2)
-    real(kind=real_kind), intent(in   ) :: s(np,np)
-    real(kind=real_kind), intent(  out) :: ds(np,np,2)
-    integer :: i, j, l
-    real(kind=real_kind) ::  dsdx00
-    real(kind=real_kind) ::  dsdy00
-    real(kind=real_kind) ::  v1(np,np),v2(np,np)
-    do j=1,np
-       do l=1,np
-          dsdx00=0.0d0
-          dsdy00=0.0d0
-          do i=1,np
-             dsdx00 = dsdx00 + deriv_dvv(i,l)*s(i,j)
-             dsdy00 = dsdy00 + deriv_dvv(i,l)*s(j,i)
-          end do
-          v1(l,j) = dsdx00*rrearth
-          v2(j,l) = dsdy00*rrearth
-       end do
-    end do
-    ! convert covarient to latlon
-    do j=1,np
-       do i=1,np
-          ds(i,j,1)=Dinv(i,j,1,1)*v1(i,j) + Dinv(i,j,2,1)*v2(i,j)
-          ds(i,j,2)=Dinv(i,j,1,2)*v1(i,j) + Dinv(i,j,2,2)*v2(i,j)
-       enddo
+          !$acc loop vector collapse(3)
+          do kk = 1 , kchunk
+            do j = 1 , np
+              do i = 1 , np
+                if (var_coef) then
+                  if (hypervis_power /= 0 ) then
+                    ! scalar viscosity with variable coefficient
+                    grads(i,j,kk,1) = grads(i,j,kk,1)*variable_hyperviscosity(i,j,ie)
+                    grads(i,j,kk,2) = grads(i,j,kk,2)*variable_hyperviscosity(i,j,ie)
+                  else if (hypervis_scaling /=0 ) then
+                    ! tensor hv, (3)
+                    grads(i,j,kk,1) = sum(grads(i,j,kk,:)*tensorVisc(1,:,i,j,ie))
+                    grads(i,j,kk,2) = sum(grads(i,j,kk,:)*tensorVisc(2,:,i,j,ie))
+                  endif
+                endif
+              enddo
+            enddo
+          enddo
+          ! note: divergnece_sphere and divergence_sphere_wk are identical *after* bndry_exchange
+          ! if input is C_0.  Here input is not C_0, so we should use divergence_sphere_wk().  
+          !$acc loop vector collapse(3)
+          do kk=1,kchunk
+            do j=1,np
+              do i=1,np
+                vtemp(i,j,kk,1) = (Dinv(i,j,1,1,ie)*grads(i,j,kk,1) + Dinv(i,j,1,2,ie)*grads(i,j,kk,2))
+                vtemp(i,j,kk,2) = (Dinv(i,j,2,1,ie)*grads(i,j,kk,1) + Dinv(i,j,2,2,ie)*grads(i,j,kk,2))
+              enddo
+            enddo
+          enddo
+          !$acc loop vector collapse(3)
+          do kk=1,kchunk
+            do j=1,np
+              do i=1,np
+                lap_p(i,j,kk)=0
+                do l=1,np
+                  lap_p(i,j,kk)=lap_p(i,j,kk) - (  spheremp(l,j,ie)*vtemp(l,j,kk,1)*deriv_dvv(i,l) &
+                                                 + spheremp(i,l,ie)*vtemp(i,l,kk,2)*deriv_dvv(j,l) ) * rrearth
+                enddo
+              enddo
+            enddo
+          enddo
+          !$acc loop vector collapse(3)
+          do kk = 1 , kchunk
+            do j = 1 , np
+              do i = 1 , np
+                k = (ks-1)*kchunk+kk
+                if (k <= nlev) laplace(i,j,k,q,ie) = lap_p(i,j,kk)
+              enddo
+            enddo
+          enddo
+        enddo
+      enddo
     enddo
-  end subroutine gradient_sphere_loc
+  end subroutine laplace_sphere_wk_loc
 
 
 
