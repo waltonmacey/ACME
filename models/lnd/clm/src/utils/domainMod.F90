@@ -79,9 +79,9 @@ contains
        endif
     endif
 
-    if ( domain%set .eq. .true. ) then
-       call domain_clean(domain)
-    endif
+    !if ( domain%set ) then
+    !   call domain_clean(domain)
+    !endif
     allocate(domain%mask(nb:ne),domain%frac(nb:ne),domain%latc(nb:ne), &
              domain%pftm(nb:ne),domain%area(nb:ne),domain%lonc(nb:ne), &
              domain%topo(nb:ne),domain%glcmask(nb:ne),stat=ier)
@@ -130,7 +130,7 @@ contains
     ! !LOCAL VARIABLES:
     integer ier
     !------------------------------------------------------------------------------
-    if ( domain%set .eq. .true. ) then
+    if ( domain%set ) then
        if (masterproc) then
           write(iulog,*) 'domain_clean: cleaning ',domain%ni,domain%nj
        endif
