@@ -681,8 +681,8 @@ contains
 !       call endrun(msg=' ERROR: SOIL_ORDER NOT on surfdata file'//errMsg(__FILE__, __LINE__))
 !    end if
     do c = bounds%begc, bounds%endc
-       g = col%gridcell(c)
-!       isoilorder(c) = soilorder_rdin(g)
+!       g = col%gridcell(c)
+!       this%isoilorder(c) = soilorder_rdin(g)
        this%isoilorder(c) = 12
     end do
 !    deallocate(soilorder_rdin)
@@ -1066,6 +1066,11 @@ contains
          dim1name='column', &
          long_name='', units='', &
          interpinic_flag='interp', readvar=readvar, data=this%fpg_col) 
+
+    call restartvar(ncid=ncid, flag=flag, varname='fpg_p', xtype=ncd_double,  &
+         dim1name='column', &
+         long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%fpg_p_col) 
 
     call restartvar(ncid=ncid, flag=flag, varname='annsum_counter', xtype=ncd_double,  &
          dim1name='column', &

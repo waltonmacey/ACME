@@ -342,9 +342,7 @@ contains
     if (use_cn) then
        call t_startf('ndep_interp')
        ! PET: switching CN timestep
-#ifndef CPL_BYPASS
        call ndep_interp(bounds_proc, atm2lnd_vars)
-#endif
        call CNFireInterp(bounds_proc)
        call t_stopf('ndep_interp')
     end if
@@ -1375,9 +1373,7 @@ contains
     else
 
        if (masterproc) then
-#ifndef CPL_BYPASS
           write(iulog,*)'clm: completed timestep ',nstep
-#endif
           call shr_sys_flush(iulog)
        end if
 

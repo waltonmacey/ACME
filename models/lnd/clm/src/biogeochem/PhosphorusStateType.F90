@@ -1007,7 +1007,16 @@ contains
             interpinic_flag='interp' , readvar=readvar, data=ptr1d)
     end if
 
-
+    !!! Debug balance 
+    call restartvar(ncid=ncid, flag=flag, varname='totsomp', xtype=ncd_double,  &
+         dim1name='column', long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%totsomp_col) 
+    call restartvar(ncid=ncid, flag=flag, varname='cwdp', xtype=ncd_double,  &
+         dim1name='column', long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%cwdp_col) 
+    call restartvar(ncid=ncid, flag=flag, varname='totlitp', xtype=ncd_double,  &
+         dim1name='column', long_name='', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%totlitp_col) 
 
     call restartvar(ncid=ncid, flag=flag, varname='totcolp', xtype=ncd_double,  &
          dim1name='column', long_name='', units='', &
@@ -1591,7 +1600,8 @@ contains
            this%labilep_col(c) + &
            this%secondp_col(c) + &
            this%totprodp_col(c) + &
-           this%seedp_col(c) 
+           this%seedp_col(c)    + &
+           this%ptrunc_col(c)
    end do
 
  end subroutine Summary
