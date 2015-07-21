@@ -1591,27 +1591,25 @@ end function divergence_sphere_wk
     real (kind=real_kind), dimension(np*np,nlev      ,nelemd), intent(in   ) , device :: dpmass
  
     integer :: k1, i, j, k, iter, i1, i2, q, ie
-    integer :: whois_neg(np*np), whois_pos(np*np)
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!!!!!!!!!!!!!!!!!!!!!! OPENACC WORKAROUND !!!!!!!!!!!!!!!!!!!!!!!
     ! These should be integers, but for some strange reason, the
     ! OpenACC kernel gives wrong answers unless you make them reals
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    real (kind=real_kind) :: neg_counter, pos_counter
     real (kind=real_kind) :: addmass, weightssum, mass,sumc,tmp,min_tmp,max_tmp
     real (kind=real_kind) :: x(np*np),c(np*np)
     real (kind=real_kind) :: al_neg(np*np), al_pos(np*np), howmuch
     real (kind=real_kind) :: tol_limiter = 1e-15
-    integer :: maxiter = 5
+    integer :: maxiter = np*np-2
 
     !$acc  parallel loop gang vector collapse(3) &
-    !$acc&   private(k1,i,j,k,iter,i1,i2,q,ie,whois_neg,whois_pos,neg_counter, &
-    !$acc&           pos_counter,addmass,weightssum,mass,x,c,al_neg,al_pos,howmuch,sumc,tmp) &
+    !$acc&   private(k1,i,j,k,iter,i1,i2,q,ie, &
+    !$acc&   addmass,weightssum,mass,x,c,al_neg,al_pos,howmuch,sumc,tmp) &
     !$acc&   deviceptr(ptens,sphweights,minp,maxp,dpmass) vector_length(512) async(1)
     do ie = 1 , nelemd
       do q = 1 , qsize
         do k = 1 , nlev
-          !$acc cache(c,x,al_neg,al_pos,whois_neg,whois_pos)
+          !$acc cache(c,x,al_neg,al_pos)
           min_tmp = minp(k,q,ie)
           max_tmp = maxp(k,q,ie)
           c = sphweights(:,ie) * dpmass(:,k,ie)
@@ -1625,128 +1623,70 @@ end function divergence_sphere_wk
             sumc = sumc + c(i1)
           enddo
 
+          if (sumc <= 0 ) CYCLE   ! this should never happen, but if it does, dont limit
+
           ! relax constraints to ensure limiter has a solution:
           ! This is only needed if runnign with the SSP CFL>1 or 
           ! due to roundoff errors
-          if( (mass / sumc) < min_tmp ) then
+          if( mass  < min_tmp*sumc ) then
             min_tmp = mass / sumc
           endif
-          if( (mass / sumc) > max_tmp ) then
+          if( (mass ) > max_tmp*sumc ) then
             max_tmp = mass / sumc
           endif
 
-          addmass = 0.0d0
-          pos_counter = 0
-          neg_counter = 0
-          
-          ! apply constraints, compute change in mass caused by constraints 
           !$acc loop seq
-          do k1 = 1 , np*np
-            if ( ( x(k1) >= max_tmp ) ) then
-              addmass = addmass + ( x(k1) - max_tmp ) * c(k1)
-              x(k1) = max_tmp
-              whois_pos(k1) = -1
-            else
-              pos_counter = pos_counter+1
-              whois_pos(pos_counter) = k1
-            endif
-            if ( ( x(k1) <= min_tmp ) ) then
-              addmass = addmass - ( min_tmp - x(k1) ) * c(k1)
-              x(k1) = min_tmp
-              whois_neg(k1) = -1
-            else
-              neg_counter = neg_counter+1
-              whois_neg(neg_counter) = k1
-            endif
-          enddo
-          
-          ! iterate to find field that satifies constraints and is l2-norm closest to original 
-          weightssum = 0.0d0
-          if ( addmass > 0 ) then
+          do iter=1,maxiter
+          addmass = 0.0d0
+ 
+          ! apply constraints, compute change in mass caused by constraints 
+
             !$acc loop seq
-            do i2 = 1 , maxIter
-              weightssum = 0.0
-              !$acc loop seq
-              do k1 = 1 , pos_counter
-                i1 = whois_pos(k1)
-                weightssum = weightssum + c(i1)
-                al_pos(i1) = max_tmp - x(i1)
-              enddo
-              
-              if( ( pos_counter > 0 ) .and. ( addmass > tol_limiter * abs(mass) ) ) then
-                !$acc loop seq
-                do k1 = 1 , pos_counter
-                  i1 = whois_pos(k1)
-                  howmuch = addmass / weightssum
-                  if ( howmuch > al_pos(i1) ) then
-                    howmuch = al_pos(i1)
-                    whois_pos(k1) = -1
-                  endif
-                  tmp = addmass - howmuch * c(i1)
-                  addmass = tmp
-                  weightssum = weightssum - c(i1)
-                  x(i1) = x(i1) + howmuch
-                enddo
-                !now sort whois_pos and get a new number for pos_counter
-                !here neg_counter and whois_neg serve as temp vars
-                neg_counter = pos_counter
-                whois_neg = whois_pos
-                whois_pos = -1
-                pos_counter = 0
-                !$acc loop seq
-                do k1 = 1 , neg_counter
-                  if ( whois_neg(k1) .ne. -1 ) then
-                    pos_counter = pos_counter+1
-                    whois_pos(pos_counter) = whois_neg(k1)
-                  endif
-                enddo
-              else
-                exit
+            do k1 = 1 , np*np
+              if ( ( x(k1) >= max_tmp ) ) then
+                addmass = addmass + ( x(k1) - max_tmp ) * c(k1)
+                x(k1) = max_tmp
               endif
-            enddo
-          else
-            !$acc loop seq
-            do i2 = 1 , maxIter
-              weightssum = 0.0
-              !$acc loop seq
-              do k1 = 1 , neg_counter
-                i1 = whois_neg(k1)
-                weightssum = weightssum + c(i1)
-                al_neg(i1) = x(i1) - min_tmp
-              enddo
-              
-              if ( ( neg_counter > 0 ) .and. ( (-addmass) > tol_limiter * abs(mass) ) ) then
-                !$acc loop seq
-                do k1 = 1 , neg_counter
-                  i1 = whois_neg(k1)
-                  howmuch = -addmass / weightssum
-                  if ( howmuch > al_neg(i1) ) then
-                    howmuch = al_neg(i1)
-                    whois_neg(k1) = -1
-                  endif
-                  tmp = addmass + howmuch * c(i1)
-                  addmass = tmp
-                  weightssum = weightssum - c(i1)
-                  x(i1) = x(i1) - howmuch
-                enddo
-                !now sort whois_pos and get a new number for pos_counter
-                !here pos_counter and whois_pos serve as temp vars
-                pos_counter = neg_counter
-                whois_pos = whois_neg
-                whois_neg = -1
-                neg_counter = 0
-                !$acc loop seq
-                do k1 = 1 , pos_counter
-                  if ( whois_pos(k1) .ne. -1 ) then
-                    neg_counter = neg_counter+1
-                    whois_neg(neg_counter) = whois_pos(k1)
-                  endif
-                enddo
-              else
-                exit
+              if ( ( x(k1) <= min_tmp ) ) then
+                addmass = addmass - ( min_tmp - x(k1) ) * c(k1)
+                x(k1) = min_tmp
               endif
-            enddo
-          endif
+            enddo !k1
+
+            if(abs(addmass)<=tol_limiter*abs(mass)) exit
+
+            weightssum=0.0d0
+
+            if(addmass>0)then
+             !$acc loop seq
+             do k1=1,np*np
+               if(x(k1)<max_tmp)then
+                  weightssum=weightssum+c(k1)
+               endif
+             enddo !k1
+             !$acc loop seq
+             do k1=1,np*np
+               if(x(k1)<max_tmp)then
+                  x(k1)=x(k1)+addmass/weightssum
+               endif
+             enddo
+            else
+             !$acc loop seq
+             do k1=1,np*np
+               if(x(k1)>min_tmp)then
+                 weightssum=weightssum+c(k1)
+               endif
+             enddo
+             !$acc loop seq
+              do k1=1,np*np
+               if(x(k1)>min_tmp)then
+                 x(k1)=x(k1)+addmass/weightssum
+               endif
+              enddo
+             endif
+
+           enddo!end iteration    
+
           
           ptens(:,k,q,ie) = x * dpmass(:,k,ie)
           minp(k,q,ie) = min_tmp

@@ -1811,144 +1811,86 @@ contains
     real (kind=real_kind), dimension(      nlev), intent(inout)            :: maxp
     real (kind=real_kind), dimension(np*np,nlev), intent(in   ), optional  :: dpmass
  
-    real (kind=real_kind), dimension(np*np,nlev) :: weights
     integer  k1, k, i, j, iter, i1, i2
-    integer :: whois_neg(np*np), whois_pos(np*np), neg_counter, pos_counter
-    real (kind=real_kind) :: addmass, weightssum, mass
+    real (kind=real_kind) :: addmass, weightssum, mass, sumc
     real (kind=real_kind) :: x(np*np),c(np*np)
     real (kind=real_kind) :: al_neg(np*np), al_pos(np*np), howmuch
     real (kind=real_kind) :: tol_limiter = 1e-15
-    integer, parameter :: maxiter = 5
+    integer, parameter :: maxiter = np*np-2
 
     do k = 1 , nlev
-      weights(:,k) = sphweights(:) * dpmass(:,k)
-      ptens(:,k) = ptens(:,k) / dpmass(:,k)
-    enddo
-
-    do k = 1 , nlev
-      c = weights(:,k)
-      x = ptens(:,k)
+      c = sphweights(:) * dpmass(:,k)
+      x = ptens(:,k)/dpmass(:,k)
 
       mass = sum(c*x)
+      sumc= sum(c)
+      if (sumc <= 0 ) CYCLE   ! this should never happen, but if it does, dont limit
 
       ! relax constraints to ensure limiter has a solution:
       ! This is only needed if runnign with the SSP CFL>1 or 
       ! due to roundoff errors
-      if( (mass / sum(c)) < minp(k) ) then
-        minp(k) = mass / sum(c)
+      if( mass  < minp(k)*sumc ) then
+        minp(k) = mass / sumc
       endif
-      if( (mass / sum(c)) > maxp(k) ) then
-        maxp(k) = mass / sum(c)
+      if( mass > maxp(k)*sumc ) then
+        maxp(k) = mass / sumc
       endif
+  
+     do iter=1,maxiter
 
-      addmass = 0.0d0
-      pos_counter = 0;
-      neg_counter = 0;
-      
-      ! apply constraints, compute change in mass caused by constraints 
-      do k1 = 1 , np*np
-        if ( ( x(k1) >= maxp(k) ) ) then
-          addmass = addmass + ( x(k1) - maxp(k) ) * c(k1)
-          x(k1) = maxp(k)
-          whois_pos(k1) = -1
-        else
-          pos_counter = pos_counter+1;
-          whois_pos(pos_counter) = k1;
-        endif
-        if ( ( x(k1) <= minp(k) ) ) then
-          addmass = addmass - ( minp(k) - x(k1) ) * c(k1)
-          x(k1) = minp(k)
-          whois_neg(k1) = -1
-        else
-          neg_counter = neg_counter+1;
-          whois_neg(neg_counter) = k1;
-        endif
-      enddo
-      
-      ! iterate to find field that satifies constraints and is l2-norm closest to original 
-      weightssum = 0.0d0
-      if ( addmass > 0 ) then
-        do i2 = 1 , maxIter
-          weightssum = 0.0
-          do k1 = 1 , pos_counter
-            i1 = whois_pos(k1)
-            weightssum = weightssum + c(i1)
-            al_pos(i1) = maxp(k) - x(i1)
-          enddo
-          
-          if( ( pos_counter > 0 ) .and. ( addmass > tol_limiter * abs(mass) ) ) then
-            do k1 = 1 , pos_counter
-              i1 = whois_pos(k1)
-              howmuch = addmass / weightssum
-              if ( howmuch > al_pos(i1) ) then
-                howmuch = al_pos(i1)
-                whois_pos(k1) = -1
-              endif
-              addmass = addmass - howmuch * c(i1)
-              weightssum = weightssum - c(i1)
-              x(i1) = x(i1) + howmuch
-            enddo
-            !now sort whois_pos and get a new number for pos_counter
-            !here neg_counter and whois_neg serve as temp vars
-            neg_counter = pos_counter
-            whois_neg = whois_pos
-            whois_pos = -1
-            pos_counter = 0
-            do k1 = 1 , neg_counter
-              if ( whois_neg(k1) .ne. -1 ) then
-                pos_counter = pos_counter+1
-                whois_pos(pos_counter) = whois_neg(k1)
-              endif
-            enddo
-          else
-            exit
+       addmass=0.0d0
+
+       do k1=1,np*np
+         if((x(k1)>maxp(k))) then
+           addmass=addmass+(x(k1)-maxp(k))*c(k1)
+           x(k1)=maxp(k)
+         endif
+         if((x(k1)<minp(k))) then
+           addmass=addmass-(minp(k)-x(k1))*c(k1)
+           x(k1)=minp(k)
+         endif
+       enddo !k1
+
+       if(abs(addmass)<=tol_limiter*abs(mass)) exit
+
+       weightssum=0.0d0
+       if(addmass>0)then
+        do k1=1,np*np
+          if(x(k1)<maxp(k))then
+            weightssum=weightssum+c(k1)
+          endif
+        enddo !k1
+        do k1=1,np*np
+          if(x(k1)<maxp(k))then
+              x(k1)=x(k1)+addmass/weightssum
           endif
         enddo
       else
-         do i2 = 1 , maxIter
-           weightssum = 0.0
-           do k1 = 1 , neg_counter
-             i1 = whois_neg(k1)
-             weightssum = weightssum + c(i1)
-             al_neg(i1) = x(i1) - minp(k)
-           enddo
-           
-           if ( ( neg_counter > 0 ) .and. ( (-addmass) > tol_limiter * abs(mass) ) ) then
-             do k1 = 1 , neg_counter
-               i1 = whois_neg(k1)
-               howmuch = -addmass / weightssum
-               if ( howmuch > al_neg(i1) ) then
-                 howmuch = al_neg(i1)
-                 whois_neg(k1) = -1
-               endif
-               addmass = addmass + howmuch * c(i1)
-               weightssum = weightssum - c(i1)
-               x(i1) = x(i1) - howmuch
-             enddo
-             !now sort whois_pos and get a new number for pos_counter
-             !here pos_counter and whois_pos serve as temp vars
-             pos_counter = neg_counter
-             whois_pos = whois_neg
-             whois_neg = -1
-             neg_counter = 0
-             do k1 = 1 , pos_counter
-               if ( whois_pos(k1) .ne. -1 ) then
-                 neg_counter = neg_counter+1
-                 whois_neg(neg_counter) = whois_pos(k1)
-               endif
-             enddo
-           else
-             exit
-           endif
-         enddo
+        do k1=1,np*np
+          if(x(k1)>minp(k))then
+            weightssum=weightssum+c(k1)
+          endif
+        enddo
+        do k1=1,np*np
+          if(x(k1)>minp(k))then
+            x(k1)=x(k1)+addmass/weightssum
+          endif
+        enddo
       endif
-      
-      ptens(:,k) = x
+
+
+     enddo!end of iteration
+
+        ptens(:,k)=x(:)
+        k1=k1+1
+
     enddo
-    
-    do k = 1 , nlev
-      ptens(:,k) = ptens(:,k) * dpmass(:,k)
+
+    do k=1,nlev
+      ptens(:,k)=ptens(:,k)*dpmass(:,k)
     enddo
+
+
   end subroutine limiter_optim_iter_full
 
 
