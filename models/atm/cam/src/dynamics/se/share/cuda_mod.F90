@@ -53,6 +53,7 @@ module cuda_mod
   integer,parameter :: numk_eul = 6
   integer,parameter :: numk_hyp = 6
   integer,parameter :: numk_lim2d = 15
+  integer,parameter :: numk_lim8 = 6
 
   !This is from prim_advection_mod.F90
   type(EdgeBuffer_t) :: edgeAdv, edgeAdv1, edgeAdvQ3, edgeAdvQ2, edgeAdv_p1, edgeAdvDSS
@@ -93,6 +94,7 @@ module cuda_mod
   real (kind=real_kind),device,allocatable,dimension(:,:,:,:)     :: dp_star_d
   real (kind=real_kind),device,allocatable,dimension(:,:,:)       :: qmin_d
   real (kind=real_kind),device,allocatable,dimension(:,:,:)       :: qmax_d
+  real (kind=real_kind),device,allocatable,dimension(:,:,:)       :: mass_d
   integer              ,device,allocatable,dimension(:)           :: recv_internal_indices_d
   integer              ,device,allocatable,dimension(:)           :: recv_external_indices_d
   real (kind=real_kind),device,allocatable,dimension(:,:,:)       :: recvbuf_d
@@ -246,6 +248,7 @@ contains
     !Allocate the host and device arrays
     allocate( qmin_d                   (nlev,qsize_d                 ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( qmax_d                   (nlev,qsize_d                 ,nelemd) , stat = ierr ); _CHECK(__LINE__)
+    allocate( mass_d                   (      nlev,qsize_d           ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( qdp_d                    (np,np,nlev,qsize_d,timelevels,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( qdp1_d                   (np,np,nlev                   ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( dpdiss_ave_d             (np,np,nlev                   ,nelemd) , stat = ierr ); _CHECK(__LINE__)
@@ -788,23 +791,32 @@ contains
 
   ierr = cudathreadsynchronize()
   if ( limiter_option == 8 ) then
-    !$acc parallel loop gang vector collapse(5) deviceptr(qtens_d,dp_star_d,dp_d,divdp_d,spheremp_d,qtens_biharmonic_d) private(tmp) async(1)
-    do ie = 1 , nelemd
-      do q = 1 , qsize
-        do k = 1 , nlev
-          do j = 1 , np
-            do i = 1 , np
-              if ( rhs_viss /= 0 ) Qtens_d(i,j,k,q,ie) = Qtens_d(i,j,k,q,ie) + Qtens_biharmonic_d(i,j,k,q,ie)
-              tmp = dp_d(i,j,k,ie) - dt * divdp_d(i,j,k,ie)    ! UN-DSS'ed dp at timelevel n0+1:   
-              if ( nu_p > 0 .and. rhs_viss /= 0 ) tmp = tmp - rhs_viss * dt * nu_q * dpdiss_biharmonic_d(i,j,k,ie) / spheremp_d(i,j,ie)
-              dp_star_d(i,j,k,ie) = tmp
+!#ifdef IRINA_OACC
+     !$acc parallel loop gang vector collapse(5) deviceptr(qtens_d,dp_star_d,dp_d,divdp_d,spheremp_d,qtens_biharmonic_d) private(tmp) async(1)
+     do ie = 1 , nelemd
+       do q = 1 , qsize
+         do k = 1 , nlev
+           do j = 1 , np
+             do i = 1 , np
+               if ( rhs_viss /= 0 ) Qtens_d(i,j,k,q,ie) = Qtens_d(i,j,k,q,ie) + Qtens_biharmonic_d(i,j,k,q,ie)
+                tmp = dp_d(i,j,k,ie) - dt * divdp_d(i,j,k,ie) ! UN-DSS'ed dp at timelevel n0+1:
+               if ( nu_p > 0 .and. rhs_viss /= 0 ) tmp = tmp - rhs_viss * dt * nu_q * dpdiss_biharmonic_d(i,j,k,ie) / spheremp_d(i,j,ie)
+                dp_star_d(i,j,k,ie) = tmp
             enddo
           enddo
         enddo
       enddo
     enddo
-    call limiter_optim_iter_full_loc( Qtens_d , spheremp_d , qmin_d , qmax_d , dp_star_d )  ! apply limiter to Q = Qtens / dp_star 
-    !$acc wait(1)
+!#endif
+   blockdim = dim3( np*np*numk_lim8 , 1 , 1 )
+   griddim  = dim3( int(ceiling(dble(nlev)/numk_lim8))*qsize_d*nelemd , 1 , 1 )
+
+ !   call compute_initial_data_for_limiter_full  <<<griddim,blockdim,0,streams(1)>>>(qtens_d, dpdiss_biharmonic_d , qtens_biharmonic_d, dp_d, spheremp_d , dp_star_d, divdp_d, rhs_viss, nu_p, nu_q, dt, 1 , nelemd )
+
+    call compute_mass_qmin_qmax_kernel<<<griddim,blockdim,0,streams(1)>>>(qdp_d, qtens_d, spheremp_d , qmin_d , qmax_d, dp_star_d, mass_d, nets , nete, np1_qdp)
+
+    call limiter_optim_iter_full_kernel<<<griddim,blockdim,0,streams(1)>>>( qdp_d , mass_d, qtens_d, spheremp_d , qmin_d , qmax_d,  dp_star_d, dt, dp_d, divdp_d,  1 , nelemd, np1_qdp )
+    ierr = cudathreadsynchronize()
   endif
   blockdim = dim3( np*np*numk_eul , 1 , 1 )
   griddim  = dim3( int(ceiling(dble(nlev)/numk_eul))*qsize_d*nelemd , 1 , 1 )
@@ -1572,130 +1584,226 @@ attributes(device) function divergence_sphere_wk(i,j,ie,k,tmp,s,dinv,spheremp,de
 end function divergence_sphere_wk
 
 
+attributes(global) subroutine compute_initial_data_for_limiter_full (Qtens, dpdiss_biharmonic, qtens_biharmonic, dp, spheremp, dp_star, divdp, rhs_viss, nu_p, nu_q, dt, nets , nete )
+  use kinds, only : real_kind
+  use dimensions_mod, only : np, nlev
+ implicit none
+  real(kind=real_kind), dimension(np,np,nlev,qsize_d           ,nets:nete), intent(inout) :: Qtens
+  real(kind=real_kind), dimension(np,np,nlev                   ,nets:nete), intent(in   ) :: dpdiss_biharmonic
+  real(kind=real_kind), dimension(np,np,nlev,qsize_d           ,nets:nete), intent(in   ) :: qtens_biharmonic
+  real(kind=real_kind), dimension(np,np                        ,nets:nete), intent(in   ) :: spheremp
+  real(kind=real_kind), dimension(np,np,nlev                   ,nets:nete), intent(in   ) :: dp
+  real(kind=real_kind), dimension(np,np,nlev,qsize_d           ,nets:nete), intent(  out) :: dp_star
+  real(kind=real_kind), dimension(np,np,nlev                   ,nets:nete), intent(in   ) :: divdp
+  real(kind=real_kind), value                                             , intent(in   ) :: dt, nu_q, nu_p
+  integer, value                                                          , intent(in   ) :: rhs_viss, nets, nete
+  integer :: ks, kloop
+  integer :: i , j , k , kk , q , ie , ij
 
-  subroutine limiter_optim_iter_full_loc(ptens,sphweights,minp,maxp,dpmass)
-    !THIS IS A NEW VERSION OF LIM8, POTENTIALLY FASTER BECAUSE INCORPORATES KNOWLEDGE FROM
-    !PREVIOUS ITERATIONS
-    
-    !The idea here is the following: We need to find a grid field which is closest
-    !to the initial field (in terms of weighted sum), but satisfies the min/max constraints.
-    !So, first we find values which do not satisfy constraints and bring these values
-    !to a closest constraint. This way we introduce some mass change (addmass),
-    !so, we redistribute addmass in the way that l2 error is smallest. 
-    !This redistribution might violate constraints thus, we do a few iterations. 
-    implicit none
-    real (kind=real_kind), dimension(np*np,nlev,qsize,nelemd), intent(inout) , device :: ptens
-    real (kind=real_kind), dimension(np*np           ,nelemd), intent(in   ) , device :: sphweights
-    real (kind=real_kind), dimension(      nlev,qsize,nelemd), intent(inout) , device :: minp
-    real (kind=real_kind), dimension(      nlev,qsize,nelemd), intent(inout) , device :: maxp
-    real (kind=real_kind), dimension(np*np,nlev      ,nelemd), intent(in   ) , device :: dpmass
- 
-    integer :: k1, i, j, k, iter, i1, i2, q, ie
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !!!!!!!!!!!!!!!!!!!!!!! OPENACC WORKAROUND !!!!!!!!!!!!!!!!!!!!!!!
-    ! These should be integers, but for some strange reason, the
-    ! OpenACC kernel gives wrong answers unless you make them reals
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    real (kind=real_kind) :: addmass, weightssum, mass,sumc,tmp,min_tmp,max_tmp
-    real (kind=real_kind) :: x(np*np),c(np*np)
-    real (kind=real_kind) :: al_neg(np*np), al_pos(np*np), howmuch
-    real (kind=real_kind) :: tol_limiter = 1e-15
-    integer :: maxiter = np*np-2
+  ks = int(ceiling(dble(nlev)/numk_lim8))
+  i  = modulo( threadidx%x-1    ,np)+1
+  j  = modulo((threadidx%x-1)/np,np)+1
+  kk = (threadidx%x-1)/(np*np)+1
+  q  = modulo((blockidx%x-1),qsize_d)+1
+  ie =        (blockidx%x-1)/qsize_d +1
+  ij = (j-1)*np+i
+  k  = modulo(blockidx%x-1,ks)*numk_lim8 + kk
 
-    !$acc  parallel loop gang vector collapse(3) &
-    !$acc&   private(k1,i,j,k,iter,i1,i2,q,ie, &
-    !$acc&   addmass,weightssum,mass,x,c,al_neg,al_pos,howmuch,sumc,tmp) &
-    !$acc&   deviceptr(ptens,sphweights,minp,maxp,dpmass) vector_length(512) async(1)
-    do ie = 1 , nelemd
-      do q = 1 , qsize
-        do k = 1 , nlev
-          !$acc cache(c,x,al_neg,al_pos)
-          min_tmp = minp(k,q,ie)
-          max_tmp = maxp(k,q,ie)
-          c = sphweights(:,ie) * dpmass(:,k,ie)
-          x = ptens(:,k,q,ie) / dpmass(:,k,ie)
 
-          sumc = 0d0
-          mass = 0d0
-          !$acc loop seq
-          do i1 = 1 , np*np
-            mass = mass + c(i1)*x(i1)
-            sumc = sumc + c(i1)
-          enddo
+!  do kloop = 1 , ks
+!    call syncthreads()
+    if (k  > nlev   ) return
+    if (q  > qsize_d) return
+     if (ie > nete   ) return
 
-          if (sumc <= 0 ) CYCLE   ! this should never happen, but if it does, dont limit
+!    if ( k <= nlev .and. q <= qsize_d .and. ie <= nete ) then
+      if ( rhs_viss /= 0 ) Qtens(i,j,k,q,ie) = Qtens(i,j,k,q,ie) + Qtens_biharmonic(i,j,k,q,ie)
 
-          ! relax constraints to ensure limiter has a solution:
-          ! This is only needed if runnign with the SSP CFL>1 or 
-          ! due to roundoff errors
-          if( mass  < min_tmp*sumc ) then
-            min_tmp = mass / sumc
-          endif
-          if( (mass ) > max_tmp*sumc ) then
-            max_tmp = mass / sumc
-          endif
+      dp_star(i,j,k,q,ie)=dp(i,j,k,ie)-dt*divdp(i,j,k,ie)
+      if ( nu_p > 0 .and. rhs_viss /= 0 ) then
+         dp_star(i,j,k,q,ie) = dp_star(i,j,k,q,ie) - rhs_viss * dt * nu_q * dpdiss_biharmonic(i,j,k,ie) / spheremp(i,j,ie)
+      endif
 
-          !$acc loop seq
-          do iter=1,maxiter
-          addmass = 0.0d0
- 
-          ! apply constraints, compute change in mass caused by constraints 
+!    endif
+!  enddo
 
-            !$acc loop seq
-            do k1 = 1 , np*np
-              if ( ( x(k1) >= max_tmp ) ) then
-                addmass = addmass + ( x(k1) - max_tmp ) * c(k1)
-                x(k1) = max_tmp
-              endif
-              if ( ( x(k1) <= min_tmp ) ) then
-                addmass = addmass - ( min_tmp - x(k1) ) * c(k1)
-                x(k1) = min_tmp
-              endif
-            enddo !k1
+end subroutine compute_initial_data_for_limiter_full
 
-            if(abs(addmass)<=tol_limiter*abs(mass)) exit
 
-            weightssum=0.0d0
+attributes(global) subroutine compute_mass_qmin_qmax_kernel(Qdp, Qtens, spheremp, qmin_d, qmax_d, dp_star, mass, nets , nete, np1_qdp)
+  use kinds, only : real_kind
+  use dimensions_mod, only : np, nlev
+ implicit none
+  real(kind=real_kind), dimension(np,np,nlev,qsize_d,timelevels,nets:nete), intent(inout) :: Qdp
+  real(kind=real_kind), dimension(np,np,nlev,qsize_d           ,nets:nete), intent(in   ) :: Qtens
+  real(kind=real_kind), dimension(np,np                        ,nets:nete), intent(in   ) :: spheremp
+  real(kind=real_kind), dimension(      nlev,qsize_d           ,nets:nete), intent(inout) :: qmin_d
+  real(kind=real_kind), dimension(      nlev,qsize_d           ,nets:nete), intent(inout) :: qmax_d
+  real(kind=real_kind), dimension(np,np,nlev,qsize_d           ,nets:nete), intent(in   ) :: dp_star
+  real(kind=real_kind), dimension(      nlev,qsize_d           ,nets:nete), intent(  out) :: mass
+  integer, value                                                          , intent(in   ) :: nets, nete, np1_qdp
+  integer :: ks
+  integer :: i , j , k , kk , q , ie , ij , n , kloop
+  integer :: index_ij
+  real(kind=real_kind), shared :: c_s       (np*np+1,numk_lim8)
+  real(kind=real_kind), shared :: x_s     (np*np+1,numk_lim8)
+  real(kind=real_kind), shared :: summ_XC_s     (np*np+1,numk_lim8)
+  real(kind=real_kind), shared :: summ_C_s     (np*np+1,numk_lim8)
 
-            if(addmass>0)then
-             !$acc loop seq
-             do k1=1,np*np
-               if(x(k1)<max_tmp)then
-                  weightssum=weightssum+c(k1)
-               endif
-             enddo !k1
-             !$acc loop seq
-             do k1=1,np*np
-               if(x(k1)<max_tmp)then
-                  x(k1)=x(k1)+addmass/weightssum
-               endif
-             enddo
-            else
-             !$acc loop seq
-             do k1=1,np*np
-               if(x(k1)>min_tmp)then
-                 weightssum=weightssum+c(k1)
-               endif
-             enddo
-             !$acc loop seq
-              do k1=1,np*np
-               if(x(k1)>min_tmp)then
-                 x(k1)=x(k1)+addmass/weightssum
-               endif
-              enddo
-             endif
+  ks = int(ceiling(dble(nlev)/numk_lim8))
+  i  = modulo( threadidx%x-1    ,np)+1
+  j  = modulo((threadidx%x-1)/np,np)+1
+  kk = (threadidx%x-1)/(np*np)+1
+  q  = modulo((blockidx%x-1),qsize_d)+1
+  ie =        (blockidx%x-1)/qsize_d +1
+  ij = (j-1)*np+i
+  k  = modulo(blockidx%x-1,ks)*numk_lim8 + kk
 
-           enddo!end iteration    
+!   do kloop = 1 , ks
+!    call syncthreads()
+!    k  = modulo(kloop-1,ks)*numk_lim8 + kk
+    if ( k <= nlev .and. q <= qsize_d .and. ie <= nete ) then
+      x_s(ij,kk)=Qtens(i,j,k,q,ie)/dp_star(i,j,k,q,ie)
+      c_s(ij,kk)=spheremp(i,j,ie)*dp_star(i,j,k,q,ie)
+      call syncthreads()
+      summ_XC_s(ij,kk)=c_s(ij,kk)*x_s(ij,kk)
+      summ_C_s(ij,kk)=c_s(ij,kk)
+      call syncthreads()
+      if (ij==1) then
+         do index_ij=2, np*np
+            summ_XC_s(1,kk)=summ_XC_s(1,kk)+summ_XC_s(index_ij,kk)
+            summ_C_s(1,kk)=summ_C_s(1,kk)+summ_C_s(index_ij,kk)
+         enddo
+      endif
+      call syncthreads()
+      mass(k,q,ie)=summ_XC_s(1,kk)
+      summ_XC_s(ij,kk)=summ_XC_s(ij,kk)/summ_C_s(i,kk)
+      call syncthreads()
+      if (ij==1) then
 
-          
-          ptens(:,k,q,ie) = x * dpmass(:,k,ie)
-          minp(k,q,ie) = min_tmp
-          maxp(k,q,ie) = max_tmp
-        enddo
+         if( (summ_XC_s(ij,kk)) < qmin_d(k,q,ie) ) then
+           qmin_d(k,q,ie) = summ_XC_s(ij,kk)
+         endif
+         if( summ_XC_s(ij,kk) > qmax_d(k,q,ie) ) then
+           qmin_d(k,q,ie) = summ_XC_s(ij,kk)
+         endif
+
+      endif
+
+    endif
+    call syncthreads()
+    !Qdp(i,j,k,q,np1_qdp,ie) =Qtens(i,j,k,q,ie)
+ !  enddo
+
+end subroutine  compute_mass_qmin_qmax_kernel
+
+
+attributes(global) subroutine  limiter_optim_iter_full_kernel(Qdp, mass, Qtens, spheremp, qmin_d, qmax_d, dp_star, dt, dp, divdp, nets,nete,np1)
+  use kinds, only : real_kind
+  use dimensions_mod, only : np, nlev
+  implicit none
+  real(kind=real_kind), dimension(np,np,nlev,qsize_d,timelevels,nets:nete), intent(inout) :: Qdp
+  real(kind=real_kind), dimension(      nlev,qsize_d           ,nets:nete), intent(  out) :: mass
+  real(kind=real_kind), dimension(np,np,nlev,qsize_d           ,nets:nete), intent(inout) :: Qtens
+  real(kind=real_kind), dimension(np,np                        ,nets:nete), intent(in   ) :: spheremp
+  real(kind=real_kind), dimension(      nlev,qsize_d           ,nets:nete), intent(inout) :: qmin_d
+  real(kind=real_kind), dimension(      nlev,qsize_d           ,nets:nete), intent(inout) :: qmax_d
+  real(kind=real_kind), value                                             , intent(in   ) :: dt
+  real(kind=real_kind), dimension(np,np,nlev                   ,nets:nete), intent(in   ) :: dp
+  real(kind=real_kind), dimension(np,np,nlev                   ,nets:nete), intent(in   ) :: divdp
+  real(kind=real_kind), dimension(np,np,nlev,qsize_d           ,nets:nete), intent(in   ) :: dp_star
+  integer, value       , intent(in   ) :: nets,nete,np1
+  integer :: i, j, k, kk, q, ie, jj, ij, ks
+
+  real(kind=real_kind), shared :: c_s    (np*np+1,numk_lim8  )
+  real(kind=real_kind), shared :: x_s    (np*np+1,numk_lim8  )
+  real(kind=real_kind)         :: addmass
+  real(kind=real_kind)         :: weightssum,  howmuch
+  real(kind=real_kind), shared :: al_pos(np*np+1, numk_lim8), al_neg(np*np+1,numk_lim8)
+  integer                      :: iter
+  real (kind=real_kind)        :: tol_limiter = 1e-15
+  integer, parameter           :: maxiter = np*np-2
+  integer                      :: k1, i1, i2, kloop
+  real(kind=real_kind)         :: qmin_tmp, qmax_tmp, mass_tmp, sumc_tmp
+  ks = int(ceiling(dble(nlev)/numk_lim8))
+  i  = modulo( threadidx%x-1    ,np)+1 ! 
+  j  = modulo((threadidx%x-1)/np,np)+1
+  kk = (threadidx%x-1)/(np*np)+1
+  q  = modulo((blockidx%x-1),qsize_d)+1
+  ie =        (blockidx%x-1)/qsize_d +1
+  ij = (j-1)*np+i
+  k  = modulo(blockidx%x-1,ks)*numk_lim8 + kk
+
+!   do kloop = 1 , ks
+    call syncthreads()
+!    k  = modulo(kloop-1,ks)*numk_lim8 + kk
+
+    if ( k <= nlev .and. q <= qsize_d .and. ie <= nete ) then
+     x_s(ij,kk)=Qtens(i,j,k,q,ie)/dp_star(i,j,k,q,ie)
+     c_s(ij,kk)=spheremp(i,j,ie)*dp_star(i,j,k,q,ie)
+     call syncthreads()
+    if (ij==1) then
+
+      addmass=0.0d0
+      qmin_tmp = qmin_d(k,q,ie)
+      qmax_tmp = qmax_d(k,q,ie)
+      mass_tmp=mass(k,q,ie)
+
+     do iter=1,maxiter
+
+       addmass = 0.0d0
+       do jj = 1 , np*np
+         if (x_s(jj,kk)>=qmax_tmp) then
+          addmass=addmass + ( x_s(jj,kk) - qmax_tmp ) * c_s(jj,kk)
+          x_s(jj,kk)=qmax_tmp
+         endif !!do we need synchthread?
+         if ( ( x_s(jj,kk) <= qmin_tmp ) ) then
+           addmass = addmass - ( qmin_tmp - x_s(jj,kk) ) * c_s(jj,kk)
+           x_s(jj,kk) = qmin_tmp
+         endif
+       call syncthreads()!check if we need it
       enddo
-    enddo
-  end subroutine limiter_optim_iter_full_loc
 
+      call syncthreads()
+
+      if(abs(addmass)<=tol_limiter*abs(mass_tmp)) exit
+
+      weightssum = 0.0d0
+      if ( addmass > 0 ) then
+        do k1 = 1 , np*np
+        if (x_s(k1,kk)<qmax_tmp)then
+            weightssum=weightssum+c_s(k1,kk)
+          endif
+        enddo !k1
+        do k1=1,np*np
+          if(x_s(k1,kk)<qmax_tmp)then
+              x_s(k1,kk)=x_s(k1,kk)+addmass/weightssum
+          endif
+        enddo
+      else
+        do k1=1,np*np
+          if(x_s(k1,kk)>qmin_tmp)then
+            weightssum=weightssum+c_s(k1,kk)
+          endif
+        enddo
+        do k1=1,np*np
+          if(x_s(k1,kk)>qmin_tmp)then
+            x_s(k1,kk)=x_s(k1,kk)+addmass/weightssum
+          endif
+        enddo
+      endif ! addmass>0
+
+    enddo !maxiter
+
+   endif !ij
+ call syncthreads()
+ Qtens(i,j,k,q,ie)=x_s(ij,kk)*dp_star(i,j,k,q,ie)
+ call syncthreads()
+ Qdp(i,j,k,q,np1,ie) =Qtens(i,j,k,q,ie)* spheremp(i,j,ie)!*x_s(ij,kk)*dp_star(i,j,k,q,ie) !Qtens(i,j,k,q,ie)
+
+ endif
+!enddo
+end subroutine  limiter_optim_iter_full_kernel
 
 
   subroutine neighbor_minmax_loc(elem,hybrid,nets,nete,min_neigh,max_neigh)
