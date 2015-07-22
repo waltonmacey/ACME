@@ -93,10 +93,15 @@ ifeq ($(UNAMES),Linux)
 #FFLAGS =  -c -I$(INC_NETCDF) -g --chk a,e,s,u --pca --trace --trap
 
 # ifort
-FC = ifort
+# FC = ifort
+# FFLAGS =  -c -I$(INC_NETCDF) -g -check all -fpe0 -traceback -ftz -convert big_endian -fp-model precise
+
+# ftn
+FC = ftn
 FFLAGS =  -c -I$(INC_NETCDF) -g -check all -fpe0 -traceback -ftz -convert big_endian -fp-model precise
 
-LDFLAGS = -L$(LIB_NETCDF) -lnetcdf
+#LDFLAGS = -L$(LIB_NETCDF) -lnetcdf
+LDFLAGS = 
 endif
 
 #------------------------------------------------------------------------
