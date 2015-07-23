@@ -1006,6 +1006,7 @@
 <zmconv_ke                       hgrid="256x512"                      > 1.0E-6 </zmconv_ke>
 <zmconv_ke                       hgrid="512x1024"                     > 1.0E-6 </zmconv_ke>
 
+<zmconv_trigmem>                 .false.   </zmconv_trigmem>
 
 <!-- Cloud sedimentation -->
 
