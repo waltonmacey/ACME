@@ -862,7 +862,7 @@ subroutine microp_aero_run ( &
       !droplet activation for bulk aerosol
 
       ! no tendencies returned from ndrop_bam_run, so just init ptend here
-      call physics_ptend_init(ptend, state%psetcols, 'none')
+      call physics_ptend_init(ptend, state%psetcols, 'none_mic')
 
       do k = top_lev, pver
          do i = 1, ncol

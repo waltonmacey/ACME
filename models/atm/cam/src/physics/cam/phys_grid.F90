@@ -160,7 +160,8 @@ module phys_grid
    type (chunk), dimension(:), allocatable, public :: chunks  
                                        ! global computational grid
 
-   integer, dimension(:), allocatable, private :: npchunks 
+   !integer, dimension(:), allocatable, private :: npchunks 
+   integer, dimension(:), allocatable, public :: npchunks !BSINGH (07/06/2015): changed private to public as it is used in phypkg.F90 now
                                        ! number of chunks assigned to each process
 
    type lchunk
@@ -752,7 +753,7 @@ contains
     enddo
 
     deallocate( pchunkid )
-    deallocate( npchunks )
+    !deallocate( npchunks ) !BSINGH -  do not deallocate as it is being used in physpkg
     !
     !-----------------------------------------------------------------------
     !

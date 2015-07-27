@@ -2620,7 +2620,7 @@ CONTAINS
       use cam_history_buffers, only: hbuf_accum_inst, hbuf_accum_add,         &
            hbuf_accum_add00z, hbuf_accum_max, hbuf_accum_min,                 &
            hbuf_accum_addlcltime, dim_index_2d
-      use subcol_utils,        only: subcol_unpack
+      !use subcol_utils,        only: subcol_unpack!BSINGH - commented out due to circular dependency, see below
 
       interface
          subroutine subcol_field_avg_handler(idim, field_in, c, field_out)
@@ -2775,10 +2775,11 @@ CONTAINS
                 afield(idim+1:pcols*psubcols, :) = 0.0_r8
               end if
             end if
+            call endrun('BALLI- this causes circular dependency[physics_type<-cam_history<-subcol_utils<-physics_types]')
             if (flag_xyfill) then
-              call subcol_unpack(c, afield, ufield, fillvalue)
+              !call subcol_unpack(c, afield, ufield, fillvalue) !circular dependency
             else
-              call subcol_unpack(c, afield, ufield)
+              !call subcol_unpack(c, afield, ufield) !circular dependency
             end if
             deallocate(afield)
             select case (avgflag)
