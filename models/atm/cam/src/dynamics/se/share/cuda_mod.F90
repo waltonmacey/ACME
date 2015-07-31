@@ -790,34 +790,21 @@ contains
                                                               n0_qdp , np1_qdp , rhs_viss , dt , 1 , nelemd ); _CHECK(__LINE__)
 
   ierr = cudathreadsynchronize()
+
   if ( limiter_option == 8 ) then
-!#ifdef IRINA_OACC
-     !$acc parallel loop gang vector collapse(5) deviceptr(qtens_d,dp_star_d,dp_d,divdp_d,spheremp_d,qtens_biharmonic_d) private(tmp) async(1)
-     do ie = 1 , nelemd
-       do q = 1 , qsize
-         do k = 1 , nlev
-           do j = 1 , np
-             do i = 1 , np
-               if ( rhs_viss /= 0 ) Qtens_d(i,j,k,q,ie) = Qtens_d(i,j,k,q,ie) + Qtens_biharmonic_d(i,j,k,q,ie)
-                tmp = dp_d(i,j,k,ie) - dt * divdp_d(i,j,k,ie) ! UN-DSS'ed dp at timelevel n0+1:
-               if ( nu_p > 0 .and. rhs_viss /= 0 ) tmp = tmp - rhs_viss * dt * nu_q * dpdiss_biharmonic_d(i,j,k,ie) / spheremp_d(i,j,ie)
-                dp_star_d(i,j,k,ie) = tmp
-            enddo
-          enddo
-        enddo
-      enddo
-    enddo
-!#endif
+
    blockdim = dim3( np*np*numk_lim8 , 1 , 1 )
    griddim  = dim3( int(ceiling(dble(nlev)/numk_lim8))*qsize_d*nelemd , 1 , 1 )
 
- !   call compute_initial_data_for_limiter_full  <<<griddim,blockdim,0,streams(1)>>>(qtens_d, dpdiss_biharmonic_d , qtens_biharmonic_d, dp_d, spheremp_d , dp_star_d, divdp_d, rhs_viss, nu_p, nu_q, dt, 1 , nelemd )
+    call compute_initial_data_for_limiter_full  <<<griddim,blockdim,0,streams(1)>>>(qtens_d, dpdiss_biharmonic_d , qtens_biharmonic_d, dp_d, spheremp_d , dp_star_d, divdp_d, rhs_viss, nu_p, nu_q, dt, 1 , nelemd )
 
     call compute_mass_qmin_qmax_kernel<<<griddim,blockdim,0,streams(1)>>>(qdp_d, qtens_d, spheremp_d , qmin_d , qmax_d, dp_star_d, mass_d, nets , nete, np1_qdp)
 
     call limiter_optim_iter_full_kernel<<<griddim,blockdim,0,streams(1)>>>( qdp_d , mass_d, qtens_d, spheremp_d , qmin_d , qmax_d,  dp_star_d, dt, dp_d, divdp_d,  1 , nelemd, np1_qdp )
     ierr = cudathreadsynchronize()
+
   endif
+
   blockdim = dim3( np*np*numk_eul , 1 , 1 )
   griddim  = dim3( int(ceiling(dble(nlev)/numk_eul))*qsize_d*nelemd , 1 , 1 )
   call euler_step_kernel2<<<griddim,blockdim,0,streams(1)>>>( qdp_d , qtens_d , spheremp_d , np1_qdp , 1 , nelemd ); _CHECK(__LINE__)
@@ -1583,7 +1570,6 @@ attributes(device) function divergence_sphere_wk(i,j,ie,k,tmp,s,dinv,spheremp,de
   enddo
 end function divergence_sphere_wk
 
-
 attributes(global) subroutine compute_initial_data_for_limiter_full (Qtens, dpdiss_biharmonic, qtens_biharmonic, dp, spheremp, dp_star, divdp, rhs_viss, nu_p, nu_q, dt, nets , nete )
   use kinds, only : real_kind
   use dimensions_mod, only : np, nlev
@@ -1593,7 +1579,7 @@ attributes(global) subroutine compute_initial_data_for_limiter_full (Qtens, dpdi
   real(kind=real_kind), dimension(np,np,nlev,qsize_d           ,nets:nete), intent(in   ) :: qtens_biharmonic
   real(kind=real_kind), dimension(np,np                        ,nets:nete), intent(in   ) :: spheremp
   real(kind=real_kind), dimension(np,np,nlev                   ,nets:nete), intent(in   ) :: dp
-  real(kind=real_kind), dimension(np,np,nlev,qsize_d           ,nets:nete), intent(  out) :: dp_star
+  real(kind=real_kind), dimension(np,np,nlev                   ,nets:nete), intent(  out) :: dp_star
   real(kind=real_kind), dimension(np,np,nlev                   ,nets:nete), intent(in   ) :: divdp
   real(kind=real_kind), value                                             , intent(in   ) :: dt, nu_q, nu_p
   integer, value                                                          , intent(in   ) :: rhs_viss, nets, nete
@@ -1619,9 +1605,9 @@ attributes(global) subroutine compute_initial_data_for_limiter_full (Qtens, dpdi
 !    if ( k <= nlev .and. q <= qsize_d .and. ie <= nete ) then
       if ( rhs_viss /= 0 ) Qtens(i,j,k,q,ie) = Qtens(i,j,k,q,ie) + Qtens_biharmonic(i,j,k,q,ie)
 
-      dp_star(i,j,k,q,ie)=dp(i,j,k,ie)-dt*divdp(i,j,k,ie)
+      dp_star(i,j,k,ie)=dp(i,j,k,ie)-dt*divdp(i,j,k,ie)
       if ( nu_p > 0 .and. rhs_viss /= 0 ) then
-         dp_star(i,j,k,q,ie) = dp_star(i,j,k,q,ie) - rhs_viss * dt * nu_q * dpdiss_biharmonic(i,j,k,ie) / spheremp(i,j,ie)
+         dp_star(i,j,k,ie) = dp_star(i,j,k,ie) - rhs_viss * dt * nu_q * dpdiss_biharmonic(i,j,k,ie) / spheremp(i,j,ie)
       endif
 
 !    endif
@@ -1639,7 +1625,7 @@ attributes(global) subroutine compute_mass_qmin_qmax_kernel(Qdp, Qtens, spheremp
   real(kind=real_kind), dimension(np,np                        ,nets:nete), intent(in   ) :: spheremp
   real(kind=real_kind), dimension(      nlev,qsize_d           ,nets:nete), intent(inout) :: qmin_d
   real(kind=real_kind), dimension(      nlev,qsize_d           ,nets:nete), intent(inout) :: qmax_d
-  real(kind=real_kind), dimension(np,np,nlev,qsize_d           ,nets:nete), intent(in   ) :: dp_star
+  real(kind=real_kind), dimension(np,np,nlev                   ,nets:nete), intent(in   ) :: dp_star
   real(kind=real_kind), dimension(      nlev,qsize_d           ,nets:nete), intent(  out) :: mass
   integer, value                                                          , intent(in   ) :: nets, nete, np1_qdp
   integer :: ks
@@ -1663,8 +1649,8 @@ attributes(global) subroutine compute_mass_qmin_qmax_kernel(Qdp, Qtens, spheremp
 !    call syncthreads()
 !    k  = modulo(kloop-1,ks)*numk_lim8 + kk
     if ( k <= nlev .and. q <= qsize_d .and. ie <= nete ) then
-      x_s(ij,kk)=Qtens(i,j,k,q,ie)/dp_star(i,j,k,q,ie)
-      c_s(ij,kk)=spheremp(i,j,ie)*dp_star(i,j,k,q,ie)
+      x_s(ij,kk)=Qtens(i,j,k,q,ie)/dp_star(i,j,k,ie)
+      c_s(ij,kk)=spheremp(i,j,ie)*dp_star(i,j,k,ie)
       call syncthreads()
       summ_XC_s(ij,kk)=c_s(ij,kk)*x_s(ij,kk)
       summ_C_s(ij,kk)=c_s(ij,kk)
@@ -1711,7 +1697,7 @@ attributes(global) subroutine  limiter_optim_iter_full_kernel(Qdp, mass, Qtens, 
   real(kind=real_kind), value                                             , intent(in   ) :: dt
   real(kind=real_kind), dimension(np,np,nlev                   ,nets:nete), intent(in   ) :: dp
   real(kind=real_kind), dimension(np,np,nlev                   ,nets:nete), intent(in   ) :: divdp
-  real(kind=real_kind), dimension(np,np,nlev,qsize_d           ,nets:nete), intent(in   ) :: dp_star
+  real(kind=real_kind), dimension(np,np,nlev                   ,nets:nete), intent(in   ) :: dp_star
   integer, value       , intent(in   ) :: nets,nete,np1
   integer :: i, j, k, kk, q, ie, jj, ij, ks
 
@@ -1739,8 +1725,8 @@ attributes(global) subroutine  limiter_optim_iter_full_kernel(Qdp, mass, Qtens, 
 !    k  = modulo(kloop-1,ks)*numk_lim8 + kk
 
     if ( k <= nlev .and. q <= qsize_d .and. ie <= nete ) then
-     x_s(ij,kk)=Qtens(i,j,k,q,ie)/dp_star(i,j,k,q,ie)
-     c_s(ij,kk)=spheremp(i,j,ie)*dp_star(i,j,k,q,ie)
+     x_s(ij,kk)=Qtens(i,j,k,q,ie)/dp_star(i,j,k,ie)
+     c_s(ij,kk)=spheremp(i,j,ie)*dp_star(i,j,k,ie)
      call syncthreads()
     if (ij==1) then
 
@@ -1797,9 +1783,9 @@ attributes(global) subroutine  limiter_optim_iter_full_kernel(Qdp, mass, Qtens, 
 
    endif !ij
  call syncthreads()
- Qtens(i,j,k,q,ie)=x_s(ij,kk)*dp_star(i,j,k,q,ie)
+ Qtens(i,j,k,q,ie)=x_s(ij,kk)*dp_star(i,j,k,ie)
  call syncthreads()
- Qdp(i,j,k,q,np1,ie) =Qtens(i,j,k,q,ie)* spheremp(i,j,ie)!*x_s(ij,kk)*dp_star(i,j,k,q,ie) !Qtens(i,j,k,q,ie)
+! Qdp(i,j,k,q,np1,ie) =Qtens(i,j,k,q,ie)* spheremp(i,j,ie)!*x_s(ij,kk)*dp_star(i,j,k,q,ie) !Qtens(i,j,k,q,ie)
 
  endif
 !enddo
