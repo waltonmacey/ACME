@@ -81,7 +81,15 @@ integer :: &
    cu_vrd_idx, &
    cu_qlrd_idx, &
    cu_qird_idx, &
-   cu_trrd_idx
+   cu_trrd_idx, &
+   cmfr_det_idx, &
+   qlr_det_idx, &
+   qir_det_idx, &
+   rqcr_l_idx, &
+   rqcr_i_idx, &
+   rncr_l_idx, &
+   rncr_i_idx, &
+   rice2_idx
 
 ! fields expected to be in the physics buffer
 integer :: &
@@ -104,8 +112,7 @@ integer :: &
    am_evp_st_idx = -1, &    !  Evaporation area of stratiform precipitation [fraction]
    evprain_st_idx = -1, &   !  Grid-mean evaporation rate of stratiform rain [kg/kg/s] >= 0.
    evpsnow_st_idx = -1      !  Grid-mean evaporation rate of stratiform snow [kg/kg/s] >= 0.
-
-
+   
 ! constituent indices
 integer :: ixcldliq, ixcldice, ixnumliq, ixnumice
 
@@ -176,6 +183,17 @@ subroutine unicon_cam_register
    call pbuf_add_field('cu_qlrd',       'global', dtype_r8, (/pcols,pver,dyn_time_lvls/),       cu_qlrd_idx)
    call pbuf_add_field('cu_qird',       'global', dtype_r8, (/pcols,pver,dyn_time_lvls/),       cu_qird_idx)
    call pbuf_add_field('cu_trrd',       'global', dtype_r8, (/pcols,pver,pcnst,dyn_time_lvls/), cu_trrd_idx)
+
+   call pbuf_add_field('cmfr_det',      'global', dtype_r8, (/pcols,pver/),                    cmfr_det_idx)
+   call pbuf_add_field('qlr_det',       'global', dtype_r8, (/pcols,pver/),                     qlr_det_idx)
+   call pbuf_add_field('qir_det',       'global', dtype_r8, (/pcols,pver/),                     qir_det_idx)
+
+   call pbuf_add_field('rqcr_l',        'global', dtype_r8, (/pcols,pver/),                      rqcr_l_idx)
+   call pbuf_add_field('rqcr_i',        'global', dtype_r8, (/pcols,pver/),                      rqcr_i_idx)
+   call pbuf_add_field('rncr_l',        'global', dtype_r8, (/pcols,pver/),                      rncr_l_idx)
+   call pbuf_add_field('rncr_i',        'global', dtype_r8, (/pcols,pver/),                      rncr_i_idx)
+
+   call pbuf_add_field('rice2',         'global', dtype_r8, (/pcols/),                            rice2_idx)
 
 end subroutine unicon_cam_register
 
@@ -366,7 +384,46 @@ subroutine unicon_cam_init(pbuf2d)
       else
          call endrun(sub//'cu_trrd not in pbuf')
       end if
-
+      if (cmfr_det_idx > 0) then
+         call pbuf_set_field(pbuf2d, cmfr_det_idx,      0.0_r8)
+      else
+         call endrun(sub//'cmfr_det not in pbuf')
+      end if
+      if (qlr_det_idx > 0) then
+         call pbuf_set_field(pbuf2d, qlr_det_idx,      0.0_r8)
+      else
+         call endrun(sub//'qlr_det not in pbuf')
+      end if
+      if (qir_det_idx > 0) then
+         call pbuf_set_field(pbuf2d, qir_det_idx,      0.0_r8)
+      else
+         call endrun(sub//'qir_det not in pbuf')
+      end if
+      if (rqcr_l_idx > 0) then
+         call pbuf_set_field(pbuf2d, rqcr_l_idx,      0.0_r8)
+      else
+         call endrun(sub//'rqcr_l not in pbuf')
+      end if
+      if (rqcr_i_idx > 0) then
+         call pbuf_set_field(pbuf2d, rqcr_i_idx,      0.0_r8)
+      else
+         call endrun(sub//'rqcr_i not in pbuf')
+      end if
+      if (rncr_l_idx > 0) then
+         call pbuf_set_field(pbuf2d, rncr_l_idx,      0.0_r8)
+      else
+         call endrun(sub//'rncr_l not in pbuf')
+      end if
+      if (rncr_i_idx > 0) then
+         call pbuf_set_field(pbuf2d, rncr_i_idx,      0.0_r8)
+      else
+         call endrun(sub//'rncr_i not in pbuf')
+      end if
+      if (rice2_idx > 0) then
+         call pbuf_set_field(pbuf2d, rice2_idx,      0.0_r8)
+      else
+         call endrun(sub//'rice2 not in pbuf')
+      end if
    end if
 
    ! Set arrays to identify the modal aerosol constituents
@@ -569,20 +626,20 @@ subroutine unicon_cam_init(pbuf2d)
    call addfld('cu_nlr_SP',  '1/kg',    pver, 'A', 'nl        of mixing environmental airs', phys_decomp)
    call addfld('cu_nir_SP',  '1/kg',    pver, 'A', 'ni        of mixing environmental airs', phys_decomp)
 
-   call addfld( 'a_p_SP'    , 'fraction', pverp, 'A', 'Convective precipitation area', &
-                phys_decomp )
-   call addfld( 'am_evp_SP' , 'fraction', pver,  'A', 'Convective evaporation area', &
-                phys_decomp )
-   call addfld( 'am_pu_SP'  , 'fraction', pver,  'A', 'Overlapping area &
-                 between conv precipitation and sat updraft area'    , phys_decomp )
-   call addfld( 'x_um_SP'   , 'm',        pver,  'A', 'Zonal displacement &
-                 of the updraft area from the surface'             , phys_decomp )
-   call addfld( 'y_um_SP'   , 'm',        pver,  'A', 'Meridional displacement &
-                 of the updraft area from the surface'        , phys_decomp )
-   call addfld( 'x_p_SP'    , 'm',        pverp, 'A', 'Zonal displacement &
-                 of the precipitation area from the surface'       , phys_decomp )
-   call addfld( 'y_p_SP'    , 'm',        pverp, 'A', 'Meridional displacement &
-                 of the precipitation area from the surface'  , phys_decomp )
+   call addfld( 'a_p_SP'    , 'fraction', pverp, 'A', 'Convective precipitation area' &
+   , phys_decomp )
+   call addfld( 'am_evp_SP' , 'fraction', pver,  'A', 'Convective evaporation area'   &
+   , phys_decomp )
+   call addfld( 'am_pu_SP'  , 'fraction', pver,  'A', 'Overlapping area between conv precipitation and sat updraft area'    &
+   , phys_decomp )
+   call addfld( 'x_um_SP'   , 'm',        pver,  'A', 'Zonal displacement of the updraft area from the surface'             &
+   , phys_decomp )
+   call addfld( 'y_um_SP'   , 'm',        pver,  'A', 'Meridional displacement of the updraft area from the surface'        &
+   , phys_decomp )
+   call addfld( 'x_p_SP'    , 'm',        pverp, 'A', 'Zonal displacement of the precipitation area from the surface'       &
+   , phys_decomp )
+   call addfld( 'y_p_SP'    , 'm',        pverp, 'A', 'Meridional displacement of the precipitation area from the surface'  &
+   , phys_decomp )
 
    do l = 1, pcnst
 
@@ -791,17 +848,31 @@ subroutine unicon_init_cnst(name, q, gcid)
    if ( name == 'ORGawk' ) then
       q = 0.0_r8
       return
+! JHYoon
+!  else if ( name == 'ORGthl' ) then
+!     q = 100.0_r8
+!     return
+!  else if ( name == 'ORGqto' ) then
+!     q = 100.0_r8
+!     return
+!  else if ( name == 'ORGuoo' ) then
+!     q = 100.0_r8
+!     return
+!  else if ( name == 'ORGvoo' ) then
+!     q = 100.0_r8
+!     return
    else if ( name == 'ORGthl' ) then
-      q = 100.0_r8
+      q = 10.0_r8
       return
    else if ( name == 'ORGqto' ) then
-      q = 100.0_r8
+      q = 0.01_r8
       return
    else if ( name == 'ORGuoo' ) then
-      q = 100.0_r8
+      q = 10.0_r8
       return
    else if ( name == 'ORGvoo' ) then
-      q = 100.0_r8
+      q = 10.0_r8
+! JHYoon
       return
    end if
 
@@ -892,7 +963,14 @@ subroutine unicon_cam_tend(dt, state, cam_in, sgh, sgh30, &
       cu_ur,   &! Mass-flux wghted mean 'u'   of detrained mass from conv up and downdraft at prev step [ m/s ]
       cu_vr,   &! Mass-flux wghted mean 'v'   of detrained mass from conv up and downdraft at prev step [ m/s ]
       cu_qlr,  &! Mass-flux wghted mean 'ql'  of detrained mass from conv up and downdraft at prev step [ kg/kg ]
-      cu_qir    ! Mass-flux wghted mean 'qi'  of detrained mass from conv up and downdraft at prev step [ kg/kg ]
+      cu_qir,  &! Mass-flux wghted mean 'qi'  of detrained mass from conv up and downdraft at prev step [ kg/kg ]
+      cmfr_det,&! The detrained mass from convective up and downdraft at the previous time step [ kg/s/m2 ]
+      qlr_det, &! Mass-flux wghted mean 'ql'  of detrained mass from conv up and downdraft at prev step [ kg/kg ]
+      qir_det, &! Mass-flux wghted mean 'qi'  of detrained mass from conv up and downdraft at prev step [ kg/kg ]
+      rqcr_l,  &! Grid-mean production rate of the mass   of detrained convective liquid condensate [ #/kg/s ] >= 0.
+      rqcr_i,  &! Grid-mean production rate of the mass   of detrained convective ice    condensate [ #/kg/s ] >= 0.
+      rncr_l,  &! Grid-mean production rate of the number of detrained convective liquid condensate [ #/kg/s ] >= 0.
+      rncr_i    ! Grid-mean production rate of the number of detrained convective ice    condensate [ #/kg/s ] >= 0.
 
    real(r8), pointer, dimension(:,:,:) :: & ! (mix,mkx,ncnst)
       cu_trr    ! Mass-flux wghted mean 'tr'  of detrained mass from conv up and downdraft at prev step [ kg/kg ]
@@ -920,7 +998,8 @@ subroutine unicon_cam_tend(dt, state, cam_in, sgh, sgh30, &
 
    real(r8), pointer, dimension(:) :: & ! (mix)
       precip,    &!  Precipitation flux at surface in flux unit [ m / s ]
-      snow        !  Snow flux at surface in flux unit [ m / s ]
+      snow,      &!  Snow flux at surface in flux unit [ m / s ]
+      rice2       ! Vertical integral of reserved detrained convective ice condensate converted in liquid unit [m/s] >= 0.
 
    real(r8) :: ps0(mix,0:mkx)            !  Environmental pressure at full sigma levels
    real(r8) :: zs0(mix,0:mkx)            !  Environmental height at full sigma levels
@@ -983,6 +1062,10 @@ subroutine unicon_cam_tend(dt, state, cam_in, sgh, sgh30, &
 
    real(r8) :: pdel0(mix,mkx)            !  Environmental pressure thickness ( either dry or moist ) [ Pa ]
    real(r8) :: trmin                     !  Minimum concentration of tracer [ # / kg ]
+
+   real(r8) :: cmf_det(mix,mkx)          !  Detrained mass flux from convective updraft (not from the environmental mixture) and downdraft [ kg / s / m^2 ] 
+   real(r8) :: ql_det(mix,mkx)           !  Detrained convective LWC from convective updraft (not from the environmental mixture) and downdraft [ kg / s / m^2 ]
+   real(r8) :: qi_det(mix,mkx)           !  Detrained convective IWC from convective updraft (not from the environmental mixture) and downdraft [ kg / s / m^2 ]
 
    ! For prognostically updated state variables
 
@@ -1056,7 +1139,7 @@ subroutine unicon_cam_tend(dt, state, cam_in, sgh, sgh30, &
    call pbuf_get_field(pbuf, cu_qird_idx,  cu_qird,  start=(/1,1,itim/),   kount=(/pcols,pver,1/))
    call pbuf_get_field(pbuf, cu_trrd_idx,  cu_trrd,  start=(/1,1,1,itim/), kount=(/pcols,pver,pcnst,1/))
 
-   call pbuf_get_field(pbuf, shfrc_idx,        shfrc)
+   call pbuf_get_field(pbuf, shfrc_idx,       shfrc)
    call pbuf_get_field(pbuf, icwmrsh_idx,     icwmrsh)
    call pbuf_get_field(pbuf, rprdsh_idx,      rprdsh)
    call pbuf_get_field(pbuf, prec_sh_idx,     precip)
@@ -1066,6 +1149,16 @@ subroutine unicon_cam_tend(dt, state, cam_in, sgh, sgh30, &
    call pbuf_get_field(pbuf, evprain_st_idx,  evprain_st_inv)
    call pbuf_get_field(pbuf, evpsnow_st_idx,  evpsnow_st_inv)
 
+   call pbuf_get_field(pbuf, cmfr_det_idx,    cmfr_det)
+   call pbuf_get_field(pbuf, qlr_det_idx,      qlr_det)
+   call pbuf_get_field(pbuf, qir_det_idx,      qir_det)
+
+   call pbuf_get_field(pbuf, rqcr_l_idx,        rqcr_l)
+   call pbuf_get_field(pbuf, rqcr_i_idx,        rqcr_i)
+   call pbuf_get_field(pbuf, rncr_l_idx,        rncr_l)
+   call pbuf_get_field(pbuf, rncr_i_idx,        rncr_i)
+
+   call pbuf_get_field(pbuf, rice2_idx,          rice2)
 
    ! Reverse variables defined at the layer mid-point
 
@@ -1105,6 +1198,7 @@ subroutine unicon_cam_tend(dt, state, cam_in, sgh, sgh30, &
 
    kpblh(:iend) = mkx + 1 - kpblh_inv(:iend)
 
+
    
    call compute_unicon( mix       , mkx        , iend      , ncnst    , mit     , dt      , &
                         ps0       , zs0        , p0        , z0       , dp0     , dpdry0  , &
@@ -1127,9 +1221,9 @@ subroutine unicon_cam_tend(dt, state, cam_in, sgh, sgh30, &
                         qvten     , qlten      , qiten     , trten    ,                     &
                         sten      , uten       , vten      ,                                &
                         qrten     , qsten      ,                                            &
-                        rqc_l     , rqc_i      , rqc       , rnc_l     , rnc_i  ,           &
-                        out%rliq  , precip     , snow      , evapc    ,                     &
-                        cnt       , cnb        ,                                            &
+                        rqc_l     , rqc_i      , rqc       , rnc_l    , rnc_i   ,           &
+                        out%rliq  , rice2      , precip    , snow     , evapc   ,           &
+                        cnt       , cnb        , cmf_det   , ql_det   , qi_det  ,           &
                         lchnk )
 
       
@@ -1137,25 +1231,32 @@ subroutine unicon_cam_tend(dt, state, cam_in, sgh, sgh30, &
    lq(:) = .true.
    call physics_ptend_init(ptend, state%psetcols, 'unicon', ls=.true., lu=.true., lv=.true., lq=lq)
 
-   ! ----------------------------------------------------- !
-   ! Treatment of reserved liquid-ice water for CAM        !
-   ! All the reserved condensate is converted into liquid. !
-   ! Jan.04.2012. Relocated from below to here to prevent  !
-   !              energy and water conservation error.     !
-   !              Also add corresponding tendency of cloud !
-   !              droplet number concentration.            !
-   ! Note that since 'positive_moisture' will convert      !
-   ! negative 'ql,qi,nl,ni' into positive, below may cause !
-   ! larger 'ql,qi' and smaller 'qv' than it should be if  !
-   ! 'ql0,qi0' further below becomes negative.             !
-   ! This feature is inevitable at the current stage.      !
-   ! Note that in future, I can impose consistency between !
-   ! positive_moisture and positive_tracer for nl,ni.      !     
-   ! ----------------------------------------------------- !  
+   ! -------------------------------------------------------- !
+   ! Treatment of reserved liquid-ice water for CAM           !
+   ! All the reserved condensate is converted into liquid.    !
+   ! Jan.04.2012. Relocated from below to here to prevent     !
+   !              energy and water conservation error.        !
+   !              Also add corresponding tendency of cloud    !
+   !              droplet number concentration.               !
+   ! Note that since 'positive_moisture' will convert         !
+   ! negative 'ql,qi,nl,ni' into positive, below may cause    !
+   ! larger 'ql,qi' and smaller 'qv' than it should be if     !
+   ! 'ql0,qi0' further below becomes negative.                !
+   ! This feature is inevitable at the current stage.         !
+   ! Note that in future, I can impose consistency between    !
+   ! positive_moisture and positive_tracer for nl,ni.         !
+   !                                                          !
+   ! Mar.06.2015 :                                            !
+   ! In case of UNICON, as of today, detrained convective     !
+   ! condensate is passed to cloud macrophysics with original !
+   ! liquid/ice phase as it is, without converting to liquid  ! 
+   ! phase. Thus, I commented out below 'sten' line today.    !
+   ! -------------------------------------------------------- !  
 
    qlten(:iend,:mkx) = qlten(:iend,:mkx) - rqc_l(:iend,:mkx)
    qiten(:iend,:mkx) = qiten(:iend,:mkx) - rqc_i(:iend,:mkx)
-   sten(:iend,:mkx)  =  sten(:iend,:mkx) - ( xls - xlv ) * rqc_i(:iend,:mkx)
+ ! Mar.06.2015. Remove below 'sten' line. 
+ ! sten(:iend,:mkx)  =  sten(:iend,:mkx) - ( xls - xlv ) * rqc_i(:iend,:mkx)
    trten(:iend,:mkx,ixnumliq) = trten(:iend,:mkx,ixnumliq) - rnc_l(:iend,:mkx)
    trten(:iend,:mkx,ixnumice) = trten(:iend,:mkx,ixnumice) - rnc_i(:iend,:mkx)
 
@@ -1272,7 +1373,6 @@ subroutine unicon_cam_tend(dt, state, cam_in, sgh, sgh30, &
       rprdsh(:iend,k_inv)  = qrten(:iend,k) + qsten(:iend,k)
       evapc_inv(:iend,k_inv) = evapc(:iend,k)       ! Evaporation rate of convective precipitation within environment
 
-
       do mt = 2, ncnst
          if (mt /= ixcldliq .and. mt /= ixcldice) then
             ptend%q(:iend,k_inv,mt) = trten(:iend,k,mt)
@@ -1286,14 +1386,27 @@ subroutine unicon_cam_tend(dt, state, cam_in, sgh, sgh30, &
       qlten_pos_inv(:iend,k_inv)  = qlten(:iend,k) - qlten_ori(:iend,k)
       qiten_pos_inv(:iend,k_inv)  = qiten(:iend,k) - qiten_ori(:iend,k)
       qtten_pos_inv(:iend,k_inv)  = qvten_pos_inv(:iend,k_inv) + qlten_pos_inv(:iend,k_inv) &
-                                                                + qiten_pos_inv(:iend,k_inv)
+                                                               + qiten_pos_inv(:iend,k_inv)
       slten_pos_inv(:iend,k_inv)  = sten_pos_inv(:iend,k_inv) - xlv * qlten_pos_inv(:iend,k_inv) &
-                                                               - xls * qiten_pos_inv(:iend,k_inv)
+                                                              - xls * qiten_pos_inv(:iend,k_inv)
       uten_pos_inv(:iend,k_inv)   = 0._r8
       vten_pos_inv(:iend,k_inv)   = 0._r8
       do mt = 1, ncnst
          trten_pos_inv(:iend,k_inv,mt)  = trten(:iend,k,mt) - trten_ori(:iend,k,mt)
       enddo
+
+      ! ------------------------------------------------------------------------------- !
+      ! Save detrainment variables to physical buffer for use in the cloud macrophysics !
+      ! ------------------------------------------------------------------------------- !
+
+      cmfr_det(:iend,k_inv) =  cmf_det(:iend,k)
+      qlr_det(:iend,k_inv)  =   ql_det(:iend,k)
+      qir_det(:iend,k_inv)  =   qi_det(:iend,k)
+
+      rqcr_l(:iend,k_inv)   =    rqc_l(:iend,k)
+      rqcr_i(:iend,k_inv)   =    rqc_i(:iend,k)
+      rncr_l(:iend,k_inv)   =    rnc_l(:iend,k)
+      rncr_i(:iend,k_inv)   =    rnc_i(:iend,k)
 
    end do
 
@@ -1360,10 +1473,16 @@ subroutine unicon_cam_org_diags(state, pbuf)
       ! Add a constant offset of '100._r8' to 'delta_xxx' variables to be
       ! consistent with the reading sentence of unicon.F90 and so to prevent
       ! negative tracers.
-      state%q(i,:,thl_cnst_ind) = max( 0._r8, delta_thl_PBL(i) + 100._r8 )
-      state%q(i,:,qt_cnst_ind)  = max( 0._r8,  delta_qt_PBL(i) + 100._r8 )
-      state%q(i,:,u_cnst_ind)   = max( 0._r8,   delta_u_PBL(i) + 100._r8 )
-      state%q(i,:,v_cnst_ind)   = max( 0._r8,   delta_v_PBL(i) + 100._r8 )
+! JHYoon
+!     state%q(i,:,thl_cnst_ind) = max( 0._r8, delta_thl_PBL(i) + 100._r8 )
+!     state%q(i,:,qt_cnst_ind)  = max( 0._r8,  delta_qt_PBL(i) + 100._r8 )
+!     state%q(i,:,u_cnst_ind)   = max( 0._r8,   delta_u_PBL(i) + 100._r8 )
+!     state%q(i,:,v_cnst_ind)   = max( 0._r8,   delta_v_PBL(i) + 100._r8 )
+      state%q(i,:,thl_cnst_ind) = max( 0._r8, delta_thl_PBL(i) + 10._r8 )
+      state%q(i,:,qt_cnst_ind)  = max( 0._r8,  delta_qt_PBL(i) + 0.01_r8 )
+      state%q(i,:,u_cnst_ind)   = max( 0._r8,   delta_u_PBL(i) + 10._r8 )
+      state%q(i,:,v_cnst_ind)   = max( 0._r8,   delta_v_PBL(i) + 10._r8 )
+! JHYoon
    end do
 
 end subroutine unicon_cam_org_diags

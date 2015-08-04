@@ -24,7 +24,7 @@ use physics_buffer, only: physics_buffer_desc, pbuf_add_field, dyn_time_lvls, &
 use constituents,   only: cnst_add, cnst_get_ind, &
      cnst_name, cnst_longname, sflxnam, apcnst, bpcnst, pcnst
 
-use cldwat2m_macro, only: rhmini
+use cldwat2m_macro, only: rhmini_org
 
 use cam_history,    only: addfld, add_default, phys_decomp, outfld
 
@@ -487,11 +487,11 @@ subroutine micro_mg_cam_init(pbuf2d)
         call micro_mg_init1_0( &
              r8, gravit, rair, rh2o, cpair, &
              rhoh2o, tmelt, latvap, latice, &
-             rhmini, errstring, dcs)
+             rhmini_org, errstring, dcs)
      case (5)
         call micro_mg_init1_5( &
              r8, gravit, rair, rh2o, cpair, &
-             tmelt, latvap, latice, rhmini, &
+             tmelt, latvap, latice, rhmini_org, &
              microp_uniform, do_cldice, errstring, dcs)
      end select
   end select
@@ -952,6 +952,11 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
   real(r8), pointer :: rate1ord_cw2pr_st(:,:) ! 1st order rate for direct conversion of
   ! strat. cloud water to precip (1/s)    ! rce 2010/05/01
   real(r8), pointer :: wsedl(:,:)        ! Sedimentation velocity of liquid stratus cloud droplet [ m/s ]
+
+  ! For rrtm optics. specificed distribution.
+! real(r8) :: mucon                                 ! Convective size distribution shape parameter
+! real(r8) :: dcon                                  ! Convective size distribution effective radius (meters)
+! real(r8) :: deicon                                ! Convective ice effective diameter (meters)
 
 
   real(r8), pointer :: CC_T(:,:)         ! Grid-mean microphysical tendency

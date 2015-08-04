@@ -18,8 +18,7 @@ module inidat
   use element_mod, only : element_t
   use shr_kind_mod, only: r8 => shr_kind_r8
   use spmd_utils,   only: iam, masterproc
-  use cam_control_mod, only : ideal_phys, aqua_planet, pertlim, seed_custom, seed_clock, new_random
-  use random_xgc, only: init_ranx, ranx
+  use cam_control_mod, only : ideal_phys, aqua_planet, pertlim
   implicit none
   private
   public read_inidat
@@ -50,6 +49,7 @@ contains
     use microp_driver, only: microp_driver_implements_cnst, microp_driver_init_cnst
     use phys_control,  only: phys_getopts
     use co2_cycle   , only: co2_implements_cnst, co2_init_cnst
+    use unicon_cam,   only: unicon_implements_cnst, unicon_init_cnst
     use nctopo_util_mod, only: nctopo_util_inidat
     implicit none
     type(file_desc_t),intent(inout) :: ncid_ini, ncid_topo
@@ -72,7 +72,6 @@ contains
     integer :: rndm_seed_sz
     integer, allocatable :: rndm_seed(:)
     real(r8) :: pertval
-    integer :: sysclk
     integer :: i
     real(r8), parameter :: D0_0 = 0.0_r8
     real(r8), parameter :: D0_5 = 0.5_r8
@@ -88,7 +87,7 @@ contains
 
     call get_dyn_decomp(elem, nlev, pio_double, iodesc)
 
-    lsize = pio_get_local_array_size(iodesc)
+    lsize = pio_get_local_array_size(iodesc)	
 
     tlncols = lsize/nlev
 
@@ -146,35 +145,18 @@ contains
                        'by +/- ', pertlim, ' to initial temperature field'
       end if
 
-      if (new_random) then
-        rndm_seed_sz = 1
-      else
-        call random_seed(size=rndm_seed_sz)
-      endif
+      call random_seed(size=rndm_seed_sz)
       allocate(rndm_seed(rndm_seed_sz))
 
       do ie=1,nelemd
         ! seed random number generator based on element ID
         ! (possibly include a flag to allow clock-based random seeding)
-        rndm_seed(:) = elem(ie)%GlobalId
-        if (seed_custom > 0) rndm_seed(:) = ieor( rndm_seed(1) , int(seed_custom,kind(rndm_seed(1))) )
-        if (seed_clock) then
-          call system_clock(sysclk)
-          rndm_seed(:) = ieor( sysclk , int(rndm_seed(1),kind(sysclk)) )
-        endif
-        if (new_random) then
-          call init_ranx(rndm_seed(1))
-        else
-          call random_seed(put=rndm_seed)
-        endif
+        rndm_seed = elem(ie)%GlobalId
+        call random_seed(put=rndm_seed)
         do i=1,np
           do j=1,np
             do k=1,nlev
-              if (new_random) then
-                pertval = ranx()
-              else
-                call random_number(pertval)
-              endif
+              call random_number(pertval)
               pertval = D2_0*pertlim*(D0_5 - pertval)
               elem(ie)%state%T(i,j,k,1) = elem(ie)%state%T(i,j,k,1)*(D1_0 + pertval)
             end do
@@ -225,6 +207,10 @@ contains
              call co2_init_cnst(cnst_name(m_cnst), tmp, gcid)
               if(par%masterproc) write(iulog,*) '          ', cnst_name(m_cnst), &
                    ' initialized by "co2_init_cnst"'
+          else if (unicon_implements_cnst(cnst_name(m_cnst))) then
+             call unicon_init_cnst(cnst_name(m_cnst), tmp, gcid)
+              if(par%masterproc) write(iulog,*) '          ', cnst_name(m_cnst), &
+                   ' initialized by "unicon_init_cnst"'
           else
               if(par%masterproc) write(iulog,*) '          ', cnst_name(m_cnst), ' set to 0.'
           end if

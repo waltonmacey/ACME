@@ -157,6 +157,20 @@ end subroutine conv_water_readnl
    call addfld ('ICIMRTOT ', 'kg/kg   ', pver, 'A', 'Total in-cloud ice mixing ratio '                        ,phys_decomp)
    call addfld ('ICLMRTOT ', 'kg/kg   ', pver, 'A', 'Total in-cloud liquid mixing ratio '                     ,phys_decomp)
 
+  ! Sungsu
+    call addfld ('GCLMRDP  ', 'kg/kg   ', pver, 'A', 'Grid-mean deep convective LWC'                           ,phys_decomp)
+    call addfld ('GCIMRDP  ', 'kg/kg   ', pver, 'A', 'Grid-mean deep convective IWC'                           ,phys_decomp)
+    call addfld ('GCLMRSH  ', 'kg/kg   ', pver, 'A', 'Grid-mean shallow convective LWC'                        ,phys_decomp)
+    call addfld ('GCIMRSH  ', 'kg/kg   ', pver, 'A', 'Grid-mean shallow convective IWC'                        ,phys_decomp)
+  ! Sungsu
+  ! Sungsu more
+    call addfld ('FRESH  ', 'fraction   ', pver, 'A', 'Fractional occurrence of shallow cumulus with condensate',phys_decomp)
+    call addfld ('FREDP  ', 'fraction   ', pver, 'A', 'Fractional occurrence of deep    cumulus with condensate',phys_decomp)
+    call addfld ('FRECU  ', 'fraction   ', pver, 'A', 'Fractional occurrence of         cumulus with condensate',phys_decomp)
+    call addfld ('FRETOT ', 'fraction   ', pver, 'A', 'Fractional occurrence of         cloud   with condensate',phys_decomp)
+  ! Sungsu more
+
+
    end subroutine conv_water_init
 
    subroutine conv_water_4rad(state, pbuf, totg_liq, totg_ice)
@@ -233,6 +247,20 @@ end subroutine conv_water_readnl
    real(r8) :: kabs, kabsi, kabsl, alpha, dp0, sh0, ic_limit
    real(r8) :: wrk1         
 
+ ! Sungsu
+   real(r8) :: totg_ice_sh(pcols,pver)   ! Grid-mean IWP from shallow convective cloud
+   real(r8) :: totg_liq_sh(pcols,pver)   ! Grid-mean LWP from shallow convective cloud
+   real(r8) :: totg_ice_dp(pcols,pver)   ! Grid-mean IWP from deep    convective cloud
+   real(r8) :: totg_liq_dp(pcols,pver)   ! Grid-mean LWP from deep    convective cloud
+ ! Sungsu
+
+ ! Sungsu more
+   real(r8) :: fresh(pcols,pver)                  ! Fractional occurrence of shallow cumulus
+   real(r8) :: fredp(pcols,pver)                  ! Fractional occurrence of deep    cumulus
+   real(r8) :: frecu(pcols,pver)                  ! Fractional occurrence of         cumulus
+   real(r8) :: fretot(pcols,pver)                 ! Fractional occurrence of         cloud
+ ! Sungsu more
+
    integer :: lchnk
    integer :: ncol
 
@@ -272,6 +300,13 @@ end subroutine conv_water_readnl
    ! 1. Effective mean in-cloud convective ice/liquid (deep+shallow) !
    ! 2. Effective mean in-cloud total ice/liquid (ls+convective)     !
    ! --------------------------------------------------------------- !
+
+! Sungsu more
+   fresh(:,:)  = 0._r8
+   fredp(:,:)  = 0._r8
+   frecu(:,:)  = 0._r8
+   fretot(:,:) = 0._r8
+ ! Sungsu more
 
    do k = 1, pver
    do i = 1, ncol
@@ -366,6 +401,31 @@ end subroutine conv_water_readnl
       totg_ice(i,k) = tot0_frac * tot_icwmr * wrk1
       totg_liq(i,k) = tot0_frac * tot_icwmr * (1._r8-wrk1)
 
+    ! Sungsu : grid-mean convective water
+
+      totg_ice_sh(i,k)  = sh0_frac * sh_icwmr(i,k) * wrk1
+      totg_ice_dp(i,k)  = dp0_frac * dp_icwmr(i,k) * wrk1
+
+      totg_liq_sh(i,k)  = sh0_frac * sh_icwmr(i,k) * (1._r8-wrk1)
+      totg_liq_dp(i,k)  = dp0_frac * dp_icwmr(i,k) * (1._r8-wrk1)
+
+    ! Sungsu : grid-mean convective water
+
+    ! Sungsu more
+      if( sh0_frac > frac_limit ) then
+          fresh(i,k) = 1._r8
+      endif
+      if( dp0_frac > frac_limit ) then
+          fredp(i,k) = 1._r8
+      endif
+      if( cu0_frac > frac_limit ) then
+          frecu(i,k) = 1._r8
+      endif
+      if( tot0_frac > frac_limit ) then
+          fretot(i,k) = 1._r8
+      endif
+    ! Sungsu more
+
    end do
    end do
 
@@ -382,6 +442,24 @@ end subroutine conv_water_readnl
    call outfld( 'ICIMRCU ', conv_ice  , pcols, lchnk )
    call outfld( 'ICLMRTOT', tot_liq   , pcols, lchnk )
    call outfld( 'ICIMRTOT', tot_ice   , pcols, lchnk )
+
+ ! Sungsu grid-mean convective water
+
+   call outfld( 'GCLMRDP', totg_liq_dp   , pcols, lchnk )
+   call outfld( 'GCIMRDP', totg_ice_dp   , pcols, lchnk )
+   call outfld( 'GCLMRSH', totg_liq_sh   , pcols, lchnk )
+   call outfld( 'GCIMRSH', totg_ice_sh   , pcols, lchnk )
+
+ ! Sungsu grid-mean convective water
+
+ ! Sungsu more
+
+   call outfld( 'FRESH',  fresh    , pcols, lchnk )
+   call outfld( 'FREDP',  fredp    , pcols, lchnk )
+   call outfld( 'FRECU',  frecu    , pcols, lchnk )
+   call outfld( 'FRETOT', fretot   , pcols, lchnk )
+
+ ! Sungsu more
 
   end subroutine conv_water_4rad
 

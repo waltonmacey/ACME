@@ -94,6 +94,9 @@ module vertical_diffusion
   integer              :: ntop                         ! Top interface level to which vertical diffusion is applied ( = 1 ).
   integer              :: nbot                         ! Bottom interface level to which vertical diffusion is applied ( = pver ).
   integer              :: tke_idx, kvh_idx, kvm_idx    ! TKE and eddy diffusivity indices for fields in the physics buffer
+! Sungsu added below 2 for use in the cloud macrophysics
+  integer              :: qtl_flx_idx, qti_flx_idx
+! Sungsu added above 2 for use in the cloud macrophysics
   integer              :: kvt_idx                      ! Index for kinematic molecular conductivity
   integer              :: turbtype_idx, smaw_idx       ! Turbulence type and instability functions
   integer              :: tauresx_idx, tauresy_idx     ! Redisual stress for implicit surface stress
@@ -225,6 +228,11 @@ contains
 
     call pbuf_add_field('tpert', 'global', dtype_r8, (/pcols/),                       tpert_idx)
     call pbuf_add_field('qpert', 'global', dtype_r8, (/pcols,pcnst/),                 qpert_idx)
+  
+  ! Sungsu added below 2 for use in the cloud macrophysics
+    call pbuf_add_field('qtl_flx',  'global', dtype_r8, (/pcols, pverp/), qtl_flx_idx)
+    call pbuf_add_field('qti_flx',  'global', dtype_r8, (/pcols, pverp/), qti_flx_idx) 
+  ! Sungsu added above 2 for use in the cloud macrophysics
 
     if (trim(shallow_scheme) == 'UNICON') then
        call pbuf_add_field('bprod',    'global', dtype_r8, (/pcols,pverp/), bprod_idx)
@@ -596,6 +604,10 @@ contains
         call pbuf_set_field(pbuf2d, smaw_idx,     0.0_r8)
         call pbuf_set_field(pbuf2d, tauresx_idx,  0.0_r8)
         call pbuf_set_field(pbuf2d, tauresy_idx,  0.0_r8)
+      ! Sungsu added below two.
+        call pbuf_set_field(pbuf2d, qtl_flx_idx,  0.0_r8)
+        call pbuf_set_field(pbuf2d, qti_flx_idx,  0.0_r8)   
+      ! Sungsu added above two. 
         if (trim(shallow_scheme) == 'UNICON') then
            call pbuf_set_field(pbuf2d, bprod_idx,    1.0e-5_r8)
            call pbuf_set_field(pbuf2d, ipbl_idx,     0    )
@@ -712,6 +724,11 @@ contains
     integer(i4),pointer :: turbtype(:,:)                            ! Turbulent interface types [ no unit ]
     real(r8), pointer   :: smaw(:,:)                                ! Normalized Galperin instability function
                                                                     ! ( 0<= <=4.964 and 1 at neutral )
+  ! Sungsu added below two for use in the cloud macrophysics
+    real(r8), pointer   :: qtl_flx(:,:)                             ! overbar(w'qtl') where qtl = qv + ql
+    real(r8), pointer   :: qti_flx(:,:)                             ! overbar(w'qti') where qti = qv + qi
+  ! Sungsu added above two for use in the cloud macrophysics
+
     real(r8) :: cgs(pcols,pverp)                                    ! Counter-gradient star  [ cg/flux ]
     real(r8) :: cgh(pcols,pverp)                                    ! Counter-gradient term for heat
     real(r8) :: rztodt                                              ! 1./ztodt [ 1/s ]
@@ -858,7 +875,10 @@ contains
     call pbuf_get_field(pbuf, kvh_idx,  kvh_in)
     call pbuf_get_field(pbuf, smaw_idx, smaw)
     call pbuf_get_field(pbuf, tke_idx,  tke)
-
+  ! Sungsu added below two for use in the cloud macrophysics
+    call pbuf_get_field(pbuf, qtl_flx_idx,  qtl_flx)
+    call pbuf_get_field(pbuf, qti_flx_idx,  qti_flx)
+  ! Sungsu added above two for use in the cloud macrophysics
 
     select case (eddy_scheme)
     case ( 'diag_TKE' ) 
@@ -1135,6 +1155,11 @@ contains
     uflx_cg(:ncol,1)  = 0._r8
     vflx_cg(:ncol,1)  = 0._r8
 
+  ! Sungsu added below two for use in the cloud macrophysics
+    qtl_flx(:ncol,1) = 0._r8
+    qti_flx(:ncol,1) = 0._r8
+  ! Sungsu added below two for use in the cloud macrophysics
+
     do k = 2, pver
        do i = 1, ncol
           rhoair     = state%pint(i,k) / ( rair * ( ( 0.5_r8*(slv(i,k)+slv(i,k-1)) - gravit*state%zi(i,k))/cpair ) )
@@ -1152,6 +1177,15 @@ contains
           qtflx_cg(i,k) = kvh(i,k) * rhoair * ( cflx(i,1) + cflx(i,ixcldliq) + cflx(i,ixcldice) ) * cgs(i,k)
           uflx_cg(i,k)  = 0._r8
           vflx_cg(i,k)  = 0._r8
+
+        ! Sungsu added below two for use in the cloud macrophysics
+        ! Note that density is not addd here. Also, only consider local transport term.
+          qtl_flx(i,k) = - kvh(i,k)*(q_tmp(i,k-1,1)-q_tmp(i,k,1)+q_tmp(i,k-1,ixcldliq)-q_tmp(i,k,ixcldliq))/&
+                                    (state%zm(i,k-1)-state%zm(i,k))
+          qti_flx(i,k) = - kvh(i,k)*(q_tmp(i,k-1,1)-q_tmp(i,k,1)+q_tmp(i,k-1,ixcldice)-q_tmp(i,k,ixcldice))/&
+                                    (state%zm(i,k-1)-state%zm(i,k))
+        ! Sungsu added below two for use in the cloud macrophysics
+
        end do
     end do
 
@@ -1168,6 +1202,14 @@ contains
     qtflx_cg(:ncol,pverp) = 0._r8
     uflx_cg(:ncol,pverp)  = 0._r8
     vflx_cg(:ncol,pverp)  = 0._r8
+
+  ! Sungsu added below two for use in the cloud macrophysics
+    do i = 1, ncol
+       rhoair = state%pint(i,pverp)/(rair*((slv(i,pver)-gravit*state%zi(i,pverp))/cpair))
+       qtl_flx(i,pverp) = cflx(i,1)/rhoair
+       qti_flx(i,pverp) = cflx(i,1)/rhoair
+    enddo
+  ! Sungsu added above two for use in the cloud macrophysics
 
     ! --------------------------------------------------------------- !
     ! Convert the new profiles into vertical diffusion tendencies.    !

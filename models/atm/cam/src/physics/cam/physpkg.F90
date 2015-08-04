@@ -62,6 +62,8 @@ module physpkg
   integer ::  prec_sh_idx        = 0
   integer ::  snow_sh_idx        = 0
 
+  integer ::  rice2_idx          = 0
+
   save
 
   ! Public methods
@@ -840,6 +842,10 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
     snow_dp_idx  = pbuf_get_index('SNOW_DP')
     prec_sh_idx  = pbuf_get_index('PREC_SH')
     snow_sh_idx  = pbuf_get_index('SNOW_SH')
+
+    if (shallow_scheme .eq. 'UNICON') then
+        rice2_idx    = pbuf_get_index('rice2')
+    endif    
 
     call phys_getopts(prog_modal_aero_out=prog_modal_aero)
 
@@ -1782,6 +1788,8 @@ subroutine tphysbc (ztodt,               &
     real(r8),pointer :: prec_sh(:)                ! total precipitation from Hack convection
     real(r8),pointer :: snow_sh(:)                ! snow from Hack convection
 
+    real(r8),pointer :: rice2(:)                  ! reserved ice from UNICON [m/s]
+
     ! carma precipitation variables
     real(r8) :: prec_sed_carma(pcols)          ! total precip from cloud sedimentation (CARMA)
     real(r8) :: snow_sed_carma(pcols)          ! snow from cloud ice sedimentation (CARMA)
@@ -1805,6 +1813,7 @@ subroutine tphysbc (ztodt,               &
     real(r8) :: det_ice(pcols)                 ! vertical integral of detrained ice
     real(r8) :: flx_cnd(pcols)
     real(r8) :: flx_heat(pcols)
+    real(r8) :: flx_snw(pcols)
     type(check_tracers_data):: tracerint             ! energy integrals and cummulative boundary fluxes
     real(r8) :: zero_tracers(pcols,pcnst)
 

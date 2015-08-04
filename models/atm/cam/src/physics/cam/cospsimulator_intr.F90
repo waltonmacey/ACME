@@ -1268,14 +1268,14 @@ endif
       cvreffice_idx  = pbuf_get_index('CV_REFFICE')
    end if
 
-   dpcldliq_idx  = pbuf_get_index('DP_CLDLIQ')
-   dpcldice_idx  = pbuf_get_index('DP_CLDICE')
+ ! dpcldliq_idx  = pbuf_get_index('DP_CLDLIQ')
+ ! dpcldice_idx  = pbuf_get_index('DP_CLDICE')
    shcldliq_idx  = pbuf_get_index('SH_CLDLIQ')
    shcldice_idx  = pbuf_get_index('SH_CLDICE')
    shcldliq1_idx = pbuf_get_index('SH_CLDLIQ1')
    shcldice1_idx = pbuf_get_index('SH_CLDICE1')
-   dpflxprc_idx  = pbuf_get_index('DP_FLXPRC')
-   dpflxsnw_idx  = pbuf_get_index('DP_FLXSNW')
+ ! dpflxprc_idx  = pbuf_get_index('DP_FLXPRC')
+ ! dpflxsnw_idx  = pbuf_get_index('DP_FLXSNW')
    shflxprc_idx  = pbuf_get_index('SH_FLXPRC')
    shflxsnw_idx  = pbuf_get_index('SH_FLXSNW')
    lsflxprc_idx  = pbuf_get_index('LS_FLXPRC')
@@ -1966,8 +1966,8 @@ end if
 
    !!! convective cloud mixing ratios (use for cam4 and cam5)
 
-   call pbuf_get_field(pbuf, dpcldliq_idx, dp_cldliq  )
-   call pbuf_get_field(pbuf, dpcldice_idx, dp_cldice  )
+ ! call pbuf_get_field(pbuf, dpcldliq_idx, dp_cldliq  )
+ ! call pbuf_get_field(pbuf, dpcldice_idx, dp_cldice  )
    if( cam_physpkg_is('cam3') .or. cam_physpkg_is('cam4') ) then
       !!! get from pbuf in convect_shallow.F90
       call pbuf_get_field(pbuf, shcldliq_idx, sh_cldliq  )
@@ -1979,8 +1979,8 @@ end if
    end if
 
    !!! precipitation fluxes (use for both cam4 and cam5 for now....)
-   call pbuf_get_field(pbuf, dpflxprc_idx, dp_flxprc  )
-   call pbuf_get_field(pbuf, dpflxsnw_idx, dp_flxsnw  )
+ ! call pbuf_get_field(pbuf, dpflxprc_idx, dp_flxprc  )
+ ! call pbuf_get_field(pbuf, dpflxsnw_idx, dp_flxsnw  )
    call pbuf_get_field(pbuf, shflxprc_idx, sh_flxprc  )
    call pbuf_get_field(pbuf, shflxsnw_idx, sh_flxsnw  )
    call pbuf_get_field(pbuf, lsflxprc_idx, ls_flxprc  )
@@ -2103,9 +2103,8 @@ end if
       use_precipitation_fluxes = .true.
 
       ! add together deep and shallow convection precipitation fluxes, recall *_flxprc variables are rain+snow
-      rain_cv(1:ncol,1:pverp) = (sh_flxprc(1:ncol,1:pverp)-sh_flxsnw(1:ncol,1:pverp)) + &
-                                (dp_flxprc(1:ncol,1:pverp)-dp_flxsnw(1:ncol,1:pverp))
-      snow_cv(1:ncol,1:pverp) = sh_flxsnw(1:ncol,1:pverp) + dp_flxsnw(1:ncol,1:pverp)
+      rain_cv(1:ncol,1:pverp) = (sh_flxprc(1:ncol,1:pverp)-sh_flxsnw(1:ncol,1:pverp))
+      snow_cv(1:ncol,1:pverp) = sh_flxsnw(1:ncol,1:pverp)
 
       ! interpolate interface precip fluxes to mid points
       ! rain_cv_interp (pver) from rain_cv (pverp), snow_cv_interp from snow_cv, 
@@ -2190,9 +2189,8 @@ end if
       use_precipitation_fluxes = .true.      !!! consistent with cam4 implementation.
 
       ! add together deep and shallow convection precipitation fluxes, recall *_flxprc variables are rain+snow
-      rain_cv(1:ncol,1:pverp) = (sh_flxprc(1:ncol,1:pverp)-sh_flxsnw(1:ncol,1:pverp)) + &
-                                (dp_flxprc(1:ncol,1:pverp)-dp_flxsnw(1:ncol,1:pverp))
-      snow_cv(1:ncol,1:pverp) = sh_flxsnw(1:ncol,1:pverp) + dp_flxsnw(1:ncol,1:pverp)
+      rain_cv(1:ncol,1:pverp) = (sh_flxprc(1:ncol,1:pverp)-sh_flxsnw(1:ncol,1:pverp))
+      snow_cv(1:ncol,1:pverp) = sh_flxsnw(1:ncol,1:pverp)
 
       ! interpolate interface precip fluxes to mid points
       do i=1,ncol
@@ -2216,8 +2214,12 @@ end if
       do i=1,ncol
            if (cld(i,k) .gt. 0._r8) then
               !! note: convective mixing ratio is the sum of shallow and deep convective clouds in CAM5
-              mr_ccliq(i,k) = sh_cldliq(i,k) + dp_cldliq(i,k)
-              mr_ccice(i,k) = sh_cldliq(i,k) + dp_cldliq(i,k)
+            ! Sungsu: Below is mods for UNICON following Cecile. Note that original code for ice is completely wrong 
+            !         because it uses 'liq' instead of 'ice'.
+              mr_ccliq(i,k) = sh_cldliq(i,k)
+              mr_ccice(i,k) = sh_cldice(i,k)
+            ! mr_ccliq(i,k) = sh_cldliq(i,k) + dp_cldliq(i,k)
+            ! mr_ccice(i,k) = sh_cldliq(i,k) + dp_cldliq(i,k)
               mr_lsliq(i,k)=state%q(i,k,ixcldliq)   ! mr_lsliq, mixing_ratio_large_scale_cloud_liquid, state only includes stratiform (kg/kg)  
               mr_lsice(i,k)=state%q(i,k,ixcldice)   ! mr_lsice - mixing_ratio_large_scale_cloud_ice, state only includes stratiform (kg/kg)
            else

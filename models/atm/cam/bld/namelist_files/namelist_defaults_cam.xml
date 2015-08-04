@@ -723,7 +723,7 @@
 <microp_uniform>.false.</microp_uniform>
 
 <micro_mg_dcs                                     > 400.0D-6 </micro_mg_dcs>
-<micro_mg_dcs     phys="cam5" microphys="mg1"     > 400.0D-6 </micro_mg_dcs>
+<micro_mg_dcs     phys="cam5" microphys="mg1"     > 350.0D-6 </micro_mg_dcs>
 <micro_mg_dcs     phys="cam5" microphys="mg1.5"   > 250.0D-6 </micro_mg_dcs>
 
 <!-- Macrophysics scheme -->
