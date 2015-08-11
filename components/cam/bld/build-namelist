@@ -125,7 +125,7 @@ if ($ProgDir) {
 }
 
 # CAM root directory.  
-my $cam_root = absolute_path("$cfgdir/../../../..");
+my $cam_root = absolute_path("$cfgdir/../../..");
 
 my $cfg_cache = "config_cache.xml";           # Default name of configuration cache file
 my $outdirname = ".";                         # Default name of output directory name
