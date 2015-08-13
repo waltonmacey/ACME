@@ -2452,6 +2452,9 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
   use physics_mod, only : virtual_specific_heat, virtual_temperature
   use prim_si_mod, only : preq_vertadv, preq_omega_ps, preq_hydrostatic
 
+#if USE_CUDA_FORTRAN
+  use prim_advance_oacc_mod, only: compute_and_apply_oacc_rhs
+#endif
 
   implicit none
   integer :: np1,nm1,n0,qn0,nets,nete
@@ -2497,6 +2500,13 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
 
   call t_barrierf('sync_compute_and_apply_rhs', hybrid%par%comm)
   call t_startf('compute_and_apply_rhs')
+
+#if USE_CUDA_FORTRAN
+  call compute_and_apply_oacc_rhs(np1,nm1,n0,qn0,dt2,elem,hvcoord,hybrid,deriv,nets,nete,compute_diagnostics,eta_ave_w,  edge3p1)
+  !It's admittedly not ideal to use this form instead of a simple "return". However PGI 14.7.0 and up
+  !all segfault if I leave the return here instead of doing it this way.
+#else
+
   do ie=nets,nete
      !ps => elem(ie)%state%ps_v(:,:,n0)
      phi => elem(ie)%derived%phi(:,:,:)
@@ -3026,6 +3036,8 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
 
   end do
 
+!close CUDA check
+#endif
 
 #ifdef DEBUGOMP
 #if (! defined ELEMENT_OPENMP)
