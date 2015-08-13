@@ -59,7 +59,7 @@ contains
   use control_mod, only : moisture, qsplit, use_cpstar, rsplit
   use hybvcoord_mod, only : hvcoord_t
 
-  use physical_constants, only : cp, cpwater_vapor, Rgas, kappa
+  use physical_constants, only : cp, cpwater_vapor, Rgas, kappa, rrearth
   use physics_mod, only : virtual_specific_heat, virtual_temperature
   use prim_si_mod, only : preq_vertadv, preq_omega_ps, preq_hydrostatic
 
@@ -105,7 +105,10 @@ contains
 
   real (kind=real_kind) ::  cp2,cp_ratio,E,de,Qt,v1,v2
   real (kind=real_kind) ::  glnps1,glnps2,gpterm
-  integer :: i,j,k,kptr,ie
+  real(kind=real_kind) ::  dsdx00
+  real(kind=real_kind) ::  dsdy00
+  real(kind=real_kind) ::  v_grad1(np,np),v_grad2(np,np)
+  integer :: i,j,k,l,kptr,ie
 
 
   call t_barrierf('sync_compute_and_apply_oacc_rhs', hybrid%par%comm)
@@ -124,9 +127,27 @@ contains
      ! (NCAR/TN-382+STR), June 1993, p. 24.
      ! ==================================================
      ! vertically eulerian only needs grad(ps)
-     if (rsplit==0) &
-          grad_ps = gradient_sphere(elem(ie)%state%ps_v(:,:,n0),deriv,elem(ie)%Dinv)
-
+     if (rsplit==0) then 
+          !! inlined gradient_sphere below: grad_ps = gradient_sphere(elem(ie)%state%ps_v(:,:,n0),deriv,elem(ie)%Dinv)
+          do j=1,np
+            do l=1,np
+             dsdx00=0.0d0
+             dsdy00=0.0d0
+              do i=1,np
+               dsdx00 = dsdx00 + deriv%Dvv(i,l  )*elem(ie)%state%ps_v(i,j,n0)
+               dsdy00 = dsdy00 + deriv%Dvv(i,l  )*elem(ie)%state%ps_v(j,i,n0)
+              enddo
+              v_grad1(l  ,j  ) = dsdx00*rrearth
+              v_grad2(j  ,l  ) = dsdy00*rrearth
+             enddo
+           enddo
+           do j=1,np
+            do i=1,np
+             grad_ps(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_grad2(i,j)
+             grad_ps(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_grad2(i,j)
+            enddo
+           enddo
+       endif
 
      ! ============================
      ! compute p and delta p
@@ -156,7 +177,27 @@ contains
            else
               p(:,:,k)=p(:,:,k-1) + dp(:,:,k-1)/2 + dp(:,:,k)/2
            endif
-           grad_p(:,:,:,k) = gradient_sphere(p(:,:,k),deriv,elem(ie)%Dinv)
+
+          !! inline gradient_sphere here: grad_p(:,:,:,k) = gradient_sphere(p(:,:,k),deriv,elem(ie)%Dinv)
+          do j=1,np
+            do l=1,np
+             dsdx00=0.0d0
+             dsdy00=0.0d0
+              do i=1,np
+               dsdx00 = dsdx00 + deriv%Dvv(i,l  )*p(i,j,k)
+               dsdy00 = dsdy00 + deriv%Dvv(i,l  )*p(j,i,k)
+              enddo
+              v_grad1(l  ,j  ) = dsdx00*rrearth
+              v_grad2(j  ,l  ) = dsdy00*rrearth
+             enddo
+           enddo
+           do j=1,np
+            do i=1,np
+             grad_p(i,j,1,k)=elem(ie)%Dinv(1,1,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_grad2(i,j)
+             grad_p(i,j,2,k)=elem(ie)%Dinv(1,2,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_grad2(i,j)
+            enddo
+           enddo
+
         endif
 
         rdp(:,:,k) = 1.0D0/dp(:,:,k)
@@ -315,7 +356,28 @@ contains
         ! ================================================
         ! compute gradp term (ps/p)*(dp/dps)*T
         ! ================================================
-        vtemp(:,:,:)   = gradient_sphere(elem(ie)%state%T(:,:,k,n0),deriv,elem(ie)%Dinv)
+        !! inline gradient_sphere here vtemp(:,:,:)   = gradient_sphere(elem(ie)%state%T(:,:,k,n0),deriv,elem(ie)%Dinv)
+          do j=1,np
+            do l=1,np
+             dsdx00=0.0d0
+             dsdy00=0.0d0
+              do i=1,np
+               dsdx00 = dsdx00 + deriv%Dvv(i,l  )*elem(ie)%state%T(i,j,k,n0)
+               dsdy00 = dsdy00 + deriv%Dvv(i,l  )*elem(ie)%state%T(j,i,k,n0)
+              enddo
+              v_grad1(l  ,j  ) = dsdx00*rrearth
+              v_grad2(j  ,l  ) = dsdy00*rrearth
+             enddo
+           enddo
+           do j=1,np
+            do i=1,np
+             vtemp(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_grad2(i,j)
+             vtemp(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_grad2(i,j)
+            enddo
+           enddo 
+
+
+
         do j=1,np
            do i=1,np
               v1     = elem(ie)%state%v(i,j,1,k,n0)
@@ -326,8 +388,26 @@ contains
         
         
         ! vtemp = grad ( E + PHI )
-        vtemp = gradient_sphere(Ephi(:,:),deriv,elem(ie)%Dinv)
-        
+        !inline vtemp = gradient_sphere(Ephi(:,:),deriv,elem(ie)%Dinv)
+        do j=1,np
+            do l=1,np
+             dsdx00=0.0d0
+             dsdy00=0.0d0
+              do i=1,np
+               dsdx00 = dsdx00 + deriv%Dvv(i,l  )*Ephi(i,j)
+               dsdy00 = dsdy00 + deriv%Dvv(i,l  )*Ephi(j,i)
+              enddo
+              v_grad1(l  ,j  ) = dsdx00*rrearth
+              v_grad2(j  ,l  ) = dsdy00*rrearth
+             enddo
+           enddo
+           do j=1,np
+            do i=1,np
+             vtemp(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_grad2(i,j)
+             vtemp(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_grad2(i,j)
+            enddo
+           enddo        
+
         do j=1,np
            do i=1,np
 !              gpterm = hvcoord%hybm(k)*T_v(i,j,k)/p(i,j,k)
@@ -405,7 +485,26 @@ contains
                  Ephi(i,j)=0.5D0*( v1*v1 + v2*v2 )
               enddo
            enddo
-           vtemp = gradient_sphere(Ephi,deriv,elem(ie)%Dinv)
+           !inline vtemp = gradient_sphere(Ephi,deriv,elem(ie)%Dinv)
+           do j=1,np
+            do l=1,np
+             dsdx00=0.0d0
+             dsdy00=0.0d0
+              do i=1,np
+               dsdx00 = dsdx00 + deriv%Dvv(i,l  )*Ephi(i,j)
+               dsdy00 = dsdy00 + deriv%Dvv(i,l  )*Ephi(j,i)
+              enddo
+              v_grad1(l  ,j  ) = dsdx00*rrearth
+              v_grad2(j  ,l  ) = dsdy00*rrearth
+             enddo
+           enddo
+           do j=1,np
+            do i=1,np
+             vtemp(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_grad2(i,j)
+             vtemp(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_grad2(i,j)
+            enddo
+           enddo
+
            do j=1,np
               do i=1,np
                  ! dp/dn u dot grad(E)
@@ -425,7 +524,27 @@ contains
            
            
            ! vtemp = grad_phi(:,:,k)
-           vtemp = gradient_sphere(phi(:,:,k),deriv,elem(ie)%Dinv)
+           !inline vtemp = gradient_sphere(phi(:,:,k),deriv,elem(ie)%Dinv)
+           do j=1,np
+            do l=1,np
+             dsdx00=0.0d0
+             dsdy00=0.0d0
+              do i=1,np
+               dsdx00 = dsdx00 + deriv%Dvv(i,l  )*phi(i,j,k)
+               dsdy00 = dsdy00 + deriv%Dvv(i,l  )*phi(j,i,k)
+              enddo
+              v_grad1(l  ,j  ) = dsdx00*rrearth
+              v_grad2(j  ,l  ) = dsdy00*rrearth
+             enddo
+           enddo
+           do j=1,np
+            do i=1,np
+             vtemp(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_grad2(i,j)
+             vtemp(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_grad2(i,j)
+            enddo
+           enddo
+
+
            do j=1,np
               do i=1,np
                  v1     = elem(ie)%state%v(i,j,1,k,n0)
@@ -478,7 +597,26 @@ contains
               enddo
            enddo
            
-           vtemp(:,:,:) = gradient_sphere(elem(ie)%state%phis(:,:),deriv,elem(ie)%Dinv)
+           ! inline vtemp(:,:,:) = gradient_sphere(elem(ie)%state%phis(:,:),deriv,elem(ie)%Dinv)
+           do j=1,np
+            do l=1,np
+             dsdx00=0.0d0
+             dsdy00=0.0d0
+              do i=1,np
+               dsdx00 = dsdx00 + deriv%Dvv(i,l  )*elem(ie)%state%phis(i,j)
+               dsdy00 = dsdy00 + deriv%Dvv(i,l  )*elem(ie)%state%phis(j,i)
+              enddo
+              v_grad1(l  ,j  ) = dsdx00*rrearth
+              v_grad2(j  ,l  ) = dsdy00*rrearth
+             enddo
+           enddo
+           do j=1,np
+            do i=1,np
+             vtemp(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_grad2(i,j)
+             vtemp(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_grad2(i,j)
+            enddo
+           enddo
+
            do j=1,np
               do i=1,np
                  v1     = elem(ie)%state%v(i,j,1,k,n0)
@@ -488,7 +626,26 @@ contains
               enddo
            enddo
            
-           vtemp(:,:,:)   = gradient_sphere(elem(ie)%state%T(:,:,k,n0),deriv,elem(ie)%Dinv)
+           !inline vtemp(:,:,:)   = gradient_sphere(elem(ie)%state%T(:,:,k,n0),deriv,elem(ie)%Dinv)
+           do j=1,np
+            do l=1,np
+             dsdx00=0.0d0
+             dsdy00=0.0d0
+              do i=1,np
+               dsdx00 = dsdx00 + deriv%Dvv(i,l  )*elem(ie)%state%T(i,j,k,n0)
+               dsdy00 = dsdy00 + deriv%Dvv(i,l  )*elem(ie)%state%T(j,i,k,n0)
+              enddo
+              v_grad1(l  ,j  ) = dsdx00*rrearth
+              v_grad2(j  ,l  ) = dsdy00*rrearth
+             enddo
+           enddo
+           do j=1,np
+            do i=1,np
+             vtemp(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_grad2(i,j)
+             vtemp(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_grad2(i,j)
+            enddo
+           enddo
+
            do j=1,np
               do i=1,np
                  v1     = elem(ie)%state%v(i,j,1,k,n0)
