@@ -1314,6 +1314,7 @@ contains
   real(kind=real_kind) :: dp0
   integer :: ie,q,i,j,k
   integer :: rhs_viss = 0
+  real(kind=real_kind), dimension(np,np,nlev                  ) :: dpdisski
 
   if ( npdg > 0 ) then
     call euler_step_dg( np1_qdp , n0_qdp , dt , elem , hvcoord , hybrid , deriv , nets , nete , DSSopt , rhs_multiplier )
@@ -1505,10 +1506,11 @@ contains
             dpdiss(:,:) = elem(ie)%derived%dpdiss_biharmonic(:,:,k)
             dp_star(:,:,k) = dp_star(:,:,k) - rhs_viss * dt * nu_q * dpdiss(:,:) / elem(ie)%spheremp(:,:)
           endif
+          dpdisski(:,:,k) = 1.0d0/dp_star(:,:,k) 
         enddo
         ! apply limiter to Q = Qtens / dp_star 
         call limiter_optim_iter_full( Qtens(:,:,:) , elem(ie)%spheremp(:,:) , qmin(:,q,ie) , &
-                                      qmax(:,q,ie) , dp_star(:,:,:) )
+                                      qmax(:,q,ie) , dp_star(:,:,:), dpdisski(:,:,:) )
       endif
 
       ! apply mass matrix, overwrite np1 with solution:
@@ -1793,7 +1795,7 @@ contains
 !-----------------------------------------------------------------------------
 !-----------------------------------------------------------------------------
 
-  subroutine limiter_optim_iter_full(ptens,sphweights,minp,maxp,dpmass)
+  subroutine limiter_optim_iter_full(ptens,sphweights,minp,maxp,dpmass, dpmassi)
     !THIS IS A NEW VERSION OF LIM8, POTENTIALLY FASTER BECAUSE INCORPORATES KNOWLEDGE FROM
     !PREVIOUS ITERATIONS
     
@@ -1810,6 +1812,7 @@ contains
     real (kind=real_kind), dimension(      nlev), intent(inout)            :: minp
     real (kind=real_kind), dimension(      nlev), intent(inout)            :: maxp
     real (kind=real_kind), dimension(np*np,nlev), intent(in   ), optional  :: dpmass
+    real (kind=real_kind), dimension(np*np,nlev), intent(in   )            :: dpmassi
  
     integer  k1, k, i, j, iter, i1, i2
     real (kind=real_kind) :: addmass, weightssum, mass, sumc
@@ -1820,7 +1823,7 @@ contains
 
     do k = 1 , nlev
       c = sphweights(:) * dpmass(:,k)
-      x = ptens(:,k)/dpmass(:,k)
+      x = ptens(:,k)*dpmassi(:,k)
 
       mass = sum(c*x)
       sumc= sum(c)
@@ -1881,14 +1884,14 @@ contains
 
      enddo!end of iteration
 
-        ptens(:,k)=x(:)
+        ptens(:,k)=x(:)*dpmass(:,k)
         k1=k1+1
 
     enddo
 
-    do k=1,nlev
-      ptens(:,k)=ptens(:,k)*dpmass(:,k)
-    enddo
+ !   do k=1,nlev
+ !     ptens(:,k)=ptens(:,k)*dpmass(:,k)
+ !   enddo
 
 
   end subroutine limiter_optim_iter_full

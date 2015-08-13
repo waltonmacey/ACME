@@ -91,6 +91,7 @@ module cuda_mod
   real (kind=real_kind),device,allocatable,dimension(:,:,:,:)     :: divdp_proj_d
   real (kind=real_kind),device,allocatable,dimension(:,:,:,:)     :: dp_d
   real (kind=real_kind),device,allocatable,dimension(:,:,:,:)     :: dp_star_d
+  real (kind=real_kind),device,allocatable,dimension(:,:,:,:)     :: dpdisski_d
   real (kind=real_kind),device,allocatable,dimension(:,:,:)       :: qmin_d
   real (kind=real_kind),device,allocatable,dimension(:,:,:)       :: qmax_d
   integer              ,device,allocatable,dimension(:)           :: recv_internal_indices_d
@@ -267,6 +268,7 @@ contains
     allocate( hyai_d                   (      nlev+1                        ) , stat = ierr ); _CHECK(__LINE__)
     allocate( hybi_d                   (      nlev+1                        ) , stat = ierr ); _CHECK(__LINE__)
     allocate( dp_star_d                (np,np,nlev                   ,nelemd) , stat = ierr ); _CHECK(__LINE__)
+    allocate( dpdisski_d               (np,np,nlev                   ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( reverse_d                (max_neigh_edges              ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( putmapP_d                (max_neigh_edges              ,nelemd) , stat = ierr ); _CHECK(__LINE__)
     allocate( getmapP_d                (max_neigh_edges              ,nelemd) , stat = ierr ); _CHECK(__LINE__)
@@ -788,7 +790,7 @@ contains
 
   ierr = cudathreadsynchronize()
   if ( limiter_option == 8 ) then
-    !$acc parallel loop gang vector collapse(5) deviceptr(qtens_d,dp_star_d,dp_d,divdp_d,spheremp_d,qtens_biharmonic_d) private(tmp) async(1)
+    !$acc parallel loop gang vector collapse(5) deviceptr(qtens_d,dp_star_d,dp_d,divdp_d,spheremp_d,qtens_biharmonic_d, dpdisski_d) private(tmp) async(1)
     do ie = 1 , nelemd
       do q = 1 , qsize
         do k = 1 , nlev
@@ -798,12 +800,13 @@ contains
               tmp = dp_d(i,j,k,ie) - dt * divdp_d(i,j,k,ie)    ! UN-DSS'ed dp at timelevel n0+1:   
               if ( nu_p > 0 .and. rhs_viss /= 0 ) tmp = tmp - rhs_viss * dt * nu_q * dpdiss_biharmonic_d(i,j,k,ie) / spheremp_d(i,j,ie)
               dp_star_d(i,j,k,ie) = tmp
+              dpdisski_d(i,j,k,ie) = 1.0d0/dp_star_d(i,j,k,ie) 
             enddo
           enddo
         enddo
       enddo
     enddo
-    call limiter_optim_iter_full_loc( Qtens_d , spheremp_d , qmin_d , qmax_d , dp_star_d )  ! apply limiter to Q = Qtens / dp_star 
+    call limiter_optim_iter_full_loc( Qtens_d , spheremp_d , qmin_d , qmax_d , dp_star_d, dpdisski_d )  ! apply limiter to Q = Qtens / dp_star 
     !$acc wait(1)
   endif
   blockdim = dim3( np*np*numk_eul , 1 , 1 )
@@ -1573,7 +1576,7 @@ end function divergence_sphere_wk
 
 
 
-  subroutine limiter_optim_iter_full_loc(ptens,sphweights,minp,maxp,dpmass)
+  subroutine limiter_optim_iter_full_loc(ptens,sphweights,minp,maxp,dpmass,dpmassi )
     !THIS IS A NEW VERSION OF LIM8, POTENTIALLY FASTER BECAUSE INCORPORATES KNOWLEDGE FROM
     !PREVIOUS ITERATIONS
     
@@ -1589,6 +1592,7 @@ end function divergence_sphere_wk
     real (kind=real_kind), dimension(      nlev,qsize,nelemd), intent(inout) , device :: minp
     real (kind=real_kind), dimension(      nlev,qsize,nelemd), intent(inout) , device :: maxp
     real (kind=real_kind), dimension(np*np,nlev      ,nelemd), intent(in   ) , device :: dpmass
+    real (kind=real_kind), dimension(np*np,nlev      ,nelemd), intent(in   ) , device :: dpmassi
  
     integer :: k1, i, j, k, iter, i1, i2, q, ie
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1613,7 +1617,7 @@ end function divergence_sphere_wk
           min_tmp = minp(k,q,ie)
           max_tmp = maxp(k,q,ie)
           c = sphweights(:,ie) * dpmass(:,k,ie)
-          x = ptens(:,k,q,ie) / dpmass(:,k,ie)
+          x = ptens(:,k,q,ie) * dpmassi(:,k,ie)
 
           sumc = 0d0
           mass = 0d0
