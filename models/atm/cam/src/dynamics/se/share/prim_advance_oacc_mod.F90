@@ -341,11 +341,13 @@ contains
      ! Compute Hydrostatic equation, modeld after CCM-3
      ! ====================================================
      !call geopotential_t(p,dp,T_v,Rgas,phi)
+!Irina TODO
      call preq_hydrostatic(phi,elem(ie)%state%phis,T_v,p,dp)
      
      ! ====================================================
      ! Compute omega_p according to CCM-3 
      ! ====================================================
+!Irina TODO
      call preq_omega_ps(omega_p,hvcoord,p,vgrad_p,divdp)
 
      
@@ -371,9 +373,13 @@ contains
            ! ==================================================
            ! add this term to PS equation so we exactly conserve dry mass
            ! ==================================================
-           sdot_sum(:,:) = sdot_sum(:,:) + divdp(:,:,k) 
-           eta_dot_dpdn(:,:,k+1) = sdot_sum(:,:)      
-        end do
+           do j=1,np
+              do i=1,np
+                 sdot_sum(i,j) = sdot_sum(i,j) + divdp(i,j,k) 
+                 eta_dot_dpdn(i,j,k+1) = sdot_sum(i,j) 
+              enddo
+           enddo     
+        enddo
      
      
         ! ===========================================================
@@ -384,15 +390,24 @@ contains
         !    omega = v grad p  - integral_etatop^eta[ divdp ]
         ! ===========================================================
         do k=1,nlev-1
-           eta_dot_dpdn(:,:,k+1) = hvcoord%hybi(k+1)*sdot_sum(:,:) - eta_dot_dpdn(:,:,k+1)
-        end do
+           do j=1,np
+              do i=1,np
+                 eta_dot_dpdn(i,j,k+1) = hvcoord%hybi(k+1)*sdot_sum(i,j) - eta_dot_dpdn(i,j,k+1)
+              enddo
+            enddo
+        enddo
         
-        eta_dot_dpdn(:,:,1     ) = 0.0D0
-        eta_dot_dpdn(:,:,nlev+1) = 0.0D0
+        do j=1,np
+          do i=1,np
+            eta_dot_dpdn(i,j,1     ) = 0.0D0
+            eta_dot_dpdn(i,j,nlev+1) = 0.0D0
+          enddo
+        enddo
         
         ! ===========================================================
         ! Compute vertical advection of T and v from eq. CCM2 (3.b.1)
         ! ==============================================
+!Irina TODO
         call preq_vertadv(elem(ie)%state%T(:,:,:,n0),elem(ie)%state%v(:,:,:,:,n0), &
              eta_dot_dpdn,rdp,T_vadv,v_vadv)
      endif
@@ -402,15 +417,22 @@ contains
      ! accumulate mean vertical flux:
      ! ================================
      do k=1,nlev  !  Loop index added (AAM)
-        elem(ie)%derived%eta_dot_dpdn(:,:,k) = &
-             elem(ie)%derived%eta_dot_dpdn(:,:,k) + eta_ave_w*eta_dot_dpdn(:,:,k)
-        elem(ie)%derived%omega_p(:,:,k) = &
-             elem(ie)%derived%omega_p(:,:,k) + eta_ave_w*omega_p(:,:,k)
+        do j=1,np
+           do i=1,np
+               elem(ie)%derived%eta_dot_dpdn(i,j,k) = &
+                       elem(ie)%derived%eta_dot_dpdn(i,j,k) + eta_ave_w*eta_dot_dpdn(i,j,k)
+               elem(ie)%derived%omega_p(i,j,k) = &
+                       elem(ie)%derived%omega_p(i,j,k) + eta_ave_w*omega_p(i,j,k)
+           enddo
+        enddo
      enddo
-     elem(ie)%derived%eta_dot_dpdn(:,:,nlev+1) = &
-          elem(ie)%derived%eta_dot_dpdn(:,:,nlev+1) + eta_ave_w*eta_dot_dpdn(:,:,nlev+1)
-     
 
+     do j=1,np
+        do i=1,np
+           elem(ie)%derived%eta_dot_dpdn(i,j,nlev+1) = &
+                 elem(ie)%derived%eta_dot_dpdn(i,j,nlev+1) + eta_ave_w*eta_dot_dpdn(i,j,nlev+1)
+        enddo
+     enddo
 
      
      
@@ -505,7 +527,6 @@ contains
 
            end do
         end do
-
      end do
 
 #ifdef ENERGY_DIAGNOSTICS
@@ -748,25 +769,41 @@ contains
      if (dt2<0) then
         ! calling program just wanted DSS'd RHS, skip time advance
         do k=1,nlev
-           elem(ie)%state%v(:,:,1,k,np1) = elem(ie)%spheremp(:,:)*vtens1(:,:,k) 
-           elem(ie)%state%v(:,:,2,k,np1) = elem(ie)%spheremp(:,:)*vtens2(:,:,k) 
-           elem(ie)%state%T(:,:,k,np1) = elem(ie)%spheremp(:,:)*ttens(:,:,k)
-           if (rsplit>0) &
-                elem(ie)%state%dp3d(:,:,k,np1) = -elem(ie)%spheremp(:,:)*&
-                (divdp(:,:,k) + eta_dot_dpdn(:,:,k+1)-eta_dot_dpdn(:,:,k)) 
+          do j=1,np
+             do i=1,np
+              elem(ie)%state%v(i,j,1,k,np1) = elem(ie)%spheremp(i,j)*vtens1(i,j,k) 
+              elem(ie)%state%v(i,j,2,k,np1) = elem(ie)%spheremp(i,j)*vtens2(i,j,k) 
+              elem(ie)%state%T(i,j,k,np1)   = elem(ie)%spheremp(i,j)*ttens(i,j,k)
+              if (rsplit>0) &
+                  elem(ie)%state%dp3d(i,j,k,np1) = -elem(ie)%spheremp(i,j)*&
+                     (divdp(i,j,k) + eta_dot_dpdn(i,j,k+1)-eta_dot_dpdn(i,j,k)) 
+             enddo
+          enddo
         enddo
-        elem(ie)%state%ps_v(:,:,np1) = -elem(ie)%spheremp(:,:)*sdot_sum
+        do j=1,np
+             do i=1,np
+                 elem(ie)%state%ps_v(i,j,np1) = -elem(ie)%spheremp(i,j)*sdot_sum(i,j)
+             enddo
+        enddo
      else
         do k=1,nlev
-           elem(ie)%state%v(:,:,1,k,np1) = elem(ie)%spheremp(:,:)*( elem(ie)%state%v(:,:,1,k,nm1) + dt2*vtens1(:,:,k) )
-           elem(ie)%state%v(:,:,2,k,np1) = elem(ie)%spheremp(:,:)*( elem(ie)%state%v(:,:,2,k,nm1) + dt2*vtens2(:,:,k) )
-           elem(ie)%state%T(:,:,k,np1) = elem(ie)%spheremp(:,:)*(elem(ie)%state%T(:,:,k,nm1) + dt2*ttens(:,:,k))
-           if (rsplit>0) &
-                elem(ie)%state%dp3d(:,:,k,np1) = elem(ie)%spheremp(:,:)*&
-                (elem(ie)%state%dp3d(:,:,k,nm1)-dt2*&
-                (divdp(:,:,k) + eta_dot_dpdn(:,:,k+1)-eta_dot_dpdn(:,:,k)))
+          do j=1,np
+             do i=1,np
+               elem(ie)%state%v(i,j,1,k,np1) = elem(ie)%spheremp(i,j)*( elem(ie)%state%v(i,j,1,k,nm1) + dt2*vtens1(i,j,k) )
+               elem(ie)%state%v(i,j,2,k,np1) = elem(ie)%spheremp(i,j)*( elem(ie)%state%v(i,j,2,k,nm1) + dt2*vtens2(i,j,k) )
+               elem(ie)%state%T(i,j,k,np1)   = elem(ie)%spheremp(i,j)*( elem(ie)%state%T(i,j,k,nm1)   + dt2*ttens(i,j,k))
+                if (rsplit>0) &
+                    elem(ie)%state%dp3d(i,j,k,np1) = elem(ie)%spheremp(i,j)*&
+                      (elem(ie)%state%dp3d(i,j,k,nm1)-dt2*&
+                      (divdp(i,j,k) + eta_dot_dpdn(i,j,k+1)-eta_dot_dpdn(i,j,k)))
+             enddo
+          enddo
         enddo
-        elem(ie)%state%ps_v(:,:,np1) = elem(ie)%spheremp(:,:)*( elem(ie)%state%ps_v(:,:,nm1) - dt2*sdot_sum )
+        do j=1,np
+           do i=1,np
+                elem(ie)%state%ps_v(i,j,np1) = elem(ie)%spheremp(i,j)*( elem(ie)%state%ps_v(i,j,nm1) - dt2*sdot_sum(i,j) )
+           enddo
+        enddo
 
      endif
 
@@ -805,6 +842,7 @@ contains
      ! Unpack the edges for vgrad_T and v tendencies...
      ! ===========================================================
      kptr=0
+!Irina TODO
      call edgeVunpack(edge3p1, elem(ie)%state%ps_v(:,:,np1), 1, kptr, elem(ie)%desc)
      
      kptr=1
@@ -823,21 +861,33 @@ contains
      ! ====================================================
 
      do k=1,nlev
-        elem(ie)%state%T(:,:,k,np1)   = elem(ie)%rspheremp(:,:)*elem(ie)%state%T(:,:,k,np1)
-        elem(ie)%state%v(:,:,1,k,np1) = elem(ie)%rspheremp(:,:)*elem(ie)%state%v(:,:,1,k,np1)
-        elem(ie)%state%v(:,:,2,k,np1) = elem(ie)%rspheremp(:,:)*elem(ie)%state%v(:,:,2,k,np1)
-     end do
+       do j=1,np
+          do i=1,np
+             elem(ie)%state%T(i,j,k,np1)   = elem(ie)%rspheremp(i,j)*elem(ie)%state%T(i,j,k,np1)
+             elem(ie)%state%v(i,j,1,k,np1) = elem(ie)%rspheremp(i,j)*elem(ie)%state%v(i,j,1,k,np1)
+             elem(ie)%state%v(i,j,2,k,np1) = elem(ie)%rspheremp(i,j)*elem(ie)%state%v(i,j,2,k,np1)
+          enddo
+        enddo
+     enddo
 
      if (rsplit>0) then
         ! vertically lagrangian: complete dp3d timestep:
         do k=1,nlev
-           elem(ie)%state%dp3d(:,:,k,np1)= elem(ie)%rspheremp(:,:)*elem(ie)%state%dp3d(:,:,k,np1)
+          do j=1,np
+             do i=1,np
+                 elem(ie)%state%dp3d(i,j,k,np1)= elem(ie)%rspheremp(i,j)*elem(ie)%state%dp3d(i,j,k,np1)
+             enddo
+          enddo
         enddo
         ! when debugging: also update ps_v
         !elem(ie)%state%ps_v(:,:,np1) = elem(ie)%rspheremp(:,:)*elem(ie)%state%ps_v(:,:,np1)
      else
         ! vertically eulerian: complete ps_v timestep:
-        elem(ie)%state%ps_v(:,:,np1) = elem(ie)%rspheremp(:,:)*elem(ie)%state%ps_v(:,:,np1)
+        do j=1,np
+           do i=1,np
+              elem(ie)%state%ps_v(i,j,np1) = elem(ie)%rspheremp(i,j)*elem(ie)%state%ps_v(i,j,np1)
+           enddo
+        enddo
      endif
 
   end do
