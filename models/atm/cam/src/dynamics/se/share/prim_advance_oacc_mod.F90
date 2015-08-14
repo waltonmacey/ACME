@@ -107,7 +107,7 @@ contains
   real (kind=real_kind) ::  glnps1,glnps2,gpterm
   real(kind=real_kind) ::  dsdx00
   real(kind=real_kind) ::  dsdy00
-  real(kind=real_kind) ::  v_grad1(np,np),v_grad2(np,np)
+  real(kind=real_kind) ::  v_tmp1(np,np),v_tmp2(np,np), gv(np,np,2)
   integer :: i,j,k,l,kptr,ie
 
 
@@ -137,14 +137,14 @@ contains
                dsdx00 = dsdx00 + deriv%Dvv(i,l  )*elem(ie)%state%ps_v(i,j,n0)
                dsdy00 = dsdy00 + deriv%Dvv(i,l  )*elem(ie)%state%ps_v(j,i,n0)
               enddo
-              v_grad1(l  ,j  ) = dsdx00*rrearth
-              v_grad2(j  ,l  ) = dsdy00*rrearth
+              v_tmp1(l  ,j  ) = dsdx00*rrearth
+              v_tmp2(j  ,l  ) = dsdy00*rrearth
              enddo
            enddo
            do j=1,np
             do i=1,np
-             grad_ps(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_grad2(i,j)
-             grad_ps(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_grad2(i,j)
+             grad_ps(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_tmp2(i,j)
+             grad_ps(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_tmp2(i,j)
             enddo
            enddo
        endif
@@ -155,14 +155,18 @@ contains
 !     do k=1,nlev+1
 !       ph(:,:,k)   = hvcoord%hyai(k)*hvcoord%ps0 + hvcoord%hybi(k)*elem(ie)%state%ps_v(:,:,n0)
 !     end do
-
+    
      do k=1,nlev
-        if (rsplit==0) then
-           dp(:,:,k) = (hvcoord%hyai(k+1)*hvcoord%ps0 + hvcoord%hybi(k+1)*elem(ie)%state%ps_v(:,:,n0)) &
-                - (hvcoord%hyai(k)*hvcoord%ps0 + hvcoord%hybi(k)*elem(ie)%state%ps_v(:,:,n0))
-           p(:,:,k)   = hvcoord%hyam(k)*hvcoord%ps0 + hvcoord%hybm(k)*elem(ie)%state%ps_v(:,:,n0)
-           grad_p(:,:,:,k) = hvcoord%hybm(k)*grad_ps(:,:,:)
-        else
+
+      do j = 1 , np
+        do i = 1 , np
+          if (rsplit==0) then
+            dp(i,j,k) = (hvcoord%hyai(k+1)*hvcoord%ps0 + hvcoord%hybi(k+1)*elem(ie)%state%ps_v(i,j,n0)) &
+                        - (hvcoord%hyai(k)*hvcoord%ps0 + hvcoord%hybi(k)*elem(ie)%state%ps_v(i,j,n0))
+            p(i,j,k)  = hvcoord%hyam(k)*hvcoord%ps0 + hvcoord%hybm(k)*elem(ie)%state%ps_v(i,j,n0)
+            grad_p(i,j,1,k) = hvcoord%hybm(k)*grad_ps(i,j,1)
+            grad_p(i,j,2,k) = hvcoord%hybm(k)*grad_ps(i,j,2)
+           else
            ! vertically lagrangian code: we advect dp3d instead of ps_v
            ! we also need grad(p) at all levels (not just grad(ps))
            !p(k)= hyam(k)*ps0 + hybm(k)*ps
@@ -171,14 +175,21 @@ contains
            !
            ! p(k+1)-p(k) = ph(k+1)-ph(k) + (dp(k+1)-dp(k))/2
            !             = dp(k) + (dp(k+1)-dp(k))/2 = (dp(k+1)+dp(k))/2
-           dp(:,:,k) = elem(ie)%state%dp3d(:,:,k,n0)
-           if (k==1) then
-              p(:,:,k)=hvcoord%hyai(k)*hvcoord%ps0 + dp(:,:,k)/2
-           else
-              p(:,:,k)=p(:,:,k-1) + dp(:,:,k-1)/2 + dp(:,:,k)/2
+             dp(i,j,k) = elem(ie)%state%dp3d(i,j,k,n0)
+             if (k==1) then
+                p(i,j,k)=hvcoord%hyai(k)*hvcoord%ps0 + dp(i,j,k)/2
+             else
+                p(i,j,k)=p(i,j,k-1) + dp(i,j,k-1)/2 + dp(i,j,k)/2
+             endif
            endif
+          enddo
+        enddo
 
+       if (rsplit/=0) then
           !! inline gradient_sphere here: grad_p(:,:,:,k) = gradient_sphere(p(:,:,k),deriv,elem(ie)%Dinv)
+          ! ============================
+          ! compute gradien_sphere 
+          ! ============================
           do j=1,np
             do l=1,np
              dsdx00=0.0d0
@@ -187,20 +198,24 @@ contains
                dsdx00 = dsdx00 + deriv%Dvv(i,l  )*p(i,j,k)
                dsdy00 = dsdy00 + deriv%Dvv(i,l  )*p(j,i,k)
               enddo
-              v_grad1(l  ,j  ) = dsdx00*rrearth
-              v_grad2(j  ,l  ) = dsdy00*rrearth
+              v_tmp1(l  ,j  ) = dsdx00*rrearth
+              v_tmp2(j  ,l  ) = dsdy00*rrearth
              enddo
            enddo
            do j=1,np
             do i=1,np
-             grad_p(i,j,1,k)=elem(ie)%Dinv(1,1,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_grad2(i,j)
-             grad_p(i,j,2,k)=elem(ie)%Dinv(1,2,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_grad2(i,j)
+             grad_p(i,j,1,k)=elem(ie)%Dinv(1,1,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_tmp2(i,j)
+             grad_p(i,j,2,k)=elem(ie)%Dinv(1,2,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_tmp2(i,j)
             enddo
            enddo
 
         endif
 
-        rdp(:,:,k) = 1.0D0/dp(:,:,k)
+        do j=1,np
+         do i=1,np
+           rdp(i,j,k) = 1.0D0/dp(i,j,k)
+         enddo
+        enddo
 
         ! ============================
         ! compute vgrad_lnps 
@@ -222,16 +237,74 @@ contains
         ! ================================
         ! Accumulate mean Vel_rho flux in vn0
         ! ================================
-        elem(ie)%derived%vn0(:,:,:,k)=elem(ie)%derived%vn0(:,:,:,k)+eta_ave_w*vtemp(:,:,:)
-
+        do j=1,np
+           do i=1,np
+              elem(ie)%derived%vn0(i,j,1,k)=elem(ie)%derived%vn0(i,j,1,k)+eta_ave_w*vtemp(i,j,1)
+              elem(ie)%derived%vn0(i,j,2,k)=elem(ie)%derived%vn0(i,j,2,k)+eta_ave_w*vtemp(i,j,2)
+           enddo
+        enddo
 
         ! =========================================
         !
         ! Compute relative vorticity and divergence
         !
         ! =========================================
-        divdp(:,:,k)=divergence_sphere(vtemp,deriv,elem(ie))
-        vort(:,:,k)=vorticity_sphere(elem(ie)%state%v(:,:,:,k,n0),deriv,elem(ie))
+        ! inline divdp(:,:,k)=divergence_sphere(vtemp,deriv,elem(ie))
+
+        ! convert to contra variant form and multiply by g
+        do j=1,np
+           do i=1,np
+             gv(i,j,1)=elem(ie)%metdet(i,j)*(elem(ie)%Dinv(1,1,i,j)*vtemp(i,j,1) + elem(ie)%Dinv(1,2,i,j)*vtemp(i,j,2))
+             gv(i,j,2)=elem(ie)%metdet(i,j)*(elem(ie)%Dinv(2,1,i,j)*vtemp(i,j,1) + elem(ie)%Dinv(2,2,i,j)*vtemp(i,j,2))
+           enddo
+         enddo
+         ! compute d/dx and d/dy         
+         do j=1,np
+            do l=1,np
+               dsdx00=0.0d0
+               dsdy00=0.0d0
+               do i=1,np
+                  dsdx00 = dsdx00 + deriv%Dvv(i,l  )*gv(i,j  ,1)
+                  dsdy00 = dsdy00 + deriv%Dvv(i,l  )*gv(j  ,i,2)
+               end do
+               divdp(l,j,k) = dsdx00
+               v_tmp1(j,l)  = dsdy00
+             end do
+          end do
+          do j=1,np
+             do i=1,np
+               divdp(i,j,k)=(divdp(i,j,k)+v_tmp1(i,j))*(elem(ie)%rmetdet(i,j)*rrearth)
+             end do
+          end do
+
+        !inline  vort(:,:,k)=vorticity_sphere(elem(ie)%state%v(:,:,:,k,n0),deriv,elem(ie))
+  
+        ! convert to covariant form
+        do j=1,np
+          do i=1,np
+             gv(i,j,1)=(elem(ie)%D(1,1,i,j)*elem(ie)%state%v(i,j,1,k,n0) + elem(ie)%D(2,1,i,j)*elem(ie)%state%v(i,j,2,k,n0))
+             gv(i,j,2)=(elem(ie)%D(1,2,i,j)*elem(ie)%state%v(i,j,1,k,n0) + elem(ie)%D(2,2,i,j)*elem(ie)%state%v(i,j,2,k,n0))
+          enddo
+       enddo   
+
+       do j=1,np
+          do l=1,np
+            dsdy00=0.0d0
+            dsdx00=0.0d0
+            do i=1,np
+               dsdx00 = dsdx00 + deriv%Dvv(i,l  )*gv(i,j  ,2)
+               dsdy00 = dsdy00 + deriv%Dvv(i,l  )*gv(j  ,i,1)
+            enddo
+            vort  (l  ,j  ,k  ) = dsdx00
+            v_tmp1(j  ,l  ) = dsdy00
+          enddo
+        enddo
+
+        do j=1,np
+          do i=1,np
+             vort(i,j,k)=(vort(i,j,k)-v_tmp1(i,j))*(elem(ie)%rmetdet(i,j)*rrearth)
+          enddo
+        enddo
 
      enddo
      
@@ -365,14 +438,14 @@ contains
                dsdx00 = dsdx00 + deriv%Dvv(i,l  )*elem(ie)%state%T(i,j,k,n0)
                dsdy00 = dsdy00 + deriv%Dvv(i,l  )*elem(ie)%state%T(j,i,k,n0)
               enddo
-              v_grad1(l  ,j  ) = dsdx00*rrearth
-              v_grad2(j  ,l  ) = dsdy00*rrearth
+              v_tmp1(l  ,j  ) = dsdx00*rrearth
+              v_tmp2(j  ,l  ) = dsdy00*rrearth
              enddo
            enddo
            do j=1,np
             do i=1,np
-             vtemp(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_grad2(i,j)
-             vtemp(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_grad2(i,j)
+             vtemp(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_tmp2(i,j)
+             vtemp(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_tmp2(i,j)
             enddo
            enddo 
 
@@ -397,14 +470,14 @@ contains
                dsdx00 = dsdx00 + deriv%Dvv(i,l  )*Ephi(i,j)
                dsdy00 = dsdy00 + deriv%Dvv(i,l  )*Ephi(j,i)
               enddo
-              v_grad1(l  ,j  ) = dsdx00*rrearth
-              v_grad2(j  ,l  ) = dsdy00*rrearth
+              v_tmp1(l  ,j  ) = dsdx00*rrearth
+              v_tmp2(j  ,l  ) = dsdy00*rrearth
              enddo
            enddo
            do j=1,np
             do i=1,np
-             vtemp(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_grad2(i,j)
-             vtemp(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_grad2(i,j)
+             vtemp(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_tmp2(i,j)
+             vtemp(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_tmp2(i,j)
             enddo
            enddo        
 
@@ -494,14 +567,14 @@ contains
                dsdx00 = dsdx00 + deriv%Dvv(i,l  )*Ephi(i,j)
                dsdy00 = dsdy00 + deriv%Dvv(i,l  )*Ephi(j,i)
               enddo
-              v_grad1(l  ,j  ) = dsdx00*rrearth
-              v_grad2(j  ,l  ) = dsdy00*rrearth
+              v_tmp1(l  ,j  ) = dsdx00*rrearth
+              v_tmp2(j  ,l  ) = dsdy00*rrearth
              enddo
            enddo
            do j=1,np
             do i=1,np
-             vtemp(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_grad2(i,j)
-             vtemp(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_grad2(i,j)
+             vtemp(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_tmp2(i,j)
+             vtemp(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_tmp2(i,j)
             enddo
            enddo
 
@@ -533,14 +606,14 @@ contains
                dsdx00 = dsdx00 + deriv%Dvv(i,l  )*phi(i,j,k)
                dsdy00 = dsdy00 + deriv%Dvv(i,l  )*phi(j,i,k)
               enddo
-              v_grad1(l  ,j  ) = dsdx00*rrearth
-              v_grad2(j  ,l  ) = dsdy00*rrearth
+              v_tmp1(l  ,j  ) = dsdx00*rrearth
+              v_tmp2(j  ,l  ) = dsdy00*rrearth
              enddo
            enddo
            do j=1,np
             do i=1,np
-             vtemp(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_grad2(i,j)
-             vtemp(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_grad2(i,j)
+             vtemp(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_tmp2(i,j)
+             vtemp(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_tmp2(i,j)
             enddo
            enddo
 
@@ -606,14 +679,14 @@ contains
                dsdx00 = dsdx00 + deriv%Dvv(i,l  )*elem(ie)%state%phis(i,j)
                dsdy00 = dsdy00 + deriv%Dvv(i,l  )*elem(ie)%state%phis(j,i)
               enddo
-              v_grad1(l  ,j  ) = dsdx00*rrearth
-              v_grad2(j  ,l  ) = dsdy00*rrearth
+              v_tmp1(l  ,j  ) = dsdx00*rrearth
+              v_tmp2(j  ,l  ) = dsdy00*rrearth
              enddo
            enddo
            do j=1,np
             do i=1,np
-             vtemp(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_grad2(i,j)
-             vtemp(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_grad2(i,j)
+             vtemp(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_tmp2(i,j)
+             vtemp(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_tmp2(i,j)
             enddo
            enddo
 
@@ -635,14 +708,14 @@ contains
                dsdx00 = dsdx00 + deriv%Dvv(i,l  )*elem(ie)%state%T(i,j,k,n0)
                dsdy00 = dsdy00 + deriv%Dvv(i,l  )*elem(ie)%state%T(j,i,k,n0)
               enddo
-              v_grad1(l  ,j  ) = dsdx00*rrearth
-              v_grad2(j  ,l  ) = dsdy00*rrearth
+              v_tmp1(l  ,j  ) = dsdx00*rrearth
+              v_tmp2(j  ,l  ) = dsdy00*rrearth
              enddo
            enddo
            do j=1,np
             do i=1,np
-             vtemp(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_grad2(i,j)
-             vtemp(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_grad1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_grad2(i,j)
+             vtemp(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_tmp2(i,j)
+             vtemp(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_tmp2(i,j)
             enddo
            enddo
 
