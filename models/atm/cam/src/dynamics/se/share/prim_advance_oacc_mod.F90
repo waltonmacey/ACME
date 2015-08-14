@@ -108,6 +108,8 @@ contains
   real(kind=real_kind) ::  dsdx00
   real(kind=real_kind) ::  dsdy00
   real(kind=real_kind) ::  v_tmp1(np,np),v_tmp2(np,np), gv(np,np,2)
+  real(kind=real_kind) hkk,hkl, term          ! diagonal term of energy conversion matrix
+  real(kind=real_kind), dimension(np,np,nlev) :: phii       ! Geopotential at interfaces
   integer :: i,j,k,l,kptr,ie
 
 
@@ -341,14 +343,77 @@ contains
      ! Compute Hydrostatic equation, modeld after CCM-3
      ! ====================================================
      !call geopotential_t(p,dp,T_v,Rgas,phi)
-!Irina TODO
-     call preq_hydrostatic(phi,elem(ie)%state%phis,T_v,p,dp)
+    !inline here call preq_hydrostatic(phi,elem(ie)%state%phis,T_v,p,dp)
+
+     do j=1,np   !   Loop inversion (AAM)
+
+          do i=1,np
+             hkk = dp(i,j,nlev)*0.5d0/p(i,j,nlev)
+             hkl = 2*hkk
+             phii(i,j,nlev)  = Rgas*T_v(i,j,nlev)*hkl
+             phi(i,j,nlev) = elem(ie)%state%phis(i,j) + Rgas*T_v(i,j,nlev)*hkk
+          end do
+
+          do k=nlev-1,2,-1
+             do i=1,np
+                ! hkk = dp*ckk
+                hkk = dp(i,j,k)*0.5d0/p(i,j,k)
+                hkl = 2*hkk
+                phii(i,j,k) = phii(i,j,k+1) + Rgas*T_v(i,j,k)*hkl
+                phi(i,j,k) = elem(ie)%state%phis(i,j) + phii(i,j,k+1) + Rgas*T_v(i,j,k)*hkk
+             end do
+          end do
+
+          do i=1,np
+             ! hkk = dp*ckk
+             hkk = 0.5d0*dp(i,j,1)/p(i,j,1)
+             phi(i,j,1) = elem(ie)%state%phis(i,j) + phii(i,j,2) + Rgas*T_v(i,j,1)*hkk
+          end do
+
+       end do
      
+
+
      ! ====================================================
      ! Compute omega_p according to CCM-3 
      ! ====================================================
-!Irina TODO
-     call preq_omega_ps(omega_p,hvcoord,p,vgrad_p,divdp)
+    ! call preq_omega_ps(omega_p,hvcoord,p,vgrad_p,divdp)
+
+    do j=1,np   !   Loop inversion (AAM)
+
+          do i=1,np
+             hkk = 0.5d0/p(i,j,1)
+             term = divdp(i,j,1)
+!             omega_p(i,j,1) = hvcoord%hybm(1)*vgrad_ps(i,j,1)/p(i,j,1)
+             omega_p(i,j,1) = vgrad_p(i,j,1)/p(i,j,1)
+             omega_p(i,j,1) = omega_p(i,j,1) - hkk*term
+             v_tmp1(i,j) = term
+          end do
+
+          do k=2,nlev-1
+             do i=1,np
+                hkk = 0.5d0/p(i,j,k)
+                hkl = 2*hkk
+                term = divdp(i,j,k)
+!                omega_p(i,j,k) = hvcoord%hybm(k)*vgrad_ps(i,j,k)/p(i,j,k)
+                omega_p(i,j,k) = vgrad_p(i,j,k)/p(i,j,k)
+                omega_p(i,j,k) = omega_p(i,j,k) - hkl*v_tmp1(i,j) - hkk*term
+                v_tmp1(i,j) = v_tmp1(i,j) + term
+
+             end do
+          end do
+
+          do i=1,np
+             hkk = 0.5d0/p(i,j,nlev)
+             hkl = 2*hkk
+             term = divdp(i,j,nlev)
+!             omega_p(i,j,nlev) = hvcoord%hybm(nlev)*vgrad_ps(i,j,nlev)/p(i,j,nlev)
+             omega_p(i,j,nlev) = vgrad_p(i,j,nlev)/p(i,j,nlev)
+             omega_p(i,j,nlev) = omega_p(i,j,nlev) - hkl*v_tmp1(i,j) - hkk*term
+          end do
+
+       end do
+
 
      
      ! ==================================================
@@ -407,9 +472,62 @@ contains
         ! ===========================================================
         ! Compute vertical advection of T and v from eq. CCM2 (3.b.1)
         ! ==============================================
-!Irina TODO
-        call preq_vertadv(elem(ie)%state%T(:,:,:,n0),elem(ie)%state%v(:,:,:,:,n0), &
-             eta_dot_dpdn,rdp,T_vadv,v_vadv)
+
+        !inline   call preq_vertadv(elem(ie)%state%T(:,:,:,n0),elem(ie)%state%v(:,:,:,:,n0), eta_dot_dpdn,rdp,T_vadv,v_vadv)
+                                    !                                                  eta_dot_dp_deta, rpdel, T_vadv, v_vadv)
+         do j=1,np   !   Loop inversion (AAM)
+
+          ! ===========================================================
+          ! Compute vertical advection of T and v from eq. (3.b.1)
+          !
+          ! k = 1 case:
+          ! ===========================================================
+
+           k=1
+            do i=1,np
+               hkk             = (0.5_real_kind*rdp(i,j,k))*eta_dot_dpdn(i,j,k+1)
+               T_vadv(i,j,k)   = hkk*(elem(ie)%state%T(i,j,k+1,n0)   - elem(ie)%state%T(i,j,k,n0))
+               v_vadv(i,j,1,k) = hkk*(elem(ie)%state%v(i,j,1,k+1,n0) - elem(ie)%state%v(i,j,1,k,n0))
+               v_vadv(i,j,2,k) = hkk*(elem(ie)%state%v(i,j,2,k+1,n0) - elem(ie)%state%v(i,j,2,k,n0))
+            end do
+
+          ! ===========================================================
+          ! vertical advection
+          !
+          ! 1 < k < nlev case:
+          ! ===========================================================
+
+          do k=2,nlev-1
+             do i=1,np
+                hkk            = (0.5_real_kind*rdp(i,j,k))*eta_dot_dpdn(i,j,k+1)
+                hkl            = (0.5_real_kind*rdp(i,j,k))*eta_dot_dpdn(i,j,k)
+                T_vadv(i,j,k)   = hkk*(elem(ie)%state%T(i,j,k+1,n0)   - elem(ie)%state%T(i,j,k,n0)) + &
+                                  hkl*(elem(ie)%state%T(i,j,k,n0)     - elem(ie)%state%T(i,j,k-1,n0))
+                v_vadv(i,j,1,k) = hkk*(elem(ie)%state%v(i,j,1,k+1,n0) - elem(ie)%state%v(i,j,1,k,n0)) + &
+                                  hkl*(elem(ie)%state%v(i,j,1,k,n0)   - elem(ie)%state%v(i,j,1,k-1,n0))
+                v_vadv(i,j,2,k) = hkk*(elem(ie)%state%v(i,j,2,k+1,n0) - elem(ie)%state%v(i,j,2,k,n0)) + &
+                                  hkl*(elem(ie)%state%v(i,j,2,k,n0)   - elem(ie)%state%v(i,j,2,k-1,n0))
+             end do 
+           end do
+
+          ! ===========================================================
+          ! vertical advection
+          !
+          ! k = nlev case:
+          ! ===========================================================
+ 
+          k=nlev
+          do i=1,np
+              hkk             = (0.5_real_kind*rdp(i,j,k))*eta_dot_dpdn(i,j,k)
+              T_vadv(i,j,k)   = hkl*(elem(ie)%state%T(i,j,k,n0)- elem(ie)%state%T(i,j,k-1,n0))
+              v_vadv(i,j,1,k) = hkl*(elem(ie)%state%v(i,j,1,k,n0)- elem(ie)%state%v(i,j,1,k-1,n0))
+              v_vadv(i,j,2,k) = hkl*(elem(ie)%state%v(i,j,2,k,n0)- elem(ie)%state%v(i,j,2,k-1,n0))
+          end do
+
+        enddo
+
+ 
+
      endif
 
 
