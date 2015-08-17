@@ -1242,6 +1242,8 @@ contains
   subroutine precompute_divdp( elem , hybrid , deriv , dt , nets , nete , n0_qdp )
 #if USE_CUDA_FORTRAN
     use cuda_mod, only: precompute_divdp_cuda
+#elif USE_OPENACC
+    use prim_advection_openacc_mod, only: precompute_divdp_openacc
 #endif
     implicit none
     type(element_t)      , intent(inout) :: elem(:)
@@ -1252,6 +1254,9 @@ contains
     integer :: ie , k
 #if USE_CUDA_FORTRAN
     call precompute_divdp_cuda( elem , hybrid , deriv , dt , nets , nete , n0_qdp )
+    return
+#elif USE_OPENACC
+    call precompute_divdp_openacc( elem , hybrid , deriv , dt , nets , nete , n0_qdp )
     return
 #endif
     do ie = nets , nete
