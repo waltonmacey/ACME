@@ -1,5 +1,5 @@
   module eddy_diff
-
+    use module_perturb
   !--------------------------------------------------------------------------------- !
   !                                                                                  !
   ! The University of Washington Moist Turbulence Scheme to compute eddy diffusion   ! 
@@ -566,9 +566,9 @@
     tfd(:ncol,:)  = t(:ncol,:)
     qvfd(:ncol,:) = qv(:ncol,:)
     qlfd(:ncol,:) = ql(:ncol,:)
-    
+    if(icolprnt(lchnk) > 0)write(202,*)'-->eddy_diff_TOP:',qlfd(icolprnt(lchnk), kprnt+1)
     do iturb = 1, nturb
-
+       if(icolprnt(lchnk) > 0)write(202,*)'-->eddy_diff:ITURB',iturb, nturb,kvh_out(icolprnt(lchnk),kprnt+1)
      ! Total stress includes 'tms'.
      ! Here, in computing 'tms', we can use either iteratively changed 'ufd,vfd' or the
      ! initially given 'u,v' to the PBL scheme. Note that normal stress, 'taux, tauy'
@@ -589,7 +589,7 @@
                      s2       , n2      , ri    , zi      , pi      , cldn    , qtfd  , qvfd    , &
                      qlfd     , qi      , sfi   , sfuh    , sflh    , slfd    , slv   , slslope , &
                      qtslope  , chs     , chu   , cms     , cmu     )
-
+       if(icolprnt(lchnk) > 0)write(202,*)'   -->eddy_diff_qlfd_1:',qlfd(icolprnt(lchnk), kprnt+1),iturb
      ! Save initial (i.e., before iterative diffusion) profile of (qt,sl) at each iteration.         
      ! Only necessary for (qt,sl) not (u,v) because (qt,sl) are newly calculated variables. 
 
@@ -652,7 +652,10 @@
                      ebrk      , wbrk      , lbrk      , ricl     , ghcl   , & 
                      shcl      , smcl      , ghi       , shi      , smi    , &
                      rii       , lengi     , wcap      , pblhp    , cldn   , &
-                     ipbl      , kpblh     , wsedl)
+                     ipbl      , kpblh     , wsedl,iturb,lchnk)
+       !if(icolprnt(lchnk) > 0 .and. iturb == 5)kvh_out(icolprnt(lchnk),kprnt+1) = 0.0_r8 !BALLI WRONG
+       !if(icolprnt(lchnk) > 0)write(202,*)'   -->eddy_diff_1:',kvh_out(icolprnt(lchnk),kprnt+1)
+
 
      ! Calculate errorPBL to check whether PBL produced convergent solutions or not.
 
@@ -672,6 +675,7 @@
        if( iturb .gt. 1 .and. iturb .lt. nturb ) then
            kvm_out(:ncol,:) = lambda * kvm_out(:ncol,:) + ( 1._r8 - lambda ) * kvm(:ncol,:)
            kvh_out(:ncol,:) = lambda * kvh_out(:ncol,:) + ( 1._r8 - lambda ) * kvh(:ncol,:)
+           !if(icolprnt(lchnk) > 0)write(202,*)'   -->eddy_diff_2:',kvh_out(icolprnt(lchnk),kprnt+1)
        endif
 
      ! Set nonlocal terms to zero for flux diagnostics, since not used by caleddy.
@@ -704,7 +708,7 @@
 
          ! Diffuse initial profile of each time step using a given (kvh_out,kvm_out)
          ! In the below 'compute_vdiff', (slfd,qtfd,ufd,vfd) are 'inout' variables.
-
+         !if(icolprnt(lchnk) > 0)write(202,*)'   -->eddy_diff_3:',kvh_out(icolprnt(lchnk),kprnt+1)
          call compute_vdiff( lchnk   ,                                                  &
                              pcols   , pver     , 1        , ncol         , pmid      , &
                              pi      , rpdel    , t        , ztodt        , taux      , &
@@ -714,6 +718,7 @@
                              ufd     , vfd      , qtfd     , slfd         ,             &
                              jnk1d   , jnk1d    , jnk2d    , jnk1d        , errstring , &
                              tauresx , tauresy  , 0        , cpairv(:,:,lchnk), rairi , .false. )
+         !if(icolprnt(lchnk) > 0)write(202,*)'   -->eddy_diff_4:',kvh_out(icolprnt(lchnk),kprnt+1)
 
          call handle_errmsg(errstring, subname="compute_vdiff", &
               extra_msg="compute_vdiff called from eddy_diff")
@@ -736,6 +741,7 @@
                 temps     =   templ + ( qtfd(i,k) - qs ) / ( cpair / latvap + latvap * qs / ( rair * templ**2 ) )
                 call qsat( temps, pmid(i,k), es, qs)
                 qlfd(i,k) =   max( qtfd(i,k) - qi(i,k) - qs ,0._r8 )
+                if(icolprnt(lchnk) == i .and. k==kprnt+1)write(202,*)'   -->eddy_diff_qlfd_2:',qlfd(i, k),qtfd(i,k),qi(i,k),qs,iturb
               ! Option.2 : Assume condensate is not diffused by the moist turbulence scheme. 
               !            This should bs used if 'pseudodiff = .true.'  in vertical_diffusion.F90.       
               ! qlfd(i,k) = ql(i,k)
@@ -759,7 +765,7 @@
      !     end do
      ! endif
      ! Debug
-
+       if(icolprnt(lchnk) > 0)write(202,*)'-->eddy_diff:ITURB-END',iturb, nturb,kvh_out(icolprnt(lchnk),kprnt+1)
     end do  ! End of 'iturb' iteration
 
     kvq(:ncol,:) = kvh_out(:ncol,:)
@@ -1376,7 +1382,7 @@
                         shcl         , smcl         ,                                           &
                         gh_a         , sh_a         , sm_a        , ri_a       , leng         , & 
                         wcap         , pblhp        , cld         , ipbl       , kpblh        , &
-                        wsedl        )
+                        wsedl, iturb,lchnk        )
 
     !--------------------------------------------------------------------------------- !
     !                                                                                  !
@@ -1417,6 +1423,7 @@
     ! ---------------- !
 
     implicit none
+    integer :: iturb,lchnk
     integer,  intent(in) :: pcols                     ! Number of atmospheric columns   
     integer,  intent(in) :: pver                      ! Number of atmospheric layers   
     integer,  intent(in) :: ncol                      ! Number of atmospheric columns   
@@ -1647,7 +1654,7 @@
     real(r8) :: rcrit                                 ! ccrit*wstar
     real(r8) :: fcrit                                 ! f(rcrit)
     logical     noroot                                ! True if f(r) has no root r > rcrit
-
+    real(r8) :: qminl     !BALLI
     !-----------------------!
     ! Start of Main Program !
     !-----------------------!
@@ -1939,10 +1946,17 @@
 
        ncv  = 1
        ncvf = ncvfin(i)
-
+       if(icolprnt(lchnk) == i .and. iturb == 5)write(202,*)'--->caleddy_goto1:222',choice_SRCL,'remove'
        if( choice_SRCL .eq. 'remove' ) goto 222 
 
        do k = nbot_turb, ntop_turb + 1, -1 ! 'k = pver, 2, -1' is a layer index.
+         ! qminl = qmin
+          if(icolprnt(lchnk) == i .and. iturb == 5 .and. k == kprnt+1) then
+         !    qminl = 1.0_r8 !BALLI wrong
+             write(202,*)'--->caleddy1a1',ql(i,k),qmin,ql(i,k-1),qrlw(i,k)&
+               ,ri(i,k) .ge.ricrit, 'WRONG'
+          endif
+
 
           if( ql(i,k) .gt. qmin .and. ql(i,k-1) .lt. qmin .and. qrlw(i,k) .lt. 0._r8 &
                                 .and. ri(i,k) .ge. ricrit ) then
@@ -1953,7 +1967,8 @@
               ! layer) should not be a part of previously identified CL. Since 'belongcv'
               ! is even true for external entrainment interfaces, below constraint is
               ! fully sufficient.
- 
+             if(icolprnt(lchnk) == i .and. iturb == 5 .and. k == kprnt+1)write(202,*)'--->caleddy_goto1:220',choice_SRCL,&
+                  'nonamb',belongcv(i,k+1),belongcv(i,k),k
               if( choice_SRCL .eq. 'nonamb' .and. belongcv(i,k+1) ) then
                   go to 220 
               endif
@@ -2599,13 +2614,13 @@
              tke(i,k) = ebrk(i,ncv) * rcap
              tke(i,k) = min( tke(i,k), tkemax )
              kvh(i,k) = leng(i,k) * sqrt(tke(i,k)) * shcl(i,ncv)
+             if(icolprnt(lchnk) == i .and. iturb == 5 .and. k==kprnt+1)write(202,*)'--->caleddy_1:',kvh(i,k),leng(i,k),tke(i,k),shcl(i,ncv),ncv
              kvm(i,k) = leng(i,k) * sqrt(tke(i,k)) * smcl(i,ncv)
              bprod(i,k) = -kvh(i,k) * n2(i,k)
              sprod(i,k) =  kvm(i,k) * s2(i,k)
              turbtype(i,k) = 2                     ! CL interior interfaces.
              sm_aw(i,k) = smcl(i,ncv)/alph1        ! Diagnostic output for microphysics
           end do
-
           ! 2. At CL top entrainment interface
           kentr = wet * jtzm
           kvh(i,kt) = kentr
@@ -2613,6 +2628,8 @@
           bprod(i,kt) = -kentr * n2ht + radf       ! I must use 'n2ht' not 'n2'
           sprod(i,kt) =  kentr * s2(i,kt)
           turbtype(i,kt) = 4                       ! CL top entrainment interface
+          if(icolprnt(lchnk) == i .and. iturb == 5)write(202,*)'--->caleddy_1a:',kt,turbtype(i,kprnt+1)
+          
           trmp = -b1 * ae / ( 1._r8 + b1 * ae )
           trmq = -(bprod(i,kt)+sprod(i,kt))*b1*leng(i,kt)/(1._r8+b1*ae)/(ebrk(i,ncv)**(3._r8/2._r8))
           rcap = compute_cubic(0._r8,trmp,trmq)**2._r8
@@ -2662,6 +2679,7 @@
                   tke_imsi = ebrk(i,ncv) * rcap
                   tke_imsi = min( tke_imsi, tkemax )
                   tke(i,kb)  = ( dzht5*tke(i,kb) + dzhb5*tke_imsi ) / ( dzhb5 + dzht5 )               
+                  
                   tke(i,kb)  = min(tke(i,kb),tkemax)
                   turbtype(i,kb) = 5                ! CL double entraining interface      
                  
@@ -2881,6 +2899,7 @@
               tke(i,k)   = min(tke(i,k),tkemax)
               wcap(i,k)  = tke(i,k)/b1
               kvh(i,k)   = leng(i,k) * sqrt(tke(i,k)) * sh
+              if(icolprnt(lchnk) == i .and. iturb == 5 .and. k==kprnt+1)write(202,*)'--->caleddy_2:',kvh(i,k),leng(i,k),tke(i,k),sh
               kvm(i,k)   = leng(i,k) * sqrt(tke(i,k)) * sm
               bprod(i,k) = -kvh(i,k) * n2(i,k)
               sprod(i,k) =  kvm(i,k) * s2(i,k)
@@ -2908,7 +2927,7 @@
        ! goto 888
 
          do k = 2, pver
-
+            if(icolprnt(lchnk) == i .and. iturb == 5 .and. k==kprnt+1)write(202,*)'--->caleddy_2c:',turbtype(i,k)
          if( ( turbtype(i,k) .eq. 3 ) .or. ( turbtype(i,k) .eq. 4 ) .or. &
              ( turbtype(i,k) .eq. 5 ) ) then
 
@@ -2946,9 +2965,12 @@
              tke_imsi = min(max(tke_imsi,0._r8),tkemax)
              kvh_imsi = leng_imsi * sqrt(tke_imsi) * sh
              kvm_imsi = leng_imsi * sqrt(tke_imsi) * sm
+             if(icolprnt(lchnk) == i .and. iturb == 5 .and. k==kprnt+1)write(202,*)'--->caleddy_2a:',kvh(i,k),kvh_imsi,leng_imsi,&
+                  tke_imsi,sh
 
              if( kvh(i,k) .lt. kvh_imsi ) then 
                  kvh(i,k)   =  kvh_imsi
+                 if(icolprnt(lchnk) == i .and. iturb == 5 .and. k==kprnt+1)write(202,*)'--->caleddy_3:',kvh(i,k)
                  kvm(i,k)   =  kvm_imsi
                  leng(i,k)  = leng_imsi
                  tke(i,k)   =  tke_imsi
