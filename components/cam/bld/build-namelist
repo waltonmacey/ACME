@@ -3349,7 +3349,7 @@ my $ice_comp = $cfg->get('ice');
 if ($ice_comp eq 'cice' and $cam_build and $ice_active) {
 
     # The CICE component has its own build-namelist utility.
-    my $cice_bldnl = "$cam_root/models/ice/cice/bld/build-namelist";
+    my $cice_bldnl = "$cam_root/components/cice/bld/build-namelist";
 
     # Set up the commandline args
 
