@@ -1,7 +1,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-
 !#define _DBG_ print *,"File:",__FILE__," at ",__LINE__
 !#define _DBG_ !DBG
 !
