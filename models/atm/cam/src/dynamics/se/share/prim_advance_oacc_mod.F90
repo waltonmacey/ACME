@@ -49,24 +49,31 @@ contains
   !
   ! ===================================
   use kinds, only : real_kind
-  use dimensions_mod, only : np, np, nlev
+  use dimensions_mod, only : np, nc, nlev, ntrac, max_corner_elem
   use hybrid_mod, only : hybrid_t
-  use element_mod, only : element_t
+  use element_mod, only : element_t !uncomment after merge , PrintElem
   use derivative_mod, only : derivative_t, divergence_sphere, gradient_sphere, vorticity_sphere
-  use edge_mod, only : edgevpack, edgevunpack
+!uncomment after merge  use derivative_mod, only : subcell_div_fluxes, subcell_dss_fluxes
+  use edge_mod, only : edgevpack, edgevunpack, edgeDGVunpack
+!uncomment after merge
+!  use edgetype_mod, only : edgedescriptor_t
   use bndry_mod, only : bndry_exchangev
-  use control_mod, only : moisture, qsplit, use_cpstar, rsplit
+  use control_mod, only : moisture, qsplit, use_cpstar, rsplit, swest
   use hybvcoord_mod, only : hvcoord_t
 
   use physical_constants, only : cp, cpwater_vapor, Rgas, kappa, rrearth
   use physics_mod, only : virtual_specific_heat, virtual_temperature
   use prim_si_mod, only : preq_vertadv, preq_omega_ps, preq_hydrostatic
+#if ( defined CAM ) 
+  use control_mod, only: se_met_nudge_u, se_met_nudge_p, se_met_nudge_t, se_met_tevolve
+#endif
 
+!uncomment after merge  use time_mod, only : tevolve 
 
   implicit none
-  integer :: np1,nm1,n0,qn0,nets,nete
-  real*8 :: dt2
-  logical  :: compute_diagnostics
+  integer, intent(in) :: np1,nm1,n0,qn0,nets,nete
+  real*8, intent(in) :: dt2
+  logical, intent(in)  :: compute_diagnostics
 
   type (hvcoord_t)     , intent(in) :: hvcoord
   type (hybrid_t)      , intent(in) :: hybrid
@@ -85,10 +92,13 @@ contains
   real (kind=real_kind), dimension(np,np,nlev+1)   :: eta_dot_dpdn  ! half level vertical velocity on p-grid
   real (kind=real_kind), dimension(np,np)      :: sdot_sum   ! temporary field
   real (kind=real_kind), dimension(np,np,2)    :: vtemp     ! generic gradient storage
+  real (kind=real_kind), dimension(np,np,2,nlev):: vdp       !                                            
+  real (kind=real_kind), dimension(np,np,2     ):: v         !  
   real (kind=real_kind), dimension(np,np)      :: vgrad_T    ! v.grad(T)
   real (kind=real_kind), dimension(np,np)      :: Ephi       ! kinetic energy + PHI term
   real (kind=real_kind), dimension(np,np,2)      :: grad_ps    ! lat-lon coord version
-  real (kind=real_kind), dimension(np,np,2,nlev) :: grad_p    
+  real (kind=real_kind), dimension(np,np,2,nlev) :: grad_p
+  real (kind=real_kind), dimension(np,np,2,nlev) :: grad_p_m_pmet  ! gradient(p - p_met)
   real (kind=real_kind), dimension(np,np,nlev)   :: vort       ! vorticity
   real (kind=real_kind), dimension(np,np,nlev)   :: p          ! pressure
   real (kind=real_kind), dimension(np,np,nlev)   :: dp         ! delta pressure
@@ -97,10 +107,16 @@ contains
   real (kind=real_kind), dimension(np,np,nlev)   :: vgrad_p    ! v.grad(p)
   real (kind=real_kind), dimension(np,np,nlev+1) :: ph               ! half level pressures on p-grid
   real (kind=real_kind), dimension(np,np,2,nlev) :: v_vadv   ! velocity vertical advection
+  real (kind=real_kind), dimension(np+1,np+1,nlev) :: corners 
+  real (kind=real_kind), dimension(2,2,2)          :: cflux 
   real (kind=real_kind) ::  kappa_star(np,np,nlev)
   real (kind=real_kind) ::  vtens1(np,np,nlev)
   real (kind=real_kind) ::  vtens2(np,np,nlev)
   real (kind=real_kind) ::  ttens(np,np,nlev)
+  real (kind=real_kind) ::  stashdp3d (np,np,nlev)
+  real (kind=real_kind) ::  tempdp3d  (np,np)
+  real (kind=real_kind) ::  tempflux  (nc,nc,4)
+  !uncomment after merge type (EdgeDescriptor_t) :: desc
 
   real (kind=real_kind) ::  cp2,cp_ratio,E,de,Qt,v1,v2
   real (kind=real_kind) ::  glnps1,glnps2,gpterm
@@ -110,9 +126,12 @@ contains
   real(kind=real_kind) hkk,hkl, term          ! diagonal term of energy conversion matrix
   real(kind=real_kind), dimension(np,np,nlev) :: phii       ! Geopotential at interfaces
   integer :: i,j,k,l,kptr,ie
+  real (kind=real_kind) ::  u_m_umet, v_m_vmet, t_m_tmet
 
 
-  call t_barrierf('sync_compute_and_apply_oacc_rhs', hybrid%par%comm)
+  call t_barrierf('sync_compute_and_apply_rhs', hybrid%par%comm) 
+   !uncomment after merge type + comment line before   call t_adj_detailf(+1)
+
   call t_startf('compute_and_apply_oacc_rhs')
  !$OMP BARRIER
  if (hybrid%ithr == 0) then
@@ -228,20 +247,30 @@ contains
 !              vgrad_p(i,j,k) = &
 !                   hvcoord%hybm(k)*(v1*grad_ps(i,j,1) + v2*grad_ps(i,j,2)) 
               vgrad_p(i,j,k) = (v1*grad_p(i,j,1,k) + v2*grad_p(i,j,2,k)) 
-              vtemp(i,j,1) = v1*dp(i,j,k)
-              vtemp(i,j,2) = v2*dp(i,j,k)
+              vdp(i,j,1,k) = v1*dp(i,j,k)
+              vdp(i,j,2,k) = v2*dp(i,j,k)
            end do
         end do
+#if ( defined CAM ) 
+      ! ============================
+      ! compute grad(P-P_met) 
+      ! ============================
+      if (se_met_nudge_p.gt.0.D0) then 
+         grad_p_m_pmet(:,:,:,k) = &
+                grad_p(:,:,:,k) - &
+                hvcoord%hybm(k) * &  
+                gradient_sphere( elem(ie)%derived%ps_met(:,:)+tevolve*elem(ie)%derived%dpsdt_met(:,:), &
+                                deriv,elem(ie)%Dinv)
+      endif
 
-
-      
+#endif      
         ! ================================
         ! Accumulate mean Vel_rho flux in vn0
         ! ================================
         do j=1,np
            do i=1,np
-              elem(ie)%derived%vn0(i,j,1,k)=elem(ie)%derived%vn0(i,j,1,k)+eta_ave_w*vtemp(i,j,1)
-              elem(ie)%derived%vn0(i,j,2,k)=elem(ie)%derived%vn0(i,j,2,k)+eta_ave_w*vtemp(i,j,2)
+              elem(ie)%derived%vn0(i,j,1,k)=elem(ie)%derived%vn0(i,j,1,k)+eta_ave_w*vdp(i,j,1,k)
+              elem(ie)%derived%vn0(i,j,2,k)=elem(ie)%derived%vn0(i,j,2,k)+eta_ave_w*vdp(i,j,2,k)
            enddo
         enddo
 
@@ -255,8 +284,8 @@ contains
         ! convert to contra variant form and multiply by g
         do j=1,np
            do i=1,np
-             gv(i,j,1)=elem(ie)%metdet(i,j)*(elem(ie)%Dinv(1,1,i,j)*vtemp(i,j,1) + elem(ie)%Dinv(1,2,i,j)*vtemp(i,j,2))
-             gv(i,j,2)=elem(ie)%metdet(i,j)*(elem(ie)%Dinv(2,1,i,j)*vtemp(i,j,1) + elem(ie)%Dinv(2,2,i,j)*vtemp(i,j,2))
+             gv(i,j,1)=elem(ie)%metdet(i,j)*(elem(ie)%Dinv(1,1,i,j)*vdp(i,j,1,k) + elem(ie)%Dinv(1,2,i,j)*vdp(i,j,2,k))
+             gv(i,j,2)=elem(ie)%metdet(i,j)*(elem(ie)%Dinv(2,1,i,j)*vdp(i,j,1,k) + elem(ie)%Dinv(2,2,i,j)*vdp(i,j,2,k))
            enddo
          enddo
          ! compute d/dx and d/dy         
@@ -556,7 +585,7 @@ contains
      ! ==============================================
      ! Compute phi + kinetic energy term: 10*nv*nv Flops
      ! ==============================================
-     do k=1,nlev   
+     vertloop: do k=1,nlev   
         do j=1,np
            do i=1,np
               v1     = elem(ie)%state%v(i,j,1,k,n0)
@@ -641,10 +670,58 @@ contains
                    - vtemp(i,j,2) - glnps2   
               
               ttens(i,j,k)  = - T_vadv(i,j,k) - vgrad_T(i,j) + kappa_star(i,j,k)*T_v(i,j,k)*omega_p(i,j,k)
+              !
+              ! phl: add forcing term to T
+              !
+
+#if ( defined CAM )
+
+              if (se_prescribed_wind_2d) then
+                 vtens1(i,j,k) = 0.D0
+                 vtens2(i,j,k) = 0.D0
+                 ttens(i,j,k) = 0.D0
+              else
+                 if(se_met_nudge_u.gt.0.D0)then
+                    u_m_umet = v1 - &
+                         elem(ie)%derived%u_met(i,j,k) - &
+                         se_met_tevolve*tevolve*elem(ie)%derived%dudt_met(i,j,k)
+                    v_m_vmet = v2 - &
+                         elem(ie)%derived%v_met(i,j,k) - &
+                         se_met_tevolve*tevolve*elem(ie)%derived%dvdt_met(i,j,k)
+
+                    vtens1(i,j,k) =   vtens1(i,j,k) - se_met_nudge_u*u_m_umet * elem(ie)%derived%nudge_factor(i,j,k)
+
+                    elem(ie)%derived%Utnd(i+(j-1)*np,k) = elem(ie)%derived%Utnd(i+(j-1)*np,k) &
+                         + se_met_nudge_u*u_m_umet * elem(ie)%derived%nudge_factor(i,j,k)
+
+                    vtens2(i,j,k) =   vtens2(i,j,k) - se_met_nudge_u*v_m_vmet * elem(ie)%derived%nudge_factor(i,j,k)
+
+                    elem(ie)%derived%Vtnd(i+(j-1)*np,k) = elem(ie)%derived%Vtnd(i+(j-1)*np,k) &
+                         + se_met_nudge_u*v_m_vmet * elem(ie)%derived%nudge_factor(i,j,k)
+
+                 endif
+
+                 if(se_met_nudge_p.gt.0.D0)then
+                    vtens1(i,j,k) =   vtens1(i,j,k) - se_met_nudge_p*grad_p_m_pmet(i,j,1,k)  * elem(ie)%derived%nudge_factor(i,j,k)
+                    vtens2(i,j,k) =   vtens2(i,j,k) - se_met_nudge_p*grad_p_m_pmet(i,j,2,k)  * elem(ie)%derived%nudge_factor(i,j,k)
+                 endif
+
+                 if(se_met_nudge_t.gt.0.D0)then
+                    t_m_tmet = elem(ie)%state%T(i,j,k,n0) - &
+                         elem(ie)%derived%T_met(i,j,k) - &
+                         se_met_tevolve*tevolve*elem(ie)%derived%dTdt_met(i,j,k)
+                    ttens(i,j,k)  = ttens(i,j,k) - se_met_nudge_t*t_m_tmet * elem(ie)%derived%nudge_factor(i,j,k)
+                    elem(ie)%derived%Ttnd(i+(j-1)*np,k) = elem(ie)%derived%Ttnd(i+(j-1)*np,k) &
+                         + se_met_nudge_t*t_m_tmet * elem(ie)%derived%nudge_factor(i,j,k)
+                 endif
+              endif
+#endif
+
 
            end do
         end do
-     end do
+
+     end do vertloop 
 
 #ifdef ENERGY_DIAGNOSTICS
      ! =========================================================
@@ -894,6 +971,14 @@ contains
               if (rsplit>0) &
                   elem(ie)%state%dp3d(i,j,k,np1) = -elem(ie)%spheremp(i,j)*&
                      (divdp(i,j,k) + eta_dot_dpdn(i,j,k+1)-eta_dot_dpdn(i,j,k)) 
+              if (0<rsplit.and.0<ntrac.and.eta_ave_w.ne.0.) then
+              v(i,j,1) =  elem(ie)%Dinv(i,j,1,1)*vdp(i,j,1,k) + elem(ie)%Dinv(i,j,1,2)*vdp(i,j,2,k)
+              v(i,j,2) =  elem(ie)%Dinv(i,j,2,1)*vdp(i,j,1,k) + elem(ie)%Dinv(i,j,2,2)*vdp(i,j,2,k)
+!uncomment after merge               tempflux =  eta_ave_w*subcell_div_fluxes(v, np, nc, elem(ie)%metdet)
+!Irina TOFIX
+!uncomment after merge              elem(ie)%sub_elem_mass_flux(i,j,:,k) = elem(ie)%sub_elem_mass_flux(i,j,:,k) - tempflux
+           end if
+
              enddo
           enddo
         enddo
@@ -913,6 +998,13 @@ contains
                     elem(ie)%state%dp3d(i,j,k,np1) = elem(ie)%spheremp(i,j)*&
                       (elem(ie)%state%dp3d(i,j,k,nm1)-dt2*&
                       (divdp(i,j,k) + eta_dot_dpdn(i,j,k+1)-eta_dot_dpdn(i,j,k)))
+                if (0<rsplit.and.0<ntrac.and.eta_ave_w.ne.0.) then
+                  v(i,j,1) =  elem(ie)%Dinv(i,j,1,1)*vdp(i,j,1,k) + elem(ie)%Dinv(i,j,1,2)*vdp(i,j,2,k)
+                  v(i,j,2) =  elem(ie)%Dinv(i,j,2,1)*vdp(i,j,1,k) + elem(ie)%Dinv(i,j,2,2)*vdp(i,j,2,k)
+!uncomment after merge                   tempflux =  eta_ave_w*subcell_div_fluxes(v, np, nc, elem(ie)%metdet)
+!Irina TOFiX
+!uncomment after merge                  elem(ie)%sub_elem_mass_flux(i,j,:,k) = elem(ie)%sub_elem_mass_flux(i,j,:,k) - tempflux
+           end if
              enddo
           enddo
         enddo
@@ -931,6 +1023,8 @@ contains
      !
      ! =========================================================
      kptr=0
+!uncomment after merge: d foe all edgeVpack:
+!call edgeVpack(edge3p1, elem(ie)%state%ps_v(:,:,np1),1,kptr,ie)
      call edgeVpack(edge3p1, elem(ie)%state%ps_v(:,:,np1),1,kptr,elem(ie)%desc)
      
      kptr=1
@@ -969,8 +1063,42 @@ contains
      call edgeVunpack(edge3p1, elem(ie)%state%v(:,:,:,:,np1), 2*nlev, kptr, elem(ie)%desc)
      
      if (rsplit>0) then
+         if (0<ntrac.and.eta_ave_w.ne.0.) then
+          do k=1,nlev
+             stashdp3d(:,:,k) = elem(ie)%state%dp3d(:,:,k,np1)/elem(ie)%spheremp(:,:)
+          end do
+        endif
+
+        corners = 0.0d0
+        corners(1:np,1:np,:) = elem(ie)%state%dp3d(:,:,:,np1)
+
         kptr=kptr+2*nlev
         call edgeVunpack(edge3p1, elem(ie)%state%dp3d(:,:,:,np1),nlev,kptr,elem(ie)%desc)
+       
+!uncomment after merge
+!        if  (0<ntrac.and.eta_ave_w.ne.0.) then
+!          desc = elem(ie)%desc
+!          call edgeDGVunpack(edge3p1, corners, nlev, kptr, ie)
+!          corners = corners/dt2
+
+!          do k=1,nlev
+!            tempdp3d = elem(ie)%rspheremp(:,:)*elem(ie)%state%dp3d(:,:,k,np1)
+!            tempdp3d = tempdp3d - stashdp3d(:,:,k)
+!            tempdp3d = tempdp3d/dt2
+
+!            call distribute_flux_at_corners(cflux, corners(:,:,k), desc%getmapP)
+
+!            cflux(1,1,:)   = elem(ie)%rspheremp(1,  1) * cflux(1,1,:)
+!            cflux(2,1,:)   = elem(ie)%rspheremp(np, 1) * cflux(2,1,:)
+!            cflux(1,2,:)   = elem(ie)%rspheremp(1, np) * cflux(1,2,:)
+!            cflux(2,2,:)   = elem(ie)%rspheremp(np,np) * cflux(2,2,:)
+
+!            tempflux =  eta_ave_w*subcell_dss_fluxes(tempdp3d, np, nc, elem(ie)%metdet, cflux)
+!            elem(ie)%sub_elem_mass_flux(:,:,:,k) = elem(ie)%sub_elem_mass_flux(:,:,:,k) + tempflux
+!          end do
+!        end if
+        
+
      endif
      
      ! ====================================================
