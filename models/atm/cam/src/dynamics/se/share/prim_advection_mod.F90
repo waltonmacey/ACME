@@ -1295,6 +1295,8 @@ contains
   use hybvcoord_mod  , only : hvcoord_t
 #if USE_CUDA_FORTRAN
   use cuda_mod, only: euler_step_cuda
+#elif USE_OPENACC
+  use prim_advection_openacc_mod, only: euler_step_openacc
 #endif
   implicit none
   integer              , intent(in   )         :: np1_qdp, n0_qdp
@@ -1329,6 +1331,10 @@ contains
   !It's admittedly not ideal to use this form instead of a simple "return". However PGI 14.7.0 and up
   !all segfault if I leave the return here instead of doing it this way.
 #else
+#if USE_OPENACC
+  call euler_step_openacc( np1_qdp , n0_qdp , dt , elem , hvcoord , hybrid , deriv , nets , nete , DSSopt , rhs_multiplier )
+  return
+#endif
 ! call t_barrierf('sync_euler_step', hybrid%par%comm)
 !   call t_startf('euler_step')
 

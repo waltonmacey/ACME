@@ -55,7 +55,10 @@ module prim_driver_mod
 contains
 
   subroutine prim_init1(elem, fvm, par, dom_mt, Tl)
-
+    ! --------------------------------
+#if USE_OPENACC
+    use element_mod, only : setup_element_pointers
+#endif
     ! --------------------------------
     use thread_mod, only : nthreads, omp_get_thread_num, omp_set_num_threads
     ! --------------------------------
@@ -298,6 +301,9 @@ contains
 
     if (nelemd>0) then
        allocate(elem(nelemd))
+#if USE_OPENACC
+       call setup_element_pointers(elem)
+#endif
        call allocate_element_desc(elem)
 
 #ifndef CAM

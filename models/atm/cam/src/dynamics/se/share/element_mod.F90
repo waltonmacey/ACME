@@ -21,6 +21,94 @@ module element_mod
 
 ! =========== PRIMITIVE-EQUATION DATA-STRUCTURES =====================
 
+#if USE_OPENACC
+
+  public :: setup_element_pointers
+
+  real (kind=real_kind), allocatable, target, public :: state_v   (:,:,:,:,:,:) !(np,np,2,nlev,timelevels,nelemd)
+  real (kind=real_kind), allocatable, target, public :: state_T   (:,:,:,:,:)   !(np,np,nlev,timelevels,nelemd)  
+  real (kind=real_kind), allocatable, target, public :: state_dp3d(:,:,:,:,:)   !(np,np,nlev,timelevels,nelemd)  
+  real (kind=real_kind), allocatable, target, public :: state_lnps(:,:,:,:)     !(np,np,timelevels,nelemd)       
+  real (kind=real_kind), allocatable, target, public :: state_ps_v(:,:,:,:)     !(np,np,timelevels,nelemd)       
+  real (kind=real_kind), allocatable, target, public :: state_phis(:,:,:)       !(np,np,nelemd)                  
+  real (kind=real_kind), allocatable, target, public :: state_Q   (:,:,:,:,:)   !(np,np,nlev,qsize_d,nelemd)     
+  real (kind=real_kind), allocatable, target, public :: state_Qdp (:,:,:,:,:,:) !(np,np,nlev,qsize_d,2,nelemd)   
+  type, public :: elem_state_t
+    ! prognostic variables for preqx solver
+    ! prognostics must match those in prim_restart_mod.F90
+    ! vertically-lagrangian code advects dp3d instead of ps_v
+    ! tracers Q, Qdp always use 2 level time scheme
+    real (kind=real_kind), pointer :: v   (:,:,:,:,:)  ! velocity                           1  (np,np,2,nlev,timelevels)
+    real (kind=real_kind), pointer :: T   (:,:,:,:)    ! temperature                        2  (np,np,nlev,timelevels)  
+    real (kind=real_kind), pointer :: dp3d(:,:,:,:)    ! delta p on levels                  8  (np,np,nlev,timelevels)  
+    real (kind=real_kind), pointer :: lnps(:,:,:)      ! log surface pressure               3  (np,np,timelevels)       
+    real (kind=real_kind), pointer :: ps_v(:,:,:)      ! surface pressure                   4  (np,np,timelevels)       
+    real (kind=real_kind), pointer :: phis(:,:)        ! surface geopotential (prescribed)  5  (np,np)                  
+    real (kind=real_kind), pointer :: Q   (:,:,:,:)    ! Tracer concentration               6  (np,np,nlev,qsize_d)     
+    real (kind=real_kind), pointer :: Qdp (:,:,:,:,:)  ! Tracer mass                        7  (np,np,nlev,qsize_d,2)   
+  end type elem_state_t
+
+  integer(kind=int_kind),public,parameter::StateComponents=8  ! num prognistics variables (for prim_restart_mod.F90)
+
+  real (kind=real_kind), allocatable, target, public :: derived_vn0              (:,:,:,:,:)      ! (np,np,2,nlev,nelemd)                   velocity for SE tracer advection
+  real (kind=real_kind), allocatable, target, public :: derived_vstar            (:,:,:,:,:)      ! (np,np,2,nlev,nelemd)                   velocity on Lagrangian surfaces
+  real (kind=real_kind), allocatable, target, public :: derived_dpdiss_biharmonic(:,:,:,:)        ! (np,np,nlev,nelemd)                     mean dp dissipation tendency, if nu_p>0
+  real (kind=real_kind), allocatable, target, public :: derived_dpdiss_ave       (:,:,:,:)        ! (np,np,nlev,nelemd)                     mean dp used to compute psdiss_tens
+  real (kind=real_kind), allocatable, target, public :: derived_phi              (:,:,:,:)        ! (np,np,nlev,nelemd)                     geopotential
+  real (kind=real_kind), allocatable, target, public :: derived_omega_p          (:,:,:,:)        ! (np,np,nlev,nelemd)                     vertical tendency (derived)       
+  real (kind=real_kind), allocatable, target, public :: derived_eta_dot_dpdn     (:,:,:,:)        ! (np,np,nlevp,nelemd)                    mean vertical flux from dynamics
+  real (kind=real_kind), allocatable, target, public :: derived_grad_lnps        (:,:,:,:)        ! (np,np,2,nelemd)                        gradient of log surface pressure               
+  real (kind=real_kind), allocatable, target, public :: derived_zeta             (:,:,:,:)        ! (np,np,nlev,nelemd)                     relative vorticity                             
+  real (kind=real_kind), allocatable, target, public :: derived_div              (:,:,:,:,:)      ! (np,np,nlev,timelevels,nelemd)          divergence                          
+  real (kind=real_kind), allocatable, target, public :: derived_dp               (:,:,:,:)        ! (np,np,nlev,nelemd)                     for dp_tracers at physics timestep
+  real (kind=real_kind), allocatable, target, public :: derived_divdp            (:,:,:,:)        ! (np,np,nlev,nelemd)                     divergence of dp
+  real (kind=real_kind), allocatable, target, public :: derived_divdp_proj       (:,:,:,:)        ! (np,np,nlev,nelemd)                     DSSed divdp
+#ifdef CAM
+  real (kind=real_kind), allocatable, target, public :: derived_FQ               (:,:,:,:,:,:)    ! (np,np,nlev,qsize_d,1,nelemd)           tracer forcing  
+  real (kind=real_kind), allocatable, target, public :: derived_FM               (:,:,:,:,:,:)    ! (np,np,2,nlev,1,nelemd)                 momentum forcing
+  real (kind=real_kind), allocatable, target, public :: derived_FT               (:,:,:,:,:)      ! (np,np,nlev,1,nelemd)                   temperature forcing
+  real (kind=real_kind), allocatable, target, public :: derived_omega_prescribed (:,:,:,:)        ! (np,np,nlev,nelemd)                     prescribed vertical tendency
+#else
+  real (kind=real_kind), allocatable, target, public :: derived_FQ               (:,:,:,:,:,:)    ! (np,np,nlev,qsize_d,timelevels,nelemd)  tracer forcing 
+  real (kind=real_kind), allocatable, target, public :: derived_FM               (:,:,:,:,:,:)    ! (np,np,2,nlev,timelevels,nelemd)        momentum forcing
+  real (kind=real_kind), allocatable, target, public :: derived_FT               (:,:,:,:,:)      ! (np,np,nlev,timelevels,nelemd)          temperature forcing 
+#endif
+  real (kind=real_kind), allocatable, target, public :: derived_pecnd            (:,:,:,:)        ! (np,np,nlev,nelemd)                     pressure perturbation from condensate
+  real (kind=real_kind), allocatable, target, public :: derived_FQps             (:,:,:,:)        ! (np,np,timelevels,nelemd)               forcing of FQ on ps_v 
+  type, public :: derived_state_t
+    ! diagnostic variables for preqx solver
+    ! storage for subcycling tracers/dynamics
+    ! if (compute_mean_flux==1) vn0=time_avg(U*dp) else vn0=U at tracer-time t
+  real (kind=real_kind), pointer :: vn0              (:,:,:,:)       ! (np,np,2,nlev)                  velocity for SE tracer advection
+  real (kind=real_kind), pointer :: vstar            (:,:,:,:)       ! (np,np,2,nlev)                  velocity on Lagrangian surfaces
+  real (kind=real_kind), pointer :: dpdiss_biharmonic(:,:,:)         ! (np,np,nlev)                    mean dp dissipation tendency, if nu_p>0
+  real (kind=real_kind), pointer :: dpdiss_ave       (:,:,:)         ! (np,np,nlev)                    mean dp used to compute psdiss_tens
+  real (kind=real_kind), pointer :: phi              (:,:,:)         ! (np,np,nlev)                    geopotential
+  real (kind=real_kind), pointer :: omega_p          (:,:,:)         ! (np,np,nlev)                    vertical tendency (derived)       
+  real (kind=real_kind), pointer :: eta_dot_dpdn     (:,:,:)         ! (np,np,nlevp)                   mean vertical flux from dynamics
+  real (kind=real_kind), pointer :: grad_lnps        (:,:,:)         ! (np,np,2)                       gradient of log surface pressure               
+  real (kind=real_kind), pointer :: zeta             (:,:,:)         ! (np,np,nlev)                    relative vorticity                             
+  real (kind=real_kind), pointer :: div              (:,:,:,:)       ! (np,np,nlev,timelevels)         divergence                          
+  real (kind=real_kind), pointer :: dp               (:,:,:)         ! (np,np,nlev)                    for dp_tracers at physics timestep
+  real (kind=real_kind), pointer :: divdp            (:,:,:)         ! (np,np,nlev)                    divergence of dp
+  real (kind=real_kind), pointer :: divdp_proj       (:,:,:)         ! (np,np,nlev)                    DSSed divdp
+#ifdef CAM
+  real (kind=real_kind), pointer :: FQ               (:,:,:,:,:)     ! (np,np,nlev,qsize_d,1)          tracer forcing  
+  real (kind=real_kind), pointer :: FM               (:,:,:,:,:)     ! (np,np,2,nlev,1)                momentum forcing
+  real (kind=real_kind), pointer :: FT               (:,:,:,:)       ! (np,np,nlev,1)                  temperature forcing
+  real (kind=real_kind), pointer :: omega_prescribed (:,:,:)         ! (np,np,nlev)                    prescribed vertical tendency
+#else
+  real (kind=real_kind), pointer :: FQ               (:,:,:,:,:)     ! (np,np,nlev,qsize_d,timelevels) tracer forcing 
+  real (kind=real_kind), pointer :: FM               (:,:,:,:,:)     ! (np,np,2,nlev,timelevels)       momentum forcing
+  real (kind=real_kind), pointer :: FT               (:,:,:,:)       ! (np,np,nlev,timelevels)         temperature forcing 
+#endif
+  real (kind=real_kind), pointer :: pecnd            (:,:,:)         ! (np,np,nlev)                    pressure perturbation from condensate
+  real (kind=real_kind), pointer :: FQps             (:,:,:)         ! (np,np,timelevels)              forcing of FQ on ps_v 
+  end type derived_state_t
+
+!else for USE_OPENACC if
+#else
+
   type, public :: elem_state_t
 
     ! prognostic variables for preqx solver
@@ -89,6 +177,9 @@ module element_mod
     real (kind=real_kind) :: FQps(np,np,timelevels)                   ! forcing of FQ on ps_v 
                                                                   
   end type derived_state_t
+
+!ending USE_OPENACC if
+#endif
 
   !___________________________________________________________________
   type, public :: elem_accum_t
@@ -480,6 +571,87 @@ contains
        
     end do
   end subroutine allocate_element_desc
+
+
+  !___________________________________________________________________
+#if USE_OPENACC
+  subroutine setup_element_pointers(elem)
+    use dimensions_mod, only: nelemd
+    implicit none
+    type(element_t), intent(inout) :: elem(:)
+    integer :: ie
+    allocate( state_v                  (np,np,2,nlev,timelevels,nelemd)       )
+    allocate( state_T                  (np,np,nlev,timelevels,nelemd)         )
+    allocate( state_dp3d               (np,np,nlev,timelevels,nelemd)         )
+    allocate( state_lnps               (np,np,timelevels,nelemd)              )
+    allocate( state_ps_v               (np,np,timelevels,nelemd)              )
+    allocate( state_phis               (np,np,nelemd)                         )
+    allocate( state_Q                  (np,np,nlev,qsize_d,nelemd)            )
+    allocate( state_Qdp                (np,np,nlev,qsize_d,2,nelemd)          )
+    allocate( derived_vn0              (np,np,2,nlev,nelemd)                  )
+    allocate( derived_vstar            (np,np,2,nlev,nelemd)                  )
+    allocate( derived_dpdiss_biharmonic(np,np,nlev,nelemd)                    )
+    allocate( derived_dpdiss_ave       (np,np,nlev,nelemd)                    )
+    allocate( derived_phi              (np,np,nlev,nelemd)                    )
+    allocate( derived_omega_p          (np,np,nlev,nelemd)                    )
+    allocate( derived_eta_dot_dpdn     (np,np,nlevp,nelemd)                   )
+    allocate( derived_grad_lnps        (np,np,2,nelemd)                       )
+    allocate( derived_zeta             (np,np,nlev,nelemd)                    )
+    allocate( derived_div              (np,np,nlev,timelevels,nelemd)         )
+    allocate( derived_dp               (np,np,nlev,nelemd)                    )
+    allocate( derived_divdp            (np,np,nlev,nelemd)                    )
+    allocate( derived_divdp_proj       (np,np,nlev,nelemd)                    )
+#ifdef CAM
+    allocate( derived_FQ               (np,np,nlev,qsize_d,1,nelemd)          )
+    allocate( derived_FM               (np,np,2,nlev,1,nelemd)                )
+    allocate( derived_FT               (np,np,nlev,1,nelemd)                  )
+    allocate( derived_omega_prescribed (np,np,nlev,nelemd)                    )
+#else
+    allocate( derived_FQ               (np,np,nlev,qsize_d,timelevels,nelemd) )
+    allocate( derived_FM               (np,np,2,nlev,timelevels,nelemd)       )
+    allocate( derived_FT               (np,np,nlev,timelevels,nelemd)         )
+#endif
+    allocate( derived_pecnd            (np,np,nlev,nelemd)                    )
+    allocate( derived_FQps             (np,np,timelevels,nelemd)              )
+    do ie = 1 , nelemd
+      elem(ie)%state%v                   => state_v                  (:,:,:,:,:,ie)
+      elem(ie)%state%T                   => state_T                  (:,:,:,:,ie)  
+      elem(ie)%state%dp3d                => state_dp3d               (:,:,:,:,ie)  
+      elem(ie)%state%lnps                => state_lnps               (:,:,:,ie)    
+      elem(ie)%state%ps_v                => state_ps_v               (:,:,:,ie)    
+      elem(ie)%state%phis                => state_phis               (:,:,ie)      
+      elem(ie)%state%Q                   => state_Q                  (:,:,:,:,ie)  
+      elem(ie)%state%Qdp                 => state_Qdp                (:,:,:,:,:,ie)
+      elem(ie)%derived%vn0               => derived_vn0              (:,:,:,:,ie)  
+      elem(ie)%derived%vstar             => derived_vstar            (:,:,:,:,ie)  
+      elem(ie)%derived%dpdiss_biharmonic => derived_dpdiss_biharmonic(:,:,:,ie)    
+      elem(ie)%derived%dpdiss_ave        => derived_dpdiss_ave       (:,:,:,ie)    
+      elem(ie)%derived%phi               => derived_phi              (:,:,:,ie)    
+      elem(ie)%derived%omega_p           => derived_omega_p          (:,:,:,ie)    
+      elem(ie)%derived%eta_dot_dpdn      => derived_eta_dot_dpdn     (:,:,:,ie)    
+      elem(ie)%derived%grad_lnps         => derived_grad_lnps        (:,:,:,ie)    
+      elem(ie)%derived%zeta              => derived_zeta             (:,:,:,ie)    
+      elem(ie)%derived%div               => derived_div              (:,:,:,:,ie)  
+      elem(ie)%derived%dp                => derived_dp               (:,:,:,ie)    
+      elem(ie)%derived%divdp             => derived_divdp            (:,:,:,ie)    
+      elem(ie)%derived%divdp_proj        => derived_divdp_proj       (:,:,:,ie)    
+#ifdef CAM                                                                        
+      elem(ie)%derived%FQ                => derived_FQ               (:,:,:,:,:,ie)
+      elem(ie)%derived%FM                => derived_FM               (:,:,:,:,:,ie)
+      elem(ie)%derived%FT                => derived_FT               (:,:,:,:,ie)  
+      elem(ie)%derived%omega_prescribed  => derived_omega_prescribed (:,:,:,ie)    
+#else                                                                             
+      elem(ie)%derived%FQ                => derived_FQ               (:,:,:,:,:,ie)
+      elem(ie)%derived%FM                => derived_FM               (:,:,:,:,:,ie)
+      elem(ie)%derived%FT                => derived_FT               (:,:,:,:,ie)  
+#endif                                                                            
+      elem(ie)%derived%pecnd             => derived_pecnd            (:,:,:,ie)    
+      elem(ie)%derived%FQps              => derived_FQps             (:,:,:,ie)    
+    enddo
+  end subroutine setup_element_pointers
+#endif
+
+  
 
 
 end module element_mod
