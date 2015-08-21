@@ -27,6 +27,7 @@ module prim_advection_openacc_mod
   integer,parameter :: DSSomega = 2
   integer,parameter :: DSSdiv_vdp_ave = 3
   integer,parameter :: DSSno_var = -1
+  integer :: nbuf
 
   public :: prim_advection_openacc_init
   public :: precompute_divdp_openacc
@@ -46,6 +47,8 @@ contains
     type(hvcoord_t)   , intent(in) :: hvcoord
     type(hybrid_t)    , intent(in) :: hybrid
     integer :: k, ie
+
+    nbuf = 4*(np+max_corner_elem)*nelemd
 
     call initEdgeBuffer(edgeAdvQ3 ,max(nlev,qsize*nlev*3))
     call initEdgeBuffer(edgeAdv1  ,nlev                  )
@@ -111,7 +114,6 @@ contains
   use hybvcoord_mod  , only: hvcoord_t
   use control_mod    , only: limiter_option, nu_p, nu_q
   use perf_mod       , only: t_startf, t_stopf
-  use viscosity_mod  , only: biharmonic_wk_scalar_minmax
   use element_mod    , only: derived_dp, derived_divdp_proj, state_qdp, derived_dpdiss_ave
   implicit none
   integer              , intent(in   )         :: np1_qdp, n0_qdp
@@ -240,7 +242,7 @@ contains
         !$omp end master
         !$omp barrier
       endif
-      call biharmonic_wk_scalar_minmax( elem , qtens_biharmonic(:,:,:,:,nets:nete) , deriv , edgeAdvQ3 , hybrid , nets , nete , qmin(:,:,nets:nete) , qmax(:,:,nets:nete) )
+      call biharmonic_wk_scalar_minmax( elem , qtens_biharmonic , deriv , edgeAdvQ3 , hybrid , nets , nete , qmin , qmax )
       !$omp barrier
       !$omp master
       !$acc update device(qtens_biharmonic)
@@ -374,6 +376,122 @@ contains
   enddo
   end subroutine euler_step_openacc
 
+  subroutine biharmonic_wk_scalar_minmax(elem,qtens,deriv,edgeq,hybrid,nets,nete,emin,emax)
+    use hybrid_mod, only: hybrid_t
+    use element_mod, only: element_t
+    use derivative_mod, only: derivative_t
+    use control_mod, only: hypervis_scaling, hypervis_power
+    use perf_mod, only: t_startf, t_stopf
+    implicit none
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! compute weak biharmonic operator
+    !    input:  qtens = Q
+    !    output: qtens = weak biharmonic of Q and Q element min/max
+    !
+    !    note: emin/emax must be initialized with Q element min/max.  
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    type (hybrid_t)      , intent(in) :: hybrid
+    type (element_t)     , intent(inout), target :: elem(:)
+    integer :: nets,nete
+    real (kind=real_kind), dimension(np,np,nlev,qsize,nelemd) :: qtens
+    type (EdgeBuffer_t)  , intent(inout) :: edgeq
+    type (derivative_t)  , intent(in   ) :: deriv
+    real (kind=real_kind), intent(inout), dimension(nlev,qsize,nelemd) :: emin,emax !BSINGH: emin and emax should be intent-inout
+    ! local
+    integer :: k,kptr,i,j,ie,ic,q
+    real (kind=real_kind) :: lap_p(np,np)
+    logical :: var_coef1
+    !if tensor hyperviscosity with tensor V is used, then biharmonic operator is (\grad\cdot V\grad) (\grad \cdot \grad) 
+    !so tensor is only used on second call to laplace_sphere_wk
+    var_coef1 = .true.
+    if(hypervis_scaling > 0)    var_coef1 = .false.
+    call minmax_pack(qmin_pack,qmax_pack,emin,emax)
+    call laplace_sphere_wk(qtens,deriv,elem,var_coef1,qtens,nlev*qsize,nets,nete)
+    !$omp barrier
+    !$omp master
+    call edgeVpack(edgeq,    qtens,qsize*nlev,0           ,desc_putmapP,desc_reverse,nets,nete)
+    call edgeVpack(edgeq,Qmin_pack,nlev*qsize,nlev*qsize  ,desc_putmapP,desc_reverse,nets,nete)
+    call edgeVpack(edgeq,Qmax_pack,nlev*qsize,2*nlev*qsize,desc_putmapP,desc_reverse,nets,nete)
+    !$omp end master
+    !$omp barrier
+
+    call t_startf('biwkscmm_bexchV')
+    call bndry_exchangeV(hybrid,edgeq)
+    call t_stopf('biwkscmm_bexchV')
+
+    !$omp barrier
+    !$omp master
+    call edgeVunpack   (edgeq%buf,edgeq%nlyr,    qtens,qsize*nlev,0           ,desc_getmapP,nets,nete)
+    call edgeVunpackMin(edgeq%buf,edgeq%nlyr,Qmin_pack,qsize*nlev,qsize*nlev  ,desc_getmapP,nets,nete)
+    call edgeVunpackMax(edgeq%buf,edgeq%nlyr,Qmax_pack,qsize*nlev,2*qsize*nlev,desc_getmapP,nets,nete)
+    !$acc update device(qtens)
+    !$acc parallel loop gang vector collapse(5) present(qtens,elem(:))
+    do ie = 1 , nelemd
+      do q = 1 , qsize      
+        do k = 1 , nlev
+          do j = 1 , np
+            do i = 1 , np
+              qtens(i,j,k,q,ie) = elem(ie)%rspheremp(i,j)*qtens(i,j,k,q,ie)  ! apply inverse mass matrix
+            enddo
+          enddo
+        enddo
+      enddo
+    enddo
+    !$acc update host(qtens)
+    !$omp end master
+    !$omp barrier
+    call laplace_sphere_wk(qtens,deriv,elem,.true.,qtens,nlev*qsize,nets,nete)
+    call minmax_reduce_corners(qmin_pack,qmax_pack,emin,emax)
+  end subroutine biharmonic_wk_scalar_minmax
+
+  subroutine laplace_sphere_wk(s,deriv,elem,var_coef,laplace,len,nets,nete)
+    use derivative_mod, only: derivative_t, gradient_sphere, divergence_sphere_wk
+    use element_mod, only: element_t
+    use control_mod, only: hypervis_scaling, hypervis_power
+    implicit none
+    !input:  s = scalar
+    !ouput:  -< grad(PHI), grad(s) >   = weak divergence of grad(s)
+    !note: for this form of the operator, grad(s) does not need to be made C0
+    real(kind=real_kind) , intent(in   ) :: s(np,np,len,nelemd)
+    type (derivative_t)  , intent(in   ) :: deriv
+    type (element_t)     , intent(in   ) :: elem(:)
+    logical              , intent(in   ) :: var_coef
+    real(kind=real_kind) , intent(  out) :: laplace(np,np,len,nelemd)
+    integer              , intent(in   ) :: len
+    integer              , intent(in   ) :: nets,nete
+    integer :: i,j,k,ie
+    ! Local
+    real(kind=real_kind) :: grads(np,np,2), oldgrads(np,np,2)
+    do ie = nets , nete
+      do k = 1 , len
+        grads = gradient_sphere(s(:,:,k,ie),deriv,elem(ie)%Dinv)
+        if (var_coef) then
+          if (hypervis_power/=0 ) then
+            ! scalar viscosity with variable coefficient
+            do j=1,np
+              do i=1,np
+                grads(i,j,1) = grads(i,j,1)*elem(ie)%variable_hyperviscosity(i,j)
+                grads(i,j,2) = grads(i,j,2)*elem(ie)%variable_hyperviscosity(i,j)
+              enddo
+            enddo
+          else if (hypervis_scaling /=0 ) then
+            ! tensor hv, (3)
+            oldgrads=grads
+            do j=1,np
+              do i=1,np
+                grads(i,j,1) = sum(oldgrads(i,j,:)*elem(ie)%tensorVisc(1,:,i,j))
+                grads(i,j,2) = sum(oldgrads(i,j,:)*elem(ie)%tensorVisc(2,:,i,j))
+              enddo
+            enddo
+          endif
+        endif
+        ! note: divergnece_sphere and divergence_sphere_wk are identical *after* bndry_exchange
+        ! if input is C_0.  Here input is not C_0, so we should use divergence_sphere_wk().  
+        laplace(:,:,k,ie) = divergence_sphere_wk(grads,deriv,elem(ie))
+      enddo
+    enddo
+  end subroutine laplace_sphere_wk
+
   subroutine neighbor_minmax(elem,hybrid,edgeMinMax,nets,nete,min_neigh,max_neigh)
     use hybrid_mod , only: hybrid_t
     use element_mod, only: element_t
@@ -389,6 +507,34 @@ contains
     ! local
     integer :: ie,k,q,j,i
     ! compute Qmin, Qmax
+    call minmax_pack(qmin_pack,qmax_pack,min_neigh,max_neigh)
+    !$omp barrier
+    !$omp master
+    call edgeVpack(edgeMinMax,Qmin_pack,nlev*qsize,0         ,desc_putmapP,desc_reverse,nets,nete)
+    call edgeVpack(edgeMinMax,Qmax_pack,nlev*qsize,nlev*qsize,desc_putmapP,desc_reverse,nets,nete)
+    !$omp end master
+    !$omp barrier
+
+    call t_startf('nmm_bexchV')
+    call bndry_exchangeV(hybrid,edgeMinMax)
+    call t_stopf('nmm_bexchV')
+       
+    !$omp barrier
+    !$omp master
+    call edgeVunpackMin(edgeMinMax%buf,edgeMinMax%nlyr,Qmin_pack,nlev*qsize,0         ,desc_getmapP,nets,nete)
+    call edgeVunpackMax(edgeMinMax%buf,edgeMinMax%nlyr,Qmax_pack,nlev*qsize,nlev*qsize,desc_getmapP,nets,nete)
+    !$omp end master
+    !$omp barrier
+    call minmax_reduce_corners(qmin_pack,qmax_pack,min_neigh,max_neigh)
+  end subroutine neighbor_minmax
+
+  subroutine minmax_pack(qmin_pack,qmax_pack,min_neigh,max_neigh)
+    implicit none
+    real(kind=real_kind), intent(  out) :: qmin_pack(np,np,nlev,qsize,nelemd)
+    real(kind=real_kind), intent(  out) :: qmax_pack(np,np,nlev,qsize,nelemd)
+    real(kind=real_kind), intent(in   ) :: min_neigh(nlev,qsize,nelemd)
+    real(kind=real_kind), intent(in   ) :: max_neigh(nlev,qsize,nelemd)
+    integer :: ie,q,k,j,i
     !$omp barrier
     !$omp master
     !$acc update device(min_neigh,max_neigh)
@@ -406,19 +552,19 @@ contains
       enddo
     enddo
     !$acc update host(qmin_pack,qmax_pack)
-    call edgeVpack(edgeMinMax,Qmin_pack,nlev*qsize,0         ,desc_putmapP,desc_reverse,nets,nete)
-    call edgeVpack(edgeMinMax,Qmax_pack,nlev*qsize,nlev*qsize,desc_putmapP,desc_reverse,nets,nete)
     !$omp end master
     !$omp barrier
+  end subroutine minmax_pack
 
-    call t_startf('nmm_bexchV')
-    call bndry_exchangeV(hybrid,edgeMinMax)
-    call t_stopf('nmm_bexchV')
-       
+  subroutine minmax_reduce_corners(qmin_pack,qmax_pack,min_neigh,max_neigh)
+    implicit none
+    real(kind=real_kind), intent(in   ) :: qmin_pack(np,np,nlev,qsize,nelemd)
+    real(kind=real_kind), intent(in   ) :: qmax_pack(np,np,nlev,qsize,nelemd)
+    real(kind=real_kind), intent(  out) :: min_neigh(nlev,qsize,nelemd)
+    real(kind=real_kind), intent(  out) :: max_neigh(nlev,qsize,nelemd)
+    integer :: ie,q,k
     !$omp barrier
     !$omp master
-    call edgeVunpackMin(edgeMinMax,Qmin_pack,nlev*qsize,0         ,desc_getmapP,nets,nete)
-    call edgeVunpackMax(edgeMinMax,Qmax_pack,nlev*qsize,nlev*qsize,desc_getmapP,nets,nete)
     !$acc update device(qmin_pack,qmax_pack)
     !$acc parallel loop gang vector collapse(3) present(min_neigh,max_neigh,qmin_pack,qmax_pack)
     do ie=1,nelemd
@@ -435,7 +581,7 @@ contains
     !$acc update host(min_neigh,max_neigh)
     !$omp end master
     !$omp barrier
-  end subroutine neighbor_minmax
+  end subroutine minmax_reduce_corners
 
   subroutine edgeVpack(edge,v,vlyr,kptr,putmapP,reverse,nets,nete)
     use dimensions_mod, only : max_corner_elem
@@ -484,11 +630,12 @@ contains
     call t_stopf('edge_pack')
   end subroutine edgeVpack
 
-  subroutine edgeVunpack(edge,v,vlyr,kptr,getmapP,nets,nete)
+  subroutine edgeVunpack(edgebuf,nlyr,v,vlyr,kptr,getmapP,nets,nete)
     use dimensions_mod, only : np, max_corner_elem
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
     use perf_mod, only: t_startf, t_stopf
-    type (EdgeBuffer_t)   , intent(in   ) :: edge
+    real(kind=real_kind)  , intent(in   ) :: edgebuf(nlyr,nbuf)
+    integer               , intent(in   ) :: nlyr
     integer               , intent(in   ) :: vlyr
     real(kind=real_kind)  , intent(inout) :: v(np,np,vlyr,nelemd)
     integer               , intent(in   ) :: kptr
@@ -497,30 +644,34 @@ contains
     ! Local
     integer :: i,k,ll,is,ie,in,iw,el
     call t_startf('edge_unpack')
-    do el = nets , nete
+    !$acc update device(edgebuf,v)
+    !$acc parallel loop gang vector collapse(2) present(v,getmapP,edgebuf)
+    do el = 1 , nelemd
       do k = 1 , vlyr
         do i = 1 , np
-          v(i ,1 ,k,el) = v(i ,1 ,k,el) + edge%buf(kptr+k,getmapP(south,el)+i)
-          v(np,i ,k,el) = v(np,i ,k,el) + edge%buf(kptr+k,getmapP(east ,el)+i)
-          v(i ,np,k,el) = v(i ,np,k,el) + edge%buf(kptr+k,getmapP(north,el)+i)
-          v(1 ,i ,k,el) = v(1 ,i ,k,el) + edge%buf(kptr+k,getmapP(west ,el)+i)
+          v(i ,1 ,k,el) = v(i ,1 ,k,el) + edgebuf(kptr+k,getmapP(south,el)+i)
+          v(np,i ,k,el) = v(np,i ,k,el) + edgebuf(kptr+k,getmapP(east ,el)+i)
+          v(i ,np,k,el) = v(i ,np,k,el) + edgebuf(kptr+k,getmapP(north,el)+i)
+          v(1 ,i ,k,el) = v(1 ,i ,k,el) + edgebuf(kptr+k,getmapP(west ,el)+i)
         enddo
         do i = 1 , max_corner_elem
-          ll = swest+0*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,1 ,k,el) = v(1 ,1 ,k,el) + edge%buf(kptr+k,getmapP(ll,el)+1)
-          ll = swest+1*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,1 ,k,el) = v(np,1 ,k,el) + edge%buf(kptr+k,getmapP(ll,el)+1)
-          ll = swest+2*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,np,k,el) = v(1 ,np,k,el) + edge%buf(kptr+k,getmapP(ll,el)+1)
-          ll = swest+3*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,np,k,el) = v(np,np,k,el) + edge%buf(kptr+k,getmapP(ll,el)+1)
+          ll = swest+0*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,1 ,k,el) = v(1 ,1 ,k,el) + edgebuf(kptr+k,getmapP(ll,el)+1)
+          ll = swest+1*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,1 ,k,el) = v(np,1 ,k,el) + edgebuf(kptr+k,getmapP(ll,el)+1)
+          ll = swest+2*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,np,k,el) = v(1 ,np,k,el) + edgebuf(kptr+k,getmapP(ll,el)+1)
+          ll = swest+3*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,np,k,el) = v(np,np,k,el) + edgebuf(kptr+k,getmapP(ll,el)+1)
         enddo
       enddo
     enddo
+    !$acc update host(v)
     call t_stopf('edge_unpack')
   end subroutine edgeVunpack
 
-  subroutine edgeVunpackMin(edge,v,vlyr,kptr,getmapP,nets,nete)
+  subroutine edgeVunpackMin(edgebuf,nlyr,v,vlyr,kptr,getmapP,nets,nete)
     use dimensions_mod, only : np, max_corner_elem
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
     use perf_mod, only: t_startf, t_stopf
-    type (EdgeBuffer_t)   , intent(in   ) :: edge
+    real(kind=real_kind)  , intent(in   ) :: edgebuf(nlyr,nbuf)
+    integer               , intent(in   ) :: nlyr
     integer               , intent(in   ) :: vlyr
     real(kind=real_kind)  , intent(inout) :: v(np,np,vlyr,nelemd)
     integer               , intent(in   ) :: kptr
@@ -529,26 +680,21 @@ contains
     ! Local
     integer :: i,k,ll,is,ie,in,iw,el
     call t_startf('edge_unpack_min')
-    !$acc update device(edge%buf,v)
-    !$acc parallel loop gang vector collapse(2) present(v,getmapP,edge%buf)
+    !$acc update device(edgebuf,v)
+    !$acc parallel loop gang vector collapse(2) present(v,getmapP,edgebuf)
     do el = 1 , nelemd
       do k = 1 , vlyr
         do i = 1 , np
-          v(i ,1 ,k,el) = min(v(i ,1 ,k,el) , edge%buf(kptr+k,getmapP(south,el)+i))
-          v(np,i ,k,el) = min(v(np,i ,k,el) , edge%buf(kptr+k,getmapP(east ,el)+i))
-          v(i ,np,k,el) = min(v(i ,np,k,el) , edge%buf(kptr+k,getmapP(north,el)+i))
-          v(1 ,i ,k,el) = min(v(1 ,i ,k,el) , edge%buf(kptr+k,getmapP(west ,el)+i))
+          v(i ,1 ,k,el) = min(v(i ,1 ,k,el) , edgebuf(kptr+k,getmapP(south,el)+i))
+          v(np,i ,k,el) = min(v(np,i ,k,el) , edgebuf(kptr+k,getmapP(east ,el)+i))
+          v(i ,np,k,el) = min(v(i ,np,k,el) , edgebuf(kptr+k,getmapP(north,el)+i))
+          v(1 ,i ,k,el) = min(v(1 ,i ,k,el) , edgebuf(kptr+k,getmapP(west ,el)+i))
         enddo
-      enddo
-    enddo
-    !$acc parallel loop gang vector collapse(2) present(v,getmapP,edge%buf)
-    do el = 1 , nelemd
-      do k = 1 , vlyr
         do i = 1 , max_corner_elem
-          ll = swest+0*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,1 ,k,el) = min(v(1 ,1 ,k,el) , edge%buf(kptr+k,getmapP(ll,el)+1))
-          ll = swest+1*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,1 ,k,el) = min(v(np,1 ,k,el) , edge%buf(kptr+k,getmapP(ll,el)+1))
-          ll = swest+2*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,np,k,el) = min(v(1 ,np,k,el) , edge%buf(kptr+k,getmapP(ll,el)+1))
-          ll = swest+3*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,np,k,el) = min(v(np,np,k,el) , edge%buf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+0*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,1 ,k,el) = min(v(1 ,1 ,k,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+1*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,1 ,k,el) = min(v(np,1 ,k,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+2*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,np,k,el) = min(v(1 ,np,k,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+3*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,np,k,el) = min(v(np,np,k,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
         enddo
       enddo
     enddo
@@ -556,11 +702,12 @@ contains
     call t_stopf('edge_unpack_min')
   end subroutine edgeVunpackMin
 
-  subroutine edgeVunpackMax(edge,v,vlyr,kptr,getmapP,nets,nete)
+  subroutine edgeVunpackMax(edgebuf,nlyr,v,vlyr,kptr,getmapP,nets,nete)
     use dimensions_mod, only : np, max_corner_elem
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
     use perf_mod, only: t_startf, t_stopf
-    type (EdgeBuffer_t)   , intent(in   ) :: edge
+    real(kind=real_kind)  , intent(in   ) :: edgebuf(nlyr,nbuf)
+    integer               , intent(in   ) :: nlyr
     integer               , intent(in   ) :: vlyr
     real(kind=real_kind)  , intent(inout) :: v(np,np,vlyr,nelemd)
     integer               , intent(in   ) :: kptr
@@ -569,25 +716,25 @@ contains
     ! Local
     integer :: i,k,ll,is,ie,in,iw,el
     call t_startf('edge_unpack_max')
-!   !$acc update device(edge%buf,v)
-!   !$acc parallel loop gang vector collapse(2) present(v,getmapP,edge%buf)
+    !$acc update device(edgebuf,v)
+    !$acc parallel loop gang vector collapse(2) present(v,getmapP,edgebuf)
     do el = 1 , nelemd
       do k = 1 , vlyr
         do i = 1 , np
-          v(i ,1 ,k,el) = max(v(i ,1 ,k,el) , edge%buf(kptr+k,getmapP(south,el)+i))
-          v(np,i ,k,el) = max(v(np,i ,k,el) , edge%buf(kptr+k,getmapP(east ,el)+i))
-          v(i ,np,k,el) = max(v(i ,np,k,el) , edge%buf(kptr+k,getmapP(north,el)+i))
-          v(1 ,i ,k,el) = max(v(1 ,i ,k,el) , edge%buf(kptr+k,getmapP(west ,el)+i))
+          v(i ,1 ,k,el) = max(v(i ,1 ,k,el) , edgebuf(kptr+k,getmapP(south,el)+i))
+          v(np,i ,k,el) = max(v(np,i ,k,el) , edgebuf(kptr+k,getmapP(east ,el)+i))
+          v(i ,np,k,el) = max(v(i ,np,k,el) , edgebuf(kptr+k,getmapP(north,el)+i))
+          v(1 ,i ,k,el) = max(v(1 ,i ,k,el) , edgebuf(kptr+k,getmapP(west ,el)+i))
         enddo
         do i = 1 , max_corner_elem
-          ll = swest+0*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,1 ,k,el) = max(v(1 ,1 ,k,el) , edge%buf(kptr+k,getmapP(ll,el)+1))
-          ll = swest+1*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,1 ,k,el) = max(v(np,1 ,k,el) , edge%buf(kptr+k,getmapP(ll,el)+1))
-          ll = swest+2*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,np,k,el) = max(v(1 ,np,k,el) , edge%buf(kptr+k,getmapP(ll,el)+1))
-          ll = swest+3*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,np,k,el) = max(v(np,np,k,el) , edge%buf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+0*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,1 ,k,el) = max(v(1 ,1 ,k,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+1*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,1 ,k,el) = max(v(np,1 ,k,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+2*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,np,k,el) = max(v(1 ,np,k,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+3*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,np,k,el) = max(v(np,np,k,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
         enddo
       enddo
     enddo
-!   !$acc update host(v)
+    !$acc update host(v)
     call t_stopf('edge_unpack_max')
   end subroutine edgeVunpackMax
 
