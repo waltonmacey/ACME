@@ -36,7 +36,7 @@ __TEST_SUITES = {
                            "ERB.f45_g37.B1850C5",
                            "ERH.f45_g37.B1850C5",
                            "ERI.f09_g16.ICLM45BGC",
-                           "ERI.f19_g16.ICRUCLM45CNCROP",
+                           "ERI.f19_g16.ICLM45CNCROP",
                            "ERS.f09_g16.B1850C5",
                            "ERS.f09_g16.ICLM45VIC",
                            "ERS.f19_f19.FAMIPC5",
