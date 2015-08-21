@@ -14,75 +14,25 @@ module prim_advection_openacc_mod
   use edge_mod       , only: EdgeBuffer_t
   implicit none
   private
-  real(kind=real_kind)  , allocatable :: qmin(:,:,:), qmax(:,:,:)
-  real(kind=real_kind)  , allocatable :: dp0(:)
-  real(kind=real_kind)  , allocatable :: Qtens_biharmonic(:,:,:,:,:)
-  real(kind=real_kind)  , allocatable :: Qmin_pack(:,:,:,:,:)
-  real(kind=real_kind)  , allocatable :: Qmax_pack(:,:,:,:,:)
+  real(kind=real_kind), allocatable :: qmin(:,:,:), qmax(:,:,:)
+  real(kind=real_kind), allocatable :: dp0(:)
+  real(kind=real_kind), allocatable :: Qtens_biharmonic(:,:,:,:,:)
+  real(kind=real_kind), allocatable :: Qmin_pack(:,:,:,:,:)
+  real(kind=real_kind), allocatable :: Qmax_pack(:,:,:,:,:)
   integer(kind=int_kind), allocatable :: desc_putmapP(:,:)
   integer(kind=int_kind), allocatable :: desc_getmapP(:,:)
   logical(kind=log_kind), allocatable :: desc_reverse(:,:)
   type (EdgeBuffer_t) :: edgeAdv, edgeAdvQ3, edgeAdv_p1, edgeAdvQ2, edgeAdv1
-  real(kind=real_kind), allocatable :: edgeAdv_buf(:,:), edgeAdvQ3_buf(:,:), edgeAdv_p1_buf(:,:), edgeAdvQ2_buf(:,:), edgeAdv1_buf(:,:)
-  real(kind=real_kind), allocatable :: edgeAdv_receive(:,:), edgeAdvQ3_receive(:,:), edgeAdv_p1_receive(:,:), edgeAdvQ2_receive(:,:), edgeAdv1_receive(:,:)
-  integer :: edgeAdv_nlyr, edgeAdvQ3_nlyr, edgeAdv_p1_nlyr, edgeAdvQ2_nlyr, edgeAdv1_nlyr
   integer,parameter :: DSSeta = 1
   integer,parameter :: DSSomega = 2
   integer,parameter :: DSSdiv_vdp_ave = 3
   integer,parameter :: DSSno_var = -1
-  integer :: nbuf
 
-  public :: prim_advection_openacc_init_prethread
   public :: prim_advection_openacc_init
   public :: precompute_divdp_openacc
   public :: euler_step_openacc
 
 contains
-
-  subroutine prim_advection_openacc_init_prethread()
-    use edge_mod      , only: initEdgeBuffer
-    implicit none
-    integer :: nlyr
-    real(kind=real_kind), pointer :: buf_ptr(:) => null()
-    real(kind=real_kind), pointer :: receive_ptr(:) => null()
-
-    ! this might be called with qsize=0
-    ! allocate largest one first
-    ! Currently this is never freed. If it was, only this first one should
-    ! be freed, as only it knows the true size of the buffer.
-    call initEdgeBuffer(edgeAdvQ3,max(nlev,qsize*nlev*3), buf_ptr, receive_ptr)  ! Qtens,Qmin, Qmax
-
-    ! remaining edge buffers can share %buf and %receive with edgeAdvQ3
-    ! (This is done through the optional 1D pointer arguments.)
-    call initEdgeBuffer(edgeAdv1,nlev,buf_ptr,receive_ptr)
-    call initEdgeBuffer(edgeAdv,qsize*nlev,buf_ptr,receive_ptr)
-    call initEdgeBuffer(edgeAdv_p1,qsize*nlev + nlev,buf_ptr,receive_ptr) 
-    call initEdgeBuffer(edgeAdvQ2,qsize*nlev*2,buf_ptr,receive_ptr)  ! Qtens,Qmin, Qmax
-
-    ! Don't actually want these saved, if this is ever called twice.
-    nullify(buf_ptr)
-    nullify(receive_ptr)
-
-
-    nbuf=4*(np+max_corner_elem)*nelemd
-    edgeAdv_nlyr = qsize*nlev
-    edgeAdvQ3_nlyr = qsize*nlev*3
-    edgeAdv_p1_nlyr = qsize*nlev+nlev
-    edgeAdvQ2_nlyr = qsize*nlev*2
-    edgeAdv1_nlyr = nlev
-    allocate(edgeAdv_buf       (edgeAdv_nlyr   ,nbuf)); edgeAdv_buf = 0
-    allocate(edgeAdv_receive   (edgeAdv_nlyr   ,nbuf)); edgeAdv_receive = 0
-    allocate(edgeAdvQ3_buf     (edgeAdvQ3_nlyr ,nbuf)); edgeAdvQ3_buf = 0
-    allocate(edgeAdvQ3_receive (edgeAdvQ3_nlyr ,nbuf)); edgeAdvQ3_receive = 0
-    allocate(edgeAdv1_buf      (edgeAdv1_nlyr  ,nbuf)); edgeAdv1_buf = 0
-    allocate(edgeAdv1_receive  (edgeAdv1_nlyr  ,nbuf)); edgeAdv1_receive = 0
-    allocate(edgeAdv_p1_buf    (edgeAdv_p1_nlyr,nbuf)); edgeAdv_p1_buf = 0
-    allocate(edgeAdv_p1_receive(edgeAdv_p1_nlyr,nbuf)); edgeAdv_p1_receive = 0
-    allocate(edgeAdvQ2_buf     (edgeAdvQ2_nlyr ,nbuf)); edgeAdvQ2_buf = 0
-    allocate(edgeAdvQ2_receive (edgeAdvQ2_nlyr ,nbuf)); edgeAdvQ2_receive = 0
-
-    !$acc enter data pcopyin(edgeAdv_buf, edgeAdvQ3_buf, edgeAdv_p1_buf, edgeAdvQ2_buf, edgeAdv1_buf, edgeAdv_receive, edgeAdvQ3_receive, edgeAdv_p1_receive, edgeAdvQ2_receive, edgeAdv1_receive)
-  end subroutine prim_advection_openacc_init_prethread
 
   subroutine prim_advection_openacc_init(elem,deriv,hvcoord,hybrid)
     use element_mod
@@ -95,41 +45,17 @@ contains
     type(derivative_t), intent(in) :: deriv
     type(hvcoord_t)   , intent(in) :: hvcoord
     type(hybrid_t)    , intent(in) :: hybrid
-    integer :: k
+    integer :: k, ie
+
+    call initEdgeBuffer(edgeAdvQ3 ,max(nlev,qsize*nlev*3))
+    call initEdgeBuffer(edgeAdv1  ,nlev                  )
+    call initEdgeBuffer(edgeAdv   ,qsize*nlev            )
+    call initEdgeBuffer(edgeAdv_p1,qsize*nlev + nlev     ) 
+    call initEdgeBuffer(edgeAdvQ2 ,qsize*nlev*2          )
 
     !$OMP BARRIER
     !$OMP MASTER
 
-    ! this static array is shared by all threads, so dimension for all threads (nelemd), not nets:nete:
-    allocate (qmin(nlev,qsize,nelemd))
-    allocate (qmax(nlev,qsize,nelemd))
-    allocate (Qtens_biharmonic(np,np,nlev,qsize,nelemd))
-    allocate (qmin_pack(np,np,nlev,qsize,nelemd))
-    allocate (qmax_pack(np,np,nlev,qsize,nelemd))
-    allocate (dp0(nlev))
-
-    do k = 1 , nlev
-      dp0(k) = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + &
-               ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*hvcoord%ps0
-    enddo
-
-    call flatten_edge_descriptors(elem(:))
-
-    !$acc enter data pcreate(state_v,state_T,state_dp3d,state_lnps,state_ps_v,state_phis,state_Q,state_Qdp,derived_vn0,derived_vstar,derived_dpdiss_biharmonic,&
-    !$acc&                   derived_dpdiss_ave,derived_phi,derived_omega_p,derived_eta_dot_dpdn,derived_grad_lnps,derived_zeta,derived_div,derived_dp,&
-    !$acc&                   derived_divdp,derived_divdp_proj,qtens_biharmonic)
-    !$acc enter data pcreate(qmin,qmax,qmin_pack,qmax_pack)
-    !$acc enter data pcopyin(elem(1:nelemd),deriv,dp0,desc_putmapP,desc_getmapP,desc_reverse)
-
-    !$OMP END MASTER
-    !$OMP BARRIER
-  end subroutine prim_advection_openacc_init
-
-  subroutine flatten_edge_descriptors(elem)
-    use element_mod   , only: element_t
-    implicit none
-    type(element_t), intent(in) :: elem(:)
-    integer :: ie
     allocate(desc_putmapP(max_neigh_edges,nelemd))
     allocate(desc_getmapP(max_neigh_edges,nelemd))
     allocate(desc_reverse(max_neigh_edges,nelemd))
@@ -138,7 +64,30 @@ contains
       desc_getmapP(:,ie) = elem(ie)%desc%getmapP
       desc_reverse(:,ie) = elem(ie)%desc%reverse
     enddo
-  end subroutine flatten_edge_descriptors
+
+    allocate(qmin(nlev,qsize,nelemd))
+    allocate(qmax(nlev,qsize,nelemd))
+    allocate(Qtens_biharmonic(np,np,nlev,qsize,nelemd))
+    allocate(qmin_pack(np,np,nlev,qsize,nelemd))
+    allocate(qmax_pack(np,np,nlev,qsize,nelemd))
+    allocate(dp0(nlev))
+
+    do k = 1 , nlev
+      dp0(k) = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*hvcoord%ps0
+    enddo
+
+    !$acc enter data pcreate(state_v,state_T,state_dp3d,state_lnps,state_ps_v,state_phis,state_Q,state_Qdp,derived_vn0,derived_vstar,derived_dpdiss_biharmonic,&
+    !$acc&                   derived_dpdiss_ave,derived_phi,derived_omega_p,derived_eta_dot_dpdn,derived_grad_lnps,derived_zeta,derived_div,derived_dp,&
+    !$acc&                   derived_divdp,derived_divdp_proj,qtens_biharmonic)
+    !$acc enter data pcreate(qmin,qmax,qmin_pack,qmax_pack)
+    !$acc enter data pcopyin(elem(1:nelemd),deriv,dp0,desc_putmapP,desc_getmapP,desc_reverse)
+    !$acc enter data pcopyin(edgeAdvQ3,edgeAdv1,edgeAdv,edgeAdv_p1,edgeAdvQ2)
+    !$acc enter data pcopyin(edgeAdvQ3%buf,edgeAdv1%buf,edgeAdv%buf,edgeAdv_p1%buf,edgeAdvQ2%buf)
+    !$acc enter data pcopyin(edgeAdvQ3%receive,edgeAdv1%receive,edgeAdv%receive,edgeAdv_p1%receive,edgeAdvQ2%receive)
+
+    !$OMP END MASTER
+    !$OMP BARRIER
+  end subroutine prim_advection_openacc_init
 
   subroutine euler_step_openacc( np1_qdp , n0_qdp , dt , elem , hvcoord , hybrid , deriv , nets , nete , DSSopt , rhs_multiplier )
   ! ===================================
@@ -263,7 +212,7 @@ contains
     !$acc update host(qmin,qmax,qtens_biharmonic)
     !$omp end master
     !$omp barrier
-    if ( rhs_multiplier == 0 ) call neighbor_minmax(elem,hybrid,nets,nete,qmin,qmax)
+    if ( rhs_multiplier == 0 ) call neighbor_minmax(elem,hybrid,edgeAdvQ2,nets,nete,qmin,qmax)
     ! compute biharmonic mixing term
     if ( rhs_multiplier == 2 ) then
       rhs_viss = 3
@@ -425,15 +374,16 @@ contains
   enddo
   end subroutine euler_step_openacc
 
-  subroutine neighbor_minmax(elem,hybrid,nets,nete,min_neigh,max_neigh)
+  subroutine neighbor_minmax(elem,hybrid,edgeMinMax,nets,nete,min_neigh,max_neigh)
     use hybrid_mod , only: hybrid_t
     use element_mod, only: element_t
     use perf_mod   , only: t_startf, t_stopf
     implicit none
     ! compute Q min&max over the element and all its neighbors
+    integer :: nets,nete
     type (element_t)     , intent(in   ) :: elem(:)
     type (hybrid_t)      , intent(in   ) :: hybrid
-    integer              , intent(in   ) :: nets,nete
+    type (EdgeBuffer_t)  , intent(inout) :: edgeMinMax
     real (kind=real_kind), intent(inout) :: min_neigh(nlev,qsize,nelemd)
     real (kind=real_kind), intent(inout) :: max_neigh(nlev,qsize,nelemd)
     ! local
@@ -456,22 +406,19 @@ contains
       enddo
     enddo
     !$acc update host(qmin_pack,qmax_pack)
+    call edgeVpack(edgeMinMax,Qmin_pack,nlev*qsize,0         ,desc_putmapP,desc_reverse,nets,nete)
+    call edgeVpack(edgeMinMax,Qmax_pack,nlev*qsize,nlev*qsize,desc_putmapP,desc_reverse,nets,nete)
     !$omp end master
     !$omp barrier
-    call edgeVpack(edgeAdvQ2_buf,edgeAdvQ2_nlyr,Qmin_pack,nlev*qsize,0         ,desc_putmapP,desc_reverse,nets,nete)
-    call edgeVpack(edgeAdvQ2_buf,edgeAdvQ2_nlyr,Qmax_pack,nlev*qsize,nlev*qsize,desc_putmapP,desc_reverse,nets,nete)
 
     call t_startf('nmm_bexchV')
-    call bndry_exchangeV(hybrid,edgeAdvQ2_buf,edgeAdvQ2_receive,edgeAdvQ2_nlyr)
+    call bndry_exchangeV(hybrid,edgeMinMax)
     call t_stopf('nmm_bexchV')
        
-    do ie=nets,nete
-     ! WARNING - edgeVunpackMin/Max take second argument as input/ouput
-      call edgeVunpackMin(edgeAdvQ2_buf,edgeAdvQ2_nlyr,Qmin_pack(:,:,:,:,ie),nlev*qsize,0         ,desc_getmapP(:,ie))
-      call edgeVunpackMax(edgeAdvQ2_buf,edgeAdvQ2_nlyr,Qmax_pack(:,:,:,:,ie),nlev*qsize,nlev*qsize,desc_getmapP(:,ie))
-    enddo
     !$omp barrier
     !$omp master
+    call edgeVunpackMin(edgeMinMax,Qmin_pack,nlev*qsize,0         ,desc_getmapP,nets,nete)
+    call edgeVunpackMax(edgeMinMax,Qmax_pack,nlev*qsize,nlev*qsize,desc_getmapP,nets,nete)
     !$acc update device(qmin_pack,qmax_pack)
     !$acc parallel loop gang vector collapse(3) present(min_neigh,max_neigh,qmin_pack,qmax_pack)
     do ie=1,nelemd
@@ -490,319 +437,242 @@ contains
     !$omp barrier
   end subroutine neighbor_minmax
 
-  subroutine edgeVpack(edgebuf,nlyr,v,vlyr,kptr,putmapP,reverse,nets,nete)
+  subroutine edgeVpack(edge,v,vlyr,kptr,putmapP,reverse,nets,nete)
     use dimensions_mod, only : max_corner_elem
     use control_mod   , only : north, south, east, west, neast, nwest, seast, swest
     use perf_mod      , only : t_startf, t_stopf
     use parallel_mod  , only : haltmp
+    use element_mod   , only : Element_t
     use edge_mod      , only : EdgeBuffer_t
-    real (kind=real_kind)  ,intent(inout) :: edgebuf(nlyr,nbuf)
-    integer                ,intent(in   ) :: nlyr
-    real (kind=real_kind)  ,intent(in   ) :: v(np,np,vlyr,nelemd)
+    type (EdgeBuffer_t)    ,intent(inout) :: edge
     integer                ,intent(in   ) :: vlyr
+    real (kind=real_kind)  ,intent(in   ) :: v(np,np,vlyr,nelemd)
     integer                ,intent(in   ) :: kptr
-    integer                ,intent(in   ) :: putmapP(max_neigh_edges,nelemd)
-    logical                ,intent(in   ) :: reverse(max_neigh_edges,nelemd)
+    integer(kind=int_kind) ,intent(in   ) :: putmapP(max_neigh_edges,nelemd)
+    logical(kind=log_kind) ,intent(in   ) :: reverse(max_neigh_edges,nelemd)
     integer                ,intent(in   ) :: nets,nete
     ! Local variables
     integer :: i,k,ir,ll,is,ie,in,iw,el
     call t_startf('edge_pack')
-    if (nlyr < (kptr+vlyr) ) call haltmp('edgeVpack: Buffer overflow: size of the vertical dimension must be increased!')
-    do el = nets , nete
+    if (edge%nlyr < (kptr+vlyr) ) call haltmp('edgeVpack: Buffer overflow: size of the vertical dimension must be increased!')
+    !$acc update device(v)
+    !$acc parallel loop gang vector collapse(2) present(v,putmapP,reverse,edge%buf)
+    do el = 1 , nelemd
       do k = 1 , vlyr
         do i = 1 , np
-          edgebuf(kptr+k,putmapP(south,el)+i) = v(i ,1 ,k,el)
-          edgebuf(kptr+k,putmapP(east ,el)+i) = v(np,i ,k,el)
-          edgebuf(kptr+k,putmapP(north,el)+i) = v(i ,np,k,el)
-          edgebuf(kptr+k,putmapP(west ,el)+i) = v(1 ,i ,k,el)
+          edge%buf(kptr+k,putmapP(south,el)+i) = v(i ,1 ,k,el)
+          edge%buf(kptr+k,putmapP(east ,el)+i) = v(np,i ,k,el)
+          edge%buf(kptr+k,putmapP(north,el)+i) = v(i ,np,k,el)
+          edge%buf(kptr+k,putmapP(west ,el)+i) = v(1 ,i ,k,el)
         enddo
-      enddo
-    enddo
-    do el = nets , nete
-      do k = 1 , vlyr
         do i = 1 , np
           ir = np-i+1
-          if(reverse(south,el)) edgebuf(kptr+k,putmapP(south,el)+ir) = v(i ,1 ,k,el)
-          if(reverse(east ,el)) edgebuf(kptr+k,putmapP(east ,el)+ir) = v(np,i ,k,el)
-          if(reverse(north,el)) edgebuf(kptr+k,putmapP(north,el)+ir) = v(i ,np,k,el)
-          if(reverse(west ,el)) edgebuf(kptr+k,putmapP(west ,el)+ir) = v(1 ,i ,k,el)
+          if(reverse(south,el)) edge%buf(kptr+k,putmapP(south,el)+ir) = v(i ,1 ,k,el)
+          if(reverse(east ,el)) edge%buf(kptr+k,putmapP(east ,el)+ir) = v(np,i ,k,el)
+          if(reverse(north,el)) edge%buf(kptr+k,putmapP(north,el)+ir) = v(i ,np,k,el)
+          if(reverse(west ,el)) edge%buf(kptr+k,putmapP(west ,el)+ir) = v(1 ,i ,k,el)
         enddo
-      enddo
-    enddo
-    do el = nets , nete
-      do k = 1 , vlyr
         do i = 1 , max_corner_elem
-          ll = swest+0*max_corner_elem+i-1; if (putmapP(ll,el) /= -1) edgebuf(kptr+k,putmapP(ll,el)+1) = v(1 ,1 ,k,el)
-          ll = swest+1*max_corner_elem+i-1; if (putmapP(ll,el) /= -1) edgebuf(kptr+k,putmapP(ll,el)+1) = v(np,1 ,k,el)
-          ll = swest+2*max_corner_elem+i-1; if (putmapP(ll,el) /= -1) edgebuf(kptr+k,putmapP(ll,el)+1) = v(1 ,np,k,el)
-          ll = swest+3*max_corner_elem+i-1; if (putmapP(ll,el) /= -1) edgebuf(kptr+k,putmapP(ll,el)+1) = v(np,np,k,el)
+          ll = swest+0*max_corner_elem+i-1; if(putmapP(ll,el) /= -1) edge%buf(kptr+k,putmapP(ll,el)+1) = v(1 ,1 ,k,el)
+          ll = swest+1*max_corner_elem+i-1; if(putmapP(ll,el) /= -1) edge%buf(kptr+k,putmapP(ll,el)+1) = v(np,1 ,k,el)
+          ll = swest+2*max_corner_elem+i-1; if(putmapP(ll,el) /= -1) edge%buf(kptr+k,putmapP(ll,el)+1) = v(1 ,np,k,el)
+          ll = swest+3*max_corner_elem+i-1; if(putmapP(ll,el) /= -1) edge%buf(kptr+k,putmapP(ll,el)+1) = v(np,np,k,el)
         enddo
       enddo
     enddo
+    !$acc update host(edge%buf)
     call t_stopf('edge_pack')
   end subroutine edgeVpack
 
-  subroutine edgeVunpack(edgebuf,nlyr,v,vlyr,kptr,getmapP)
+  subroutine edgeVunpack(edge,v,vlyr,kptr,getmapP,nets,nete)
     use dimensions_mod, only : np, max_corner_elem
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
     use perf_mod, only: t_startf, t_stopf
-    real (kind=real_kind), intent(in   )  :: edgebuf(nlyr,nbuf)
-    integer,               intent(in   )  :: nlyr
-    integer,               intent(in   )  :: vlyr
-    real (kind=real_kind), intent(inout)  :: v(np,np,vlyr)
-    integer,               intent(in   )  :: kptr
-    integer               ,intent(in   )  :: getmapP(max_neigh_edges)
+    type (EdgeBuffer_t)   , intent(in   ) :: edge
+    integer               , intent(in   ) :: vlyr
+    real(kind=real_kind)  , intent(inout) :: v(np,np,vlyr,nelemd)
+    integer               , intent(in   ) :: kptr
+    integer(kind=int_kind), intent(in   ) :: getmapP(max_neigh_edges,nelemd)
+    integer                ,intent(in   ) :: nets,nete
     ! Local
-    integer :: i,k,ll,is,ie,in,iw
+    integer :: i,k,ll,is,ie,in,iw,el
     call t_startf('edge_unpack')
-    is=getmapP(south)
-    ie=getmapP(east)
-    in=getmapP(north)
-    iw=getmapP(west)
-    do k=1,vlyr
-      do i=1,np
-        v(i  ,1  ,k) = v(i  ,1  ,k)+edgebuf(kptr+k,is+i  )
-        v(np ,i  ,k) = v(np ,i  ,k)+edgebuf(kptr+k,ie+i  )
-        v(i  ,np ,k) = v(i  ,np ,k)+edgebuf(kptr+k,in+i  )
-        v(1  ,i  ,k) = v(1  ,i  ,k)+edgebuf(kptr+k,iw+i  )
+    do el = nets , nete
+      do k = 1 , vlyr
+        do i = 1 , np
+          v(i ,1 ,k,el) = v(i ,1 ,k,el) + edge%buf(kptr+k,getmapP(south,el)+i)
+          v(np,i ,k,el) = v(np,i ,k,el) + edge%buf(kptr+k,getmapP(east ,el)+i)
+          v(i ,np,k,el) = v(i ,np,k,el) + edge%buf(kptr+k,getmapP(north,el)+i)
+          v(1 ,i ,k,el) = v(1 ,i ,k,el) + edge%buf(kptr+k,getmapP(west ,el)+i)
+        enddo
+        do i = 1 , max_corner_elem
+          ll = swest+0*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,1 ,k,el) = v(1 ,1 ,k,el) + edge%buf(kptr+k,getmapP(ll,el)+1)
+          ll = swest+1*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,1 ,k,el) = v(np,1 ,k,el) + edge%buf(kptr+k,getmapP(ll,el)+1)
+          ll = swest+2*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,np,k,el) = v(1 ,np,k,el) + edge%buf(kptr+k,getmapP(ll,el)+1)
+          ll = swest+3*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,np,k,el) = v(np,np,k,el) + edge%buf(kptr+k,getmapP(ll,el)+1)
+        enddo
       enddo
-    enddo
-    ! SWEST
-    do ll=swest,swest+max_corner_elem-1
-      if(getmapP(ll) /= -1) then 
-        do k=1,vlyr
-          v(1  ,1 ,k)=v(1 ,1 ,k)+edgebuf(kptr+k,getmapP(ll)+1)
-        enddo
-      endif
-    enddo
-    ! SEAST
-    do ll=swest+max_corner_elem,swest+2*max_corner_elem-1
-      if(getmapP(ll) /= -1) then 
-        do k=1,vlyr
-          v(np ,1 ,k)=v(np,1 ,k)+edgebuf(kptr+k,getmapP(ll)+1)
-        enddo
-      endif
-    enddo
-    ! NEAST
-    do ll=swest+3*max_corner_elem,swest+4*max_corner_elem-1
-      if(getmapP(ll) /= -1) then 
-        do k=1,vlyr
-          v(np ,np,k)=v(np,np,k)+edgebuf(kptr+k,getmapP(ll)+1)
-        enddo
-      endif
-    enddo
-    ! NWEST
-    do ll=swest+2*max_corner_elem,swest+3*max_corner_elem-1
-      if(getmapP(ll) /= -1) then 
-        do k=1,vlyr
-          v(1  ,np,k)=v(1 ,np,k)+edgebuf(kptr+k,getmapP(ll)+1)
-        enddo
-      endif
     enddo
     call t_stopf('edge_unpack')
   end subroutine edgeVunpack
 
-  subroutine edgeVunpackMin(edgebuf,nlyr,v,vlyr,kptr,getmapP)
+  subroutine edgeVunpackMin(edge,v,vlyr,kptr,getmapP,nets,nete)
     use dimensions_mod, only : np, max_corner_elem
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
     use perf_mod, only: t_startf, t_stopf
-    real (kind=real_kind), intent(in   )  :: edgebuf(nlyr,nbuf)
-    integer,               intent(in   )  :: nlyr
-    integer,               intent(in   )  :: vlyr
-    real (kind=real_kind), intent(inout)  :: v(np,np,vlyr)
-    integer,               intent(in   )  :: kptr
-    integer               ,intent(in   )  :: getmapP(max_neigh_edges)
+    type (EdgeBuffer_t)   , intent(in   ) :: edge
+    integer               , intent(in   ) :: vlyr
+    real(kind=real_kind)  , intent(inout) :: v(np,np,vlyr,nelemd)
+    integer               , intent(in   ) :: kptr
+    integer(kind=int_kind), intent(in   ) :: getmapP(max_neigh_edges,nelemd)
+    integer                ,intent(in   ) :: nets,nete
     ! Local
-    integer :: i,k,ll,is,ie,in,iw
+    integer :: i,k,ll,is,ie,in,iw,el
     call t_startf('edge_unpack_min')
-    is=getmapP(south)
-    ie=getmapP(east)
-    in=getmapP(north)
-    iw=getmapP(west)
-    do k=1,vlyr
-      do i=1,np
-        v(i  ,1  ,k) = min(v(i  ,1  ,k),edgebuf(kptr+k,is+i  ))
-        v(np ,i  ,k) = min(v(np ,i  ,k),edgebuf(kptr+k,ie+i  ))
-        v(i  ,np ,k) = min(v(i  ,np ,k),edgebuf(kptr+k,in+i  ))
-        v(1  ,i  ,k) = min(v(1  ,i  ,k),edgebuf(kptr+k,iw+i  ))
+    !$acc update device(edge%buf,v)
+    !$acc parallel loop gang vector collapse(2) present(v,getmapP,edge%buf)
+    do el = 1 , nelemd
+      do k = 1 , vlyr
+        do i = 1 , np
+          v(i ,1 ,k,el) = min(v(i ,1 ,k,el) , edge%buf(kptr+k,getmapP(south,el)+i))
+          v(np,i ,k,el) = min(v(np,i ,k,el) , edge%buf(kptr+k,getmapP(east ,el)+i))
+          v(i ,np,k,el) = min(v(i ,np,k,el) , edge%buf(kptr+k,getmapP(north,el)+i))
+          v(1 ,i ,k,el) = min(v(1 ,i ,k,el) , edge%buf(kptr+k,getmapP(west ,el)+i))
+        enddo
       enddo
     enddo
-    ! SWEST
-    do ll=swest,swest+max_corner_elem-1
-      if(getmapP(ll) /= -1) then 
-        do k=1,vlyr
-          v(1  ,1 ,k)=min(v(1 ,1 ,k),edgebuf(kptr+k,getmapP(ll)+1))
+    !$acc parallel loop gang vector collapse(2) present(v,getmapP,edge%buf)
+    do el = 1 , nelemd
+      do k = 1 , vlyr
+        do i = 1 , max_corner_elem
+          ll = swest+0*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,1 ,k,el) = min(v(1 ,1 ,k,el) , edge%buf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+1*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,1 ,k,el) = min(v(np,1 ,k,el) , edge%buf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+2*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,np,k,el) = min(v(1 ,np,k,el) , edge%buf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+3*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,np,k,el) = min(v(np,np,k,el) , edge%buf(kptr+k,getmapP(ll,el)+1))
         enddo
-      endif
+      enddo
     enddo
-    ! SEAST
-    do ll=swest+max_corner_elem,swest+2*max_corner_elem-1
-      if(getmapP(ll) /= -1) then 
-        do k=1,vlyr
-          v(np ,1 ,k)=min(v(np,1 ,k),edgebuf(kptr+k,getmapP(ll)+1))
-        enddo
-      endif
-    enddo
-    ! NEAST
-    do ll=swest+3*max_corner_elem,swest+4*max_corner_elem-1
-      if(getmapP(ll) /= -1) then 
-        do k=1,vlyr
-          v(np ,np,k)=min(v(np,np,k),edgebuf(kptr+k,getmapP(ll)+1))
-        enddo
-      endif
-    enddo
-    ! NWEST
-    do ll=swest+2*max_corner_elem,swest+3*max_corner_elem-1
-      if(getmapP(ll) /= -1) then 
-        do k=1,vlyr
-          v(1  ,np,k)=min(v(1 ,np,k),edgebuf(kptr+k,getmapP(ll)+1))
-        enddo
-      endif
-    enddo
+    !$acc update host(v)
     call t_stopf('edge_unpack_min')
   end subroutine edgeVunpackMin
 
-  subroutine edgeVunpackMax(edgebuf,nlyr,v,vlyr,kptr,getmapP)
+  subroutine edgeVunpackMax(edge,v,vlyr,kptr,getmapP,nets,nete)
     use dimensions_mod, only : np, max_corner_elem
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
     use perf_mod, only: t_startf, t_stopf
-    real (kind=real_kind), intent(in   )  :: edgebuf(nlyr,nbuf)
-    integer,               intent(in   )  :: nlyr
-    integer,               intent(in   )  :: vlyr
-    real (kind=real_kind), intent(inout)  :: v(np,np,vlyr)
-    integer,               intent(in   )  :: kptr
-    integer               ,intent(in   )  :: getmapP(max_neigh_edges)
+    type (EdgeBuffer_t)   , intent(in   ) :: edge
+    integer               , intent(in   ) :: vlyr
+    real(kind=real_kind)  , intent(inout) :: v(np,np,vlyr,nelemd)
+    integer               , intent(in   ) :: kptr
+    integer(kind=int_kind), intent(in   ) :: getmapP(max_neigh_edges,nelemd)
+    integer                ,intent(in   ) :: nets,nete
     ! Local
-    integer :: i,k,ll,is,ie,in,iw
+    integer :: i,k,ll,is,ie,in,iw,el
     call t_startf('edge_unpack_max')
-    is=getmapP(south)
-    ie=getmapP(east)
-    in=getmapP(north)
-    iw=getmapP(west)
-    do k=1,vlyr
-      do i=1,np
-        v(i  ,1  ,k) = max(v(i  ,1  ,k),edgebuf(kptr+k,is+i  ))
-        v(np ,i  ,k) = max(v(np ,i  ,k),edgebuf(kptr+k,ie+i  ))
-        v(i  ,np ,k) = max(v(i  ,np ,k),edgebuf(kptr+k,in+i  ))
-        v(1  ,i  ,k) = max(v(1  ,i  ,k),edgebuf(kptr+k,iw+i  ))
+!   !$acc update device(edge%buf,v)
+!   !$acc parallel loop gang vector collapse(2) present(v,getmapP,edge%buf)
+    do el = 1 , nelemd
+      do k = 1 , vlyr
+        do i = 1 , np
+          v(i ,1 ,k,el) = max(v(i ,1 ,k,el) , edge%buf(kptr+k,getmapP(south,el)+i))
+          v(np,i ,k,el) = max(v(np,i ,k,el) , edge%buf(kptr+k,getmapP(east ,el)+i))
+          v(i ,np,k,el) = max(v(i ,np,k,el) , edge%buf(kptr+k,getmapP(north,el)+i))
+          v(1 ,i ,k,el) = max(v(1 ,i ,k,el) , edge%buf(kptr+k,getmapP(west ,el)+i))
+        enddo
+        do i = 1 , max_corner_elem
+          ll = swest+0*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,1 ,k,el) = max(v(1 ,1 ,k,el) , edge%buf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+1*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,1 ,k,el) = max(v(np,1 ,k,el) , edge%buf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+2*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,np,k,el) = max(v(1 ,np,k,el) , edge%buf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+3*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,np,k,el) = max(v(np,np,k,el) , edge%buf(kptr+k,getmapP(ll,el)+1))
+        enddo
       enddo
     enddo
-    ! SWEST
-    do ll=swest,swest+max_corner_elem-1
-      if(getmapP(ll) /= -1) then 
-        do k=1,vlyr
-          v(1  ,1 ,k)=max(v(1 ,1 ,k),edgebuf(kptr+k,getmapP(ll)+1))
-        enddo
-      endif
-    enddo
-    ! SEAST
-    do ll=swest+max_corner_elem,swest+2*max_corner_elem-1
-      if(getmapP(ll) /= -1) then 
-        do k=1,vlyr
-          v(np ,1 ,k)=max(v(np,1 ,k),edgebuf(kptr+k,getmapP(ll)+1))
-        enddo
-      endif
-    enddo
-    ! NEAST
-    do ll=swest+3*max_corner_elem,swest+4*max_corner_elem-1
-      if(getmapP(ll) /= -1) then 
-        do k=1,vlyr
-          v(np ,np,k)=max(v(np,np,k),edgebuf(kptr+k,getmapP(ll)+1))
-        enddo
-      endif
-    enddo
-    ! NWEST
-    do ll=swest+2*max_corner_elem,swest+3*max_corner_elem-1
-      if(getmapP(ll) /= -1) then 
-        do k=1,vlyr
-          v(1  ,np,k)=max(v(1 ,np,k),edgebuf(kptr+k,getmapP(ll)+1))
-        enddo
-      endif
-    enddo
+!   !$acc update host(v)
     call t_stopf('edge_unpack_max')
   end subroutine edgeVunpackMax
 
-  subroutine bndry_exchangeV(hybrid,buf,receive,nlyr)
+  subroutine bndry_exchangeV(hybrid,buffer)
     use hybrid_mod, only : hybrid_t
     use kinds, only : log_kind
     use edge_mod, only : Edgebuffer_t
     use schedule_mod, only : schedule_t, cycle_t, schedule
     use dimensions_mod, only: nelemd, np
-#ifdef _MPI
     use parallel_mod, only : abortmp, status, srequest, rrequest, mpireal_t, mpiinteger_t, mpi_success
-#else
-    use parallel_mod, only : abortmp
-#endif
     implicit none
-    type (hybrid_t)     , intent(in   ) :: hybrid
-    real(kind=real_kind), intent(inout) :: buf(nlyr,nbuf)
-    real(kind=real_kind), intent(inout) :: receive(nlyr,nbuf)
-    integer             , intent(in   ) :: nlyr
+    type (hybrid_t)           :: hybrid
+    type (EdgeBuffer_t)       :: buffer
     type (Schedule_t),pointer :: pSchedule
     type (Cycle_t),pointer    :: pCycle
     integer                   :: dest,length,tag
     integer                   :: icycle,ierr
-    integer                   :: iptr,source
+    integer                   :: iptr,source,nlyr
     integer                   :: nSendCycles,nRecvCycles
     integer                   :: errorcode,errorlen
-    character*(80)            :: errorstring
-    integer                   :: i
+    character*(80) errorstring
+    integer        :: i
     !$OMP BARRIER
     if(hybrid%ithr == 0) then 
-#ifdef _MPI
 #ifdef _PREDICT
-       pSchedule => Schedule(iam)
+      pSchedule => Schedule(iam)
 #else
-       pSchedule => Schedule(1)
+      pSchedule => Schedule(1)
 #endif
-       nSendCycles = pSchedule%nSendCycles
-       nRecvCycles = pSchedule%nRecvCycles
-       !==================================================
-       !  Fire off the sends
-       !==================================================
-       do icycle=1,nSendCycles
-          pCycle      => pSchedule%SendCycle(icycle)
-          dest            = pCycle%dest - 1
-          length      = nlyr * pCycle%lengthP
-          tag             = pCycle%tag
-          iptr            = pCycle%ptrP
-          call MPI_Isend(buf(1,iptr),length,MPIreal_t,dest,tag,hybrid%par%comm,Srequest(icycle),ierr)
-          if(ierr .ne. MPI_SUCCESS) then
-             errorcode=ierr
-             call MPI_Error_String(errorcode,errorstring,errorlen,ierr)
-             print *,'bndry_exchangeV: Error after call to MPI_Isend: ',errorstring
-          endif
-       end do    ! icycle
-       !==================================================
-       !  Post the Receives 
-       !==================================================
-       do icycle=1,nRecvCycles
-          pCycle         => pSchedule%RecvCycle(icycle)
-          source          = pCycle%source - 1
-          length      = nlyr * pCycle%lengthP
-          tag             = pCycle%tag
-          iptr            = pCycle%ptrP
-          call MPI_Irecv(receive(1,iptr),length,MPIreal_t,source,tag,hybrid%par%comm,Rrequest(icycle),ierr)
-          if(ierr .ne. MPI_SUCCESS) then
-             errorcode=ierr
-             call MPI_Error_String(errorcode,errorstring,errorlen,ierr)
-             print *,'bndry_exchangeV: Error after call to MPI_Irecv: ',errorstring
-          endif
-       end do    ! icycle
-       !==================================================
-       !  Wait for all the receives to complete
-       !==================================================
-       call MPI_Waitall(nSendCycles,Srequest,status,ierr)
-       call MPI_Waitall(nRecvCycles,Rrequest,status,ierr)
-       do icycle=1,nRecvCycles
-          pCycle         => pSchedule%RecvCycle(icycle)
-          length             = pCycle%lengthP
-          iptr            = pCycle%ptrP
-          do i=0,length-1
-             buf(1:nlyr,iptr+i) = receive(1:nlyr,iptr+i)
-          enddo
-       end do   ! icycle
-#endif
+      nlyr = buffer%nlyr
+      nSendCycles = pSchedule%nSendCycles
+      nRecvCycles = pSchedule%nRecvCycles
+      !==================================================
+      !  Post the Receives 
+      !==================================================
+      do icycle=1,nRecvCycles
+        pCycle => pSchedule%RecvCycle(icycle)
+        source =  pCycle%source - 1
+        length =  nlyr * pCycle%lengthP
+        tag    =  pCycle%tag
+        iptr   =  pCycle%ptrP
+        call MPI_Irecv(buffer%receive(1,iptr),length,MPIreal_t,source,tag,hybrid%par%comm,Rrequest(icycle),ierr)
+        if(ierr .ne. MPI_SUCCESS) then
+          errorcode=ierr
+          call MPI_Error_String(errorcode,errorstring,errorlen,ierr)
+          print *,'bndry_exchangeV: Error after call to MPI_Irecv: ',errorstring
+        endif
+      enddo    ! icycle
+      !==================================================
+      !  Fire off the sends
+      !==================================================
+!     do icycle=1,nSendCycles
+!       pCycle => pSchedule%SendCycle(icycle)
+!       iptr   =  pCycle%ptrP
+!       if (pCycle%lengthP > 0) then
+!         !$acc update host(buffer%buf(1:nlyr,iptr:iptr+pCycle%lengthP-1))
+!        endif
+!     enddo
+!     !$acc wait
+      do icycle=1,nSendCycles
+        pCycle => pSchedule%SendCycle(icycle)
+        dest   =  pCycle%dest - 1
+        length =  nlyr * pCycle%lengthP
+        tag    =  pCycle%tag
+        iptr   =  pCycle%ptrP
+        call MPI_Isend(buffer%buf(1,iptr),length,MPIreal_t,dest,tag,hybrid%par%comm,Srequest(icycle),ierr)
+        if(ierr .ne. MPI_SUCCESS) then
+          errorcode=ierr
+          call MPI_Error_String(errorcode,errorstring,errorlen,ierr)
+          print *,'bndry_exchangeV: Error after call to MPI_Isend: ',errorstring
+        endif
+      enddo    ! icycle
+      !==================================================
+      !  Wait for all the receives to complete
+      !==================================================
+      call MPI_Waitall(nSendCycles,Srequest,status,ierr)
+      call MPI_Waitall(nRecvCycles,Rrequest,status,ierr)
+      do icycle=1,nRecvCycles
+        pCycle => pSchedule%RecvCycle(icycle)
+        length =  pCycle%lengthP
+        iptr   =  pCycle%ptrP
+        do i=0,length-1
+          buffer%buf(1:nlyr,iptr+i) = buffer%receive(1:nlyr,iptr+i)
+        enddo
+      enddo   ! icycle
     endif  ! if (hybrid%ithr == 0)
     !$OMP BARRIER
   end subroutine bndry_exchangeV

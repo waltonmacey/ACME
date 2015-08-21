@@ -58,7 +58,6 @@ contains
     ! --------------------------------
 #if USE_OPENACC
     use element_mod, only : setup_element_pointers
-    use prim_advection_openacc_mod, only: prim_advection_openacc_init_prethread
 #endif
     ! --------------------------------
     use thread_mod, only : nthreads, omp_get_thread_num, omp_set_num_threads
@@ -530,9 +529,6 @@ contains
     allocate(cg(0:n_domains-1))
     call prim_advance_init(integration)
     call Prim_Advec_Init()
-#if USE_OPENACC
-    call prim_advection_openacc_init_prethread()
-#endif
     call diffusion_init()
     if (ntrac>0) then
 #if defined(_SPELT)

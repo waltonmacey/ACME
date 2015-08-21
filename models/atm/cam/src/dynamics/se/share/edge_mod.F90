@@ -40,8 +40,13 @@ module edge_mod
 
 
   type, public :: EdgeBuffer_t
+#if USE_OPENACC
+     real (kind=real_kind), dimension(:,:), allocatable :: buf
+     real (kind=real_kind), dimension(:,:), allocatable :: receive
+#else
      real (kind=real_kind), dimension(:,:), pointer :: buf => null()
      real (kind=real_kind), dimension(:,:), pointer :: receive => null()
+#endif
      integer :: nlyr ! Number of layers
      integer :: nbuf ! size of the horizontal dimension of the buffers.
   end type EdgeBuffer_t
@@ -259,7 +264,9 @@ contains
        edge%buf => tmp_ptr
 #else
        ! call F77 routine which will reshape array.
+#if (! USE_OPENACC)
        call remap_2D_ptr_buf(edge,nlyr,nbuf,buf_ptr)
+#endif
 #endif
     else
        allocate(edge%buf    (nlyr,nbuf))
@@ -278,7 +285,9 @@ contains
        edge%receive => tmp_ptr
 #else
        ! call F77 routine which will reshape array.
+#if (! USE_OPENACC)
        call remap_2D_ptr_receive(edge,nlyr,nbuf,receive_ptr)
+#endif
 #endif
     else
        allocate(edge%receive(nlyr,nbuf))
@@ -4384,6 +4393,7 @@ End module edge_mod
 
 
 
+#if (! USE_OPENACC)
 
 #ifndef HAVE_F2003_PTR_BND_REMAP
 !
@@ -4419,3 +4429,6 @@ edge%receive  => src_array
 end subroutine remap_2D_ptr_receive
 
 #endif
+
+#endif
+
