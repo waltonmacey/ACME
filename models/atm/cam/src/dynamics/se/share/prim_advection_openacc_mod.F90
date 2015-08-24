@@ -17,8 +17,11 @@ module prim_advection_openacc_mod
   real(kind=real_kind), allocatable :: qmin(:,:,:), qmax(:,:,:)
   real(kind=real_kind), allocatable :: dp0(:)
   real(kind=real_kind), allocatable :: Qtens_biharmonic(:,:,:,:,:)
+  real(kind=real_kind), allocatable :: Qtens(:,:,:,:,:)
   real(kind=real_kind), allocatable :: Qmin_pack(:,:,:,:,:)
   real(kind=real_kind), allocatable :: Qmax_pack(:,:,:,:,:)
+  real(kind=real_kind), allocatable :: grads_tracer(:,:,:,:,:,:)
+  real(kind=real_kind), allocatable :: dp_star(:,:,:,:)
   integer(kind=int_kind), allocatable :: desc_putmapP(:,:)
   integer(kind=int_kind), allocatable :: desc_getmapP(:,:)
   logical(kind=log_kind), allocatable :: desc_reverse(:,:)
@@ -68,11 +71,14 @@ contains
       desc_reverse(:,ie) = elem(ie)%desc%reverse
     enddo
 
+    allocate(dp_star(np,np  ,nlev,nelemd))
     allocate(qmin(nlev,qsize,nelemd))
     allocate(qmax(nlev,qsize,nelemd))
     allocate(Qtens_biharmonic(np,np,nlev,qsize,nelemd))
+    allocate(qtens(np,np,nlev,qsize,nelemd))
     allocate(qmin_pack(np,np,nlev,qsize,nelemd))
     allocate(qmax_pack(np,np,nlev,qsize,nelemd))
+    allocate(grads_tracer(np,np,2,nlev,qsize,nelemd))
     allocate(dp0(nlev))
 
     do k = 1 , nlev
@@ -81,8 +87,8 @@ contains
 
     !$acc enter data pcreate(state_v,state_T,state_dp3d,state_lnps,state_ps_v,state_phis,state_Q,state_Qdp,derived_vn0,derived_vstar,derived_dpdiss_biharmonic,&
     !$acc&                   derived_dpdiss_ave,derived_phi,derived_omega_p,derived_eta_dot_dpdn,derived_grad_lnps,derived_zeta,derived_div,derived_dp,&
-    !$acc&                   derived_divdp,derived_divdp_proj,qtens_biharmonic)
-    !$acc enter data pcreate(qmin,qmax,qmin_pack,qmax_pack)
+    !$acc&                   derived_divdp,derived_divdp_proj)
+    !$acc enter data pcreate(qmin,qmax,qmin_pack,qmax_pack,qtens_biharmonic,grads_tracer,dp_star,qtens)
     !$acc enter data pcopyin(elem(1:nelemd),deriv,dp0,desc_putmapP,desc_getmapP,desc_reverse)
     !$acc enter data pcopyin(edgeAdvQ3,edgeAdv1,edgeAdv,edgeAdv_p1,edgeAdvQ2)
     !$acc enter data pcopyin(edgeAdvQ3%buf,edgeAdv1%buf,edgeAdv%buf,edgeAdv_p1%buf,edgeAdvQ2%buf)
@@ -126,15 +132,10 @@ contains
   integer              , intent(in   )         :: nete
   integer              , intent(in   )         :: DSSopt
   integer              , intent(in   )         :: rhs_multiplier
-
   ! local
-  real(kind=real_kind), dimension(np,np       ) :: divdp, dpdiss
-  real(kind=real_kind), dimension(np,np,2     ) :: gradQ
-  real(kind=real_kind), dimension(np,np,2,nlev) :: Vstar
-  real(kind=real_kind), dimension(np,np  ,nlev) :: Qtens
-  real(kind=real_kind), dimension(np,np  ,nlev) :: dp,dp_star
+  real(kind=real_kind) :: vstar(2)
   real(kind=real_kind), pointer, dimension(:,:,:) :: DSSvar
-  real(kind=real_kind) :: tmp,mintmp,maxtmp
+  real(kind=real_kind) :: tmp, mintmp, maxtmp, dp
   integer :: ie,q,i,j,k
   integer :: rhs_viss
 
@@ -173,7 +174,7 @@ contains
     ! initialize dp, and compute Q from Qdp (and store Q in Qtens_biharmonic)
     !$omp barrier
     !$omp master
-    !$acc update device(derived_dp,derived_divdp_proj,state_qdp)
+    !$acc update device(derived_dp,derived_divdp_proj,state_qdp,qmin,qmax,derived_dpdiss_ave)
     !$acc parallel loop gang vector collapse(4) private(tmp) present(derived_dp,derived_divdp_proj,state_qdp)
     do ie = 1 , nelemd
       ! add hyperviscosity to RHS.  apply to Q at timelevel n0, Qdp(n0)/dp
@@ -188,7 +189,6 @@ contains
         enddo
       enddo
     enddo
-    !$acc update device(qmin,qmax)
     !$acc parallel loop gang vector collapse(3) private(mintmp,maxtmp) present(qmin,qmax,qtens_biharmonic)
     do ie = 1 , nelemd
       do k = 1 , nlev    
@@ -211,7 +211,6 @@ contains
         enddo
       enddo
     enddo
-    !$acc update host(qmin,qmax,qtens_biharmonic)
     !$omp end master
     !$omp barrier
     if ( rhs_multiplier == 0 ) call neighbor_minmax(elem,hybrid,edgeAdvQ2,nets,nete,qmin,qmax)
@@ -224,7 +223,6 @@ contains
       if ( nu_p > 0 ) then
         !$omp barrier
         !$omp master
-        !$acc update device(qtens_biharmonic,derived_dpdiss_ave)
         !$acc parallel loop gang vector collapse(5) present(qtens_biharmonic,derived_dpdiss_ave,dp0)
         do ie = 1 , nelemd
           do q = 1 , qsize
@@ -238,14 +236,12 @@ contains
             enddo
           enddo
         enddo
-        !$acc update host(qtens_biharmonic)
         !$omp end master
         !$omp barrier
       endif
-      call biharmonic_wk_scalar_minmax( elem , qtens_biharmonic , deriv , edgeAdvQ3 , hybrid , nets , nete , qmin , qmax )
+      call biharmonic_wk_scalar_minmax( elem , qtens_biharmonic , grads_tracer , deriv , edgeAdvQ3 , hybrid , nets , nete , qmin , qmax )
       !$omp barrier
       !$omp master
-      !$acc update device(qtens_biharmonic)
       !$acc parallel loop gang vector collapse(5) present(qtens_biharmonic,dp0,elem(:))
       do ie = 1 , nelemd
         do q = 1 , qsize
@@ -259,67 +255,91 @@ contains
           enddo
         enddo
       enddo
-      !$acc update host(qtens_biharmonic)
       !$omp end master
       !$omp barrier
     endif
+    !$omp barrier
+    !$omp master
+    !$acc update host(qmin,qmax,qtens_biharmonic)
+    !$omp end master
+    !$omp barrier
   endif  ! compute biharmonic mixing term and qmin/qmax
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   2D Advection step
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Compute velocity used to advance Qdp 
   do ie = nets , nete
-    ! note: eta_dot_dpdn is actually dimension nlev+1, but nlev+1 data is
-    ! all zero so we only have to DSS 1:nlev
-    if ( DSSopt == DSSeta         ) DSSvar => elem(ie)%derived%eta_dot_dpdn(:,:,:)
-    if ( DSSopt == DSSomega       ) DSSvar => elem(ie)%derived%omega_p(:,:,:)
-    if ( DSSopt == DSSdiv_vdp_ave ) DSSvar => elem(ie)%derived%divdp_proj(:,:,:)
-
-    ! Compute velocity used to advance Qdp 
     do k = 1 , nlev    !  Loop index added (AAM)
-      ! derived variable divdp_proj() (DSS'd version of divdp) will only be correct on 2nd and 3rd stage
-      ! but that's ok because rhs_multiplier=0 on the first stage:
-      dp(:,:,k) = elem(ie)%derived%dp(:,:,k) - rhs_multiplier * dt * elem(ie)%derived%divdp_proj(:,:,k) 
-      Vstar(:,:,1,k) = elem(ie)%derived%vn0(:,:,1,k) / dp(:,:,k)
-      Vstar(:,:,2,k) = elem(ie)%derived%vn0(:,:,2,k) / dp(:,:,k)
+      do j = 1 , np
+        do i = 1 , np
+          ! derived variable divdp_proj() (DSS'd version of divdp) will only be correct on 2nd and 3rd stage
+          ! but that's ok because rhs_multiplier=0 on the first stage:
+          dp = elem(ie)%derived%dp(i,j,k) - rhs_multiplier * dt * elem(ie)%derived%divdp_proj(i,j,k) 
+          Vstar(1) = elem(ie)%derived%vn0(i,j,1,k) / dp
+          Vstar(2) = elem(ie)%derived%vn0(i,j,2,k) / dp
+          if ( limiter_option == 8 ) then
+            ! UN-DSS'ed dp at timelevel n0+1:  
+            dp_star(i,j,k,ie) = dp - dt * elem(ie)%derived%divdp(i,j,k)  
+            if ( nu_p > 0 .and. rhs_viss /= 0 ) then
+              ! add contribution from UN-DSS'ed PS dissipation
+              dp_star(i,j,k,ie) = dp_star(i,j,k,ie) - rhs_viss * dt * nu_q * elem(ie)%derived%dpdiss_biharmonic(i,j,k) / elem(ie)%spheremp(i,j)
+            endif
+          endif
+          do q = 1 , qsize
+            grads_tracer(i,j,1,k,q,ie) = Vstar(1) * elem(ie)%state%Qdp(i,j,k,q,n0_qdp)
+            grads_tracer(i,j,2,k,q,ie) = Vstar(2) * elem(ie)%state%Qdp(i,j,k,q,n0_qdp)
+          enddo
+        enddo
+      enddo
     enddo
-
+  enddo
+  do ie = nets , nete
     ! advance Qdp
     do q = 1 , qsize
       do k = 1 , nlev  !  dp_star used as temporary instead of divdp (AAM)
         ! div( U dp Q), 
-        gradQ(:,:,1) = Vstar(:,:,1,k) * elem(ie)%state%Qdp(:,:,k,q,n0_qdp)
-        gradQ(:,:,2) = Vstar(:,:,2,k) * elem(ie)%state%Qdp(:,:,k,q,n0_qdp)
-        dp_star(:,:,k) = divergence_sphere( gradQ , deriv , elem(ie) )
-        Qtens(:,:,k) = elem(ie)%state%Qdp(:,:,k,q,n0_qdp) - dt * dp_star(:,:,k)
-        ! optionally add in hyperviscosity computed above:
-        if ( rhs_viss /= 0 ) Qtens(:,:,k) = Qtens(:,:,k) + Qtens_biharmonic(:,:,k,q,ie)
+        qtens(:,:,k,q,ie) = divergence_sphere( grads_tracer(:,:,:,k,q,ie) , deriv , elem(ie) )
       enddo
-         
-      if ( limiter_option == 8 ) then
-        do k = 1 , nlev  ! Loop index added (AAM)
-          ! UN-DSS'ed dp at timelevel n0+1:  
-          dp_star(:,:,k) = dp(:,:,k) - dt * elem(ie)%derived%divdp(:,:,k)  
-          if ( nu_p > 0 .and. rhs_viss /= 0 ) then
-            ! add contribution from UN-DSS'ed PS dissipation
-!            dpdiss(:,:) = ( hvcoord%hybi(k+1) - hvcoord%hybi(k) ) * elem(ie)%derived%psdiss_biharmonic(:,:)
-            dpdiss(:,:) = elem(ie)%derived%dpdiss_biharmonic(:,:,k)
-            dp_star(:,:,k) = dp_star(:,:,k) - rhs_viss * dt * nu_q * dpdiss(:,:) / elem(ie)%spheremp(:,:)
-          endif
+    enddo
+  enddo
+  do ie = nets , nete
+    ! advance Qdp
+    do q = 1 , qsize
+      do k = 1 , nlev  !  dp_star used as temporary instead of divdp (AAM)
+        do j = 1 , np
+          do i = 1 , np
+            Qtens(i,j,k,q,ie) = elem(ie)%state%Qdp(i,j,k,q,n0_qdp) - dt * qtens(i,j,k,q,ie)
+            ! optionally add in hyperviscosity computed above:
+            if ( rhs_viss /= 0 ) Qtens(i,j,k,q,ie) = Qtens(i,j,k,q,ie) + Qtens_biharmonic(i,j,k,q,ie)
+          enddo
         enddo
+      enddo
+    enddo
+  enddo
+  do ie = nets , nete
+    ! advance Qdp
+    do q = 1 , qsize
+      if ( limiter_option == 8 ) then
         ! apply limiter to Q = Qtens / dp_star 
-        call limiter_optim_iter_full( Qtens(:,:,:) , elem(ie)%spheremp(:,:) , qmin(:,q,ie) , &
-                                      qmax(:,q,ie) , dp_star(:,:,:) )
+        call limiter_optim_iter_full( Qtens(:,:,:,q,ie) , elem(ie)%spheremp(:,:) , qmin(:,q,ie) , qmax(:,q,ie) , dp_star(:,:,:,ie) )
       endif
-
+    enddo
+  enddo
+  do ie = nets , nete
+    ! advance Qdp
+    do q = 1 , qsize
       ! apply mass matrix, overwrite np1 with solution:
       ! dont do this earlier, since we allow np1_qdp == n0_qdp 
       ! and we dont want to overwrite n0_qdp until we are done using it
       do k = 1 , nlev
-        elem(ie)%state%Qdp(:,:,k,q,np1_qdp) = elem(ie)%spheremp(:,:) * Qtens(:,:,k) 
+        elem(ie)%state%Qdp(:,:,k,q,np1_qdp) = elem(ie)%spheremp(:,:) * Qtens(:,:,k,q,ie) 
       enddo
-
+    enddo
+  enddo
+  do ie = nets , nete
+    do q = 1 , qsize
       if ( limiter_option == 4 ) then
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
         ! sign-preserving limiter, applied after mass matrix
@@ -327,7 +347,13 @@ contains
         call limiter2d_zero( elem(ie)%state%Qdp(:,:,:,q,np1_qdp) ) 
       endif
     enddo
-
+  enddo
+  do ie = nets , nete
+    ! note: eta_dot_dpdn is actually dimension nlev+1, but nlev+1 data is
+    ! all zero so we only have to DSS 1:nlev
+    if ( DSSopt == DSSeta         ) DSSvar => elem(ie)%derived%eta_dot_dpdn(:,:,:)
+    if ( DSSopt == DSSomega       ) DSSvar => elem(ie)%derived%omega_p(:,:,:)
+    if ( DSSopt == DSSdiv_vdp_ave ) DSSvar => elem(ie)%derived%divdp_proj(:,:,:)
     if ( DSSopt == DSSno_var ) then
       call edgeVpack(edgeAdv    , elem(ie)%state%Qdp(:,:,:,:,np1_qdp) , nlev*qsize , 0 , elem(ie)%desc )
     else
@@ -376,7 +402,7 @@ contains
   enddo
   end subroutine euler_step_openacc
 
-  subroutine biharmonic_wk_scalar_minmax(elem,qtens,deriv,edgeq,hybrid,nets,nete,emin,emax)
+  subroutine biharmonic_wk_scalar_minmax(elem,qtens,grads,deriv,edgeq,hybrid,nets,nete,emin,emax)
     use hybrid_mod, only: hybrid_t
     use element_mod, only: element_t
     use derivative_mod, only: derivative_t
@@ -390,13 +416,15 @@ contains
     !
     !    note: emin/emax must be initialized with Q element min/max.  
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    type (hybrid_t)      , intent(in) :: hybrid
-    type (element_t)     , intent(inout), target :: elem(:)
-    integer :: nets,nete
-    real (kind=real_kind), dimension(np,np,nlev,qsize,nelemd) :: qtens
+    type (hybrid_t)      , intent(in   ) :: hybrid
+    type (element_t)     , intent(in   ) :: elem(:)
+    integer              , intent(in   ) :: nets,nete
+    real (kind=real_kind), intent(inout) :: qtens(np,np,nlev,qsize,nelemd)
+    real(kind=real_kind) , intent(inout) :: grads(np,np,2,nlev,qsize,nelemd)
     type (EdgeBuffer_t)  , intent(inout) :: edgeq
     type (derivative_t)  , intent(in   ) :: deriv
-    real (kind=real_kind), intent(inout), dimension(nlev,qsize,nelemd) :: emin,emax !BSINGH: emin and emax should be intent-inout
+    real (kind=real_kind), intent(inout) :: emin(nlev,qsize,nelemd)
+    real (kind=real_kind), intent(inout) :: emax(nlev,qsize,nelemd)
     ! local
     integer :: k,kptr,i,j,ie,ic,q
     real (kind=real_kind) :: lap_p(np,np)
@@ -405,10 +433,10 @@ contains
     !so tensor is only used on second call to laplace_sphere_wk
     var_coef1 = .true.
     if(hypervis_scaling > 0)    var_coef1 = .false.
-    call minmax_pack(qmin_pack,qmax_pack,emin,emax)
-    call laplace_sphere_wk(qtens,deriv,elem,var_coef1,qtens,nlev*qsize,nets,nete)
     !$omp barrier
     !$omp master
+    call minmax_pack(qmin_pack,qmax_pack,emin,emax)
+    call laplace_sphere_wk(qtens,grads,deriv,elem,var_coef1,qtens,nlev*qsize,nets,nete)
     call edgeVpack(edgeq,    qtens,qsize*nlev,0           ,desc_putmapP,desc_reverse,nets,nete)
     call edgeVpack(edgeq,Qmin_pack,nlev*qsize,nlev*qsize  ,desc_putmapP,desc_reverse,nets,nete)
     call edgeVpack(edgeq,Qmax_pack,nlev*qsize,2*nlev*qsize,desc_putmapP,desc_reverse,nets,nete)
@@ -424,7 +452,6 @@ contains
     call edgeVunpack   (edgeq%buf,edgeq%nlyr,    qtens,qsize*nlev,0           ,desc_getmapP,nets,nete)
     call edgeVunpackMin(edgeq%buf,edgeq%nlyr,Qmin_pack,qsize*nlev,qsize*nlev  ,desc_getmapP,nets,nete)
     call edgeVunpackMax(edgeq%buf,edgeq%nlyr,Qmax_pack,qsize*nlev,2*qsize*nlev,desc_getmapP,nets,nete)
-    !$acc update device(qtens)
     !$acc parallel loop gang vector collapse(5) present(qtens,elem(:))
     do ie = 1 , nelemd
       do q = 1 , qsize      
@@ -437,15 +464,14 @@ contains
         enddo
       enddo
     enddo
-    !$acc update host(qtens)
+    call laplace_sphere_wk(qtens,grads,deriv,elem,.true.,qtens,nlev*qsize,nets,nete)
+    call minmax_reduce_corners(qmin_pack,qmax_pack,emin,emax)
     !$omp end master
     !$omp barrier
-    call laplace_sphere_wk(qtens,deriv,elem,.true.,qtens,nlev*qsize,nets,nete)
-    call minmax_reduce_corners(qmin_pack,qmax_pack,emin,emax)
   end subroutine biharmonic_wk_scalar_minmax
 
-  subroutine laplace_sphere_wk(s,deriv,elem,var_coef,laplace,len,nets,nete)
-    use derivative_mod, only: derivative_t, gradient_sphere, divergence_sphere_wk
+  subroutine laplace_sphere_wk(s,grads,deriv,elem,var_coef,laplace,len,nets,nete)
+    use derivative_mod, only: derivative_t
     use element_mod, only: element_t
     use control_mod, only: hypervis_scaling, hypervis_power
     implicit none
@@ -453,6 +479,7 @@ contains
     !ouput:  -< grad(PHI), grad(s) >   = weak divergence of grad(s)
     !note: for this form of the operator, grad(s) does not need to be made C0
     real(kind=real_kind) , intent(in   ) :: s(np,np,len,nelemd)
+    real(kind=real_kind) , intent(inout) :: grads(np,np,2,len,nelemd)
     type (derivative_t)  , intent(in   ) :: deriv
     type (element_t)     , intent(in   ) :: elem(:)
     logical              , intent(in   ) :: var_coef
@@ -461,36 +488,123 @@ contains
     integer              , intent(in   ) :: nets,nete
     integer :: i,j,k,ie
     ! Local
-    real(kind=real_kind) :: grads(np,np,2), oldgrads(np,np,2)
-    do ie = nets , nete
+    real(kind=real_kind) :: oldgrads(2)
+    grads = gradient_sphere(s,deriv,elem(:),len,nets,nete)
+    !$acc parallel loop gang vector collapse(4) present(grads,elem(:))
+    do ie = 1 , nelemd
       do k = 1 , len
-        grads = gradient_sphere(s(:,:,k,ie),deriv,elem(ie)%Dinv)
-        if (var_coef) then
-          if (hypervis_power/=0 ) then
-            ! scalar viscosity with variable coefficient
-            do j=1,np
-              do i=1,np
-                grads(i,j,1) = grads(i,j,1)*elem(ie)%variable_hyperviscosity(i,j)
-                grads(i,j,2) = grads(i,j,2)*elem(ie)%variable_hyperviscosity(i,j)
-              enddo
-            enddo
-          else if (hypervis_scaling /=0 ) then
-            ! tensor hv, (3)
-            oldgrads=grads
-            do j=1,np
-              do i=1,np
-                grads(i,j,1) = sum(oldgrads(i,j,:)*elem(ie)%tensorVisc(1,:,i,j))
-                grads(i,j,2) = sum(oldgrads(i,j,:)*elem(ie)%tensorVisc(2,:,i,j))
-              enddo
-            enddo
-          endif
-        endif
-        ! note: divergnece_sphere and divergence_sphere_wk are identical *after* bndry_exchange
-        ! if input is C_0.  Here input is not C_0, so we should use divergence_sphere_wk().  
-        laplace(:,:,k,ie) = divergence_sphere_wk(grads,deriv,elem(ie))
+        do j = 1 , np
+          do i = 1 , np
+            if (var_coef) then
+              if (hypervis_power/=0 ) then
+                ! scalar viscosity with variable coefficient
+                grads(i,j,1,k,ie) = grads(i,j,1,k,ie)*elem(ie)%variable_hyperviscosity(i,j)
+                grads(i,j,2,k,ie) = grads(i,j,2,k,ie)*elem(ie)%variable_hyperviscosity(i,j)
+              else if (hypervis_scaling /=0 ) then
+                oldgrads = grads(i,j,:,k,ie)
+                grads(i,j,1,k,ie) = sum(oldgrads(:)*elem(ie)%tensorVisc(1,:,i,j))
+                grads(i,j,2,k,ie) = sum(oldgrads(:)*elem(ie)%tensorVisc(2,:,i,j))
+              endif
+            endif
+          enddo
+        enddo
       enddo
     enddo
+    ! note: divergnece_sphere and divergence_sphere_wk are identical *after* bndry_exchange
+    ! if input is C_0.  Here input is not C_0, so we should use divergence_sphere_wk().  
+    laplace = divergence_sphere_wk(grads,deriv,elem(:),len,nets,nete)
   end subroutine laplace_sphere_wk
+
+  function divergence_sphere_wk(v,deriv,elem,len,nets,nete) result(div)
+    use element_mod, only: element_t
+    use derivative_mod, only: derivative_t
+    use physical_constants, only: rrearth
+    implicit none
+!   input:  v = velocity in lat-lon coordinates
+!   ouput:  div(v)  spherical divergence of v, integrated by parts
+!   Computes  -< grad(psi) dot v > 
+!   (the integrated by parts version of < psi div(v) > )
+!   note: after DSS, divergence_sphere() and divergence_sphere_wk() 
+!   are identical to roundoff, as theory predicts.
+    real(kind=real_kind), intent(in) :: v(np,np,2,len,nelemd)  ! in lat-lon coordinates
+    type (derivative_t) , intent(in) :: deriv
+    type (element_t)    , intent(in) :: elem(:)
+    integer             , intent(in) :: len
+    integer             , intent(in) :: nets , nete
+    real(kind=real_kind)             :: div(np,np,len,nelemd)
+    ! Local
+    integer, parameter :: kchunk = 8
+    integer :: i,j,l,k,ie,kc,kk
+    real(kind=real_kind) :: vtemp(np,np,2,kchunk), tmp
+    ! latlon- > contra
+    !$acc parallel loop gang collapse(2) present(v,elem(:),div) private(vtemp)
+    do ie = 1 , nelemd
+      do kc = 1 , len/kchunk+1
+        !$acc cache(vtemp)
+        !$acc loop vector collapse(3)
+        do kk = 1 , kchunk
+          do j = 1 , np
+            do i = 1 , np
+              k = (kc-1)*kchunk+kk
+              if (k <= len) then
+                vtemp(i,j,1,kk)=elem(ie)%spheremp(i,j)*(elem(ie)%Dinv(1,1,i,j)*v(i,j,1,k,ie) + elem(ie)%Dinv(1,2,i,j)*v(i,j,2,k,ie))
+                vtemp(i,j,2,kk)=elem(ie)%spheremp(i,j)*(elem(ie)%Dinv(2,1,i,j)*v(i,j,1,k,ie) + elem(ie)%Dinv(2,2,i,j)*v(i,j,2,k,ie))
+              endif
+            enddo
+          enddo
+        enddo
+        !$acc loop vector collapse(3) private(tmp)
+        do kk = 1 , kchunk
+          do j = 1 , np
+            do i = 1 , np
+              k = (kc-1)*kchunk+kk
+              if (k <= len) then
+                tmp = 0.
+                do l = 1 , np
+                  tmp = tmp - ( vtemp(l,j,1,kk)*deriv%Dvv(i,l) + vtemp(i,l,2,kk)*deriv%Dvv(j,l) )
+                enddo
+                div(i,j,k,ie) = tmp * rrearth
+              endif
+            enddo
+          enddo
+        enddo
+      enddo
+    enddo
+  end function divergence_sphere_wk
+
+  function gradient_sphere(s,deriv,elem,len,nets,nete) result(ds)
+    use element_mod, only: element_t
+    use derivative_mod, only: derivative_t
+    use physical_constants, only: rrearth
+    implicit none
+    !   input s:  scalar
+    !   output  ds: spherical gradient of s, lat-lon coordinates
+    real(kind=real_kind), intent(in) :: s(np,np,len,nelemd)
+    type(derivative_t)  , intent(in) :: deriv
+    type(element_t)     , intent(in) :: elem(:)
+    integer             , intent(in) :: len
+    integer             , intent(in) :: nets,nete
+    real(kind=real_kind)             :: ds(np,np,2,len,nelemd)
+    integer :: i, j, l, k, ie
+    real(kind=real_kind) :: dsdx00, dsdy00
+    !$acc parallel loop gang vector collapse(4) present(ds,elem(:),s)
+    do ie = 1 , nelemd
+      do k = 1 , len
+        do j = 1 , np
+          do i = 1 , np
+            dsdx00=0.0d0
+            dsdy00=0.0d0
+            do l = 1 , np
+              dsdx00 = dsdx00 + deriv%Dvv(l,i)*s(l,j,k,ie)
+              dsdy00 = dsdy00 + deriv%Dvv(l,j)*s(i,l,k,ie)
+            enddo
+            ds(i,j,1,k,ie) = ( elem(ie)%Dinv(1,1,i,j)*dsdx00 + elem(ie)%Dinv(2,1,i,j)*dsdy00 ) * rrearth
+            ds(i,j,2,k,ie) = ( elem(ie)%Dinv(1,2,i,j)*dsdx00 + elem(ie)%Dinv(2,2,i,j)*dsdy00 ) * rrearth
+          enddo
+        enddo
+      enddo
+    enddo
+  end function gradient_sphere
 
   subroutine neighbor_minmax(elem,hybrid,edgeMinMax,nets,nete,min_neigh,max_neigh)
     use hybrid_mod , only: hybrid_t
@@ -507,9 +621,9 @@ contains
     ! local
     integer :: ie,k,q,j,i
     ! compute Qmin, Qmax
-    call minmax_pack(qmin_pack,qmax_pack,min_neigh,max_neigh)
     !$omp barrier
     !$omp master
+    call minmax_pack(qmin_pack,qmax_pack,min_neigh,max_neigh)
     call edgeVpack(edgeMinMax,Qmin_pack,nlev*qsize,0         ,desc_putmapP,desc_reverse,nets,nete)
     call edgeVpack(edgeMinMax,Qmax_pack,nlev*qsize,nlev*qsize,desc_putmapP,desc_reverse,nets,nete)
     !$omp end master
@@ -523,9 +637,9 @@ contains
     !$omp master
     call edgeVunpackMin(edgeMinMax%buf,edgeMinMax%nlyr,Qmin_pack,nlev*qsize,0         ,desc_getmapP,nets,nete)
     call edgeVunpackMax(edgeMinMax%buf,edgeMinMax%nlyr,Qmax_pack,nlev*qsize,nlev*qsize,desc_getmapP,nets,nete)
+    call minmax_reduce_corners(qmin_pack,qmax_pack,min_neigh,max_neigh)
     !$omp end master
     !$omp barrier
-    call minmax_reduce_corners(qmin_pack,qmax_pack,min_neigh,max_neigh)
   end subroutine neighbor_minmax
 
   subroutine minmax_pack(qmin_pack,qmax_pack,min_neigh,max_neigh)
@@ -535,9 +649,6 @@ contains
     real(kind=real_kind), intent(in   ) :: min_neigh(nlev,qsize,nelemd)
     real(kind=real_kind), intent(in   ) :: max_neigh(nlev,qsize,nelemd)
     integer :: ie,q,k,j,i
-    !$omp barrier
-    !$omp master
-    !$acc update device(min_neigh,max_neigh)
     !$acc parallel loop gang vector collapse(5) present(min_neigh,max_neigh,qmin_pack,qmax_pack)
     do ie=1,nelemd
       do q=1,qsize
@@ -551,9 +662,6 @@ contains
         enddo
       enddo
     enddo
-    !$acc update host(qmin_pack,qmax_pack)
-    !$omp end master
-    !$omp barrier
   end subroutine minmax_pack
 
   subroutine minmax_reduce_corners(qmin_pack,qmax_pack,min_neigh,max_neigh)
@@ -563,9 +671,6 @@ contains
     real(kind=real_kind), intent(  out) :: min_neigh(nlev,qsize,nelemd)
     real(kind=real_kind), intent(  out) :: max_neigh(nlev,qsize,nelemd)
     integer :: ie,q,k
-    !$omp barrier
-    !$omp master
-    !$acc update device(qmin_pack,qmax_pack)
     !$acc parallel loop gang vector collapse(3) present(min_neigh,max_neigh,qmin_pack,qmax_pack)
     do ie=1,nelemd
       do q=1,qsize
@@ -578,9 +683,6 @@ contains
         enddo
       enddo
     enddo
-    !$acc update host(min_neigh,max_neigh)
-    !$omp end master
-    !$omp barrier
   end subroutine minmax_reduce_corners
 
   subroutine edgeVpack(edge,v,vlyr,kptr,putmapP,reverse,nets,nete)
@@ -601,7 +703,6 @@ contains
     integer :: i,k,ir,ll,is,ie,in,iw,el
     call t_startf('edge_pack')
     if (edge%nlyr < (kptr+vlyr) ) call haltmp('edgeVpack: Buffer overflow: size of the vertical dimension must be increased!')
-    !$acc update device(v)
     !$acc parallel loop gang vector collapse(2) present(v,putmapP,reverse,edge%buf)
     do el = 1 , nelemd
       do k = 1 , vlyr
@@ -626,7 +727,6 @@ contains
         enddo
       enddo
     enddo
-    !$acc update host(edge%buf)
     call t_stopf('edge_pack')
   end subroutine edgeVpack
 
@@ -644,7 +744,6 @@ contains
     ! Local
     integer :: i,k,ll,is,ie,in,iw,el
     call t_startf('edge_unpack')
-    !$acc update device(edgebuf,v)
     !$acc parallel loop gang vector collapse(2) present(v,getmapP,edgebuf)
     do el = 1 , nelemd
       do k = 1 , vlyr
@@ -662,7 +761,6 @@ contains
         enddo
       enddo
     enddo
-    !$acc update host(v)
     call t_stopf('edge_unpack')
   end subroutine edgeVunpack
 
@@ -680,7 +778,6 @@ contains
     ! Local
     integer :: i,k,ll,is,ie,in,iw,el
     call t_startf('edge_unpack_min')
-    !$acc update device(edgebuf,v)
     !$acc parallel loop gang vector collapse(2) present(v,getmapP,edgebuf)
     do el = 1 , nelemd
       do k = 1 , vlyr
@@ -698,7 +795,6 @@ contains
         enddo
       enddo
     enddo
-    !$acc update host(v)
     call t_stopf('edge_unpack_min')
   end subroutine edgeVunpackMin
 
@@ -716,7 +812,6 @@ contains
     ! Local
     integer :: i,k,ll,is,ie,in,iw,el
     call t_startf('edge_unpack_max')
-    !$acc update device(edgebuf,v)
     !$acc parallel loop gang vector collapse(2) present(v,getmapP,edgebuf)
     do el = 1 , nelemd
       do k = 1 , vlyr
@@ -734,7 +829,6 @@ contains
         enddo
       enddo
     enddo
-    !$acc update host(v)
     call t_stopf('edge_unpack_max')
   end subroutine edgeVunpackMax
 
@@ -786,14 +880,14 @@ contains
       !==================================================
       !  Fire off the sends
       !==================================================
-!     do icycle=1,nSendCycles
-!       pCycle => pSchedule%SendCycle(icycle)
-!       iptr   =  pCycle%ptrP
-!       if (pCycle%lengthP > 0) then
-!         !$acc update host(buffer%buf(1:nlyr,iptr:iptr+pCycle%lengthP-1))
-!        endif
-!     enddo
-!     !$acc wait
+      do icycle=1,nSendCycles
+        pCycle => pSchedule%SendCycle(icycle)
+        iptr   =  pCycle%ptrP
+        if (pCycle%lengthP > 0) then
+          call update_host(buffer%buf(1,iptr),nlyr*pCycle%lengthP)
+        endif
+      enddo
+      !$acc wait
       do icycle=1,nSendCycles
         pCycle => pSchedule%SendCycle(icycle)
         dest   =  pCycle%dest - 1
@@ -814,15 +908,29 @@ contains
       call MPI_Waitall(nRecvCycles,Rrequest,status,ierr)
       do icycle=1,nRecvCycles
         pCycle => pSchedule%RecvCycle(icycle)
-        length =  pCycle%lengthP
         iptr   =  pCycle%ptrP
-        do i=0,length-1
+        do i=0,pCycle%lengthP-1
           buffer%buf(1:nlyr,iptr+i) = buffer%receive(1:nlyr,iptr+i)
         enddo
+        call update_device(buffer%buf(1,iptr),nlyr*pCycle%lengthP)
       enddo   ! icycle
     endif  ! if (hybrid%ithr == 0)
     !$OMP BARRIER
   end subroutine bndry_exchangeV
+
+  subroutine update_host(dat,len)
+    implicit none
+    real(kind=real_kind) :: dat(len)
+    integer              :: len
+    !$acc update host(dat(1:len))
+  end subroutine update_host
+
+  subroutine update_device(dat,len)
+    implicit none
+    real(kind=real_kind) :: dat(len)
+    integer              :: len
+    !$acc update device(dat(1:len))
+  end subroutine update_device
 
   subroutine limiter2d_zero(Q)
   ! mass conserving zero limiter (2D only).  to be called just before DSS
