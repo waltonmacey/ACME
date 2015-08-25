@@ -25,7 +25,7 @@ module prim_advection_openacc_mod
   integer(kind=int_kind), allocatable :: desc_putmapP(:,:)
   integer(kind=int_kind), allocatable :: desc_getmapP(:,:)
   logical(kind=log_kind), allocatable :: desc_reverse(:,:)
-  type (EdgeBuffer_t) :: edgeAdv, edgeAdvQ3, edgeAdv_p1, edgeAdvQ2, edgeAdv1
+  type (EdgeBuffer_t) :: edgeAdv, edgeAdvQ3, edgeAdv_p1, edgeAdvQ2, edgeAdv1, edgeAdv3
   integer,parameter :: DSSeta = 1
   integer,parameter :: DSSomega = 2
   integer,parameter :: DSSdiv_vdp_ave = 3
@@ -58,6 +58,7 @@ contains
     call initEdgeBuffer(edgeAdv   ,qsize*nlev            )
     call initEdgeBuffer(edgeAdv_p1,qsize*nlev + nlev     ) 
     call initEdgeBuffer(edgeAdvQ2 ,qsize*nlev*2          )
+    call initEdgeBuffer(edgeAdv3  ,nlev*3                )
 
     !$OMP BARRIER
     !$OMP MASTER
@@ -134,7 +135,6 @@ contains
   integer              , intent(in   )         :: rhs_multiplier
   ! local
   real(kind=real_kind) :: vstar(2)
-  real(kind=real_kind), pointer, dimension(:,:,:) :: DSSvar
   real(kind=real_kind) :: tmp, mintmp, maxtmp, dp
   integer :: ie,q,i,j,k
   integer :: rhs_viss
@@ -358,54 +358,20 @@ contains
   do ie = nets , nete
     ! note: eta_dot_dpdn is actually dimension nlev+1, but nlev+1 data is
     ! all zero so we only have to DSS 1:nlev
-    if ( DSSopt == DSSeta         ) DSSvar => elem(ie)%derived%eta_dot_dpdn(:,:,:)
-    if ( DSSopt == DSSomega       ) DSSvar => elem(ie)%derived%omega_p(:,:,:)
-    if ( DSSopt == DSSdiv_vdp_ave ) DSSvar => elem(ie)%derived%divdp_proj(:,:,:)
-    if ( DSSopt == DSSno_var ) then
-      call edgeVpack(edgeAdv    , elem(ie)%state%Qdp(:,:,:,:,np1_qdp) , nlev*qsize , 0 , elem(ie)%desc )
-    else
-      call edgeVpack(edgeAdv_p1 , elem(ie)%state%Qdp(:,:,:,:,np1_qdp) , nlev*qsize , 0 , elem(ie)%desc )
-      ! also DSS extra field
-      do k = 1 , nlev
-        DSSvar(:,:,k) = elem(ie)%spheremp(:,:) * DSSvar(:,:,k) 
-      enddo
-      call edgeVpack( edgeAdv_p1 , DSSvar(:,:,1:nlev) , nlev , nlev*qsize , elem(ie)%desc )
-    endif
+    call edgeVpack(edgeAdv , elem(ie)%state%Qdp(:,:,:,:,np1_qdp) , nlev*qsize , 0 , elem(ie)%desc )
   enddo
 
   call t_startf('eus_bexchV')
-  if ( DSSopt == DSSno_var ) then
-    call bndry_exchangeV( hybrid , edgeAdv    )
-  else
-    call bndry_exchangeV( hybrid , edgeAdv_p1 )
-  endif
+  call bndry_exchangeV( hybrid , edgeAdv    )
   call t_stopf('eus_bexchV')
 
   do ie = nets , nete
-    if ( DSSopt == DSSeta         ) DSSvar => elem(ie)%derived%eta_dot_dpdn(:,:,:)
-    if ( DSSopt == DSSomega       ) DSSvar => elem(ie)%derived%omega_p(:,:,:)
-    if ( DSSopt == DSSdiv_vdp_ave ) DSSvar => elem(ie)%derived%divdp_proj(:,:,:)
-
-    if ( DSSopt == DSSno_var ) then
-      call edgeVunpack( edgeAdv    , elem(ie)%state%Qdp(:,:,:,:,np1_qdp) , nlev*qsize , 0 , elem(ie)%desc )
-      do q = 1 , qsize
-        do k = 1 , nlev    !  Potential loop inversion (AAM)
-          elem(ie)%state%Qdp(:,:,k,q,np1_qdp) = elem(ie)%rspheremp(:,:) * elem(ie)%state%Qdp(:,:,k,q,np1_qdp)
-        enddo
+    call edgeVunpack( edgeAdv    , elem(ie)%state%Qdp(:,:,:,:,np1_qdp) , nlev*qsize , 0 , elem(ie)%desc )
+    do q = 1 , qsize
+      do k = 1 , nlev    !  Potential loop inversion (AAM)
+        elem(ie)%state%Qdp(:,:,k,q,np1_qdp) = elem(ie)%rspheremp(:,:) * elem(ie)%state%Qdp(:,:,k,q,np1_qdp)
       enddo
-    else
-      call edgeVunpack( edgeAdv_p1 , elem(ie)%state%Qdp(:,:,:,:,np1_qdp) , nlev*qsize , 0 , elem(ie)%desc )
-      do q = 1 , qsize
-        do k = 1 , nlev    !  Potential loop inversion (AAM)
-          elem(ie)%state%Qdp(:,:,k,q,np1_qdp) = elem(ie)%rspheremp(:,:) * elem(ie)%state%Qdp(:,:,k,q,np1_qdp)
-        enddo
-      enddo
-      call edgeVunpack( edgeAdv_p1 , DSSvar(:,:,1:nlev) , nlev , qsize*nlev , elem(ie)%desc )
-       
-      do k = 1 , nlev
-        DSSvar(:,:,k) = DSSvar(:,:,k) * elem(ie)%rspheremp(:,:)
-      enddo
-    endif
+    enddo
   enddo
   end subroutine euler_step_openacc
 
@@ -1157,6 +1123,8 @@ contains
     use element_mod   , only: element_t, derived_vn0, derived_divdp, derived_divdp_proj
     use hybrid_mod    , only: hybrid_t
     use derivative_mod, only: derivative_t
+    use edge_mod      , only: edgeVpack, edgeVunpack
+    use bndry_mod     , only: bndry_exchangeV
     implicit none
     type(element_t)      , intent(inout) :: elem(:)
     type (hybrid_t)      , intent(in   ) :: hybrid
@@ -1164,6 +1132,7 @@ contains
     real(kind=real_kind) , intent(in   ) :: dt
     integer              , intent(in   ) :: nets , nete , n0_qdp
     integer :: ie , k
+    real(kind=real_kind), pointer, dimension(:,:,:) :: DSSvar
     !$omp barrier
     !$omp master
     !$acc update device(derived_vn0)
@@ -1172,6 +1141,31 @@ contains
     !$acc update host(derived_divdp,derived_divdp_proj)
     !$omp end master
     !$omp barrier
+    do ie = nets , nete
+      ! note: eta_dot_dpdn is actually dimension nlev+1, but nlev+1 data is
+      ! all zero so we only have to DSS 1:nlev
+      do k = 1 , nlev
+        elem(ie)%derived%eta_dot_dpdn(:,:,k) = elem(ie)%spheremp(:,:) * elem(ie)%derived%eta_dot_dpdn(:,:,k) 
+        elem(ie)%derived%omega_p(:,:,k)      = elem(ie)%spheremp(:,:) * elem(ie)%derived%omega_p(:,:,k)      
+        elem(ie)%derived%divdp_proj(:,:,k)   = elem(ie)%spheremp(:,:) * elem(ie)%derived%divdp_proj(:,:,k)   
+      enddo
+      call edgeVpack( edgeAdv3 , elem(ie)%derived%eta_dot_dpdn(:,:,1:nlev) , nlev , 0      , elem(ie)%desc )
+      call edgeVpack( edgeAdv3 , elem(ie)%derived%omega_p(:,:,1:nlev)      , nlev , nlev   , elem(ie)%desc )
+      call edgeVpack( edgeAdv3 , elem(ie)%derived%divdp_proj(:,:,1:nlev)   , nlev , nlev*2 , elem(ie)%desc )
+    enddo
+
+    call bndry_exchangeV( hybrid , edgeAdv3   )
+
+    do ie = nets , nete
+      call edgeVunpack( edgeAdv3 , elem(ie)%derived%eta_dot_dpdn(:,:,1:nlev) , nlev , 0      , elem(ie)%desc )
+      call edgeVunpack( edgeAdv3 , elem(ie)%derived%omega_p(:,:,1:nlev)      , nlev , nlev   , elem(ie)%desc )
+      call edgeVunpack( edgeAdv3 , elem(ie)%derived%divdp_proj(:,:,1:nlev)   , nlev , nlev*2 , elem(ie)%desc )
+      do k = 1 , nlev
+        elem(ie)%derived%eta_dot_dpdn(:,:,k) = elem(ie)%rspheremp(:,:) * elem(ie)%derived%eta_dot_dpdn(:,:,k) 
+        elem(ie)%derived%omega_p(:,:,k)      = elem(ie)%rspheremp(:,:) * elem(ie)%derived%omega_p(:,:,k)      
+        elem(ie)%derived%divdp_proj(:,:,k)   = elem(ie)%rspheremp(:,:) * elem(ie)%derived%divdp_proj(:,:,k)   
+      enddo
+    enddo
   end subroutine precompute_divdp_openacc
 
   subroutine copy_arr(dest,src,len)
