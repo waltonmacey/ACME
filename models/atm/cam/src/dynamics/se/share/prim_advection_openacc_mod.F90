@@ -114,13 +114,13 @@ contains
   use dimensions_mod , only: np, npdg, nlev
   use hybrid_mod     , only: hybrid_t
   use element_mod    , only: element_t
-  use derivative_mod , only: derivative_t, divergence_sphere, gradient_sphere, vorticity_sphere
+  use derivative_mod , only: derivative_t, gradient_sphere, vorticity_sphere
   use edge_mod       , only: edgevpack, edgevunpack
   use bndry_mod      , only: bndry_exchangev
   use hybvcoord_mod  , only: hvcoord_t
   use control_mod    , only: limiter_option, nu_p, nu_q
   use perf_mod       , only: t_startf, t_stopf
-  use element_mod    , only: derived_dp, derived_divdp_proj, state_qdp, derived_dpdiss_ave
+  use element_mod    , only: derived_dp, derived_divdp_proj, state_qdp, derived_dpdiss_ave, derived_vn0, derived_divdp, derived_dpdiss_biharmonic
   implicit none
   integer              , intent(in   )         :: np1_qdp, n0_qdp
   real (kind=real_kind), intent(in   )         :: dt
@@ -138,6 +138,12 @@ contains
   real(kind=real_kind) :: tmp, mintmp, maxtmp, dp
   integer :: ie,q,i,j,k
   integer :: rhs_viss
+
+  !$omp barrier
+  !$omp master
+  !$acc update device(derived_dp,derived_divdp_proj,derived_vn0,state_qdp)
+  !$omp end master
+  !$omp barrier
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   compute Q min/max values for lim8
@@ -174,7 +180,7 @@ contains
     ! initialize dp, and compute Q from Qdp (and store Q in Qtens_biharmonic)
     !$omp barrier
     !$omp master
-    !$acc update device(derived_dp,derived_divdp_proj,state_qdp,qmin,qmax,derived_dpdiss_ave)
+    !$acc update device(qmin,qmax,derived_dpdiss_ave)
     !$acc parallel loop gang vector collapse(4) private(tmp) present(derived_dp,derived_divdp_proj,state_qdp)
     do ie = 1 , nelemd
       ! add hyperviscosity to RHS.  apply to Q at timelevel n0, Qdp(n0)/dp
@@ -270,47 +276,50 @@ contains
   !   2D Advection step
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Compute velocity used to advance Qdp 
-  do ie = nets , nete
+  !$omp barrier
+  !$omp master
+  if (limiter_option == 8) then
+    !$acc update device(derived_divdp)
+    if ( nu_p > 0 .and. rhs_viss /= 0 ) then
+      !$acc update device(derived_dpdiss_biharmonic)
+    endif
+  endif
+  !$acc parallel loop gang vector collapse(4) present(derived_dp,derived_divdp_proj,derived_vn0,dp_star,derived_divdp,derived_dpdiss_biharmonic,grads_tracer,state_qdp) &
+  !$acc& private(dp,vstar)
+  do ie = 1 , nelemd
     do k = 1 , nlev    !  Loop index added (AAM)
       do j = 1 , np
         do i = 1 , np
           ! derived variable divdp_proj() (DSS'd version of divdp) will only be correct on 2nd and 3rd stage
           ! but that's ok because rhs_multiplier=0 on the first stage:
-          dp = elem(ie)%derived%dp(i,j,k) - rhs_multiplier * dt * elem(ie)%derived%divdp_proj(i,j,k) 
-          Vstar(1) = elem(ie)%derived%vn0(i,j,1,k) / dp
-          Vstar(2) = elem(ie)%derived%vn0(i,j,2,k) / dp
+          dp = derived_dp(i,j,k,ie) - rhs_multiplier * dt * derived_divdp_proj(i,j,k,ie)
+          Vstar(1) = derived_vn0(i,j,1,k,ie) / dp
+          Vstar(2) = derived_vn0(i,j,2,k,ie) / dp
           if ( limiter_option == 8 ) then
             ! UN-DSS'ed dp at timelevel n0+1:  
-            dp_star(i,j,k,ie) = dp - dt * elem(ie)%derived%divdp(i,j,k)  
+            dp_star(i,j,k,ie) = dp - dt * derived_divdp(i,j,k,ie)  
             if ( nu_p > 0 .and. rhs_viss /= 0 ) then
               ! add contribution from UN-DSS'ed PS dissipation
-              dp_star(i,j,k,ie) = dp_star(i,j,k,ie) - rhs_viss * dt * nu_q * elem(ie)%derived%dpdiss_biharmonic(i,j,k) / elem(ie)%spheremp(i,j)
+              dp_star(i,j,k,ie) = dp_star(i,j,k,ie) - rhs_viss * dt * nu_q * derived_dpdiss_biharmonic(i,j,k,ie) / elem(ie)%spheremp(i,j)
             endif
           endif
           do q = 1 , qsize
-            grads_tracer(i,j,1,k,q,ie) = Vstar(1) * elem(ie)%state%Qdp(i,j,k,q,n0_qdp)
-            grads_tracer(i,j,2,k,q,ie) = Vstar(2) * elem(ie)%state%Qdp(i,j,k,q,n0_qdp)
+            grads_tracer(i,j,1,k,q,ie) = Vstar(1) * state_Qdp(i,j,k,q,n0_qdp,ie)
+            grads_tracer(i,j,2,k,q,ie) = Vstar(2) * state_Qdp(i,j,k,q,n0_qdp,ie)
           enddo
         enddo
       enddo
     enddo
   enddo
-  do ie = nets , nete
-    ! advance Qdp
-    do q = 1 , qsize
-      do k = 1 , nlev  !  dp_star used as temporary instead of divdp (AAM)
-        ! div( U dp Q), 
-        qtens(:,:,k,q,ie) = divergence_sphere( grads_tracer(:,:,:,k,q,ie) , deriv , elem(ie) )
-      enddo
-    enddo
-  enddo
-  do ie = nets , nete
+  call divergence_sphere( grads_tracer , deriv , elem(:) , qtens , nlev*qsize )
+  !$acc parallel loop gang vector collapse(5) present(qtens,state_qdp,qtens_biharmonic)
+  do ie = 1 , nelemd
     ! advance Qdp
     do q = 1 , qsize
       do k = 1 , nlev  !  dp_star used as temporary instead of divdp (AAM)
         do j = 1 , np
           do i = 1 , np
-            Qtens(i,j,k,q,ie) = elem(ie)%state%Qdp(i,j,k,q,n0_qdp) - dt * qtens(i,j,k,q,ie)
+            Qtens(i,j,k,q,ie) = state_Qdp(i,j,k,q,n0_qdp,ie) - dt * qtens(i,j,k,q,ie)
             ! optionally add in hyperviscosity computed above:
             if ( rhs_viss /= 0 ) Qtens(i,j,k,q,ie) = Qtens(i,j,k,q,ie) + Qtens_biharmonic(i,j,k,q,ie)
           enddo
@@ -318,36 +327,34 @@ contains
       enddo
     enddo
   enddo
-  do ie = nets , nete
-    ! advance Qdp
-    do q = 1 , qsize
-      if ( limiter_option == 8 ) then
-        ! apply limiter to Q = Qtens / dp_star 
-        call limiter_optim_iter_full( Qtens(:,:,:,q,ie) , elem(ie)%spheremp(:,:) , qmin(:,q,ie) , qmax(:,q,ie) , dp_star(:,:,:,ie) )
-      endif
-    enddo
-  enddo
-  do ie = nets , nete
+  if ( limiter_option == 8 ) then
+    call limiter_optim_iter_full( Qtens , elem(:) , qmin , qmax , dp_star )   ! apply limiter to Q = Qtens / dp_star 
+  endif
+  !$acc parallel loop gang vector collapse(5) present(state_Qdp,elem(:),qtens)
+  do ie = 1 , nelemd
     ! advance Qdp
     do q = 1 , qsize
       ! apply mass matrix, overwrite np1 with solution:
       ! dont do this earlier, since we allow np1_qdp == n0_qdp 
       ! and we dont want to overwrite n0_qdp until we are done using it
       do k = 1 , nlev
-        elem(ie)%state%Qdp(:,:,k,q,np1_qdp) = elem(ie)%spheremp(:,:) * Qtens(:,:,k,q,ie) 
+        do j = 1 , np
+          do i = 1 , np
+            state_Qdp(i,j,k,q,np1_qdp,ie) = elem(ie)%spheremp(i,j) * Qtens(i,j,k,q,ie) 
+          enddo
+        enddo
       enddo
     enddo
   enddo
-  do ie = nets , nete
-    do q = 1 , qsize
-      if ( limiter_option == 4 ) then
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
-        ! sign-preserving limiter, applied after mass matrix
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
-        call limiter2d_zero( elem(ie)%state%Qdp(:,:,:,q,np1_qdp) ) 
-      endif
-    enddo
-  enddo
+  if ( limiter_option == 4 ) then
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
+    ! sign-preserving limiter, applied after mass matrix
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
+    call limiter2d_zero( state_Qdp , 2 , np1_qdp )
+  endif
+  !$acc update host(state_qdp)
+  !$omp end master
+  !$omp barrier
   do ie = nets , nete
     ! note: eta_dot_dpdn is actually dimension nlev+1, but nlev+1 data is
     ! all zero so we only have to DSS 1:nlev
@@ -437,9 +444,9 @@ contains
     !$omp master
     call minmax_pack(qmin_pack,qmax_pack,emin,emax)
     call laplace_sphere_wk(qtens,grads,deriv,elem,var_coef1,qtens,nlev*qsize,nets,nete)
-    call edgeVpack(edgeq,    qtens,qsize*nlev,0           ,desc_putmapP,desc_reverse,nets,nete)
-    call edgeVpack(edgeq,Qmin_pack,nlev*qsize,nlev*qsize  ,desc_putmapP,desc_reverse,nets,nete)
-    call edgeVpack(edgeq,Qmax_pack,nlev*qsize,2*nlev*qsize,desc_putmapP,desc_reverse,nets,nete)
+    call edgeVpack(edgeq,    qtens,qsize*nlev,0           ,desc_putmapP,desc_reverse,1,1)
+    call edgeVpack(edgeq,Qmin_pack,nlev*qsize,nlev*qsize  ,desc_putmapP,desc_reverse,1,1)
+    call edgeVpack(edgeq,Qmax_pack,nlev*qsize,2*nlev*qsize,desc_putmapP,desc_reverse,1,1)
     !$omp end master
     !$omp barrier
 
@@ -449,9 +456,9 @@ contains
 
     !$omp barrier
     !$omp master
-    call edgeVunpack   (edgeq%buf,edgeq%nlyr,    qtens,qsize*nlev,0           ,desc_getmapP,nets,nete)
-    call edgeVunpackMin(edgeq%buf,edgeq%nlyr,Qmin_pack,qsize*nlev,qsize*nlev  ,desc_getmapP,nets,nete)
-    call edgeVunpackMax(edgeq%buf,edgeq%nlyr,Qmax_pack,qsize*nlev,2*qsize*nlev,desc_getmapP,nets,nete)
+    call edgeVunpack   (edgeq%buf,edgeq%nlyr,    qtens,qsize*nlev,0           ,desc_getmapP,1,1)
+    call edgeVunpackMin(edgeq%buf,edgeq%nlyr,Qmin_pack,qsize*nlev,qsize*nlev  ,desc_getmapP,1,1)
+    call edgeVunpackMax(edgeq%buf,edgeq%nlyr,Qmax_pack,qsize*nlev,2*qsize*nlev,desc_getmapP,1,1)
     !$acc parallel loop gang vector collapse(5) present(qtens,elem(:))
     do ie = 1 , nelemd
       do q = 1 , qsize      
@@ -524,7 +531,7 @@ contains
 !   ouput:  div(v)  spherical divergence of v, integrated by parts
 !   Computes  -< grad(psi) dot v > 
 !   (the integrated by parts version of < psi div(v) > )
-!   note: after DSS, divergence_sphere() and divergence_sphere_wk() 
+!   note: after DSS, divergence_sphere () and divergence_sphere_wk() 
 !   are identical to roundoff, as theory predicts.
     real(kind=real_kind), intent(in) :: v(np,np,2,len,nelemd)  ! in lat-lon coordinates
     type (derivative_t) , intent(in) :: deriv
@@ -624,8 +631,8 @@ contains
     !$omp barrier
     !$omp master
     call minmax_pack(qmin_pack,qmax_pack,min_neigh,max_neigh)
-    call edgeVpack(edgeMinMax,Qmin_pack,nlev*qsize,0         ,desc_putmapP,desc_reverse,nets,nete)
-    call edgeVpack(edgeMinMax,Qmax_pack,nlev*qsize,nlev*qsize,desc_putmapP,desc_reverse,nets,nete)
+    call edgeVpack(edgeMinMax,Qmin_pack,nlev*qsize,0         ,desc_putmapP,desc_reverse,1,1)
+    call edgeVpack(edgeMinMax,Qmax_pack,nlev*qsize,nlev*qsize,desc_putmapP,desc_reverse,1,1)
     !$omp end master
     !$omp barrier
 
@@ -635,8 +642,8 @@ contains
        
     !$omp barrier
     !$omp master
-    call edgeVunpackMin(edgeMinMax%buf,edgeMinMax%nlyr,Qmin_pack,nlev*qsize,0         ,desc_getmapP,nets,nete)
-    call edgeVunpackMax(edgeMinMax%buf,edgeMinMax%nlyr,Qmax_pack,nlev*qsize,nlev*qsize,desc_getmapP,nets,nete)
+    call edgeVunpackMin(edgeMinMax%buf,edgeMinMax%nlyr,Qmin_pack,nlev*qsize,0         ,desc_getmapP,1,1)
+    call edgeVunpackMax(edgeMinMax%buf,edgeMinMax%nlyr,Qmax_pack,nlev*qsize,nlev*qsize,desc_getmapP,1,1)
     call minmax_reduce_corners(qmin_pack,qmax_pack,min_neigh,max_neigh)
     !$omp end master
     !$omp barrier
@@ -685,7 +692,7 @@ contains
     enddo
   end subroutine minmax_reduce_corners
 
-  subroutine edgeVpack(edge,v,vlyr,kptr,putmapP,reverse,nets,nete)
+  subroutine edgeVpack(edge,v,vlyr,kptr,putmapP,reverse,tdim,tl)
     use dimensions_mod, only : max_corner_elem
     use control_mod   , only : north, south, east, west, neast, nwest, seast, swest
     use perf_mod      , only : t_startf, t_stopf
@@ -694,11 +701,11 @@ contains
     use edge_mod      , only : EdgeBuffer_t
     type (EdgeBuffer_t)    ,intent(inout) :: edge
     integer                ,intent(in   ) :: vlyr
-    real (kind=real_kind)  ,intent(in   ) :: v(np,np,vlyr,nelemd)
+    real (kind=real_kind)  ,intent(in   ) :: v(np,np,vlyr,tdim,nelemd)
     integer                ,intent(in   ) :: kptr
     integer(kind=int_kind) ,intent(in   ) :: putmapP(max_neigh_edges,nelemd)
     logical(kind=log_kind) ,intent(in   ) :: reverse(max_neigh_edges,nelemd)
-    integer                ,intent(in   ) :: nets,nete
+    integer                ,intent(in   ) :: tdim,tl
     ! Local variables
     integer :: i,k,ir,ll,is,ie,in,iw,el
     call t_startf('edge_pack')
@@ -707,40 +714,40 @@ contains
     do el = 1 , nelemd
       do k = 1 , vlyr
         do i = 1 , np
-          edge%buf(kptr+k,putmapP(south,el)+i) = v(i ,1 ,k,el)
-          edge%buf(kptr+k,putmapP(east ,el)+i) = v(np,i ,k,el)
-          edge%buf(kptr+k,putmapP(north,el)+i) = v(i ,np,k,el)
-          edge%buf(kptr+k,putmapP(west ,el)+i) = v(1 ,i ,k,el)
+          edge%buf(kptr+k,putmapP(south,el)+i) = v(i ,1 ,k,tl,el)
+          edge%buf(kptr+k,putmapP(east ,el)+i) = v(np,i ,k,tl,el)
+          edge%buf(kptr+k,putmapP(north,el)+i) = v(i ,np,k,tl,el)
+          edge%buf(kptr+k,putmapP(west ,el)+i) = v(1 ,i ,k,tl,el)
         enddo
         do i = 1 , np
           ir = np-i+1
-          if(reverse(south,el)) edge%buf(kptr+k,putmapP(south,el)+ir) = v(i ,1 ,k,el)
-          if(reverse(east ,el)) edge%buf(kptr+k,putmapP(east ,el)+ir) = v(np,i ,k,el)
-          if(reverse(north,el)) edge%buf(kptr+k,putmapP(north,el)+ir) = v(i ,np,k,el)
-          if(reverse(west ,el)) edge%buf(kptr+k,putmapP(west ,el)+ir) = v(1 ,i ,k,el)
+          if(reverse(south,el)) edge%buf(kptr+k,putmapP(south,el)+ir) = v(i ,1 ,k,tl,el)
+          if(reverse(east ,el)) edge%buf(kptr+k,putmapP(east ,el)+ir) = v(np,i ,k,tl,el)
+          if(reverse(north,el)) edge%buf(kptr+k,putmapP(north,el)+ir) = v(i ,np,k,tl,el)
+          if(reverse(west ,el)) edge%buf(kptr+k,putmapP(west ,el)+ir) = v(1 ,i ,k,tl,el)
         enddo
         do i = 1 , max_corner_elem
-          ll = swest+0*max_corner_elem+i-1; if(putmapP(ll,el) /= -1) edge%buf(kptr+k,putmapP(ll,el)+1) = v(1 ,1 ,k,el)
-          ll = swest+1*max_corner_elem+i-1; if(putmapP(ll,el) /= -1) edge%buf(kptr+k,putmapP(ll,el)+1) = v(np,1 ,k,el)
-          ll = swest+2*max_corner_elem+i-1; if(putmapP(ll,el) /= -1) edge%buf(kptr+k,putmapP(ll,el)+1) = v(1 ,np,k,el)
-          ll = swest+3*max_corner_elem+i-1; if(putmapP(ll,el) /= -1) edge%buf(kptr+k,putmapP(ll,el)+1) = v(np,np,k,el)
+          ll = swest+0*max_corner_elem+i-1; if(putmapP(ll,el) /= -1) edge%buf(kptr+k,putmapP(ll,el)+1) = v(1 ,1 ,k,tl,el)
+          ll = swest+1*max_corner_elem+i-1; if(putmapP(ll,el) /= -1) edge%buf(kptr+k,putmapP(ll,el)+1) = v(np,1 ,k,tl,el)
+          ll = swest+2*max_corner_elem+i-1; if(putmapP(ll,el) /= -1) edge%buf(kptr+k,putmapP(ll,el)+1) = v(1 ,np,k,tl,el)
+          ll = swest+3*max_corner_elem+i-1; if(putmapP(ll,el) /= -1) edge%buf(kptr+k,putmapP(ll,el)+1) = v(np,np,k,tl,el)
         enddo
       enddo
     enddo
     call t_stopf('edge_pack')
   end subroutine edgeVpack
 
-  subroutine edgeVunpack(edgebuf,nlyr,v,vlyr,kptr,getmapP,nets,nete)
+  subroutine edgeVunpack(edgebuf,nlyr,v,vlyr,kptr,getmapP,tdim,tl)
     use dimensions_mod, only : np, max_corner_elem
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
     use perf_mod, only: t_startf, t_stopf
     real(kind=real_kind)  , intent(in   ) :: edgebuf(nlyr,nbuf)
     integer               , intent(in   ) :: nlyr
     integer               , intent(in   ) :: vlyr
-    real(kind=real_kind)  , intent(inout) :: v(np,np,vlyr,nelemd)
+    real(kind=real_kind)  , intent(inout) :: v(np,np,vlyr,tdim,nelemd)
     integer               , intent(in   ) :: kptr
     integer(kind=int_kind), intent(in   ) :: getmapP(max_neigh_edges,nelemd)
-    integer                ,intent(in   ) :: nets,nete
+    integer                ,intent(in   ) :: tdim,tl
     ! Local
     integer :: i,k,ll,is,ie,in,iw,el
     call t_startf('edge_unpack')
@@ -748,33 +755,33 @@ contains
     do el = 1 , nelemd
       do k = 1 , vlyr
         do i = 1 , np
-          v(i ,1 ,k,el) = v(i ,1 ,k,el) + edgebuf(kptr+k,getmapP(south,el)+i)
-          v(np,i ,k,el) = v(np,i ,k,el) + edgebuf(kptr+k,getmapP(east ,el)+i)
-          v(i ,np,k,el) = v(i ,np,k,el) + edgebuf(kptr+k,getmapP(north,el)+i)
-          v(1 ,i ,k,el) = v(1 ,i ,k,el) + edgebuf(kptr+k,getmapP(west ,el)+i)
+          v(i ,1 ,k,tl,el) = v(i ,1 ,k,tl,el) + edgebuf(kptr+k,getmapP(south,el)+i)
+          v(np,i ,k,tl,el) = v(np,i ,k,tl,el) + edgebuf(kptr+k,getmapP(east ,el)+i)
+          v(i ,np,k,tl,el) = v(i ,np,k,tl,el) + edgebuf(kptr+k,getmapP(north,el)+i)
+          v(1 ,i ,k,tl,el) = v(1 ,i ,k,tl,el) + edgebuf(kptr+k,getmapP(west ,el)+i)
         enddo
         do i = 1 , max_corner_elem
-          ll = swest+0*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,1 ,k,el) = v(1 ,1 ,k,el) + edgebuf(kptr+k,getmapP(ll,el)+1)
-          ll = swest+1*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,1 ,k,el) = v(np,1 ,k,el) + edgebuf(kptr+k,getmapP(ll,el)+1)
-          ll = swest+2*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,np,k,el) = v(1 ,np,k,el) + edgebuf(kptr+k,getmapP(ll,el)+1)
-          ll = swest+3*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,np,k,el) = v(np,np,k,el) + edgebuf(kptr+k,getmapP(ll,el)+1)
+          ll = swest+0*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,1 ,k,tl,el) = v(1 ,1 ,k,tl,el) + edgebuf(kptr+k,getmapP(ll,el)+1)
+          ll = swest+1*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,1 ,k,tl,el) = v(np,1 ,k,tl,el) + edgebuf(kptr+k,getmapP(ll,el)+1)
+          ll = swest+2*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,np,k,tl,el) = v(1 ,np,k,tl,el) + edgebuf(kptr+k,getmapP(ll,el)+1)
+          ll = swest+3*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,np,k,tl,el) = v(np,np,k,tl,el) + edgebuf(kptr+k,getmapP(ll,el)+1)
         enddo
       enddo
     enddo
     call t_stopf('edge_unpack')
   end subroutine edgeVunpack
 
-  subroutine edgeVunpackMin(edgebuf,nlyr,v,vlyr,kptr,getmapP,nets,nete)
+  subroutine edgeVunpackMin(edgebuf,nlyr,v,vlyr,kptr,getmapP,tdim,tl)
     use dimensions_mod, only : np, max_corner_elem
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
     use perf_mod, only: t_startf, t_stopf
     real(kind=real_kind)  , intent(in   ) :: edgebuf(nlyr,nbuf)
     integer               , intent(in   ) :: nlyr
     integer               , intent(in   ) :: vlyr
-    real(kind=real_kind)  , intent(inout) :: v(np,np,vlyr,nelemd)
+    real(kind=real_kind)  , intent(inout) :: v(np,np,vlyr,tdim,nelemd)
     integer               , intent(in   ) :: kptr
     integer(kind=int_kind), intent(in   ) :: getmapP(max_neigh_edges,nelemd)
-    integer                ,intent(in   ) :: nets,nete
+    integer                ,intent(in   ) :: tdim,tl
     ! Local
     integer :: i,k,ll,is,ie,in,iw,el
     call t_startf('edge_unpack_min')
@@ -782,33 +789,33 @@ contains
     do el = 1 , nelemd
       do k = 1 , vlyr
         do i = 1 , np
-          v(i ,1 ,k,el) = min(v(i ,1 ,k,el) , edgebuf(kptr+k,getmapP(south,el)+i))
-          v(np,i ,k,el) = min(v(np,i ,k,el) , edgebuf(kptr+k,getmapP(east ,el)+i))
-          v(i ,np,k,el) = min(v(i ,np,k,el) , edgebuf(kptr+k,getmapP(north,el)+i))
-          v(1 ,i ,k,el) = min(v(1 ,i ,k,el) , edgebuf(kptr+k,getmapP(west ,el)+i))
+          v(i ,1 ,k,tl,el) = min(v(i ,1 ,k,tl,el) , edgebuf(kptr+k,getmapP(south,el)+i))
+          v(np,i ,k,tl,el) = min(v(np,i ,k,tl,el) , edgebuf(kptr+k,getmapP(east ,el)+i))
+          v(i ,np,k,tl,el) = min(v(i ,np,k,tl,el) , edgebuf(kptr+k,getmapP(north,el)+i))
+          v(1 ,i ,k,tl,el) = min(v(1 ,i ,k,tl,el) , edgebuf(kptr+k,getmapP(west ,el)+i))
         enddo
         do i = 1 , max_corner_elem
-          ll = swest+0*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,1 ,k,el) = min(v(1 ,1 ,k,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
-          ll = swest+1*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,1 ,k,el) = min(v(np,1 ,k,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
-          ll = swest+2*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,np,k,el) = min(v(1 ,np,k,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
-          ll = swest+3*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,np,k,el) = min(v(np,np,k,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+0*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,1 ,k,tl,el) = min(v(1 ,1 ,k,tl,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+1*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,1 ,k,tl,el) = min(v(np,1 ,k,tl,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+2*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,np,k,tl,el) = min(v(1 ,np,k,tl,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+3*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,np,k,tl,el) = min(v(np,np,k,tl,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
         enddo
       enddo
     enddo
     call t_stopf('edge_unpack_min')
   end subroutine edgeVunpackMin
 
-  subroutine edgeVunpackMax(edgebuf,nlyr,v,vlyr,kptr,getmapP,nets,nete)
+  subroutine edgeVunpackMax(edgebuf,nlyr,v,vlyr,kptr,getmapP,tdim,tl)
     use dimensions_mod, only : np, max_corner_elem
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
     use perf_mod, only: t_startf, t_stopf
     real(kind=real_kind)  , intent(in   ) :: edgebuf(nlyr,nbuf)
     integer               , intent(in   ) :: nlyr
     integer               , intent(in   ) :: vlyr
-    real(kind=real_kind)  , intent(inout) :: v(np,np,vlyr,nelemd)
+    real(kind=real_kind)  , intent(inout) :: v(np,np,vlyr,tdim,nelemd)
     integer               , intent(in   ) :: kptr
     integer(kind=int_kind), intent(in   ) :: getmapP(max_neigh_edges,nelemd)
-    integer                ,intent(in   ) :: nets,nete
+    integer                ,intent(in   ) :: tdim,tl
     ! Local
     integer :: i,k,ll,is,ie,in,iw,el
     call t_startf('edge_unpack_max')
@@ -816,16 +823,16 @@ contains
     do el = 1 , nelemd
       do k = 1 , vlyr
         do i = 1 , np
-          v(i ,1 ,k,el) = max(v(i ,1 ,k,el) , edgebuf(kptr+k,getmapP(south,el)+i))
-          v(np,i ,k,el) = max(v(np,i ,k,el) , edgebuf(kptr+k,getmapP(east ,el)+i))
-          v(i ,np,k,el) = max(v(i ,np,k,el) , edgebuf(kptr+k,getmapP(north,el)+i))
-          v(1 ,i ,k,el) = max(v(1 ,i ,k,el) , edgebuf(kptr+k,getmapP(west ,el)+i))
+          v(i ,1 ,k,tl,el) = max(v(i ,1 ,k,tl,el) , edgebuf(kptr+k,getmapP(south,el)+i))
+          v(np,i ,k,tl,el) = max(v(np,i ,k,tl,el) , edgebuf(kptr+k,getmapP(east ,el)+i))
+          v(i ,np,k,tl,el) = max(v(i ,np,k,tl,el) , edgebuf(kptr+k,getmapP(north,el)+i))
+          v(1 ,i ,k,tl,el) = max(v(1 ,i ,k,tl,el) , edgebuf(kptr+k,getmapP(west ,el)+i))
         enddo
         do i = 1 , max_corner_elem
-          ll = swest+0*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,1 ,k,el) = max(v(1 ,1 ,k,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
-          ll = swest+1*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,1 ,k,el) = max(v(np,1 ,k,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
-          ll = swest+2*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,np,k,el) = max(v(1 ,np,k,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
-          ll = swest+3*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,np,k,el) = max(v(np,np,k,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+0*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,1 ,k,tl,el) = max(v(1 ,1 ,k,tl,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+1*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,1 ,k,tl,el) = max(v(np,1 ,k,tl,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+2*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,np,k,tl,el) = max(v(1 ,np,k,tl,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
+          ll = swest+3*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,np,k,tl,el) = max(v(np,np,k,tl,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
         enddo
       enddo
     enddo
@@ -932,55 +939,66 @@ contains
     !$acc update device(dat(1:len))
   end subroutine update_device
 
-  subroutine limiter2d_zero(Q)
-  ! mass conserving zero limiter (2D only).  to be called just before DSS
-  !
-  ! this routine is called inside a DSS loop, and so Q had already
-  ! been multiplied by the mass matrix.  Thus dont include the mass
-  ! matrix when computing the mass = integral of Q over the element
-  !
-  ! ps is only used when advecting Q instead of Qdp
-  ! so ps should be at one timelevel behind Q
-  implicit none
-  real (kind=real_kind), intent(inout) :: Q(np,np,nlev)
+  subroutine limiter2d_zero(Qdp,tdim,tl)
+    ! mass conserving zero limiter (2D only).  to be called just before DSS
+    !
+    ! this routine is called inside a DSS loop, and so Q had already
+    ! been multiplied by the mass matrix.  Thus dont include the mass
+    ! matrix when computing the mass = integral of Q over the element
+    !
+    ! ps is only used when advecting Q instead of Qdp
+    ! so ps should be at one timelevel behind Q
+    implicit none
+    real (kind=real_kind), intent(inout) :: Qdp(np,np,nlev,qsize,tdim,nelemd)
+    integer              , intent(in   ) :: tdim
+    integer              , intent(in   ) :: tl
 
-  ! local
-  real (kind=real_kind) :: dp(np,np)
-  real (kind=real_kind) :: mass,mass_new,ml
-  integer i,j,k
+    ! local
+    real (kind=real_kind) :: mass,mass_new
+    real (kind=real_kind) :: qtmp(np,np)
+    integer i,j,k,q,ie
 
-  do k = nlev , 1 , -1
-    mass = 0
-    do j = 1 , np
-      do i = 1 , np
-        !ml = Q(i,j,k)*dp(i,j)*spheremp(i,j)  ! see above
-        ml = Q(i,j,k)
-        mass = mass + ml
+    !$acc parallel loop gang vector collapse(3) private(qtmp)
+    do ie = 1 , nelemd
+      do q = 1 , qsize
+        do k = nlev , 1 , -1
+          !$acc cache(qtmp)
+          qtmp = Qdp(:,:,k,q,tl,ie)
+          mass = 0
+          do j = 1 , np
+            do i = 1 , np
+              mass = mass + qtmp(i,j)
+            enddo
+          enddo
+
+          ! negative mass.  so reduce all postive values to zero 
+          ! then increase negative values as much as possible
+          if ( mass < 0 ) qtmp = -qtmp 
+          mass_new = 0
+          do j = 1 , np
+            do i = 1 , np
+              if ( qtmp(i,j) < 0 ) then
+                qtmp(i,j) = 0
+              else
+                mass_new = mass_new + qtmp(i,j)
+              endif
+            enddo
+          enddo
+
+          ! now scale the all positive values to restore mass
+          if ( mass_new > 0 ) qtmp = qtmp * abs(mass) / mass_new
+          if ( mass     < 0 ) qtmp = -qtmp 
+          Qdp(:,:,k,q,tl,ie) = qtmp
+        enddo
       enddo
     enddo
-
-    ! negative mass.  so reduce all postive values to zero 
-    ! then increase negative values as much as possible
-    if ( mass < 0 ) Q(:,:,k) = -Q(:,:,k) 
-    mass_new = 0
-    do j = 1 , np
-      do i = 1 , np
-        if ( Q(i,j,k) < 0 ) then
-          Q(i,j,k) = 0
-        else
-          ml = Q(i,j,k)
-          mass_new = mass_new + ml
-        endif
-      enddo
-    enddo
-
-    ! now scale the all positive values to restore mass
-    if ( mass_new > 0 ) Q(:,:,k) = Q(:,:,k) * abs(mass) / mass_new
-    if ( mass     < 0 ) Q(:,:,k) = -Q(:,:,k) 
-  enddo
   end subroutine limiter2d_zero
 
-  subroutine limiter_optim_iter_full(ptens,sphweights,minp,maxp,dpmass)
+  subroutine limiter_optim_iter_full(ptens,elem,minp,maxp,dpmass)
+    use element_mod, only: element_t
+    use kinds         , only : real_kind
+    use dimensions_mod, only : np, np, nlev
+    implicit none
     !THIS IS A NEW VERSION OF LIM8, POTENTIALLY FASTER BECAUSE INCORPORATES KNOWLEDGE FROM
     !PREVIOUS ITERATIONS
     
@@ -990,16 +1008,13 @@ contains
     !to a closest constraint. This way we introduce some mass change (addmass),
     !so, we redistribute addmass in the way that l2 error is smallest. 
     !This redistribution might violate constraints thus, we do a few iterations. 
-    use kinds         , only : real_kind
-    use dimensions_mod, only : np, np, nlev
-    real (kind=real_kind), dimension(np*np,nlev), intent(inout)            :: ptens
-    real (kind=real_kind), dimension(np*np     ), intent(in   )            :: sphweights
-    real (kind=real_kind), dimension(      nlev), intent(inout)            :: minp
-    real (kind=real_kind), dimension(      nlev), intent(inout)            :: maxp
-    real (kind=real_kind), dimension(np*np,nlev), intent(in   ), optional  :: dpmass
+    real (kind=real_kind), intent(inout) :: ptens (np*np,nlev,qsize,nelemd)
+    type(element_t)      , intent(in   ) :: elem  (:)
+    real (kind=real_kind), intent(inout) :: minp  (      nlev,qsize,nelemd)
+    real (kind=real_kind), intent(inout) :: maxp  (      nlev,qsize,nelemd)
+    real (kind=real_kind), intent(in   ) :: dpmass(np*np,nlev      ,nelemd)
  
-    real (kind=real_kind), dimension(np*np,nlev) :: weights
-    integer  k1, k, i, j, iter, i1, i2
+    integer  k1, k, i, j, iter, i1, i2, q, ie
     integer :: whois_neg(np*np), whois_pos(np*np), neg_counter, pos_counter
     real (kind=real_kind) :: addmass, weightssum, mass
     real (kind=real_kind) :: x(np*np),c(np*np)
@@ -1007,134 +1022,134 @@ contains
     real (kind=real_kind) :: tol_limiter = 1e-15
     integer, parameter :: maxiter = 5
 
-    do k = 1 , nlev
-      weights(:,k) = sphweights(:) * dpmass(:,k)
-      ptens(:,k) = ptens(:,k) / dpmass(:,k)
-    enddo
+    !$acc parallel loop gang vector collapse(3) present(ptens,elem(:),minp,maxp,dpmass) private(c,x,whois_neg,whois_pos,al_neg,al_pos)
+    do ie = 1 , nelemd
+      do q = 1 , qsize
+        do k = 1 , nlev
+          !$acc cache(c,x)
+          do k1 = 1 , np*np
+            i = modulo(k1-1,np)+1
+            j = (k1-1)/np+1
+            c(k1) = elem(ie)%spheremp(i,j) * dpmass(k1,k,ie)
+            x(k1) = ptens(k1,k,q,ie) / dpmass(k1,k,ie)
+          enddo
 
-    do k = 1 , nlev
-      c = weights(:,k)
-      x = ptens(:,k)
+          mass = sum(c*x)
 
-      mass = sum(c*x)
+          ! relax constraints to ensure limiter has a solution:
+          ! This is only needed if runnign with the SSP CFL>1 or 
+          ! due to roundoff errors
+          if( (mass / sum(c)) < minp(k,q,ie) ) then
+            minp(k,q,ie) = mass / sum(c)
+          endif
+          if( (mass / sum(c)) > maxp(k,q,ie) ) then
+            maxp(k,q,ie) = mass / sum(c)
+          endif
 
-      ! relax constraints to ensure limiter has a solution:
-      ! This is only needed if runnign with the SSP CFL>1 or 
-      ! due to roundoff errors
-      if( (mass / sum(c)) < minp(k) ) then
-        minp(k) = mass / sum(c)
-      endif
-      if( (mass / sum(c)) > maxp(k) ) then
-        maxp(k) = mass / sum(c)
-      endif
-
-      addmass = 0.0d0
-      pos_counter = 0;
-      neg_counter = 0;
-      
-      ! apply constraints, compute change in mass caused by constraints 
-      do k1 = 1 , np*np
-        if ( ( x(k1) >= maxp(k) ) ) then
-          addmass = addmass + ( x(k1) - maxp(k) ) * c(k1)
-          x(k1) = maxp(k)
-          whois_pos(k1) = -1
-        else
-          pos_counter = pos_counter+1;
-          whois_pos(pos_counter) = k1;
-        endif
-        if ( ( x(k1) <= minp(k) ) ) then
-          addmass = addmass - ( minp(k) - x(k1) ) * c(k1)
-          x(k1) = minp(k)
-          whois_neg(k1) = -1
-        else
-          neg_counter = neg_counter+1;
-          whois_neg(neg_counter) = k1;
-        endif
-      enddo
-      
-      ! iterate to find field that satifies constraints and is l2-norm closest to original 
-      weightssum = 0.0d0
-      if ( addmass > 0 ) then
-        do i2 = 1 , maxIter
-          weightssum = 0.0
-          do k1 = 1 , pos_counter
-            i1 = whois_pos(k1)
-            weightssum = weightssum + c(i1)
-            al_pos(i1) = maxp(k) - x(i1)
+          addmass = 0.0d0
+          pos_counter = 0;
+          neg_counter = 0;
+          
+          ! apply constraints, compute change in mass caused by constraints 
+          do k1 = 1 , np*np
+            if ( ( x(k1) >= maxp(k,q,ie) ) ) then
+              addmass = addmass + ( x(k1) - maxp(k,q,ie) ) * c(k1)
+              x(k1) = maxp(k,q,ie)
+              whois_pos(k1) = -1
+            else
+              pos_counter = pos_counter+1;
+              whois_pos(pos_counter) = k1;
+            endif
+            if ( ( x(k1) <= minp(k,q,ie) ) ) then
+              addmass = addmass - ( minp(k,q,ie) - x(k1) ) * c(k1)
+              x(k1) = minp(k,q,ie)
+              whois_neg(k1) = -1
+            else
+              neg_counter = neg_counter+1;
+              whois_neg(neg_counter) = k1;
+            endif
           enddo
           
-          if( ( pos_counter > 0 ) .and. ( addmass > tol_limiter * abs(mass) ) ) then
-            do k1 = 1 , pos_counter
-              i1 = whois_pos(k1)
-              howmuch = addmass / weightssum
-              if ( howmuch > al_pos(i1) ) then
-                howmuch = al_pos(i1)
-                whois_pos(k1) = -1
-              endif
-              addmass = addmass - howmuch * c(i1)
-              weightssum = weightssum - c(i1)
-              x(i1) = x(i1) + howmuch
-            enddo
-            !now sort whois_pos and get a new number for pos_counter
-            !here neg_counter and whois_neg serve as temp vars
-            neg_counter = pos_counter
-            whois_neg = whois_pos
-            whois_pos = -1
-            pos_counter = 0
-            do k1 = 1 , neg_counter
-              if ( whois_neg(k1) .ne. -1 ) then
-                pos_counter = pos_counter+1
-                whois_pos(pos_counter) = whois_neg(k1)
+          ! iterate to find field that satifies constraints and is l2-norm closest to original 
+          weightssum = 0.0d0
+          if ( addmass > 0 ) then
+            do i2 = 1 , maxIter
+              weightssum = 0.0
+              do k1 = 1 , pos_counter
+                i1 = whois_pos(k1)
+                weightssum = weightssum + c(i1)
+                al_pos(i1) = maxp(k,q,ie) - x(i1)
+              enddo
+              
+              if( ( pos_counter > 0 ) .and. ( addmass > tol_limiter * abs(mass) ) ) then
+                do k1 = 1 , pos_counter
+                  i1 = whois_pos(k1)
+                  howmuch = addmass / weightssum
+                  if ( howmuch > al_pos(i1) ) then
+                    howmuch = al_pos(i1)
+                    whois_pos(k1) = -1
+                  endif
+                  addmass = addmass - howmuch * c(i1)
+                  weightssum = weightssum - c(i1)
+                  x(i1) = x(i1) + howmuch
+                enddo
+                !now sort whois_pos and get a new number for pos_counter
+                !here neg_counter and whois_neg serve as temp vars
+                neg_counter = pos_counter
+                whois_neg = whois_pos
+                whois_pos = -1
+                pos_counter = 0
+                do k1 = 1 , neg_counter
+                  if ( whois_neg(k1) .ne. -1 ) then
+                    pos_counter = pos_counter+1
+                    whois_pos(pos_counter) = whois_neg(k1)
+                  endif
+                enddo
+              else
+                exit
               endif
             enddo
           else
-            exit
+             do i2 = 1 , maxIter
+               weightssum = 0.0
+               do k1 = 1 , neg_counter
+                 i1 = whois_neg(k1)
+                 weightssum = weightssum + c(i1)
+                 al_neg(i1) = x(i1) - minp(k,q,ie)
+               enddo
+               
+               if ( ( neg_counter > 0 ) .and. ( (-addmass) > tol_limiter * abs(mass) ) ) then
+                 do k1 = 1 , neg_counter
+                   i1 = whois_neg(k1)
+                   howmuch = -addmass / weightssum
+                   if ( howmuch > al_neg(i1) ) then
+                     howmuch = al_neg(i1)
+                     whois_neg(k1) = -1
+                   endif
+                   addmass = addmass + howmuch * c(i1)
+                   weightssum = weightssum - c(i1)
+                   x(i1) = x(i1) - howmuch
+                 enddo
+                 !now sort whois_pos and get a new number for pos_counter
+                 !here pos_counter and whois_pos serve as temp vars
+                 pos_counter = neg_counter
+                 whois_pos = whois_neg
+                 whois_neg = -1
+                 neg_counter = 0
+                 do k1 = 1 , pos_counter
+                   if ( whois_pos(k1) .ne. -1 ) then
+                     neg_counter = neg_counter+1
+                     whois_neg(neg_counter) = whois_pos(k1)
+                   endif
+                 enddo
+               else
+                 exit
+               endif
+             enddo
           endif
+          ptens(:,k,q,ie) = x * dpmass(:,k,ie)
         enddo
-      else
-         do i2 = 1 , maxIter
-           weightssum = 0.0
-           do k1 = 1 , neg_counter
-             i1 = whois_neg(k1)
-             weightssum = weightssum + c(i1)
-             al_neg(i1) = x(i1) - minp(k)
-           enddo
-           
-           if ( ( neg_counter > 0 ) .and. ( (-addmass) > tol_limiter * abs(mass) ) ) then
-             do k1 = 1 , neg_counter
-               i1 = whois_neg(k1)
-               howmuch = -addmass / weightssum
-               if ( howmuch > al_neg(i1) ) then
-                 howmuch = al_neg(i1)
-                 whois_neg(k1) = -1
-               endif
-               addmass = addmass + howmuch * c(i1)
-               weightssum = weightssum - c(i1)
-               x(i1) = x(i1) - howmuch
-             enddo
-             !now sort whois_pos and get a new number for pos_counter
-             !here pos_counter and whois_pos serve as temp vars
-             pos_counter = neg_counter
-             whois_pos = whois_neg
-             whois_neg = -1
-             neg_counter = 0
-             do k1 = 1 , pos_counter
-               if ( whois_pos(k1) .ne. -1 ) then
-                 neg_counter = neg_counter+1
-                 whois_neg(neg_counter) = whois_pos(k1)
-               endif
-             enddo
-           else
-             exit
-           endif
-         enddo
-      endif
-      
-      ptens(:,k) = x
-    enddo
-    
-    do k = 1 , nlev
-      ptens(:,k) = ptens(:,k) * dpmass(:,k)
+      enddo
     enddo
   end subroutine limiter_optim_iter_full
 
@@ -1197,7 +1212,7 @@ contains
           do j = 1 , np
             do i = 1 , np
               k = (kc-1)*kchunk+kk
-              if (k <= nlev) then
+              if (k <= len) then
                 gv(i,j,kk,1)=elem(ie)%metdet(i,j)*(elem(ie)%Dinv(1,1,i,j)*v(i,j,1,k,ie) + elem(ie)%Dinv(1,2,i,j)*v(i,j,2,k,ie))
                 gv(i,j,kk,2)=elem(ie)%metdet(i,j)*(elem(ie)%Dinv(2,1,i,j)*v(i,j,1,k,ie) + elem(ie)%Dinv(2,2,i,j)*v(i,j,2,k,ie))
               endif
@@ -1210,7 +1225,7 @@ contains
           do j = 1 , np
             do i = 1 , np
               k = (kc-1)*kchunk+kk
-              if (k <= nlev) then
+              if (k <= len) then
                 dudx00=0.0d0
                 dvdy00=0.0d0
                 do l = 1 , np
