@@ -4,6 +4,12 @@
 !#define _DBG_ print *,"File:",__FILE__," at ",__LINE__
 !#define _DBG_ !DBG
 !
+#ifdef CUDA_DEBUG
+#define _CHECK(line) ierr = cudaThreadSynchronize(); if (ierr .ne. 0) stop line
+#else
+#define _CHECK(line)
+#endif
+
 !
 module prim_advance_oacc_mod
   use edge_mod, only : EdgeBuffer_t
@@ -14,11 +20,59 @@ module prim_advance_oacc_mod
   private
   save
    public :: compute_and_apply_oacc_rhs
+   public :: prim_advance_oacc_init, prim_advance_oacc_exit
 !  public :: prim_advance_exp, prim_advance_si, prim_advance_init, preq_robert3,&
 !       applyCAMforcing_dynamics, applyCAMforcing, smooth_phis, overwrite_SEdensity
 
+  !device arrays:
+ ! real (kind=real_kind),allocatable, dimension(:,:)      :: ps_oacc         ! surface pressure for current tiime level
+  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: phi_oacc
+
 contains
 
+ subroutine prim_advance_oacc_init(elem, hvcoord, deriv,nets,nete)
+  use kinds, only : real_kind
+  use dimensions_mod, only : np, nc, nlev, ntrac, max_corner_elem
+  use element_mod, only : element_t !uncomment after merge , PrintElem
+  use derivative_mod, only : derivative_t, divergence_sphere, gradient_sphere, vorticity_sphere
+  use hybvcoord_mod, only : hvcoord_t
+
+ implicit none
+ 
+    type(element_t)      , intent(in) :: elem(:)
+    type (hvcoord_t)     , intent(in) :: hvcoord
+    type (derivative_t)  , intent(in) :: deriv
+    integer              , intent(in) :: nets,nete
+    integer :: i, j, k, l, ie, nelem
+    integer :: ierr 
+
+   nelem = nete-nets
+
+   allocate( phi_oacc  (np, np, nlev  , nete+1 ) , stat = ierr ); _CHECK(__LINE__)
+
+   do ie=nets,nete
+     do i=1,np
+       do j=1,np
+         do k=1,nlev
+           phi_oacc(i,j,k,ie)=elem(ie)%derived%phi(i,j,k)
+         enddo
+       enddo
+     enddo
+   enddo
+
+
+   !$acc enter data pcopyin( phi_oacc, hvcoord%hyai, hvcoord%hybi, hvcoord%hyam, hvcoord%hybm, &
+   !$acc&                    elem(nets:nete))
+
+ 
+ end subroutine prim_advance_oacc_init
+
+
+ subroutine prim_advance_oacc_exit( )
+ implicit none
+
+   !$acc exit data
+ end subroutine prim_advance_oacc_exit
   
   subroutine compute_and_apply_oacc_rhs(np1,nm1,n0,qn0,dt2,elem,hvcoord,hybrid,&
        deriv,nets,nete,compute_diagnostics,eta_ave_w, edge3p1)
@@ -61,7 +115,7 @@ contains
   use control_mod, only : moisture, qsplit, use_cpstar, rsplit, swest
   use hybvcoord_mod, only : hvcoord_t
 
-  use physical_constants, only : cp, cpwater_vapor, Rgas, kappa, rrearth
+  use physical_constants, only : cp, cpwater_vapor, Rgas, kappa, rrearth, Rwater_vapor
   use physics_mod, only : virtual_specific_heat, virtual_temperature
   use prim_si_mod, only : preq_vertadv, preq_omega_ps, preq_hydrostatic
 #if ( defined CAM ) 
@@ -83,8 +137,8 @@ contains
   real (kind=real_kind) :: eta_ave_w  ! weighting for eta_dot_dpdn mean flux
 
   ! local
-  real (kind=real_kind), pointer, dimension(:,:)      :: ps         ! surface pressure for current tiime level
-  real (kind=real_kind), pointer, dimension(:,:,:)   :: phi
+!  real (kind=real_kind), pointer, dimension(:,:)      :: ps         ! surface pressure for current tiime level
+!  real (kind=real_kind), pointer, dimension(:,:,:)   :: phi
 
   real (kind=real_kind), dimension(np,np,nlev)   :: omega_p       
   real (kind=real_kind), dimension(np,np,nlev)   :: T_v         
@@ -124,7 +178,7 @@ contains
   real(kind=real_kind) ::  dsdy00
   real(kind=real_kind) ::  v_tmp1(np,np),v_tmp2(np,np), gv(np,np,2)
   real(kind=real_kind) hkk,hkl, term          ! diagonal term of energy conversion matrix
-  real(kind=real_kind), dimension(np,np,nlev) :: phii       ! Geopotential at interfaces
+  real(kind=real_kind), dimension(np,np,nlev) :: phii, phi      ! Geopotential at interfaces
   integer :: i,j,k,l,kptr,ie
   real (kind=real_kind) ::  u_m_umet, v_m_vmet, t_m_tmet
 
@@ -136,10 +190,15 @@ contains
  !$OMP BARRIER
  if (hybrid%ithr == 0) then
 
+
+!  !$acc update device( elem(nets:nete))
+! !$acc parallel loop gang vector private(dsdx00, dsdy00) &
+! !$acc&               present(phi_oacc) &
+! !$acc&               pcopyin(np1, nm1, qn0,dt2, nets,nete, &
+! !$acc&                       compute_diagnostics,eta_ave_w)
+
   do ie=nets,nete
-     !ps => elem(ie)%state%ps_v(:,:,n0)
-     phi => elem(ie)%derived%phi(:,:,:)
-     
+
      ! ==================================================
      ! compute pressure (p) on half levels from ps 
      ! using the hybrid coordinates relationship, i.e.
@@ -355,9 +414,11 @@ contains
               do i=1,np
                  ! Qt = elem(ie)%state%Q(i,j,k,1) 
                  Qt = elem(ie)%state%Qdp(i,j,k,1,qn0)/dp(i,j,k)
-                 T_v(i,j,k) = Virtual_Temperature(elem(ie)%state%T(i,j,k,n0),Qt)
+                 !T_v(i,j,k) = Virtual_Temperature(elem(ie)%state%T(i,j,k,n0),Qt)
+                  T_v(i,j,k) = elem(ie)%state%T(i,j,k,n0)*(1_real_kind + (Rwater_vapor/Rgas - 1.0_real_kind)*Qt)
                  if (use_cpstar==1) then
-                    kappa_star(i,j,k) =  Rgas/Virtual_Specific_Heat(Qt)
+                    !kappa_star(i,j,k) =  Rgas/Virtual_Specific_Heat(Qt)
+                    kappa_star(i,j,k) =  Rgas/Cp*(1.0_real_kind + (Cpwater_vapor/Cp - 1.0_real_kind)*Qt)
                  else
                     kappa_star(i,j,k) = kappa
                  endif
@@ -379,7 +440,7 @@ contains
              hkk = dp(i,j,nlev)*0.5d0/p(i,j,nlev)
              hkl = 2*hkk
              phii(i,j,nlev)  = Rgas*T_v(i,j,nlev)*hkl
-             phi(i,j,nlev) = elem(ie)%state%phis(i,j) + Rgas*T_v(i,j,nlev)*hkk
+             phi_oacc(i,j,nlev,ie) = elem(ie)%state%phis(i,j) + Rgas*T_v(i,j,nlev)*hkk
           end do
 
           do k=nlev-1,2,-1
@@ -388,14 +449,14 @@ contains
                 hkk = dp(i,j,k)*0.5d0/p(i,j,k)
                 hkl = 2*hkk
                 phii(i,j,k) = phii(i,j,k+1) + Rgas*T_v(i,j,k)*hkl
-                phi(i,j,k) = elem(ie)%state%phis(i,j) + phii(i,j,k+1) + Rgas*T_v(i,j,k)*hkk
+                phi_oacc(i,j,k,ie) = elem(ie)%state%phis(i,j) + phii(i,j,k+1) + Rgas*T_v(i,j,k)*hkk
              end do
           end do
 
           do i=1,np
              ! hkk = dp*ckk
              hkk = 0.5d0*dp(i,j,1)/p(i,j,1)
-             phi(i,j,1) = elem(ie)%state%phis(i,j) + phii(i,j,2) + Rgas*T_v(i,j,1)*hkk
+             phi_oacc(i,j,1,ie) = elem(ie)%state%phis(i,j) + phii(i,j,2) + Rgas*T_v(i,j,1)*hkk
           end do
 
        end do
@@ -591,7 +652,7 @@ contains
               v1     = elem(ie)%state%v(i,j,1,k,n0)
               v2     = elem(ie)%state%v(i,j,2,k,n0)
               E = 0.5D0*( v1*v1 + v2*v2 )
-              Ephi(i,j)=E+phi(i,j,k)+elem(ie)%derived%pecnd(i,j,k)
+              Ephi(i,j)=E+phi_oacc(i,j,k,ie)+elem(ie)%derived%pecnd(i,j,k)
            end do
         end do
         ! ================================================
@@ -818,8 +879,8 @@ contains
              dsdx00=0.0d0
              dsdy00=0.0d0
               do i=1,np
-               dsdx00 = dsdx00 + deriv%Dvv(i,l  )*phi(i,j,k)
-               dsdy00 = dsdy00 + deriv%Dvv(i,l  )*phi(j,i,k)
+               dsdx00 = dsdx00 + deriv%Dvv(i,l  )*phi_oacc(i,j,k,ie)
+               dsdy00 = dsdy00 + deriv%Dvv(i,l  )*phi_oacc(j,i,k,ie)
               enddo
               v_tmp1(l  ,j  ) = dsdx00*rrearth
               v_tmp2(j  ,l  ) = dsdy00*rrearth
@@ -1016,7 +1077,10 @@ contains
 
      endif
 
-     
+  enddo
+
+
+  do ie=nets,nete     
      ! =========================================================
      !
      ! Pack ps(np1), T, and v tendencies into comm buffer

@@ -87,6 +87,10 @@ contains
 #ifndef CAM
     use asp_tests, only : asp_advection_vertical 
 #endif
+#if USE_OPENACC
+  use prim_advance_oacc_mod, only: prim_advance_oacc_init
+#endif
+
 
     implicit none
 
@@ -158,6 +162,9 @@ contains
        call TimeLevel_Qdp(tl, qsplit, qn0)  ! compute current Qdp() timelevel
     endif
      
+#if USE_OPENACC
+    call prim_advance_oacc_init(elem, hvcoord, deriv,nets,nete) 
+#endif 
 
 ! integration = "explicit"
 !
