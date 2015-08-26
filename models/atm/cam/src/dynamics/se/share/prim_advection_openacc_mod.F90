@@ -780,12 +780,12 @@ contains
     ! Local
     integer, parameter :: kchunk = 8
     integer :: i,j,l,k,ie,kc,kk
-    real(kind=real_kind) :: vtemp(np,np,2,kchunk), tmp
+    real(kind=real_kind) :: vtemp(np,np,2,kchunk), tmp, deriv_tmp(np,np)
     ! latlon- > contra
-    !$acc parallel loop gang collapse(2) present(v,elem(:),div) private(vtemp)
+    !$acc parallel loop gang collapse(2) present(v,elem(:),div) private(vtemp,deriv_tmp)
     do ie = 1 , nelemd
       do kc = 1 , len/kchunk+1
-        !$acc cache(vtemp)
+        !$acc cache(vtemp,deriv_tmp)
         !$acc loop vector collapse(3)
         do kk = 1 , kchunk
           do j = 1 , np
@@ -795,6 +795,7 @@ contains
                 vtemp(i,j,1,kk)=elem(ie)%spheremp(i,j)*(elem(ie)%Dinv(1,1,i,j)*v(i,j,1,k,ie) + elem(ie)%Dinv(1,2,i,j)*v(i,j,2,k,ie))
                 vtemp(i,j,2,kk)=elem(ie)%spheremp(i,j)*(elem(ie)%Dinv(2,1,i,j)*v(i,j,1,k,ie) + elem(ie)%Dinv(2,2,i,j)*v(i,j,2,k,ie))
               endif
+              if (kk == 1) deriv_tmp(i,j) = deriv%Dvv(i,j)
             enddo
           enddo
         enddo
@@ -806,7 +807,7 @@ contains
               if (k <= len) then
                 tmp = 0.
                 do l = 1 , np
-                  tmp = tmp - ( vtemp(l,j,1,kk)*deriv%Dvv(i,l) + vtemp(i,l,2,kk)*deriv%Dvv(j,l) )
+                  tmp = tmp - ( vtemp(l,j,1,kk)*deriv_tmp(i,l) + vtemp(i,l,2,kk)*deriv_tmp(j,l) )
                 enddo
                 div(i,j,k,ie) = tmp * rrearth
               endif
@@ -830,21 +831,41 @@ contains
     integer             , intent(in) :: len
     integer             , intent(in) :: nets,nete
     real(kind=real_kind)             :: ds(np,np,2,len,nelemd)
-    integer :: i, j, l, k, ie
+    integer, parameter :: kchunk = 8
+    integer :: i, j, l, k, ie, kc, kk
     real(kind=real_kind) :: dsdx00, dsdy00
-    !$acc parallel loop gang vector collapse(4) present(ds,elem(:),s)
+    real(kind=real_kind) :: stmp(np,np,kchunk), deriv_tmp(np,np)
+    !$acc parallel loop gang collapse(2) present(ds,elem(:),s,deriv%Dvv) private(stmp,deriv_tmp)
     do ie = 1 , nelemd
-      do k = 1 , len
-        do j = 1 , np
-          do i = 1 , np
-            dsdx00=0.0d0
-            dsdy00=0.0d0
-            do l = 1 , np
-              dsdx00 = dsdx00 + deriv%Dvv(l,i)*s(l,j,k,ie)
-              dsdy00 = dsdy00 + deriv%Dvv(l,j)*s(i,l,k,ie)
+      do kc = 1 , len/kchunk+1
+        !$acc cache(stmp,deriv_tmp)
+        !$acc loop vector collapse(3)
+        do kk = 1 , kchunk
+          do j = 1 , np
+            do i = 1 , np
+              k = (kc-1)*kchunk+kk
+              if (k > len) k = len
+              stmp(i,j,kk) = s(i,j,k,ie)
+              if (kk == 1) deriv_tmp(i,j) = deriv%Dvv(i,j)
             enddo
-            ds(i,j,1,k,ie) = ( elem(ie)%Dinv(1,1,i,j)*dsdx00 + elem(ie)%Dinv(2,1,i,j)*dsdy00 ) * rrearth
-            ds(i,j,2,k,ie) = ( elem(ie)%Dinv(1,2,i,j)*dsdx00 + elem(ie)%Dinv(2,2,i,j)*dsdy00 ) * rrearth
+          enddo
+        enddo
+        !$acc loop vector collapse(3)
+        do kk = 1 , kchunk
+          do j = 1 , np
+            do i = 1 , np
+              k = (kc-1)*kchunk+kk
+              if (k <= len) then
+                dsdx00=0.0d0
+                dsdy00=0.0d0
+                do l = 1 , np
+                  dsdx00 = dsdx00 + deriv_tmp(l,i)*stmp(l,j,kk)
+                  dsdy00 = dsdy00 + deriv_tmp(l,j)*stmp(i,l,kk)
+                enddo
+                ds(i,j,1,k,ie) = ( elem(ie)%Dinv(1,1,i,j)*dsdx00 + elem(ie)%Dinv(2,1,i,j)*dsdy00 ) * rrearth
+                ds(i,j,2,k,ie) = ( elem(ie)%Dinv(1,2,i,j)*dsdx00 + elem(ie)%Dinv(2,2,i,j)*dsdy00 ) * rrearth
+              endif
+            enddo
           enddo
         enddo
       enddo
@@ -948,7 +969,7 @@ contains
     integer :: i,k,ir,ll,is,ie,in,iw,el
     call t_startf('edge_pack')
     if (edge%nlyr < (kptr+vlyr) ) call haltmp('edgeVpack: Buffer overflow: size of the vertical dimension must be increased!')
-    !$acc parallel loop gang vector collapse(2) present(v,putmapP,reverse,edge%buf)
+    !$acc parallel loop gang vector collapse(2) present(v,putmapP,reverse,edge%buf) vector_length(256)
     do el = 1 , nelemd
       do k = 1 , vlyr
         do i = 1 , np
@@ -987,22 +1008,64 @@ contains
     integer(kind=int_kind), intent(in   ) :: getmapP(max_neigh_edges,nelemd)
     integer                ,intent(in   ) :: tdim,tl
     ! Local
-    integer :: i,k,ll,is,ie,in,iw,el
+    integer :: i,k,ll,is,ie,in,iw,el,kc,kk,glob_k,loc_ind,ii,jj, j
+    integer, parameter :: kchunk = 32
+    real(kind=real_kind) :: vtmp(np,np,kchunk)
     call t_startf('edge_unpack')
-    !$acc parallel loop gang vector collapse(2) present(v,getmapP,edgebuf)
+    !$acc parallel loop gang collapse(2) present(v,getmapP,edgebuf) private(vtmp)
     do el = 1 , nelemd
-      do k = 1 , vlyr
-        do i = 1 , np
-          v(i ,1 ,k,tl,el) = v(i ,1 ,k,tl,el) + edgebuf(kptr+k,getmapP(south,el)+i)
-          v(np,i ,k,tl,el) = v(np,i ,k,tl,el) + edgebuf(kptr+k,getmapP(east ,el)+i)
-          v(i ,np,k,tl,el) = v(i ,np,k,tl,el) + edgebuf(kptr+k,getmapP(north,el)+i)
-          v(1 ,i ,k,tl,el) = v(1 ,i ,k,tl,el) + edgebuf(kptr+k,getmapP(west ,el)+i)
+      do kc = 1 , vlyr/kchunk+1
+        !$acc cache(vtmp)
+        !$acc loop vector collapse(2)
+        do kk = 1 , kchunk
+          do j = 1 , np
+            do i = 1 , np
+              loc_ind = ((j-1)*np+i-1)*kchunk+kk-1
+              ii = modulo(loc_ind,np)+1
+              jj = modulo(loc_ind/np,np)+1
+              k = loc_ind/np/np+1
+              glob_k = (kc-1)*kchunk+k
+              if (glob_k > vlyr) glob_k = vlyr
+              vtmp(ii,jj,k) = v(ii,jj,glob_k,tl,el)
+            enddo
+          enddo
         enddo
-        do i = 1 , max_corner_elem
-          ll = swest+0*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,1 ,k,tl,el) = v(1 ,1 ,k,tl,el) + edgebuf(kptr+k,getmapP(ll,el)+1)
-          ll = swest+1*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,1 ,k,tl,el) = v(np,1 ,k,tl,el) + edgebuf(kptr+k,getmapP(ll,el)+1)
-          ll = swest+2*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,np,k,tl,el) = v(1 ,np,k,tl,el) + edgebuf(kptr+k,getmapP(ll,el)+1)
-          ll = swest+3*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,np,k,tl,el) = v(np,np,k,tl,el) + edgebuf(kptr+k,getmapP(ll,el)+1)
+        !$acc loop vector collapse(2)
+        do kk = 1 , kchunk
+          do i = 1 , np
+            k = (kc-1)*kchunk+kk
+            if (k <= vlyr) then
+              vtmp(i ,1 ,kk) = vtmp(i ,1 ,kk) + edgebuf(kptr+k,getmapP(south,el)+i)
+              vtmp(np,i ,kk) = vtmp(np,i ,kk) + edgebuf(kptr+k,getmapP(east ,el)+i)
+              vtmp(i ,np,kk) = vtmp(i ,np,kk) + edgebuf(kptr+k,getmapP(north,el)+i)
+              vtmp(1 ,i ,kk) = vtmp(1 ,i ,kk) + edgebuf(kptr+k,getmapP(west ,el)+i)
+            endif
+          enddo
+        enddo
+        !$acc loop vector collapse(2)
+        do kk = 1 , kchunk
+          do i = 1 , max_corner_elem
+            k = (kc-1)*kchunk+kk
+            if (k <= vlyr) then
+              ll = swest+0*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) vtmp(1  ,1 ,kk) = vtmp(1 ,1 ,kk) + edgebuf(kptr+k,getmapP(ll,el)+1)
+              ll = swest+1*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) vtmp(np ,1 ,kk) = vtmp(np,1 ,kk) + edgebuf(kptr+k,getmapP(ll,el)+1)
+              ll = swest+2*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) vtmp(1  ,np,kk) = vtmp(1 ,np,kk) + edgebuf(kptr+k,getmapP(ll,el)+1)
+              ll = swest+3*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) vtmp(np ,np,kk) = vtmp(np,np,kk) + edgebuf(kptr+k,getmapP(ll,el)+1)
+            endif
+          enddo
+        enddo
+        !$acc loop vector collapse(2)
+        do kk = 1 , kchunk
+          do j = 1 , np
+            do i = 1 , np
+              loc_ind = ((j-1)*np+i-1)*kchunk+kk-1
+              ii = modulo(loc_ind,np)+1
+              jj = modulo(loc_ind/np,np)+1
+              k = loc_ind/np/np+1
+              glob_k = (kc-1)*kchunk+k
+              if (glob_k <= vlyr) v(ii,jj,glob_k,tl,el) = vtmp(ii,jj,k)
+            enddo
+          enddo
         enddo
       enddo
     enddo
@@ -1021,22 +1084,64 @@ contains
     integer(kind=int_kind), intent(in   ) :: getmapP(max_neigh_edges,nelemd)
     integer                ,intent(in   ) :: tdim,tl
     ! Local
-    integer :: i,k,ll,is,ie,in,iw,el
+    integer :: i,k,ll,is,ie,in,iw,el,kc,kk,glob_k,loc_ind,ii,jj, j
+    integer, parameter :: kchunk = 32
+    real(kind=real_kind) :: vtmp(np,np,kchunk)
     call t_startf('edge_unpack_min')
-    !$acc parallel loop gang vector collapse(2) present(v,getmapP,edgebuf)
+    !$acc parallel loop gang collapse(2) present(v,getmapP,edgebuf) private(vtmp)
     do el = 1 , nelemd
-      do k = 1 , vlyr
-        do i = 1 , np
-          v(i ,1 ,k,tl,el) = min(v(i ,1 ,k,tl,el) , edgebuf(kptr+k,getmapP(south,el)+i))
-          v(np,i ,k,tl,el) = min(v(np,i ,k,tl,el) , edgebuf(kptr+k,getmapP(east ,el)+i))
-          v(i ,np,k,tl,el) = min(v(i ,np,k,tl,el) , edgebuf(kptr+k,getmapP(north,el)+i))
-          v(1 ,i ,k,tl,el) = min(v(1 ,i ,k,tl,el) , edgebuf(kptr+k,getmapP(west ,el)+i))
+      do kc = 1 , vlyr/kchunk+1
+        !$acc cache(vtmp)
+        !$acc loop vector collapse(2)
+        do kk = 1 , kchunk
+          do j = 1 , np
+            do i = 1 , np
+              loc_ind = ((j-1)*np+i-1)*kchunk+kk-1
+              ii = modulo(loc_ind,np)+1
+              jj = modulo(loc_ind/np,np)+1
+              k = loc_ind/np/np+1
+              glob_k = (kc-1)*kchunk+k
+              if (glob_k > vlyr) glob_k = vlyr
+              vtmp(ii,jj,k) = v(ii,jj,glob_k,tl,el)
+            enddo
+          enddo
         enddo
-        do i = 1 , max_corner_elem
-          ll = swest+0*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,1 ,k,tl,el) = min(v(1 ,1 ,k,tl,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
-          ll = swest+1*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,1 ,k,tl,el) = min(v(np,1 ,k,tl,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
-          ll = swest+2*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,np,k,tl,el) = min(v(1 ,np,k,tl,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
-          ll = swest+3*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,np,k,tl,el) = min(v(np,np,k,tl,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
+        !$acc loop vector collapse(2)
+        do kk = 1 , kchunk
+          do i = 1 , np
+            k = (kc-1)*kchunk+kk
+            if (k <= vlyr) then
+              vtmp(i ,1 ,kk) = min( vtmp(i ,1 ,kk) , edgebuf(kptr+k,getmapP(south,el)+i) )
+              vtmp(np,i ,kk) = min( vtmp(np,i ,kk) , edgebuf(kptr+k,getmapP(east ,el)+i) )
+              vtmp(i ,np,kk) = min( vtmp(i ,np,kk) , edgebuf(kptr+k,getmapP(north,el)+i) )
+              vtmp(1 ,i ,kk) = min( vtmp(1 ,i ,kk) , edgebuf(kptr+k,getmapP(west ,el)+i) )
+            endif
+          enddo
+        enddo
+        !$acc loop vector collapse(2)
+        do kk = 1 , kchunk
+          do i = 1 , max_corner_elem
+            k = (kc-1)*kchunk+kk
+            if (k <= vlyr) then
+              ll = swest+0*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) vtmp(1  ,1 ,kk) = min( vtmp(1 ,1 ,kk) , edgebuf(kptr+k,getmapP(ll,el)+1) )
+              ll = swest+1*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) vtmp(np ,1 ,kk) = min( vtmp(np,1 ,kk) , edgebuf(kptr+k,getmapP(ll,el)+1) )
+              ll = swest+2*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) vtmp(1  ,np,kk) = min( vtmp(1 ,np,kk) , edgebuf(kptr+k,getmapP(ll,el)+1) )
+              ll = swest+3*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) vtmp(np ,np,kk) = min( vtmp(np,np,kk) , edgebuf(kptr+k,getmapP(ll,el)+1) )
+            endif
+          enddo
+        enddo
+        !$acc loop vector collapse(2)
+        do kk = 1 , kchunk
+          do j = 1 , np
+            do i = 1 , np
+              loc_ind = ((j-1)*np+i-1)*kchunk+kk-1
+              ii = modulo(loc_ind,np)+1
+              jj = modulo(loc_ind/np,np)+1
+              k = loc_ind/np/np+1
+              glob_k = (kc-1)*kchunk+k
+              if (glob_k <= vlyr) v(ii,jj,glob_k,tl,el) = vtmp(ii,jj,k)
+            enddo
+          enddo
         enddo
       enddo
     enddo
@@ -1055,22 +1160,64 @@ contains
     integer(kind=int_kind), intent(in   ) :: getmapP(max_neigh_edges,nelemd)
     integer                ,intent(in   ) :: tdim,tl
     ! Local
-    integer :: i,k,ll,is,ie,in,iw,el
+    integer :: i,k,ll,is,ie,in,iw,el,kc,kk,glob_k,loc_ind,ii,jj, j
+    integer, parameter :: kchunk = 32
+    real(kind=real_kind) :: vtmp(np,np,kchunk)
     call t_startf('edge_unpack_max')
-    !$acc parallel loop gang vector collapse(2) present(v,getmapP,edgebuf)
+    !$acc parallel loop gang collapse(2) present(v,getmapP,edgebuf) private(vtmp)
     do el = 1 , nelemd
-      do k = 1 , vlyr
-        do i = 1 , np
-          v(i ,1 ,k,tl,el) = max(v(i ,1 ,k,tl,el) , edgebuf(kptr+k,getmapP(south,el)+i))
-          v(np,i ,k,tl,el) = max(v(np,i ,k,tl,el) , edgebuf(kptr+k,getmapP(east ,el)+i))
-          v(i ,np,k,tl,el) = max(v(i ,np,k,tl,el) , edgebuf(kptr+k,getmapP(north,el)+i))
-          v(1 ,i ,k,tl,el) = max(v(1 ,i ,k,tl,el) , edgebuf(kptr+k,getmapP(west ,el)+i))
+      do kc = 1 , vlyr/kchunk+1
+        !$acc cache(vtmp)
+        !$acc loop vector collapse(2)
+        do kk = 1 , kchunk
+          do j = 1 , np
+            do i = 1 , np
+              loc_ind = ((j-1)*np+i-1)*kchunk+kk-1
+              ii = modulo(loc_ind,np)+1
+              jj = modulo(loc_ind/np,np)+1
+              k = loc_ind/np/np+1
+              glob_k = (kc-1)*kchunk+k
+              if (glob_k > vlyr) glob_k = vlyr
+              vtmp(ii,jj,k) = v(ii,jj,glob_k,tl,el)
+            enddo
+          enddo
         enddo
-        do i = 1 , max_corner_elem
-          ll = swest+0*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,1 ,k,tl,el) = max(v(1 ,1 ,k,tl,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
-          ll = swest+1*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,1 ,k,tl,el) = max(v(np,1 ,k,tl,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
-          ll = swest+2*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(1  ,np,k,tl,el) = max(v(1 ,np,k,tl,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
-          ll = swest+3*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) v(np ,np,k,tl,el) = max(v(np,np,k,tl,el) , edgebuf(kptr+k,getmapP(ll,el)+1))
+        !$acc loop vector collapse(2)
+        do kk = 1 , kchunk
+          do i = 1 , np
+            k = (kc-1)*kchunk+kk
+            if (k <= vlyr) then
+              vtmp(i ,1 ,kk) = max( vtmp(i ,1 ,kk) , edgebuf(kptr+k,getmapP(south,el)+i) )
+              vtmp(np,i ,kk) = max( vtmp(np,i ,kk) , edgebuf(kptr+k,getmapP(east ,el)+i) )
+              vtmp(i ,np,kk) = max( vtmp(i ,np,kk) , edgebuf(kptr+k,getmapP(north,el)+i) )
+              vtmp(1 ,i ,kk) = max( vtmp(1 ,i ,kk) , edgebuf(kptr+k,getmapP(west ,el)+i) )
+            endif
+          enddo
+        enddo
+        !$acc loop vector collapse(2)
+        do kk = 1 , kchunk
+          do i = 1 , max_corner_elem
+            k = (kc-1)*kchunk+kk
+            if (k <= vlyr) then
+              ll = swest+0*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) vtmp(1  ,1 ,kk) = max( vtmp(1 ,1 ,kk) , edgebuf(kptr+k,getmapP(ll,el)+1) )
+              ll = swest+1*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) vtmp(np ,1 ,kk) = max( vtmp(np,1 ,kk) , edgebuf(kptr+k,getmapP(ll,el)+1) )
+              ll = swest+2*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) vtmp(1  ,np,kk) = max( vtmp(1 ,np,kk) , edgebuf(kptr+k,getmapP(ll,el)+1) )
+              ll = swest+3*max_corner_elem+i-1; if(getmapP(ll,el) /= -1) vtmp(np ,np,kk) = max( vtmp(np,np,kk) , edgebuf(kptr+k,getmapP(ll,el)+1) )
+            endif
+          enddo
+        enddo
+        !$acc loop vector collapse(2)
+        do kk = 1 , kchunk
+          do j = 1 , np
+            do i = 1 , np
+              loc_ind = ((j-1)*np+i-1)*kchunk+kk-1
+              ii = modulo(loc_ind,np)+1
+              jj = modulo(loc_ind/np,np)+1
+              k = loc_ind/np/np+1
+              glob_k = (kc-1)*kchunk+k
+              if (glob_k <= vlyr) v(ii,jj,glob_k,tl,el) = vtmp(ii,jj,k)
+            enddo
+          enddo
         enddo
       enddo
     enddo
@@ -1254,7 +1401,7 @@ contains
  
     integer  k1, k, i, j, iter, i1, i2, q, ie
     integer :: whois_neg(np*np), whois_pos(np*np), neg_counter, pos_counter
-    real (kind=real_kind) :: addmass, weightssum, mass
+    real (kind=real_kind) :: addmass, weightssum, mass, mintmp, maxtmp
     real (kind=real_kind) :: x(np*np),c(np*np)
     real (kind=real_kind) :: al_neg(np*np), al_pos(np*np), howmuch
     real (kind=real_kind) :: tol_limiter = 1e-15
@@ -1273,15 +1420,17 @@ contains
           enddo
 
           mass = sum(c*x)
+          mintmp = minp(k,q,ie)
+          maxtmp = maxp(k,q,ie)
 
           ! relax constraints to ensure limiter has a solution:
           ! This is only needed if runnign with the SSP CFL>1 or 
           ! due to roundoff errors
-          if( (mass / sum(c)) < minp(k,q,ie) ) then
-            minp(k,q,ie) = mass / sum(c)
+          if( (mass / sum(c)) < mintmp ) then
+            mintmp = mass / sum(c)
           endif
-          if( (mass / sum(c)) > maxp(k,q,ie) ) then
-            maxp(k,q,ie) = mass / sum(c)
+          if( (mass / sum(c)) > maxtmp ) then
+            maxtmp = mass / sum(c)
           endif
 
           addmass = 0.0d0
@@ -1290,17 +1439,17 @@ contains
           
           ! apply constraints, compute change in mass caused by constraints 
           do k1 = 1 , np*np
-            if ( ( x(k1) >= maxp(k,q,ie) ) ) then
-              addmass = addmass + ( x(k1) - maxp(k,q,ie) ) * c(k1)
-              x(k1) = maxp(k,q,ie)
+            if ( ( x(k1) >= maxtmp ) ) then
+              addmass = addmass + ( x(k1) - maxtmp ) * c(k1)
+              x(k1) = maxtmp
               whois_pos(k1) = -1
             else
               pos_counter = pos_counter+1;
               whois_pos(pos_counter) = k1;
             endif
-            if ( ( x(k1) <= minp(k,q,ie) ) ) then
-              addmass = addmass - ( minp(k,q,ie) - x(k1) ) * c(k1)
-              x(k1) = minp(k,q,ie)
+            if ( ( x(k1) <= mintmp ) ) then
+              addmass = addmass - ( mintmp - x(k1) ) * c(k1)
+              x(k1) = mintmp
               whois_neg(k1) = -1
             else
               neg_counter = neg_counter+1;
@@ -1316,7 +1465,7 @@ contains
               do k1 = 1 , pos_counter
                 i1 = whois_pos(k1)
                 weightssum = weightssum + c(i1)
-                al_pos(i1) = maxp(k,q,ie) - x(i1)
+                al_pos(i1) = maxtmp - x(i1)
               enddo
               
               if( ( pos_counter > 0 ) .and. ( addmass > tol_limiter * abs(mass) ) ) then
@@ -1353,7 +1502,7 @@ contains
                do k1 = 1 , neg_counter
                  i1 = whois_neg(k1)
                  weightssum = weightssum + c(i1)
-                 al_neg(i1) = x(i1) - minp(k,q,ie)
+                 al_neg(i1) = x(i1) - mintmp
                enddo
                
                if ( ( neg_counter > 0 ) .and. ( (-addmass) > tol_limiter * abs(mass) ) ) then
@@ -1385,6 +1534,8 @@ contains
                endif
              enddo
           endif
+          minp(k,q,ie) = mintmp
+          maxp(k,q,ie) = maxtmp
           ptens(:,k,q,ie) = x * dpmass(:,k,ie)
         enddo
       enddo
@@ -1469,12 +1620,12 @@ contains
     ! Local
     integer, parameter :: kchunk = 8
     integer :: i, j, l, k, ie, kc, kk
-    real(kind=real_kind) ::  dudx00, dvdy00, gv(np,np,kchunk,2)
+    real(kind=real_kind) ::  dudx00, dvdy00, gv(np,np,kchunk,2), deriv_tmp(np,np)
     ! convert to contra variant form and multiply by g
-    !$acc parallel loop gang collapse(2) private(gv) present(v,deriv,div,elem(:))
+    !$acc parallel loop gang collapse(2) private(gv,deriv_tmp) present(v,deriv,div,elem(:))
     do ie = 1 , nelemd
       do kc = 1 , len/kchunk+1
-        !$acc cache(gv)
+        !$acc cache(gv,deriv_tmp)
         !$acc loop vector collapse(3) private(k)
         do kk = 1 , kchunk
           do j = 1 , np
@@ -1484,6 +1635,7 @@ contains
                 gv(i,j,kk,1)=elem(ie)%metdet(i,j)*(elem(ie)%Dinv(1,1,i,j)*v(i,j,1,k,ie) + elem(ie)%Dinv(1,2,i,j)*v(i,j,2,k,ie))
                 gv(i,j,kk,2)=elem(ie)%metdet(i,j)*(elem(ie)%Dinv(2,1,i,j)*v(i,j,1,k,ie) + elem(ie)%Dinv(2,2,i,j)*v(i,j,2,k,ie))
               endif
+              if (kk == 1) deriv_tmp(i,j) = deriv%dvv(i,j)
             enddo
           enddo
         enddo
@@ -1497,8 +1649,8 @@ contains
                 dudx00=0.0d0
                 dvdy00=0.0d0
                 do l = 1 , np
-                  dudx00 = dudx00 + deriv%Dvv(l,i)*gv(l,j,kk,1)
-                  dvdy00 = dvdy00 + deriv%Dvv(l,j)*gv(i,l,kk,2)
+                  dudx00 = dudx00 + deriv_tmp(l,i)*gv(l,j,kk,1)
+                  dvdy00 = dvdy00 + deriv_tmp(l,j)*gv(i,l,kk,2)
                 enddo
                 div(i,j,k,ie)=(dudx00+dvdy00)*(elem(ie)%rmetdet(i,j)*rrearth)
               endif
