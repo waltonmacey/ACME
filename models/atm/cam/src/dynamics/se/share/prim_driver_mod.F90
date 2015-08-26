@@ -1329,6 +1329,8 @@ contains
     use prim_advection_mod, only : vertical_remap
 #if USE_CUDA_FORTRAN
     use cuda_mod, only: copy_qdp_h2d, copy_qdp_d2h
+#elif USE_OPENACC
+    use prim_advection_openacc_mod, only: copy_qdp_h2d, copy_qdp_d2h
 #endif
     
 
@@ -1414,7 +1416,7 @@ contains
     enddo
     endif
 
-#if USE_CUDA_FORTRAN
+#if (USE_CUDA_FORTRAN || USE_OPENACC)
     call TimeLevel_Qdp( tl, qsplit, n0_qdp, np1_qdp) 
     call copy_qdp_h2d( elem , n0_qdp )
 #endif
@@ -1435,7 +1437,7 @@ contains
     !  if rsplit>0:  also remap dynamics and compute reference level ps_v
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-#if USE_CUDA_FORTRAN
+#if (USE_CUDA_FORTRAN || USE_OPENACC)
     call TimeLevel_Qdp( tl, qsplit, n0_qdp, np1_qdp) 
     call copy_qdp_d2h( elem , np1_qdp )
 #endif

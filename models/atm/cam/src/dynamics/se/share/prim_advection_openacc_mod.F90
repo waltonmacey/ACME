@@ -35,8 +35,72 @@ module prim_advection_openacc_mod
   public :: prim_advection_openacc_init
   public :: precompute_divdp_openacc
   public :: euler_step_openacc
+  public :: qdp_time_avg_openacc
+  public :: copy_qdp_h2d
+  public :: copy_qdp_d2h
+  public :: advance_hypervis_scalar_openacc
 
 contains
+
+  subroutine copy_qdp_h2d( elem , tl )
+    use element_mod, only: element_t, state_qdp
+    implicit none
+    type(element_t), intent(in) :: elem(:)
+    integer        , intent(in) :: tl
+    integer :: ie
+    !$omp barrier
+    !$omp master
+    do ie = 1 , nelemd
+      !$acc update device(state_qdp(:,:,:,:,tl,ie))
+    enddo
+    !$omp end master
+    !$omp barrier
+  end subroutine copy_qdp_h2d
+
+  subroutine copy_qdp_d2h( elem , tl )
+    use element_mod, only: element_t, state_qdp
+    implicit none
+    type(element_t), intent(in) :: elem(:)
+    integer        , intent(in) :: tl
+    integer :: ie
+    !$omp barrier
+    !$omp master
+    do ie = 1 , nelemd
+      !$acc update host(state_qdp(:,:,:,:,tl,ie))
+    enddo
+    !$omp end master
+    !$omp barrier
+  end subroutine copy_qdp_d2h
+
+  subroutine copy_qdp1_h2d( elem , tl )
+    use element_mod, only: element_t, state_qdp
+    implicit none
+    type(element_t), intent(in) :: elem(:)
+    integer        , intent(in) :: tl
+    integer :: ie
+    !$omp barrier
+    !$omp master
+    do ie = 1 , nelemd
+      !$acc update device(state_qdp(:,:,:,1,tl,ie))
+    enddo
+    !$omp end master
+    !$omp barrier
+  end subroutine copy_qdp1_h2d
+
+  subroutine copy_qdp1_d2h( elem , tl )
+    use element_mod, only: element_t, state_qdp
+    implicit none
+    type(element_t), intent(in) :: elem(:)
+    integer        , intent(in) :: tl
+    integer :: ie
+    !$omp barrier
+    !$omp master
+    do ie = 1 , nelemd
+      !$acc update host(state_qdp(:,:,:,1,tl,ie))
+    enddo
+    !$omp end master
+    !$omp barrier
+  end subroutine copy_qdp1_d2h
 
   subroutine prim_advection_openacc_init(elem,deriv,hvcoord,hybrid)
     use element_mod
@@ -99,6 +163,216 @@ contains
     !$OMP BARRIER
   end subroutine prim_advection_openacc_init
 
+  subroutine advance_hypervis_scalar_openacc( edgeAdv_dontuse , elem , hvcoord , hybrid , deriv , nt , nt_qdp , nets , nete , dt2 )
+    !  hyperviscsoity operator for foward-in-time scheme
+    !  take one timestep of:  
+    !          Q(:,:,:,np) = Q(:,:,:,np) +  dt2*nu*laplacian**order ( Q )
+    !  For correct scaling, dt2 should be the same 'dt2' used in the leapfrog advace
+    use kinds          , only : real_kind
+    use dimensions_mod , only : np, nlev
+    use hybrid_mod     , only : hybrid_t
+    use element_mod    , only : element_t, derived_dp, derived_divdp_proj, derived_dpdiss_ave, state_qdp
+    use derivative_mod , only : derivative_t
+    use edge_mod       , only : EdgeBuffer_t
+    use perf_mod       , only : t_startf, t_stopf                          ! _EXTERNAL
+    use hybvcoord_mod  , only : hvcoord_t
+    use control_mod    , only : nu_q, hypervis_order, hypervis_subcycle_q, nu_p
+    implicit none
+    type (EdgeBuffer_t)  , intent(inout)         :: edgeAdv_dontuse
+    type (element_t)     , intent(inout), target :: elem(:)
+    type (hvcoord_t)     , intent(in   )         :: hvcoord
+    type (hybrid_t)      , intent(in   )         :: hybrid
+    type (derivative_t)  , intent(in   )         :: deriv
+    integer              , intent(in   )         :: nt
+    integer              , intent(in   )         :: nt_qdp
+    integer              , intent(in   )         :: nets
+    integer              , intent(in   )         :: nete
+    real (kind=real_kind), intent(in   )         :: dt2
+    ! local
+    real (kind=real_kind), dimension(      nlev,qsize,nets:nete) :: min_neigh
+    real (kind=real_kind), dimension(      nlev,qsize,nets:nete) :: max_neigh
+    integer :: k , kptr , i , j , ie , ic , q
+    real (kind=real_kind), dimension(np,np) :: lap_p
+    real (kind=real_kind) :: v1,v2,dt
+    real (kind=real_kind) :: dp
+    integer :: density_scaling = 0
+    if ( nu_q           == 0 ) return
+    if ( hypervis_order /= 2 ) return
+    call t_startf('advance_hypervis_scalar')
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !  hyper viscosity  
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    dt = dt2 / hypervis_subcycle_q
+
+    do ic = 1 , hypervis_subcycle_q
+      !$omp barrier
+      !$omp master
+      !$acc parallel loop gang vector collapse(4) present(derived_dp,derived_divdp_proj,derived_dpdiss_ave,state_qdp)
+      do ie = 1 , nelemd
+        ! Qtens = Q/dp   (apply hyperviscsoity to dp0 * Q, not Qdp)
+        do k = 1 , nlev
+          ! various options:
+          !   1)  biharmonic( Qdp )
+          !   2)  dp0 * biharmonic( Qdp/dp )    
+          !   3)  dpave * biharmonic(Q/dp)
+          ! For trace mass / mass consistenciy, we use #2 when nu_p=0
+          ! and #e when nu_p>0, where dpave is the mean mass flux from the nu_p
+          ! contribution from dynamics.
+          do j = 1 , np
+            do i = 1 , np
+              dp = derived_dp(i,j,k,ie) - dt2 * derived_divdp_proj(i,j,k,ie)
+              if (nu_p > 0) then
+                do q = 1 , qsize
+                  Qtens(i,j,k,q,ie) = derived_dpdiss_ave(i,j,k,ie)*state_Qdp(i,j,k,q,nt_qdp,ie) / dp 
+                enddo
+              else
+                do q = 1 , qsize
+                  Qtens(i,j,k,q,ie) = dp0(k)*state_Qdp(i,j,k,q,nt_qdp,ie) / dp
+                enddo
+              endif
+            enddo
+          enddo
+        enddo
+      enddo
+      !$omp end master
+      !$omp barrier
+      ! compute biharmonic operator. Qtens = input and output 
+      call biharmonic_wk_scalar( elem , Qtens , grads_tracer , deriv , edgeAdv , hybrid , nets , nete )
+      !$omp barrier
+      !$omp master
+      !$acc parallel loop gang vector collapse(5) present(state_qdp,elem(:),qtens)
+      do ie = 1 , nelemd
+        do q = 1 , qsize
+          do k = 1 , nlev
+            do j = 1 , np
+              do i = 1 , np
+                ! advection Qdp.  For mass advection consistency:
+                ! DIFF( Qdp) ~   dp0 DIFF (Q)  =  dp0 DIFF ( Qdp/dp )  
+                state_Qdp(i,j,k,q,nt_qdp,ie) = state_Qdp(i,j,k,q,nt_qdp,ie) * elem(ie)%spheremp(i,j) - dt * nu_q * Qtens(i,j,k,q,ie)
+              enddo
+            enddo
+          enddo
+        enddo
+      enddo
+      call limiter2d_zero(state_Qdp,2,nt_qdp)
+      call edgeVpack(edgeAdv,state_qdp,qsize*nlev,0,desc_putmapP,desc_reverse,2,nt_qdp)
+      !$omp end master
+      !$omp barrier
+
+      call t_startf('ah_scalar_bexchV')
+      call bndry_exchangeV( hybrid , edgeAdv )
+      call t_stopf('ah_scalar_bexchV')
+      
+      !$omp barrier
+      !$omp master
+      call edgeVunpack(edgeAdv%buf,edgeAdv%nlyr,state_qdp,qsize*nlev,0,desc_getmapP,2,nt_qdp)
+      !$acc parallel loop gang vector collapse(5) present(state_qdp,elem(:))
+      do ie = 1 , nelemd
+        do q = 1 , qsize    
+          ! apply inverse mass matrix
+          do k = 1 , nlev
+            do j = 1 , np
+              do i = 1 , np
+                state_Qdp(i,j,k,q,nt_qdp,ie) = elem(ie)%rspheremp(i,j) * state_Qdp(i,j,k,q,nt_qdp,ie)
+              enddo
+            enddo
+          enddo
+        enddo
+      enddo
+      !$omp end master
+      !$omp barrier
+    enddo
+    call copy_qdp1_d2h( elem , nt_qdp )
+    call t_stopf('advance_hypervis_scalar')
+  end subroutine advance_hypervis_scalar_openacc
+
+  subroutine biharmonic_wk_scalar(elem,qtens,grads,deriv,edgeq,hybrid,nets,nete)
+    use hybrid_mod    , only: hybrid_t
+    use element_mod   , only: element_t
+    use edge_mod      , only: edgeBuffer_t
+    use derivative_mod, only: derivative_t
+    use control_mod   , only: hypervis_scaling
+    use perf_mod      , only: t_startf, t_stopf
+    implicit none
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! compute weak biharmonic operator
+    !    input:  qtens = Q
+    !    output: qtens = weak biharmonic of Q
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    type (element_t)     , intent(inout) :: elem(:)
+    real (kind=real_kind), intent(inout) :: qtens(np,np,nlev,qsize,nelemd)
+    real(kind=real_kind) , intent(inout) :: grads(np,np,2,nlev,qsize,nelemd)
+    type (derivative_t)  , intent(in   ) :: deriv
+    type (EdgeBuffer_t)  , intent(inout) :: edgeq
+    type (hybrid_t)      , intent(in   ) :: hybrid
+    integer              , intent(in   ) :: nets,nete
+    ! local
+    integer :: k,kptr,i,j,ie,ic,q
+    logical :: var_coef1
+    !if tensor hyperviscosity with tensor V is used, then biharmonic operator is (\grad\cdot V\grad) (\grad \cdot \grad) 
+    !so tensor is only used on second call to laplace_sphere_wk
+    var_coef1 = .true.
+    if(hypervis_scaling > 0) var_coef1 = .false.
+    !$omp barrier
+    !$omp master
+    call laplace_sphere_wk(qtens,grads,deriv,elem,var_coef1,qtens,nlev*qsize,nets,nete)
+    call edgeVpack(edgeq,qtens,qsize*nlev,0,desc_putmapP,desc_reverse,1,1)
+    !$omp end master
+    !$omp barrier
+
+    call t_startf('biwksc_bexchV')
+    call bndry_exchangeV(hybrid,edgeq)
+    call t_stopf('biwksc_bexchV')
+    
+    !$omp barrier
+    !$omp master
+    call edgeVunpack(edgeq%buf,edgeq%nlyr,qtens,qsize*nlev,0,desc_getmapP,1,1)
+    !$acc parallel loop gang vector collapse(5) present(qtens,elem(:))
+    do ie = 1 , nelemd
+      ! apply inverse mass matrix, then apply laplace again
+      do q = 1 , qsize      
+        do k = 1 , nlev    !  Potential loop inversion (AAM)
+          do j = 1 , np
+            do i = 1 , np
+              qtens(i,j,k,q,ie) = elem(ie)%rspheremp(i,j)*qtens(i,j,k,q,ie)
+            enddo
+          enddo
+        enddo
+      enddo
+    enddo
+    call laplace_sphere_wk(qtens,grads,deriv,elem,.true.,qtens,nlev*qsize,nets,nete)
+    !$omp end master
+    !$omp barrier
+  end subroutine biharmonic_wk_scalar
+
+  subroutine qdp_time_avg_openacc( elem , rkstage , n0_qdp , np1_qdp , limiter_option , nu_p , nets , nete )
+    use element_mod, only: element_t, state_qdp
+    use control_mod, only: limiter_option
+    implicit none
+    type(element_t)     , intent(inout) :: elem(:)
+    integer             , intent(in   ) :: rkstage , n0_qdp , np1_qdp , nets , nete , limiter_option
+    real(kind=real_kind), intent(in   ) :: nu_p
+    integer :: ie,q,k,j,i
+    !$omp barrier
+    !$omp master
+    !$acc parallel loop gang vector collapse(5) present(state_qdp)
+    do ie = 1 , nelemd
+      do q = 1 , qsize
+        do k = 1 , nlev
+          do j = 1 , np
+            do i = 1 , np
+              state_Qdp(i,j,k,q,np1_qdp,ie) = ( state_Qdp(i,j,k,q,n0_qdp ,ie) + (rkstage-1)*state_Qdp(i,j,k,q,np1_qdp,ie) ) / rkstage
+            enddo
+          enddo
+        enddo
+      enddo
+    enddo
+    !$omp end master
+    !$omp barrier
+    if (limiter_option == 8) call copy_qdp1_d2h( elem , np1_qdp )
+    
+  end subroutine qdp_time_avg_openacc
+
   subroutine euler_step_openacc( np1_qdp , n0_qdp , dt , elem , hvcoord , hybrid , deriv , nets , nete , DSSopt , rhs_multiplier )
   ! ===================================
   ! This routine is the basic foward
@@ -116,8 +390,6 @@ contains
   use hybrid_mod     , only: hybrid_t
   use element_mod    , only: element_t
   use derivative_mod , only: derivative_t, gradient_sphere, vorticity_sphere
-  use edge_mod       , only: edgevpack, edgevunpack
-  use bndry_mod      , only: bndry_exchangev
   use hybvcoord_mod  , only: hvcoord_t
   use control_mod    , only: limiter_option, nu_p, nu_q
   use perf_mod       , only: t_startf, t_stopf
@@ -141,7 +413,7 @@ contains
 
   !$omp barrier
   !$omp master
-  !$acc update device(derived_dp,derived_divdp_proj,derived_vn0,state_qdp)
+  !$acc update device(derived_dp,derived_divdp_proj,derived_vn0,derived_dpdiss_ave)
   !$omp end master
   !$omp barrier
 
@@ -180,7 +452,6 @@ contains
     ! initialize dp, and compute Q from Qdp (and store Q in Qtens_biharmonic)
     !$omp barrier
     !$omp master
-    !$acc update device(qmin,qmax,derived_dpdiss_ave)
     !$acc parallel loop gang vector collapse(4) private(tmp) present(derived_dp,derived_divdp_proj,state_qdp)
     do ie = 1 , nelemd
       ! add hyperviscosity to RHS.  apply to Q at timelevel n0, Qdp(n0)/dp
@@ -264,11 +535,6 @@ contains
       !$omp end master
       !$omp barrier
     endif
-    !$omp barrier
-    !$omp master
-    !$acc update host(qmin,qmax,qtens_biharmonic)
-    !$omp end master
-    !$omp barrier
   endif  ! compute biharmonic mixing term and qmin/qmax
 
 
@@ -352,27 +618,33 @@ contains
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
     call limiter2d_zero( state_Qdp , 2 , np1_qdp )
   endif
-  !$acc update host(state_qdp)
+  ! note: eta_dot_dpdn is actually dimension nlev+1, but nlev+1 data is
+  ! all zero so we only have to DSS 1:nlev
+  call edgeVpack(edgeAdv , state_Qdp , nlev*qsize , 0 , desc_putmapP , desc_reverse , 2 , np1_qdp )
   !$omp end master
   !$omp barrier
-  do ie = nets , nete
-    ! note: eta_dot_dpdn is actually dimension nlev+1, but nlev+1 data is
-    ! all zero so we only have to DSS 1:nlev
-    call edgeVpack(edgeAdv , elem(ie)%state%Qdp(:,:,:,:,np1_qdp) , nlev*qsize , 0 , elem(ie)%desc )
-  enddo
 
   call t_startf('eus_bexchV')
   call bndry_exchangeV( hybrid , edgeAdv    )
   call t_stopf('eus_bexchV')
 
-  do ie = nets , nete
-    call edgeVunpack( edgeAdv    , elem(ie)%state%Qdp(:,:,:,:,np1_qdp) , nlev*qsize , 0 , elem(ie)%desc )
+  !$omp barrier
+  !$omp master
+  call edgeVunpack( edgeAdv%buf , edgeAdv%nlyr , state_Qdp , nlev*qsize , 0 , desc_getmapP , 2 , np1_qdp )
+  !$acc parallel loop gang vector collapse(5) present(state_Qdp,elem(:))
+  do ie = 1 , nelemd
     do q = 1 , qsize
       do k = 1 , nlev    !  Potential loop inversion (AAM)
-        elem(ie)%state%Qdp(:,:,k,q,np1_qdp) = elem(ie)%rspheremp(:,:) * elem(ie)%state%Qdp(:,:,k,q,np1_qdp)
+        do j = 1 , np
+          do i = 1 , np
+            state_Qdp(i,j,k,q,np1_qdp,ie) = elem(ie)%rspheremp(i,j) * state_Qdp(i,j,k,q,np1_qdp,ie)
+          enddo
+        enddo
       enddo
     enddo
   enddo
+  !$omp end master
+  !$omp barrier
   end subroutine euler_step_openacc
 
   subroutine biharmonic_wk_scalar_minmax(elem,qtens,grads,deriv,edgeq,hybrid,nets,nete,emin,emax)
@@ -1125,6 +1397,7 @@ contains
     use derivative_mod, only: derivative_t
     use edge_mod      , only: edgeVpack, edgeVunpack
     use bndry_mod     , only: bndry_exchangeV
+    use control_mod   , only: limiter_option
     implicit none
     type(element_t)      , intent(inout) :: elem(:)
     type (hybrid_t)      , intent(in   ) :: hybrid
@@ -1133,6 +1406,7 @@ contains
     integer              , intent(in   ) :: nets , nete , n0_qdp
     integer :: ie , k
     real(kind=real_kind), pointer, dimension(:,:,:) :: DSSvar
+    call copy_qdp1_h2d(elem,n0_qdp)
     !$omp barrier
     !$omp master
     !$acc update device(derived_vn0)

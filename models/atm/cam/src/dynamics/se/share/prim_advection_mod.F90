@@ -1219,6 +1219,8 @@ contains
   subroutine qdp_time_avg( elem , rkstage , n0_qdp , np1_qdp , limiter_option , nu_p , nets , nete )
 #if USE_CUDA_FORTRAN
     use cuda_mod, only: qdp_time_avg_cuda
+#elif USE_OPENACC
+    use prim_advection_openacc_mod, only: qdp_time_avg_openacc
 #endif
     implicit none
     type(element_t)     , intent(inout) :: elem(:)
@@ -1227,6 +1229,9 @@ contains
     integer :: ie
 #if USE_CUDA_FORTRAN
     call qdp_time_avg_cuda( elem , rkstage , n0_qdp , np1_qdp , limiter_option , nu_p , nets , nete )
+    return
+#elif USE_OPENACC
+    call qdp_time_avg_openacc( elem , rkstage , n0_qdp , np1_qdp , limiter_option , nu_p , nets , nete )
     return
 #endif
     do ie=nets,nete
@@ -2114,6 +2119,8 @@ contains
   !  For correct scaling, dt2 should be the same 'dt2' used in the leapfrog advace
 #if USE_CUDA_FORTRAN
   use cuda_mod       , only : advance_hypervis_scalar_cuda
+#elif USE_OPENACC
+  use prim_advection_openacc_mod , only : advance_hypervis_scalar_openacc
 #endif
   use kinds          , only : real_kind
   use dimensions_mod , only : np, nlev
@@ -2153,6 +2160,9 @@ contains
   if ( hypervis_order /= 2 ) return
 #if USE_CUDA_FORTRAN
   call advance_hypervis_scalar_cuda( edgeAdv , elem , hvcoord , hybrid , deriv , nt , nt_qdp , nets , nete , dt2 )
+  return
+#elif USE_OPENACC
+  call advance_hypervis_scalar_openacc( edgeAdv , elem , hvcoord , hybrid , deriv , nt , nt_qdp , nets , nete , dt2 )
   return
 #endif
 !   call t_barrierf('sync_advance_hypervis_scalar', hybrid%par%comm)
