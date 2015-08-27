@@ -163,7 +163,7 @@ contains
     endif
      
 #if USE_OPENACC
-    call prim_advance_oacc_init(elem, hvcoord, deriv,nets,nete) 
+    call prim_advance_oacc_init(elem, hvcoord, deriv) 
 #endif 
 
 ! integration = "explicit"
