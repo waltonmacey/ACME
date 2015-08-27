@@ -38,7 +38,7 @@ module prim_advance_oacc_mod
   real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: kappa_star
   real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: omega_p
   real (kind=real_kind),allocatable, dimension(:,:,:)    :: sdot_sum
-
+  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: T_v
 
 contains
 
@@ -70,6 +70,7 @@ contains
    allocate( kappa_star   (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__) 
    allocate( omega_p      (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__) 
    allocate( sdot_sum     (np, np,            nelemd) , stat = ierr ); _CHECK(__LINE__) 
+   allocate( T_v          (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
 
    do ie=1,nelemd
      do i=1,np
@@ -83,7 +84,8 @@ contains
 
    !$acc enter data pcopyin( phi_oacc, hvcoord%hyai, hvcoord%hybi, hvcoord%hyam, hvcoord%hybm, &
    !$acc&                    elem(1:nelemd)) &
-   !$acc&           pcreate (grad_p, p, dp, divdp, vdp, vgrad_p, eta_dot_dpdn, vort, kappa_star, omega_p, sdot_sum )
+   !$acc&           pcreate (grad_p, p, dp, divdp, vdp, vgrad_p, eta_dot_dpdn, vort, kappa_star, &
+   !$acc&                     omega_p, sdot_sum, T_v )
 
  
  end subroutine prim_advance_oacc_init
@@ -161,7 +163,7 @@ contains
 !  real (kind=real_kind), pointer, dimension(:,:,:)   :: phi
 
 !  real (kind=real_kind), dimension(np,np,nlev)           :: omega_p       
-  real (kind=real_kind), dimension(np,np,nlev)           :: T_v         
+!  real (kind=real_kind), dimension(np,np,nlev)           :: T_v         
 !  real (kind=real_kind), dimension(np,np,nlev)           :: divdp
 !  real (kind=real_kind), dimension(np,np,nlev+1)         :: eta_dot_dpdn  ! half level vertical velocity on p-grid
 !  real (kind=real_kind), dimension(np,np)                :: sdot_sum   ! temporary field
@@ -404,10 +406,10 @@ contains
              gv(i,j,1)=(elem(ie)%D(1,1,i,j)*elem(ie)%state%v(i,j,1,k,n0) + elem(ie)%D(2,1,i,j)*elem(ie)%state%v(i,j,2,k,n0))
              gv(i,j,2)=(elem(ie)%D(1,2,i,j)*elem(ie)%state%v(i,j,1,k,n0) + elem(ie)%D(2,2,i,j)*elem(ie)%state%v(i,j,2,k,n0))
           enddo
-       enddo   
+        enddo   
 
        do j=1,np
-          do l=1,np
+            do l=1,np
             dsdy00=0.0d0
             dsdx00=0.0d0
             do i=1,np
@@ -416,16 +418,22 @@ contains
             enddo
             vort  (l  ,j  ,k, ie  ) = dsdx00
             v_tmp1(j  ,l  ) = dsdy00
-          enddo
-        enddo
+           enddo
+      enddo
 
-        do j=1,np
-          do i=1,np
+          do j=1,np
+            do i=1,np
              vort(i,j,k,ie)=(vort(i,j,k,ie)-v_tmp1(i,j))*(elem(ie)%rmetdet(i,j)*rrearth)
+            enddo
           enddo
-        enddo
 
-     enddo
+     enddo 
+   enddo
+   !end of the third openacc kernel
+
+
+  do ie=1, nelemd
+
      
      ! compute T_v for timelevel n0
      !if ( moisture /= "dry") then
@@ -433,7 +441,7 @@ contains
         do k=1,nlev
            do j=1,np
               do i=1,np
-                 T_v(i,j,k) = elem(ie)%state%T(i,j,k,n0)
+                 T_v(i,j,k,ie) = elem(ie)%state%T(i,j,k,n0)
                  kappa_star(i,j,k,ie) = kappa
               end do
            end do
@@ -442,12 +450,9 @@ contains
         do k=1,nlev
            do j=1,np
               do i=1,np
-                 ! Qt = elem(ie)%state%Q(i,j,k,1) 
                  Qt = elem(ie)%state%Qdp(i,j,k,1,qn0)/dp(i,j,k,ie)
-                 !T_v(i,j,k) = Virtual_Temperature(elem(ie)%state%T(i,j,k,n0),Qt)
-                  T_v(i,j,k) = elem(ie)%state%T(i,j,k,n0)*(1_real_kind + (Rwater_vapor/Rgas - 1.0_real_kind)*Qt)
+                  T_v(i,j,k,ie) = elem(ie)%state%T(i,j,k,n0)*(1_real_kind + (Rwater_vapor/Rgas - 1.0_real_kind)*Qt)
                  if (use_cpstar==1) then
-                    !kappa_star(i,j,k) =  Rgas/Virtual_Specific_Heat(Qt)
                     kappa_star(i,j,k,ie) =  Rgas/Cp*(1.0_real_kind + (Cpwater_vapor/Cp - 1.0_real_kind)*Qt)
                  else
                     kappa_star(i,j,k,ie) = kappa
@@ -456,7 +461,12 @@ contains
            end do
         end do
      end if
-     
+   enddo !ie
+
+  !endo of openacc loop
+
+   do ie=1, nelemd
+
      
      ! ====================================================
      ! Compute Hydrostatic equation, modeld after CCM-3
@@ -469,8 +479,8 @@ contains
           do i=1,np
              hkk = dp(i,j,nlev,ie)*0.5d0/p(i,j,nlev,ie)
              hkl = 2*hkk
-             phii(i,j,nlev)  = Rgas*T_v(i,j,nlev)*hkl
-             phi_oacc(i,j,nlev,ie) = elem(ie)%state%phis(i,j) + Rgas*T_v(i,j,nlev)*hkk
+             phii(i,j,nlev)  = Rgas*T_v(i,j,nlev,ie)*hkl
+             phi_oacc(i,j,nlev,ie) = elem(ie)%state%phis(i,j) + Rgas*T_v(i,j,nlev,ie)*hkk
           end do
 
           do k=nlev-1,2,-1
@@ -478,21 +488,24 @@ contains
                 ! hkk = dp*ckk
                 hkk = dp(i,j,k,ie)*0.5d0/p(i,j,k,ie)
                 hkl = 2*hkk
-                phii(i,j,k) = phii(i,j,k+1) + Rgas*T_v(i,j,k)*hkl
-                phi_oacc(i,j,k,ie) = elem(ie)%state%phis(i,j) + phii(i,j,k+1) + Rgas*T_v(i,j,k)*hkk
+                phii(i,j,k) = phii(i,j,k+1) + Rgas*T_v(i,j,k,ie)*hkl
+                phi_oacc(i,j,k,ie) = elem(ie)%state%phis(i,j) + phii(i,j,k+1) + Rgas*T_v(i,j,k,ie)*hkk
              end do
           end do
 
           do i=1,np
              ! hkk = dp*ckk
              hkk = 0.5d0*dp(i,j,1,ie)/p(i,j,1,ie)
-             phi_oacc(i,j,1,ie) = elem(ie)%state%phis(i,j) + phii(i,j,2) + Rgas*T_v(i,j,1)*hkk
+             phi_oacc(i,j,1,ie) = elem(ie)%state%phis(i,j) + phii(i,j,2) + Rgas*T_v(i,j,1,ie)*hkk
           end do
 
        end do
      
+  enddo!ie
+  !endo of openacc loop
 
 
+  do ie=1, nelemd
      ! ====================================================
      ! Compute omega_p according to CCM-3 
      ! ====================================================
@@ -529,8 +542,11 @@ contains
           end do
 
        end do
+    enddo!ie
 
-
+    !end of the openacc loop
+     
+    do ie=1, nelemd
      
      ! ==================================================
      ! zero partial sum for accumulating sum
@@ -745,7 +761,7 @@ contains
 
         do j=1,np
            do i=1,np
-              gpterm = T_v(i,j,k)/p(i,j,k,ie)
+              gpterm = T_v(i,j,k,ie)/p(i,j,k,ie)
               glnps1 = Rgas*gpterm*grad_p(i,j,1,k,ie)
               glnps2 = Rgas*gpterm*grad_p(i,j,2,k,ie)
               
@@ -760,7 +776,7 @@ contains
                    - v1*(elem(ie)%fcor(i,j) + vort(i,j,k,ie))        &
                    - vtemp(i,j,2) - glnps2   
               
-              ttens(i,j,k)  = - T_vadv(i,j,k) - vgrad_T(i,j) + kappa_star(i,j,k,ie)*T_v(i,j,k)*omega_p(i,j,k,ie)
+              ttens(i,j,k)  = - T_vadv(i,j,k) - vgrad_T(i,j) + kappa_star(i,j,k,ie)*T_v(i,j,k,ie)*omega_p(i,j,k,ie)
               !
               ! phl: add forcing term to T
               !
@@ -953,7 +969,7 @@ contains
                       (Cpwater_vapor-Cp)*elem(ie)%state%Q(i,j,k,1)*T_vadv(i,j,k)*dp(i,j,k,ie)
                  endif
 
-                 gpterm = T_v(i,j,k)/p(i,j,k)
+                 gpterm = T_v(i,j,k,ie)/p(i,j,k)
                  elem(ie)%accum%T1(i,j) = elem(ie)%accum%T1(i,j) - &
                       Rgas*gpterm*(grad_p(i,j,1,k,ie)*v1 + grad_p(i,j,2,k,ie)*v2)*dp(i,j,k,ie)
                  
@@ -962,14 +978,14 @@ contains
                  
                  ! S1 = < Cp_star dp/dn , RT omega_p/cp_star >  
                  elem(ie)%accum%S1(i,j) = elem(ie)%accum%S1(i,j) + &
-                      Rgas*T_v(i,j,k)*omega_p(i,j,k,ie)*dp(i,j,k,ie)
+                      Rgas*T_v(i,j,k,ie)*omega_p(i,j,k,ie)*dp(i,j,k,ie)
                  
                  ! cp_star = cp + cp2
                  if (use_cpstar==1) then
                  cp2 = (Cpwater_vapor-Cp)*elem(ie)%state%Q(i,j,k,1)
                  cp_ratio = cp2/(cp+cp2)
                  elem(ie)%accum%S1_wet(i,j) = elem(ie)%accum%S1_wet(i,j) + &
-                      cp_ratio*(Rgas*T_v(i,j,k)*omega_p(i,j,k,ie)*dp(i,j,k,ie))
+                      cp_ratio*(Rgas*T_v(i,j,k,ie)*omega_p(i,j,k,ie)*dp(i,j,k,ie))
                  endif
                  
                  elem(ie)%accum%CONV(i,j,:,k)=-Rgas*gpterm*grad_p(i,j,:,k,ie)-vtemp(i,j,:)
