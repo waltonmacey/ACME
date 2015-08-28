@@ -255,17 +255,19 @@ contains
         enddo
       enddo
       call limiter2d_zero(state_Qdp,2,nt_qdp)
+      call t_startf('ah_scalar_PEU')
       call edgeVpack(edgeAdv,state_qdp,qsize*nlev,0,desc_putmapP,desc_reverse,2,nt_qdp)
+      call t_startf('ah_scalar_exch')
       !$omp end master
       !$omp barrier
 
-      call t_startf('ah_scalar_bexchV')
       call bndry_exchangeV( hybrid , edgeAdv )
-      call t_stopf('ah_scalar_bexchV')
       
       !$omp barrier
       !$omp master
+      call t_stopf('ah_scalar_exch')
       call edgeVunpack(edgeAdv%buf,edgeAdv%nlyr,state_qdp,qsize*nlev,0,desc_getmapP,2,nt_qdp)
+      call t_stopf('ah_scalar_PEU')
       !$acc parallel loop gang vector collapse(5) present(state_qdp,elem(:))
       do ie = 1 , nelemd
         do q = 1 , qsize    
@@ -316,17 +318,19 @@ contains
     !$omp barrier
     !$omp master
     call laplace_sphere_wk(qtens,grads,deriv,elem,var_coef1,qtens,nlev*qsize,nets,nete)
+    call t_startf('biwksc_PEU')
     call edgeVpack(edgeq,qtens,qsize*nlev,0,desc_putmapP,desc_reverse,1,1)
+    call t_startf('biwksc_exch')
     !$omp end master
     !$omp barrier
 
-    call t_startf('biwksc_bexchV')
     call bndry_exchangeV(hybrid,edgeq)
-    call t_stopf('biwksc_bexchV')
     
     !$omp barrier
     !$omp master
+    call t_stopf('biwksc_exch')
     call edgeVunpack(edgeq%buf,edgeq%nlyr,qtens,qsize*nlev,0,desc_getmapP,1,1)
+    call t_stopf('biwksc_PEU')
     !$acc parallel loop gang vector collapse(5) present(qtens,elem(:))
     do ie = 1 , nelemd
       ! apply inverse mass matrix, then apply laplace again
@@ -468,8 +472,8 @@ contains
     enddo
     !$acc parallel loop gang vector collapse(3) private(mintmp,maxtmp) present(qmin,qmax,qtens_biharmonic)
     do ie = 1 , nelemd
-      do k = 1 , nlev    
-        do q = 1 , qsize
+      do q = 1 , qsize
+        do k = 1 , nlev    
           if (rhs_multiplier == 0 .or. rhs_multiplier == 2) then
             mintmp =  1.D20
             maxtmp = -1.D20
@@ -500,14 +504,15 @@ contains
       if ( nu_p > 0 ) then
         !$omp barrier
         !$omp master
-        !$acc parallel loop gang vector collapse(5) present(qtens_biharmonic,derived_dpdiss_ave,dp0)
+        !$acc parallel loop gang vector collapse(4) present(qtens_biharmonic,derived_dpdiss_ave,dp0)
         do ie = 1 , nelemd
-          do q = 1 , qsize
-            do k = 1 , nlev    
-              do j = 1 , np
-                do i = 1 , np
+          do k = 1 , nlev    
+            do j = 1 , np
+              do i = 1 , np
+                tmp = derived_dpdiss_ave(i,j,k,ie) / dp0(k)
+                do q = 1 , qsize
                   ! NOTE: divide by dp0 since we multiply by dp0 below
-                  Qtens_biharmonic(i,j,k,q,ie)=Qtens_biharmonic(i,j,k,q,ie)*derived_dpdiss_ave(i,j,k,ie)/dp0(k)
+                  Qtens_biharmonic(i,j,k,q,ie) = Qtens_biharmonic(i,j,k,q,ie) * tmp
                 enddo
               enddo
             enddo
@@ -519,14 +524,15 @@ contains
       call biharmonic_wk_scalar_minmax( elem , qtens_biharmonic , grads_tracer , deriv , edgeAdvQ3 , hybrid , nets , nete , qmin , qmax )
       !$omp barrier
       !$omp master
-      !$acc parallel loop gang vector collapse(5) present(qtens_biharmonic,dp0,elem(:))
+      !$acc parallel loop gang vector collapse(4) present(qtens_biharmonic,dp0,elem(:))
       do ie = 1 , nelemd
-        do q = 1 , qsize
-          do k = 1 , nlev    !  Loop inversion (AAM)
-            do j = 1 , np
-              do i = 1 , np
+        do k = 1 , nlev    !  Loop inversion (AAM)
+          do j = 1 , np
+            do i = 1 , np
+              tmp = -rhs_viss*dt*nu_q*dp0(k) / elem(ie)%spheremp(i,j)
+              do q = 1 , qsize
                 ! note: biharmonic_wk() output has mass matrix already applied. Un-apply since we apply again below:
-                qtens_biharmonic(i,j,k,q,ie) = -rhs_viss*dt*nu_q*dp0(k)*Qtens_biharmonic(i,j,k,q,ie) / elem(ie)%spheremp(i,j)
+                qtens_biharmonic(i,j,k,q,ie) = tmp*Qtens_biharmonic(i,j,k,q,ie)
               enddo
             enddo
           enddo
@@ -585,9 +591,10 @@ contains
       do k = 1 , nlev  !  dp_star used as temporary instead of divdp (AAM)
         do j = 1 , np
           do i = 1 , np
-            Qtens(i,j,k,q,ie) = state_Qdp(i,j,k,q,n0_qdp,ie) - dt * qtens(i,j,k,q,ie)
+            tmp = state_Qdp(i,j,k,q,n0_qdp,ie) - dt * qtens(i,j,k,q,ie)
             ! optionally add in hyperviscosity computed above:
-            if ( rhs_viss /= 0 ) Qtens(i,j,k,q,ie) = Qtens(i,j,k,q,ie) + Qtens_biharmonic(i,j,k,q,ie)
+            if ( rhs_viss /= 0 ) tmp = tmp + Qtens_biharmonic(i,j,k,q,ie)
+            Qtens(i,j,k,q,ie) = tmp
           enddo
         enddo
       enddo
@@ -596,17 +603,17 @@ contains
   if ( limiter_option == 8 ) then
     call limiter_optim_iter_full( Qtens , elem(:) , qmin , qmax , dp_star )   ! apply limiter to Q = Qtens / dp_star 
   endif
-  !$acc parallel loop gang vector collapse(5) present(state_Qdp,elem(:),qtens)
+  !$acc parallel loop gang vector collapse(4) present(state_Qdp,elem(:),qtens)
   do ie = 1 , nelemd
-    ! advance Qdp
-    do q = 1 , qsize
-      ! apply mass matrix, overwrite np1 with solution:
-      ! dont do this earlier, since we allow np1_qdp == n0_qdp 
-      ! and we dont want to overwrite n0_qdp until we are done using it
-      do k = 1 , nlev
-        do j = 1 , np
-          do i = 1 , np
-            state_Qdp(i,j,k,q,np1_qdp,ie) = elem(ie)%spheremp(i,j) * Qtens(i,j,k,q,ie) 
+    ! apply mass matrix, overwrite np1 with solution:
+    ! dont do this earlier, since we allow np1_qdp == n0_qdp 
+    ! and we dont want to overwrite n0_qdp until we are done using it
+    do k = 1 , nlev
+      do j = 1 , np
+        do i = 1 , np
+          tmp = elem(ie)%spheremp(i,j)
+          do q = 1 , qsize
+            state_Qdp(i,j,k,q,np1_qdp,ie) =  tmp * Qtens(i,j,k,q,ie) 
           enddo
         enddo
       enddo
@@ -620,24 +627,27 @@ contains
   endif
   ! note: eta_dot_dpdn is actually dimension nlev+1, but nlev+1 data is
   ! all zero so we only have to DSS 1:nlev
+  call t_startf('eus_PEU')
   call edgeVpack(edgeAdv , state_Qdp , nlev*qsize , 0 , desc_putmapP , desc_reverse , 2 , np1_qdp )
+  call t_startf('eus_exch')
   !$omp end master
   !$omp barrier
 
-  call t_startf('eus_bexchV')
   call bndry_exchangeV( hybrid , edgeAdv    )
-  call t_stopf('eus_bexchV')
 
   !$omp barrier
   !$omp master
+  call t_stopf('eus_exch')
   call edgeVunpack( edgeAdv%buf , edgeAdv%nlyr , state_Qdp , nlev*qsize , 0 , desc_getmapP , 2 , np1_qdp )
-  !$acc parallel loop gang vector collapse(5) present(state_Qdp,elem(:))
+  call t_stopf('eus_PEU')
+  !$acc parallel loop gang vector collapse(4) present(state_Qdp,elem(:))
   do ie = 1 , nelemd
-    do q = 1 , qsize
-      do k = 1 , nlev    !  Potential loop inversion (AAM)
-        do j = 1 , np
-          do i = 1 , np
-            state_Qdp(i,j,k,q,np1_qdp,ie) = elem(ie)%rspheremp(i,j) * state_Qdp(i,j,k,q,np1_qdp,ie)
+    do k = 1 , nlev    !  Potential loop inversion (AAM)
+      do j = 1 , np
+        do i = 1 , np
+          tmp = elem(ie)%rspheremp(i,j)
+          do q = 1 , qsize
+            state_Qdp(i,j,k,q,np1_qdp,ie) = tmp * state_Qdp(i,j,k,q,np1_qdp,ie)
           enddo
         enddo
       enddo
@@ -682,21 +692,23 @@ contains
     !$omp master
     call minmax_pack(qmin_pack,qmax_pack,emin,emax)
     call laplace_sphere_wk(qtens,grads,deriv,elem,var_coef1,qtens,nlev*qsize,nets,nete)
+    call t_startf('biwkscmm_PEU')
     call edgeVpack(edgeq,    qtens,qsize*nlev,0           ,desc_putmapP,desc_reverse,1,1)
     call edgeVpack(edgeq,Qmin_pack,nlev*qsize,nlev*qsize  ,desc_putmapP,desc_reverse,1,1)
     call edgeVpack(edgeq,Qmax_pack,nlev*qsize,2*nlev*qsize,desc_putmapP,desc_reverse,1,1)
+    call t_startf('biwkscmm_exch')
     !$omp end master
     !$omp barrier
 
-    call t_startf('biwkscmm_bexchV')
     call bndry_exchangeV(hybrid,edgeq)
-    call t_stopf('biwkscmm_bexchV')
 
     !$omp barrier
     !$omp master
+    call t_stopf('biwkscmm_exch')
     call edgeVunpack   (edgeq%buf,edgeq%nlyr,    qtens,qsize*nlev,0           ,desc_getmapP,1,1)
     call edgeVunpackMin(edgeq%buf,edgeq%nlyr,Qmin_pack,qsize*nlev,qsize*nlev  ,desc_getmapP,1,1)
     call edgeVunpackMax(edgeq%buf,edgeq%nlyr,Qmax_pack,qsize*nlev,2*qsize*nlev,desc_getmapP,1,1)
+    call t_stopf('biwkscmm_PEU')
     !$acc parallel loop gang vector collapse(5) present(qtens,elem(:))
     do ie = 1 , nelemd
       do q = 1 , qsize      
@@ -890,19 +902,21 @@ contains
     !$omp barrier
     !$omp master
     call minmax_pack(qmin_pack,qmax_pack,min_neigh,max_neigh)
+    call t_startf('nmm_PEU')
     call edgeVpack(edgeMinMax,Qmin_pack,nlev*qsize,0         ,desc_putmapP,desc_reverse,1,1)
     call edgeVpack(edgeMinMax,Qmax_pack,nlev*qsize,nlev*qsize,desc_putmapP,desc_reverse,1,1)
+    call t_startf('nmm_exch')
     !$omp end master
     !$omp barrier
 
-    call t_startf('nmm_bexchV')
     call bndry_exchangeV(hybrid,edgeMinMax)
-    call t_stopf('nmm_bexchV')
        
     !$omp barrier
     !$omp master
+    call t_stopf('nmm_exch')
     call edgeVunpackMin(edgeMinMax%buf,edgeMinMax%nlyr,Qmin_pack,nlev*qsize,0         ,desc_getmapP,1,1)
     call edgeVunpackMax(edgeMinMax%buf,edgeMinMax%nlyr,Qmax_pack,nlev*qsize,nlev*qsize,desc_getmapP,1,1)
+    call t_stopf('nmm_PEU')
     call minmax_reduce_corners(qmin_pack,qmax_pack,min_neigh,max_neigh)
     !$omp end master
     !$omp barrier
@@ -916,13 +930,13 @@ contains
     real(kind=real_kind), intent(in   ) :: max_neigh(nlev,qsize,nelemd)
     integer :: ie,q,k,j,i
     !$acc parallel loop gang vector collapse(5) present(min_neigh,max_neigh,qmin_pack,qmax_pack)
-    do ie=1,nelemd
-      do q=1,qsize
-        do k=1,nlev
+    do ie = 1 , nelemd
+      do q = 1 , qsize
+        do k = 1 , nlev
           do j = 1 , np
             do i = 1 , np
-              Qmin_pack(i,j,k,q,ie)=min_neigh(k,q,ie)
-              Qmax_pack(i,j,k,q,ie)=max_neigh(k,q,ie)
+              Qmin_pack(i,j,k,q,ie) = min_neigh(k,q,ie)
+              Qmax_pack(i,j,k,q,ie) = max_neigh(k,q,ie)
             enddo
           enddo
         enddo
@@ -966,30 +980,49 @@ contains
     logical(kind=log_kind) ,intent(in   ) :: reverse(max_neigh_edges,nelemd)
     integer                ,intent(in   ) :: tdim,tl
     ! Local variables
-    integer :: i,k,ir,ll,is,ie,in,iw,el
+    integer :: i,k,ir,ll,is,ie,in,iw,el,kc,kk
+    integer, parameter :: kchunk = 32
     call t_startf('edge_pack')
     if (edge%nlyr < (kptr+vlyr) ) call haltmp('edgeVpack: Buffer overflow: size of the vertical dimension must be increased!')
-    !$acc parallel loop gang vector collapse(2) present(v,putmapP,reverse,edge%buf) vector_length(256)
+    !$acc parallel loop gang collapse(2) present(v,putmapP,reverse,edge%buf) vector_length(kchunk*np)
     do el = 1 , nelemd
-      do k = 1 , vlyr
-        do i = 1 , np
-          edge%buf(kptr+k,putmapP(south,el)+i) = v(i ,1 ,k,tl,el)
-          edge%buf(kptr+k,putmapP(east ,el)+i) = v(np,i ,k,tl,el)
-          edge%buf(kptr+k,putmapP(north,el)+i) = v(i ,np,k,tl,el)
-          edge%buf(kptr+k,putmapP(west ,el)+i) = v(1 ,i ,k,tl,el)
+      do kc = 1 , vlyr/kchunk+1
+        !$acc loop vector collapse(2)
+        do kk = 1 , kchunk
+          do i = 1 , np
+            k = (kc-1)*kchunk+kk
+            if (k <= vlyr) then
+              edge%buf(kptr+k,putmapP(south,el)+i) = v(i ,1 ,k,tl,el)
+              edge%buf(kptr+k,putmapP(east ,el)+i) = v(np,i ,k,tl,el)
+              edge%buf(kptr+k,putmapP(north,el)+i) = v(i ,np,k,tl,el)
+              edge%buf(kptr+k,putmapP(west ,el)+i) = v(1 ,i ,k,tl,el)
+            endif
+          enddo
         enddo
-        do i = 1 , np
-          ir = np-i+1
-          if(reverse(south,el)) edge%buf(kptr+k,putmapP(south,el)+ir) = v(i ,1 ,k,tl,el)
-          if(reverse(east ,el)) edge%buf(kptr+k,putmapP(east ,el)+ir) = v(np,i ,k,tl,el)
-          if(reverse(north,el)) edge%buf(kptr+k,putmapP(north,el)+ir) = v(i ,np,k,tl,el)
-          if(reverse(west ,el)) edge%buf(kptr+k,putmapP(west ,el)+ir) = v(1 ,i ,k,tl,el)
+        !$acc loop vector collapse(2)
+        do kk = 1 , kchunk
+          do i = 1 , np
+            k = (kc-1)*kchunk+kk
+            if (k <= vlyr) then
+              ir = np-i+1
+              if(reverse(south,el)) edge%buf(kptr+k,putmapP(south,el)+ir) = v(i ,1 ,k,tl,el)
+              if(reverse(east ,el)) edge%buf(kptr+k,putmapP(east ,el)+ir) = v(np,i ,k,tl,el)
+              if(reverse(north,el)) edge%buf(kptr+k,putmapP(north,el)+ir) = v(i ,np,k,tl,el)
+              if(reverse(west ,el)) edge%buf(kptr+k,putmapP(west ,el)+ir) = v(1 ,i ,k,tl,el)
+            endif
+          enddo
         enddo
-        do i = 1 , max_corner_elem
-          ll = swest+0*max_corner_elem+i-1; if(putmapP(ll,el) /= -1) edge%buf(kptr+k,putmapP(ll,el)+1) = v(1 ,1 ,k,tl,el)
-          ll = swest+1*max_corner_elem+i-1; if(putmapP(ll,el) /= -1) edge%buf(kptr+k,putmapP(ll,el)+1) = v(np,1 ,k,tl,el)
-          ll = swest+2*max_corner_elem+i-1; if(putmapP(ll,el) /= -1) edge%buf(kptr+k,putmapP(ll,el)+1) = v(1 ,np,k,tl,el)
-          ll = swest+3*max_corner_elem+i-1; if(putmapP(ll,el) /= -1) edge%buf(kptr+k,putmapP(ll,el)+1) = v(np,np,k,tl,el)
+        !$acc loop vector collapse(2)
+        do kk = 1 , kchunk
+          do i = 1 , max_corner_elem
+            k = (kc-1)*kchunk+kk
+            if (k <= vlyr) then
+              ll = swest+0*max_corner_elem+i-1; if(putmapP(ll,el) /= -1) edge%buf(kptr+k,putmapP(ll,el)+1) = v(1 ,1 ,k,tl,el)
+              ll = swest+1*max_corner_elem+i-1; if(putmapP(ll,el) /= -1) edge%buf(kptr+k,putmapP(ll,el)+1) = v(np,1 ,k,tl,el)
+              ll = swest+2*max_corner_elem+i-1; if(putmapP(ll,el) /= -1) edge%buf(kptr+k,putmapP(ll,el)+1) = v(1 ,np,k,tl,el)
+              ll = swest+3*max_corner_elem+i-1; if(putmapP(ll,el) /= -1) edge%buf(kptr+k,putmapP(ll,el)+1) = v(np,np,k,tl,el)
+            endif
+          enddo
         enddo
       enddo
     enddo
@@ -1231,6 +1264,8 @@ contains
     use schedule_mod, only : schedule_t, cycle_t, schedule
     use dimensions_mod, only: nelemd, np
     use parallel_mod, only : abortmp, status, srequest, rrequest, mpireal_t, mpiinteger_t, mpi_success
+    use openacc, only: acc_async_test
+    use mpi, only: MPI_REQUEST_NULL
     implicit none
     type (hybrid_t)           :: hybrid
     type (EdgeBuffer_t)       :: buffer
@@ -1243,8 +1278,13 @@ contains
     integer                   :: errorcode,errorlen
     character*(80) errorstring
     integer        :: i
+    integer, parameter :: maxCycles = 20
+    integer :: nUpdateHost, nSendComp, nRecvComp, nUpdateDev
+    logical :: updateHost(maxCycles), sendComp(maxCycles), recvComp(maxCycles), updateDev(maxCycles)
+    logical :: mpiflag
     !$OMP BARRIER
     if(hybrid%ithr == 0) then 
+      !$acc wait
 #ifdef _PREDICT
       pSchedule => Schedule(iam)
 #else
@@ -1253,6 +1293,20 @@ contains
       nlyr = buffer%nlyr
       nSendCycles = pSchedule%nSendCycles
       nRecvCycles = pSchedule%nRecvCycles
+      if (max(nRecvCycles,nSendCycles) > maxCycles) then
+        write(*,*) 'ERROR: Must increase maxCycles'
+        stop
+      endif
+      nUpdateHost = 0
+      nSendComp   = 0
+      nRecvComp   = 0
+      nUpdateDev  = 0
+      updateHost(1:nSendCycles) = .false.
+      sendComp  (1:nSendCycles) = .false.
+      recvComp  (1:nRecvCycles) = .false.
+      updateDev (1:nRecvCycles) = .false.
+      Srequest(:) = MPI_REQUEST_NULL
+      Rrequest(:) = MPI_REQUEST_NULL
       !==================================================
       !  Post the Receives 
       !==================================================
@@ -1269,60 +1323,117 @@ contains
           print *,'bndry_exchangeV: Error after call to MPI_Irecv: ',errorstring
         endif
       enddo    ! icycle
-      !==================================================
-      !  Fire off the sends
-      !==================================================
-      do icycle=1,nSendCycles
+
+      !Launch PCI-e copies
+      do icycle = 1 , nSendCycles
         pCycle => pSchedule%SendCycle(icycle)
         iptr   =  pCycle%ptrP
-        if (pCycle%lengthP > 0) then
-          call update_host(buffer%buf(1,iptr),nlyr*pCycle%lengthP)
+        if (pCycle%lengthP > 0) call update_host_async(buffer%buf(1,iptr),nlyr*pCycle%lengthP,icycle)
+      enddo
+      !Initiate polling loop for MPI_Isend and PCI-e returns after data is received
+      do while (nUpdateDev < nRecvCycles .or. nRecvComp < nRecvCycles .or. nSendComp < nSendCycles .or. nUpdateHost < nSendCycles)
+        !If there are host updates yet pending, test to see if each cycle is done. If a cycle is done, so the mpi_isend
+        if (nUpdateHost < nSendCycles) then
+          do icycle = 1 , nSendCycles
+            if (.not. updateHost(icycle)) then
+              if (acc_async_test(icycle)) then
+                pCycle => pSchedule%SendCycle(icycle)
+                dest   =  pCycle%dest - 1
+                length =  nlyr * pCycle%lengthP
+                tag    =  pCycle%tag
+                iptr   =  pCycle%ptrP
+                call MPI_Isend(buffer%buf(1,iptr),length,MPIreal_t,dest,tag,hybrid%par%comm,Srequest(icycle),ierr)
+                updateHost(icycle) = .true.
+                nUpdateHost = nUpdateHost + 1
+              endif
+            endif
+          enddo
+        endif
+        !If there are mpi_isend's still pending, test to see if each cycle is completed. This is for bookkeeping. I cannot copy from receive to buf until all sends are completed
+        if (nSendComp < nSendCycles) then
+          do icycle = 1 , nSendCycles
+            if (updateHost(icycle) .and. (.not. sendComp(icycle))) then
+              call MPI_Test(Srequest(icycle),mpiflag,status(:,icycle),ierr)
+              if (mpiflag) then
+                sendComp(icycle) = .true.
+                nSendComp = nSendComp + 1
+              endif
+            endif
+          enddo
+        endif
+        !if there are mpi_irecv's still pending, test to see if each cycle is completed. If it is, the send receive buffer to device
+        if (nRecvComp < nRecvCycles) then
+          do icycle = 1 , nRecvCycles
+            if (.not. recvComp(icycle)) then
+              call MPI_Test(Rrequest(icycle),mpiflag,status(:,icycle),ierr)
+              if (mpiflag) then
+                pCycle => pSchedule%RecvCycle(icycle)
+                iptr   =  pCycle%ptrP
+                call update_device_async(buffer%receive(1,iptr),nlyr*pCycle%lengthP,maxCycles+icycle)
+                recvComp(icycle) = .true.
+                nRecvComp = nRecvComp + 1
+              endif
+            endif
+          enddo
+        endif
+        !if there are device updates yet pending, test to see if both (1) the device update is finished and (2) the mpi_isends are ALL completed.
+        !If both true, then send from buffer%receive to buffer%buf
+        if (nUpdateDev < nRecvCycles) then
+          if (nSendComp == nSendCycles) then
+            do icycle = 1 , nRecvCycles
+              if (.not. updateDev(icycle)) then
+                if (recvComp(icycle)) then
+                  pCycle => pSchedule%RecvCycle(icycle)
+                  iptr   =  pCycle%ptrP
+                  call copy_ondev_async(buffer%buf(1,iptr),buffer%receive(1,iptr),nlyr*pCycle%lengthP,maxCycles+icycle)
+                  updateDev(icycle) = .true.
+                  nUpdateDev = nUpdateDev + 1
+                endif
+              endif
+            enddo
+          endif
         endif
       enddo
       !$acc wait
-      do icycle=1,nSendCycles
-        pCycle => pSchedule%SendCycle(icycle)
-        dest   =  pCycle%dest - 1
-        length =  nlyr * pCycle%lengthP
-        tag    =  pCycle%tag
-        iptr   =  pCycle%ptrP
-        call MPI_Isend(buffer%buf(1,iptr),length,MPIreal_t,dest,tag,hybrid%par%comm,Srequest(icycle),ierr)
-        if(ierr .ne. MPI_SUCCESS) then
-          errorcode=ierr
-          call MPI_Error_String(errorcode,errorstring,errorlen,ierr)
-          print *,'bndry_exchangeV: Error after call to MPI_Isend: ',errorstring
-        endif
-      enddo    ! icycle
-      !==================================================
-      !  Wait for all the receives to complete
-      !==================================================
-      call MPI_Waitall(nSendCycles,Srequest,status,ierr)
-      call MPI_Waitall(nRecvCycles,Rrequest,status,ierr)
-      do icycle=1,nRecvCycles
-        pCycle => pSchedule%RecvCycle(icycle)
-        iptr   =  pCycle%ptrP
-        do i=0,pCycle%lengthP-1
-          buffer%buf(1:nlyr,iptr+i) = buffer%receive(1:nlyr,iptr+i)
-        enddo
-        call update_device(buffer%buf(1,iptr),nlyr*pCycle%lengthP)
-      enddo   ! icycle
     endif  ! if (hybrid%ithr == 0)
     !$OMP BARRIER
   end subroutine bndry_exchangeV
 
-  subroutine update_host(dat,len)
+  subroutine update_host_async(dat,len,id)
     implicit none
     real(kind=real_kind) :: dat(len)
-    integer              :: len
-    !$acc update host(dat(1:len))
-  end subroutine update_host
+    integer              :: len, id
+    !$acc update host(dat(1:len)) async(id)
+  end subroutine update_host_async
 
-  subroutine update_device(dat,len)
+  subroutine update_device_async(dat,len,id)
     implicit none
     real(kind=real_kind) :: dat(len)
-    integer              :: len
-    !$acc update device(dat(1:len))
-  end subroutine update_device
+    integer              :: len, id
+    !$acc update device(dat(1:len)) async(id)
+  end subroutine update_device_async
+
+  subroutine copy_ondev_async(dest,src,len,id)
+    implicit none
+    real(kind=real_kind) :: dest(len)
+    real(kind=real_kind) :: src (len)
+    integer              :: len, id
+    integer :: i
+    !$acc parallel loop gang vector present(dest,src) async(id)
+    do i = 1 , len
+      dest(i) = src(i)
+    enddo
+  end subroutine copy_ondev_async
+
+  subroutine copy_to_device(dest,src,len)
+    use openacc, only: acc_deviceptr, acc_memcpy_to_device, c_devptr
+    implicit none
+    real(kind=real_kind), intent(  out) :: dest(len)
+    real(kind=real_kind), intent(in   ) :: src (len)
+    integer             , intent(in   ) :: len
+    integer :: i
+    call acc_memcpy_to_device( acc_deviceptr(dest) , src , sizeof(src(1:len)) )
+  end subroutine copy_to_device
 
   subroutine limiter2d_zero(Qdp,tdim,tl)
     ! mass conserving zero limiter (2D only).  to be called just before DSS
@@ -1337,12 +1448,10 @@ contains
     real (kind=real_kind), intent(inout) :: Qdp(np,np,nlev,qsize,tdim,nelemd)
     integer              , intent(in   ) :: tdim
     integer              , intent(in   ) :: tl
-
     ! local
     real (kind=real_kind) :: mass,mass_new
     real (kind=real_kind) :: qtmp(np,np)
     integer i,j,k,q,ie
-
     !$acc parallel loop gang vector collapse(3) private(qtmp)
     do ie = 1 , nelemd
       do q = 1 , qsize
@@ -1355,7 +1464,6 @@ contains
               mass = mass + qtmp(i,j)
             enddo
           enddo
-
           ! negative mass.  so reduce all postive values to zero 
           ! then increase negative values as much as possible
           if ( mass < 0 ) qtmp = -qtmp 
@@ -1369,7 +1477,6 @@ contains
               endif
             enddo
           enddo
-
           ! now scale the all positive values to restore mass
           if ( mass_new > 0 ) qtmp = qtmp * abs(mass) / mass_new
           if ( mass     < 0 ) qtmp = -qtmp 
@@ -1386,7 +1493,6 @@ contains
     implicit none
     !THIS IS A NEW VERSION OF LIM8, POTENTIALLY FASTER BECAUSE INCORPORATES KNOWLEDGE FROM
     !PREVIOUS ITERATIONS
-    
     !The idea here is the following: We need to find a grid field which is closest
     !to the initial field (in terms of weighted sum), but satisfies the min/max constraints.
     !So, first we find values which do not satisfy constraints and bring these values
@@ -1398,8 +1504,7 @@ contains
     real (kind=real_kind), intent(inout) :: minp  (      nlev,qsize,nelemd)
     real (kind=real_kind), intent(inout) :: maxp  (      nlev,qsize,nelemd)
     real (kind=real_kind), intent(in   ) :: dpmass(np*np,nlev      ,nelemd)
- 
-    integer  k1, k, i, j, iter, i1, i2, q, ie
+    integer :: k1, k, i, j, iter, i1, i2, q, ie
     integer :: whois_neg(np*np), whois_pos(np*np), neg_counter, pos_counter
     real (kind=real_kind) :: addmass, weightssum, mass, mintmp, maxtmp
     real (kind=real_kind) :: x(np*np),c(np*np)
@@ -1407,11 +1512,11 @@ contains
     real (kind=real_kind) :: tol_limiter = 1e-15
     integer, parameter :: maxiter = 5
 
-    !$acc parallel loop gang vector collapse(3) present(ptens,elem(:),minp,maxp,dpmass) private(c,x,whois_neg,whois_pos,al_neg,al_pos)
+    !$acc parallel loop gang vector collapse(3) present(ptens,elem(:),minp,maxp,dpmass) private(c,x,whois_neg,whois_pos,al_neg,al_pos) vector_length(512)
     do ie = 1 , nelemd
       do q = 1 , qsize
         do k = 1 , nlev
-          !$acc cache(c,x)
+          !$acc cache(c,x,whois_neg,whois_pos,al_neg,al_pos)
           do k1 = 1 , np*np
             i = modulo(k1-1,np)+1
             j = (k1-1)/np+1
