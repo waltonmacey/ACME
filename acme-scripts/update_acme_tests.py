@@ -23,24 +23,25 @@ __TEST_SUITES = {
                          'ERS_IOP4c.ne30_g16_rx1.A',
                          'ERS_IOP4p.f19_g16_rx1.A',
                          'ERS_IOP4p.ne30_g16_rx1.A',
-                         'ERS_Ly21.f09_g16.TG',
                          'NCK.f19_g16_rx1.A',
                          'PEA_P1_M.f45_g37_rx1.A',
                          'SMS.ne30_f19_g16_rx1.A',
-                         'SMS.f19_f19.I1850CLM45CN']
+                         'SMS.f19_f19.I1850CLM45CN',
+			 'SMS.f09_g16.I1850CLM45CN',
+			 'SMS.hcru_hcru.I1850CRUCLM45CN']
                         ),
     "acme_integration" : ("acme_developer",
-                          ["ERB.f19_g16.B1850C5",
+                          ["ERB.ne16_g37.B1850C5",
                            "ERB.f45_g37.B1850C5",
                            "ERH.f45_g37.B1850C5",
-                           "ERS.f09_g16.B1850C5",
+                           "ERS.ne30_g16.B1850C5",
                            "ERS.f19_f19.FAMIPC5",
-                           "ERS.f19_g16.B1850C5",
+                           "ERS.ne16_g37.B1850C5",
                            "ERS_D.f45_g37.B1850C5",
                            "ERS_IOP_Ld3.f19_f19.FAMIPC5",
-                           "ERS_Ld3.f19_g16.FC5",
+                           "ERS_Ld3.ne16_g37.FC5",
                            "ERS_Ld3.ne30_ne30.FC5",
-                           "ERT.f19_g16.B1850C5",
+                           "ERT.ne16_g37.B1850C5",
                            "PET_PT.f19_g16.X",
                            "PET_PT.f45_g37_rx1.A",
                            "PFS.ne30_ne30.FC5",
@@ -48,7 +49,7 @@ __TEST_SUITES = {
                            "SEQ_PFC.f45_g37.B1850C5",
                            "SMS.ne16_ne16.FC5AQUAP",
                            "SMS_D.f19_g16.B20TRC5",
-                           "SMS_D_Ld3.f19_f19.FC5"]
+                           "SMS_D_Ld3.ne16_ne16.FC5"]
                           ),
 }
 
@@ -72,15 +73,14 @@ def get_test_suites():
 ###############################################################################
 def find_all_supported_platforms():
 ###############################################################################
-    """Returns a set of all ACME supported platforms as defined in the 
+    """Returns a set of all ACME supported platforms as defined in the
 XML configuration file config_machines.xml in the ACME source tree. A platform
 is defined by a triple (machine name, compiler, mpi library)."""
     import xml.etree.ElementTree as ET
-    import os.path
     config_machines_xml = os.path.join(acme_util.get_source_repo(), 'scripts', 'ccsm_utils', 'Machines', 'config_machines.xml')
     tree = ET.parse(config_machines_xml)
     root = tree.getroot()
-    expect(root.tag == 'config_machines', 
+    expect(root.tag == 'config_machines',
            'The given XML file is not a valid list of machine configurations.')
     platform_set = set()
     # Each child of this root is a machine entry.
@@ -143,9 +143,9 @@ def generate_acme_test_entries(category, platforms):
     return name
 
 ###############################################################################
-def update_acme_test(xml_file, category, platform):
+def update_acme_test(xml_file, categories, platform):
 ###############################################################################
-    # Retrieve all supported ACME platforms, killing the third entry (MPI lib) 
+    # Retrieve all supported ACME platforms, killing the third entry (MPI lib)
     # for the moment.
     supported_platforms = [p[:2] for p in find_all_supported_platforms()]
 
@@ -162,22 +162,28 @@ def update_acme_test(xml_file, category, platform):
     platforms = [p for p in platforms if p in supported_platforms]
 
     # Try to find the manage_xml_entries script. Assume sibling of xml_file
-    manage_xml_entries = os.path.join(os.path.dirname(xml_file), "manage_xml_entries")
+    if (os.path.dirname(xml_file) == ""):
+        manage_xml_entries = os.path.join(".", "manage_xml_entries")
+    else:
+        manage_xml_entries = os.path.join(os.path.dirname(xml_file), "manage_xml_entries")
     expect(os.path.isfile(manage_xml_entries),
            "Couldn't find manage_xml_entries, expect sibling of '%s'" % xml_file)
 
-    # Remove any existing acme test category from the file.
-    if (platform is None):
-        output = acme_util.run_cmd('%s -removetests -category %s' % (manage_xml_entries, category))
-    else:
-        output = acme_util.run_cmd('%s -removetests -category %s -machine %s -compiler %s'
-                                   % (manage_xml_entries, category, platforms[0][0], platforms[0][1]))
-    replace_testlist_xml(output, xml_file)
+    for category in categories:
+        # Remove any existing acme test category from the file.
+        if (platform is None):
+            output = acme_util.run_cmd('%s -removetests -category %s' % (manage_xml_entries, category), verbose=True)
+        else:
+            output = acme_util.run_cmd('%s -removetests -category %s -machine %s -compiler %s'
+                                       % (manage_xml_entries, category, platforms[0][0], platforms[0][1]), verbose=True)
+        replace_testlist_xml(output, xml_file)
 
-    # Generate a list of test entries corresponding to our suite at the top
-    # of the file.
-    new_test_file = generate_acme_test_entries(category, platforms)
-    output = acme_util.run_cmd("%s -addlist -file %s -category %s" %
-                               (manage_xml_entries, new_test_file, category))
-    os.unlink(new_test_file)
-    replace_testlist_xml(output, xml_file)
+        # Generate a list of test entries corresponding to our suite at the top
+        # of the file.
+        new_test_file = generate_acme_test_entries(category, platforms)
+        output = acme_util.run_cmd("%s -addlist -file %s -category %s" %
+                                   (manage_xml_entries, new_test_file, category), verbose=True)
+        os.unlink(new_test_file)
+        replace_testlist_xml(output, xml_file)
+
+    print "SUCCESS"

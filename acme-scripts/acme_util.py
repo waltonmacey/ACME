@@ -83,9 +83,9 @@ MACHINE_INFO = {
         "pgi",
         "acme_integration",
         True,
-        "cli112",
+        "cli115",
         "/lustre/atlas/scratch/<USER>/<PROJECT>",
-        "/lustre/atlas1/cli900/world-shared/cesm/baselines",
+        "/lustre/atlas1/cli900/world-shared/cesm/acme/baselines",
         None
     ),
     "mira"     : (
@@ -161,7 +161,8 @@ def run_cmd(cmd, ok_to_fail=False, input_str=None, from_dir=None, verbose=None,
                             stderr=arg_stderr,
                             stdin=stdin,
                             cwd=from_dir)
-    output, errput = proc.communicate()
+    output, errput = proc.communicate(input_str)
+    output = output.strip() if output is not None else output
     stat = proc.wait()
 
     verbose_print("  stat: %d\n" % stat, verbose)
@@ -171,7 +172,11 @@ def run_cmd(cmd, ok_to_fail=False, input_str=None, from_dir=None, verbose=None,
     if (ok_to_fail):
         return stat, output, errput
     else:
-        expect(stat == 0, "Command: '%s' failed with error '%s'" % (cmd, errput))
+        if (arg_stderr is not None):
+            errput = errput if errput is not None else open(arg_stderr.name, "r").read()
+            expect(stat == 0, "Command: '%s' failed with error '%s'" % (cmd, errput))
+        else:
+            expect(stat == 0, "Command: '%s' failed. See terminal output" % cmd)
         return output
 
 ###############################################################################
@@ -223,7 +228,7 @@ def get_current_branch(repo=None):
         return branch
     else:
         output = run_cmd("git symbolic-ref HEAD", from_dir=repo)
-        return output.replace("refs/heads/", "").strip()
+        return output.replace("refs/heads/", "")
 
 ###############################################################################
 def get_current_commit(short=False, repo=None):
@@ -232,7 +237,7 @@ def get_current_commit(short=False, repo=None):
     Return the sha1 of the current HEAD commit
     """
     output = run_cmd("git rev-parse %s HEAD" % ("--short" if short else ""), from_dir=repo)
-    return output.strip()
+    return output
 
 ###############################################################################
 def get_source_repo():
@@ -365,7 +370,7 @@ def get_batch_system_info(batch_system=None):
     return BATCH_INFO[batch_system]
 
 ###############################################################################
-def get_machine_info(machine=None, user=None, project=None):
+def get_machine_info(machine=None, user=None, project=None, raw=False):
 ###############################################################################
     """
     Return information on machine. If no arg provided, probe for machine.
@@ -374,17 +379,24 @@ def get_machine_info(machine=None, user=None, project=None):
     (compiler, test_suite, use_batch, project, testroot, baseline_root, proxy)
     """
     import getpass
+    user = getpass.getuser() if user is None else user
+
     if (machine is None):
         machine = probe_machine_name()
     expect(machine is not None, "Failed to probe machine")
     expect(machine in MACHINE_INFO, "No info for machine '%s'" % machine)
-    user = getpass.getuser() if user is None else user
-    project = project if project is not None else MACHINE_INFO[machine][3]
 
-    return [item.replace("<USER>", user).replace("<PROJECT>", project) if type(item) is str else item for item in MACHINE_INFO[machine]]
+    machine_info_copy = list(MACHINE_INFO[machine])
+    machine_info_copy[3] = project if project is not None else machine_info_copy[3]
+    project = machine_info_copy[3]
+
+    if (raw):
+        return machine_info_copy
+    else:
+        return [item.replace("<USER>", user).replace("<PROJECT>", project) if type(item) is str else item for item in machine_info_copy]
 
 ###############################################################################
-def get_utc_timestamp(format="%Y%m%d_%H%M%S"):
+def get_utc_timestamp(timestamp_format="%Y%m%d_%H%M%S"):
 ###############################################################################
     """
     Get a string representing the current UTC time in format: YYMMDD_HHMMSS
@@ -392,4 +404,4 @@ def get_utc_timestamp(format="%Y%m%d_%H%M%S"):
     The format can be changed if needed.
     """
     utc_time_tuple = time.gmtime()
-    return time.strftime(format, utc_time_tuple)
+    return time.strftime(timestamp_format, utc_time_tuple)
