@@ -39,6 +39,11 @@ module prim_advance_oacc_mod
   real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: omega_p
   real (kind=real_kind),allocatable, dimension(:,:,:)    :: sdot_sum
   real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: T_v
+  real (kind=real_kind),allocatable, dimension(:,:,:,:,:):: v_vadv
+  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: T_vadv
+  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: vtens1
+  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: vtens2
+  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: ttens
 
 contains
 
@@ -71,6 +76,11 @@ contains
    allocate( omega_p      (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__) 
    allocate( sdot_sum     (np, np,            nelemd) , stat = ierr ); _CHECK(__LINE__) 
    allocate( T_v          (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( v_vadv       (np, np, 2, nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( T_vadv       (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( vtens1       (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( vtens2       (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( ttens        (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
 
    do ie=1,nelemd
      do i=1,np
@@ -179,16 +189,16 @@ contains
 !  real (kind=real_kind), dimension(np,np,nlev,nelemd)    :: p          ! pressure
 !  real (kind=real_kind), dimension(np,np,nlev,nelemd)    :: dp         ! delta pressure
   real (kind=real_kind), dimension(np,np,nlev)           :: rdp        ! inverse of delta pressure
-  real (kind=real_kind), dimension(np,np,nlev)           :: T_vadv     ! temperature vertical advection
+!  real (kind=real_kind), dimension(np,np,nlev)           :: T_vadv     ! temperature vertical advection
 !  real (kind=real_kind), dimension(np,np,nlev)           :: vgrad_p    ! v.grad(p)
   real (kind=real_kind), dimension(np,np,nlev+1)         :: ph               ! half level pressures on p-grid
-  real (kind=real_kind), dimension(np,np,2,nlev)         :: v_vadv   ! velocity vertical advection
+!  real (kind=real_kind), dimension(np,np,2,nlev)         :: v_vadv   ! velocity vertical advection
   real (kind=real_kind), dimension(np+1,np+1,nlev)       :: corners 
   real (kind=real_kind), dimension(2,2,2)                :: cflux 
 !  real (kind=real_kind) ::  kappa_star(np,np,nlev)
-  real (kind=real_kind) ::  vtens1(np,np,nlev)
-  real (kind=real_kind) ::  vtens2(np,np,nlev)
-  real (kind=real_kind) ::  ttens(np,np,nlev)
+!  real (kind=real_kind) ::  vtens1(np,np,nlev)
+!  real (kind=real_kind) ::  vtens2(np,np,nlev)
+!  real (kind=real_kind) ::  ttens(np,np,nlev)
   real (kind=real_kind) ::  stashdp3d (np,np,nlev)
   real (kind=real_kind) ::  tempdp3d  (np,np)
   real (kind=real_kind) ::  tempflux  (nc,nc,4)
@@ -624,9 +634,9 @@ contains
            k=1
             do i=1,np
                hkk             = (0.5_real_kind*rdp(i,j,k))*eta_dot_dpdn(i,j,k+1,ie)
-               T_vadv(i,j,k)   = hkk*(elem(ie)%state%T(i,j,k+1,n0)   - elem(ie)%state%T(i,j,k,n0))
-               v_vadv(i,j,1,k) = hkk*(elem(ie)%state%v(i,j,1,k+1,n0) - elem(ie)%state%v(i,j,1,k,n0))
-               v_vadv(i,j,2,k) = hkk*(elem(ie)%state%v(i,j,2,k+1,n0) - elem(ie)%state%v(i,j,2,k,n0))
+               T_vadv(i,j,k,ie)   = hkk*(elem(ie)%state%T(i,j,k+1,n0)   - elem(ie)%state%T(i,j,k,n0))
+               v_vadv(i,j,1,k,ie) = hkk*(elem(ie)%state%v(i,j,1,k+1,n0) - elem(ie)%state%v(i,j,1,k,n0))
+               v_vadv(i,j,2,k,ie) = hkk*(elem(ie)%state%v(i,j,2,k+1,n0) - elem(ie)%state%v(i,j,2,k,n0))
             end do
 
           ! ===========================================================
@@ -639,12 +649,12 @@ contains
              do i=1,np
                 hkk            = (0.5_real_kind*rdp(i,j,k))*eta_dot_dpdn(i,j,k+1,ie)
                 hkl            = (0.5_real_kind*rdp(i,j,k))*eta_dot_dpdn(i,j,k,ie)
-                T_vadv(i,j,k)   = hkk*(elem(ie)%state%T(i,j,k+1,n0)   - elem(ie)%state%T(i,j,k,n0)) + &
-                                  hkl*(elem(ie)%state%T(i,j,k,n0)     - elem(ie)%state%T(i,j,k-1,n0))
-                v_vadv(i,j,1,k) = hkk*(elem(ie)%state%v(i,j,1,k+1,n0) - elem(ie)%state%v(i,j,1,k,n0)) + &
-                                  hkl*(elem(ie)%state%v(i,j,1,k,n0)   - elem(ie)%state%v(i,j,1,k-1,n0))
-                v_vadv(i,j,2,k) = hkk*(elem(ie)%state%v(i,j,2,k+1,n0) - elem(ie)%state%v(i,j,2,k,n0)) + &
-                                  hkl*(elem(ie)%state%v(i,j,2,k,n0)   - elem(ie)%state%v(i,j,2,k-1,n0))
+                T_vadv(i,j,k,ie)   = hkk*(elem(ie)%state%T(i,j,k+1,n0)   - elem(ie)%state%T(i,j,k,n0)) + &
+                                     hkl*(elem(ie)%state%T(i,j,k,n0)     - elem(ie)%state%T(i,j,k-1,n0))
+                v_vadv(i,j,1,k,ie) = hkk*(elem(ie)%state%v(i,j,1,k+1,n0) - elem(ie)%state%v(i,j,1,k,n0)) + &
+                                     hkl*(elem(ie)%state%v(i,j,1,k,n0)   - elem(ie)%state%v(i,j,1,k-1,n0))
+                v_vadv(i,j,2,k,ie) = hkk*(elem(ie)%state%v(i,j,2,k+1,n0) - elem(ie)%state%v(i,j,2,k,n0)) + &
+                                     hkl*(elem(ie)%state%v(i,j,2,k,n0)   - elem(ie)%state%v(i,j,2,k-1,n0))
              end do 
            end do
 
@@ -657,9 +667,9 @@ contains
           k=nlev
           do i=1,np
               hkk             = (0.5_real_kind*rdp(i,j,k))*eta_dot_dpdn(i,j,k,ie)
-              T_vadv(i,j,k)   = hkl*(elem(ie)%state%T(i,j,k,n0)- elem(ie)%state%T(i,j,k-1,n0))
-              v_vadv(i,j,1,k) = hkl*(elem(ie)%state%v(i,j,1,k,n0)- elem(ie)%state%v(i,j,1,k-1,n0))
-              v_vadv(i,j,2,k) = hkl*(elem(ie)%state%v(i,j,2,k,n0)- elem(ie)%state%v(i,j,2,k-1,n0))
+              T_vadv(i,j,k,ie)   = hkl*(elem(ie)%state%T(i,j,k,n0)- elem(ie)%state%T(i,j,k-1,n0))
+              v_vadv(i,j,1,k,ie) = hkl*(elem(ie)%state%v(i,j,1,k,n0)- elem(ie)%state%v(i,j,1,k-1,n0))
+              v_vadv(i,j,2,k,ie) = hkl*(elem(ie)%state%v(i,j,2,k,n0)- elem(ie)%state%v(i,j,2,k-1,n0))
           end do
 
         enddo
@@ -689,9 +699,11 @@ contains
                  elem(ie)%derived%eta_dot_dpdn(i,j,nlev+1) + eta_ave_w*eta_dot_dpdn(i,j,nlev+1,ie)
         enddo
      enddo
+   enddo!ie
 
-     
-     
+    !end of the openacc loop
+
+    do ie=1, nelemd
      ! ==============================================
      ! Compute phi + kinetic energy term: 10*nv*nv Flops
      ! ==============================================
@@ -768,15 +780,15 @@ contains
               v1     = elem(ie)%state%v(i,j,1,k,n0)
               v2     = elem(ie)%state%v(i,j,2,k,n0)
               
-              vtens1(i,j,k) =   - v_vadv(i,j,1,k)                           &
+              vtens1(i,j,k,ie) =   - v_vadv(i,j,1,k,ie)                           &
                    + v2*(elem(ie)%fcor(i,j) + vort(i,j,k,ie))        &
                    - vtemp(i,j,1) - glnps1   
               
-              vtens2(i,j,k) =   - v_vadv(i,j,2,k)                            &
+              vtens2(i,j,k,ie) =   - v_vadv(i,j,2,k,ie)                            &
                    - v1*(elem(ie)%fcor(i,j) + vort(i,j,k,ie))        &
                    - vtemp(i,j,2) - glnps2   
               
-              ttens(i,j,k)  = - T_vadv(i,j,k) - vgrad_T(i,j) + kappa_star(i,j,k,ie)*T_v(i,j,k,ie)*omega_p(i,j,k,ie)
+              ttens(i,j,k,ie)  = - T_vadv(i,j,k,ie) - vgrad_T(i,j) + kappa_star(i,j,k,ie)*T_v(i,j,k,ie)*omega_p(i,j,k,ie)
               !
               ! phl: add forcing term to T
               !
@@ -784,9 +796,9 @@ contains
 #if ( defined CAM )
 
               if (se_prescribed_wind_2d) then
-                 vtens1(i,j,k) = 0.D0
-                 vtens2(i,j,k) = 0.D0
-                 ttens(i,j,k) = 0.D0
+                 vtens1(i,j,k,ie) = 0.D0
+                 vtens2(i,j,k,ie) = 0.D0
+                 ttens(i,j,k,ie) = 0.D0
               else
                  if(se_met_nudge_u.gt.0.D0)then
                     u_m_umet = v1 - &
@@ -796,12 +808,12 @@ contains
                          elem(ie)%derived%v_met(i,j,k) - &
                          se_met_tevolve*tevolve*elem(ie)%derived%dvdt_met(i,j,k)
 
-                    vtens1(i,j,k) =   vtens1(i,j,k) - se_met_nudge_u*u_m_umet * elem(ie)%derived%nudge_factor(i,j,k)
+                    vtens1(i,j,k,ie) =   vtens1(i,j,k,ie) - se_met_nudge_u*u_m_umet * elem(ie)%derived%nudge_factor(i,j,k)
 
                     elem(ie)%derived%Utnd(i+(j-1)*np,k) = elem(ie)%derived%Utnd(i+(j-1)*np,k) &
                          + se_met_nudge_u*u_m_umet * elem(ie)%derived%nudge_factor(i,j,k)
 
-                    vtens2(i,j,k) =   vtens2(i,j,k) - se_met_nudge_u*v_m_vmet * elem(ie)%derived%nudge_factor(i,j,k)
+                    vtens2(i,j,k,ie) =   vtens2(i,j,k,ie) - se_met_nudge_u*v_m_vmet * elem(ie)%derived%nudge_factor(i,j,k)
 
                     elem(ie)%derived%Vtnd(i+(j-1)*np,k) = elem(ie)%derived%Vtnd(i+(j-1)*np,k) &
                          + se_met_nudge_u*v_m_vmet * elem(ie)%derived%nudge_factor(i,j,k)
@@ -809,15 +821,15 @@ contains
                  endif
 
                  if(se_met_nudge_p.gt.0.D0)then
-                    vtens1(i,j,k) =   vtens1(i,j,k) - se_met_nudge_p*grad_p_m_pmet(i,j,1,k)  * elem(ie)%derived%nudge_factor(i,j,k)
-                    vtens2(i,j,k) =   vtens2(i,j,k) - se_met_nudge_p*grad_p_m_pmet(i,j,2,k)  * elem(ie)%derived%nudge_factor(i,j,k)
+                    vtens1(i,j,k,ie) =   vtens1(i,j,k,ie) - se_met_nudge_p*grad_p_m_pmet(i,j,1,k)  * elem(ie)%derived%nudge_factor(i,j,k)
+                    vtens2(i,j,k,ie) =   vtens2(i,j,k,ie) - se_met_nudge_p*grad_p_m_pmet(i,j,2,k)  * elem(ie)%derived%nudge_factor(i,j,k)
                  endif
 
                  if(se_met_nudge_t.gt.0.D0)then
                     t_m_tmet = elem(ie)%state%T(i,j,k,n0) - &
                          elem(ie)%derived%T_met(i,j,k) - &
                          se_met_tevolve*tevolve*elem(ie)%derived%dTdt_met(i,j,k)
-                    ttens(i,j,k)  = ttens(i,j,k) - se_met_nudge_t*t_m_tmet * elem(ie)%derived%nudge_factor(i,j,k)
+                    ttens(i,j,k,ie)  = ttens(i,j,k,ie) - se_met_nudge_t*t_m_tmet * elem(ie)%derived%nudge_factor(i,j,k)
                     elem(ie)%derived%Ttnd(i+(j-1)*np,k) = elem(ie)%derived%Ttnd(i+(j-1)*np,k) &
                          + se_met_nudge_t*t_m_tmet * elem(ie)%derived%nudge_factor(i,j,k)
                  endif
@@ -829,8 +841,13 @@ contains
         end do
 
      end do vertloop 
+   enddo!ie
 
+    !end of the openacc loop
+
+    do ie=1, nelemd
 #ifdef ENERGY_DIAGNOSTICS
+
      ! =========================================================
      !
      ! diagnostics
@@ -958,15 +975,15 @@ contains
                  ! E de/dn
                  elem(ie)%accum%KEvert1(i,j)=elem(ie)%accum%KEvert1(i,j) + E*de
                  ! Cp T_vadv dp/dn
-                 elem(ie)%accum%IEvert2(i,j)=elem(ie)%accum%IEvert2(i,j) + Cp*T_vadv(i,j,k)*dp(i,j,k,ie)
+                 elem(ie)%accum%IEvert2(i,j)=elem(ie)%accum%IEvert2(i,j) + Cp*T_vadv(i,j,k,ie)*dp(i,j,k,ie)
                  ! dp/dn V dot V_vadv
-                 elem(ie)%accum%KEvert2(i,j)=elem(ie)%accum%KEvert2(i,j) + (v1*v_vadv(i,j,1,k) + v2*v_vadv(i,j,2,k)) *dp(i,j,k)
+                 elem(ie)%accum%KEvert2(i,j)=elem(ie)%accum%KEvert2(i,j) + (v1*v_vadv(i,j,1,k,ie) + v2*v_vadv(i,j,2,k,ie)) *dp(i,j,k)
                  
                  ! IEvert1_wet():  (Cpv-Cp) T Qdp_vadv  (Q equation)
                  ! IEvert2_wet():  (Cpv-Cp) Qdp T_vadv   T equation
                  if (use_cpstar==1) then
                  elem(ie)%accum%IEvert2_wet(i,j)=elem(ie)%accum%IEvert2_wet(i,j) +&
-                      (Cpwater_vapor-Cp)*elem(ie)%state%Q(i,j,k,1)*T_vadv(i,j,k)*dp(i,j,k,ie)
+                      (Cpwater_vapor-Cp)*elem(ie)%state%Q(i,j,k,1)*T_vadv(i,j,k,ie)*dp(i,j,k,ie)
                  endif
 
                  gpterm = T_v(i,j,k,ie)/p(i,j,k)
@@ -1072,9 +1089,9 @@ contains
         do k=1,nlev
           do j=1,np
              do i=1,np
-              elem(ie)%state%v(i,j,1,k,np1) = elem(ie)%spheremp(i,j)*vtens1(i,j,k) 
-              elem(ie)%state%v(i,j,2,k,np1) = elem(ie)%spheremp(i,j)*vtens2(i,j,k) 
-              elem(ie)%state%T(i,j,k,np1)   = elem(ie)%spheremp(i,j)*ttens(i,j,k)
+              elem(ie)%state%v(i,j,1,k,np1) = elem(ie)%spheremp(i,j)*vtens1(i,j,k,ie) 
+              elem(ie)%state%v(i,j,2,k,np1) = elem(ie)%spheremp(i,j)*vtens2(i,j,k,ie) 
+              elem(ie)%state%T(i,j,k,np1)   = elem(ie)%spheremp(i,j)*ttens(i,j,k,ie)
               if (rsplit>0) &
                   elem(ie)%state%dp3d(i,j,k,np1) = -elem(ie)%spheremp(i,j)*&
                      (divdp(i,j,k,ie) + eta_dot_dpdn(i,j,k+1,ie)-eta_dot_dpdn(i,j,k,ie)) 
@@ -1098,9 +1115,9 @@ contains
         do k=1,nlev
           do j=1,np
              do i=1,np
-               elem(ie)%state%v(i,j,1,k,np1) = elem(ie)%spheremp(i,j)*( elem(ie)%state%v(i,j,1,k,nm1) + dt2*vtens1(i,j,k) )
-               elem(ie)%state%v(i,j,2,k,np1) = elem(ie)%spheremp(i,j)*( elem(ie)%state%v(i,j,2,k,nm1) + dt2*vtens2(i,j,k) )
-               elem(ie)%state%T(i,j,k,np1)   = elem(ie)%spheremp(i,j)*( elem(ie)%state%T(i,j,k,nm1)   + dt2*ttens(i,j,k))
+               elem(ie)%state%v(i,j,1,k,np1) = elem(ie)%spheremp(i,j)*( elem(ie)%state%v(i,j,1,k,nm1) + dt2*vtens1(i,j,k,ie) )
+               elem(ie)%state%v(i,j,2,k,np1) = elem(ie)%spheremp(i,j)*( elem(ie)%state%v(i,j,2,k,nm1) + dt2*vtens2(i,j,k,ie) )
+               elem(ie)%state%T(i,j,k,np1)   = elem(ie)%spheremp(i,j)*( elem(ie)%state%T(i,j,k,nm1)   + dt2*ttens(i,j,k,ie))
                 if (rsplit>0) &
                     elem(ie)%state%dp3d(i,j,k,np1) = elem(ie)%spheremp(i,j)*&
                       (elem(ie)%state%dp3d(i,j,k,nm1)-dt2*&
@@ -1210,7 +1227,11 @@ contains
         
 
      endif
-     
+    
+     enddo
+
+
+    do ie=1, nelemd
      ! ====================================================
      ! Scale tendencies by inverse mass matrix
      ! ====================================================
