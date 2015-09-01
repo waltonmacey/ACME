@@ -379,110 +379,110 @@
       enddo
       enddo
 
-
-      allocate (atrcr(icells,ntrcr))
-
-      !-----------------------------------------------------------------
-      ! Aggregate
-      !-----------------------------------------------------------------
-
-      atrcr(:,:) = c0
-
-      do n = 1, ncat
+      if (icells > 0) then
+         allocate (atrcr(icells,ntrcr))
+         
+         !-----------------------------------------------------------------
+         ! Aggregate
+         !-----------------------------------------------------------------
+         
+         atrcr(:,:) = c0
+         
+         do n = 1, ncat
+            
+!DIR$ CONCURRENT !Cray
+!cdir nodep      !NEC
+!ocl novrec      !Fujitsu
+            do ij = 1, icells
+               i = indxi(ij)
+               j = indxj(ij)
+               aice(i,j) = aice(i,j) + aicen(i,j,n)
+               vice(i,j) = vice(i,j) + vicen(i,j,n)
+               vsno(i,j) = vsno(i,j) + vsnon(i,j,n)
+            enddo                  ! ij
+            
+            do it = 1, ntrcr
+               if (trcr_depend(it) == 0) then  ! ice area tracer
+!DIR$ CONCURRENT !Cray
+!cdir nodep      !NEC
+!ocl novrec      !Fujitsu
+                  do ij = 1, icells
+                     i = indxi(ij)
+                     j = indxj(ij)
+                     atrcr(ij,it) = atrcr(ij,it)  &
+                          + trcrn(i,j,it,n)*aicen(i,j,n)
+                  enddo            ! ij
+                  
+               elseif (trcr_depend(it) == 1) then  ! ice volume tracer
+!DIR$ CONCURRENT !Cray
+!cdir nodep      !NEC
+!ocl novrec      !Fujitsu
+                  do ij = 1, icells
+                     i = indxi(ij)
+                     j = indxj(ij)
+                     atrcr(ij,it) = atrcr(ij,it)  &
+                          + trcrn(i,j,it,n)*vicen(i,j,n)
+                  enddo            ! ij
+                  
+               elseif (trcr_depend(it) ==2) then ! snow volume tracer
 
 !DIR$ CONCURRENT !Cray
 !cdir nodep      !NEC
 !ocl novrec      !Fujitsu
+                  do ij = 1, icells
+                     i = indxi(ij)
+                     j = indxj(ij)
+                     atrcr(ij,it) = atrcr(ij,it)  &
+                          + trcrn(i,j,it,n)*vsnon(i,j,n)
+                  enddo            ! ij
+                  
+               endif               ! trcr_depend
+            enddo                  ! ntrcr
+            
+            do k = 1, nilyr
+!DIR$ CONCURRENT !Cray
+!cdir nodep      !NEC
+!ocl novrec      !Fujitsu
+               do ij = 1, icells
+                  i = indxi(ij)
+                  j = indxj(ij)
+                  eice(i,j) = eice(i,j) + eicen(i,j,ilyr1(n)+k-1)
+               enddo
+            enddo                  ! nilyr
+
+            do k = 1, nslyr
+!DIR$ CONCURRENT !Cray
+!cdir nodep      !NEC
+!ocl novrec      !Fujitsu
+               do ij = 1, icells
+                  i = indxi(ij)
+                  j = indxj(ij)
+                  esno(i,j) = esno(i,j) + esnon(i,j,slyr1(n)+k-1)
+               enddo
+            enddo                  ! nslyr
+            
+         enddo                     ! ncat
+         
+         ! Open water fraction
+         
          do ij = 1, icells
             i = indxi(ij)
             j = indxj(ij)
-            aice(i,j) = aice(i,j) + aicen(i,j,n)
-            vice(i,j) = vice(i,j) + vicen(i,j,n)
-            vsno(i,j) = vsno(i,j) + vsnon(i,j,n)
-         enddo                  ! ij
-
-         do it = 1, ntrcr
-            if (trcr_depend(it) == 0) then  ! ice area tracer
-!DIR$ CONCURRENT !Cray
-!cdir nodep      !NEC
-!ocl novrec      !Fujitsu
-               do ij = 1, icells
-                  i = indxi(ij)
-                  j = indxj(ij)
-                  atrcr(ij,it) = atrcr(ij,it)  &
-                                + trcrn(i,j,it,n)*aicen(i,j,n)
-               enddo            ! ij
-
-            elseif (trcr_depend(it) == 1) then  ! ice volume tracer
-!DIR$ CONCURRENT !Cray
-!cdir nodep      !NEC
-!ocl novrec      !Fujitsu
-               do ij = 1, icells
-                  i = indxi(ij)
-                  j = indxj(ij)
-                  atrcr(ij,it) = atrcr(ij,it)  &
-                                + trcrn(i,j,it,n)*vicen(i,j,n)
-               enddo            ! ij
-
-            elseif (trcr_depend(it) ==2) then ! snow volume tracer
-
-!DIR$ CONCURRENT !Cray
-!cdir nodep      !NEC
-!ocl novrec      !Fujitsu
-               do ij = 1, icells
-                  i = indxi(ij)
-                  j = indxj(ij)
-                  atrcr(ij,it) = atrcr(ij,it)  &
-                                + trcrn(i,j,it,n)*vsnon(i,j,n)
-               enddo            ! ij
-
-            endif               ! trcr_depend
-         enddo                  ! ntrcr
-
-         do k = 1, nilyr
-!DIR$ CONCURRENT !Cray
-!cdir nodep      !NEC
-!ocl novrec      !Fujitsu
-            do ij = 1, icells
-               i = indxi(ij)
-               j = indxj(ij)
-               eice(i,j) = eice(i,j) + eicen(i,j,ilyr1(n)+k-1)
-            enddo
-         enddo                  ! nilyr
-
-         do k = 1, nslyr
-!DIR$ CONCURRENT !Cray
-!cdir nodep      !NEC
-!ocl novrec      !Fujitsu
-            do ij = 1, icells
-               i = indxi(ij)
-               j = indxj(ij)
-               esno(i,j) = esno(i,j) + esnon(i,j,slyr1(n)+k-1)
-            enddo
-         enddo                  ! nslyr
-
-      enddo                     ! ncat
-
-      ! Open water fraction
-
-      do ij = 1, icells
-         i = indxi(ij)
-         j = indxj(ij)
-         aice0(i,j) = max (c1 - aice(i,j), c0)
-      enddo                     ! ij
-
-      ! Tracers
-
-      call compute_tracers (nx_block,     ny_block,   &
-                            icells,   indxi,   indxj, &
-                            ntrcr,    trcr_depend,    &
-                            atrcr(:,:), aice(:,:),    &
-                            vice (:,:),   vsno(:,:),  &
-                            trcr(:,:,:))
-
-      deallocate (atrcr)
-
-      end subroutine aggregate
+            aice0(i,j) = max (c1 - aice(i,j), c0)
+         enddo                     ! ij
+         
+         ! Tracers
+         
+         call compute_tracers (nx_block,     ny_block,   &
+              icells,   indxi,   indxj, &
+              ntrcr,    trcr_depend,    &
+              atrcr(:,:), aice(:,:),    &
+              vice (:,:),   vsno(:,:),  &
+              trcr(:,:,:))
+         
+         deallocate (atrcr)
+      endif ! icells > 0
+    end subroutine aggregate
 
 !=======================================================================
 !BOP
