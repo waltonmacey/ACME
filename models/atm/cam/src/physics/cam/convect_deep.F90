@@ -64,6 +64,8 @@ function deep_scheme_does_scav_trans()
   deep_scheme_does_scav_trans = .false.
 
   if ( deep_scheme .eq. 'KE' ) deep_scheme_does_scav_trans = .true.
+!-- mdb:  comment out for now
+  !if ( deep_scheme .eq. 'CS' ) deep_scheme_does_scav_trans = .true.
 
   return
 
@@ -79,6 +81,7 @@ subroutine convect_deep_register
   
   use physics_buffer, only : pbuf_add_field, dtype_r8
   use zm_conv_intr, only: zm_conv_register
+  use cs_conv_intr, only: cs_conv_register
   use phys_control, only: phys_getopts, use_gw_convect
 
   implicit none
@@ -91,6 +94,8 @@ subroutine convect_deep_register
   select case ( deep_scheme )
   case('ZM') !    Zhang-McFarlane (default)
      call zm_conv_register
+  case('CS') !    Chikira-Sugiyama
+     call cs_conv_register
   end select
 
   call pbuf_add_field('ICWMRDP',    'physpkg',dtype_r8,(/pcols,pver/),icwmrdp_idx)
@@ -120,6 +125,7 @@ subroutine convect_deep_init(pref_edge)
   use pmgrid,        only: plevp
   use spmd_utils,    only: masterproc
   use zm_conv_intr,  only: zm_conv_init
+  use cs_conv_intr,  only: cs_conv_init
   use abortutils,    only: endrun
   
   use physics_buffer, only: physics_buffer_desc, pbuf_get_index
@@ -134,6 +140,9 @@ subroutine convect_deep_init(pref_edge)
   case('ZM') !    1 ==> Zhang-McFarlane (default)
      if (masterproc) write(iulog,*)'convect_deep initializing Zhang-McFarlane convection'
      call zm_conv_init(pref_edge)
+  case('CS') !      ==> Chikira-Sugiyama
+     if (masterproc) write(iulog,*)'convect_deep initializing Chikira-Sugiyama convection'
+     call cs_conv_init(pref_edge)
   case default
      if (masterproc) write(iulog,*)'WARNING: convect_deep: no deep convection scheme. May fail.'
   end select
@@ -165,6 +174,7 @@ subroutine convect_deep_tend( &
    use cam_history,    only: outfld
    use constituents,   only: pcnst
    use zm_conv_intr,   only: zm_conv_tend
+   use cs_conv_intr,   only: cs_conv_tend
    use cam_history,    only: outfld
    use physconst,      only: cpair
    use physics_buffer, only: physics_buffer_desc, pbuf_get_field
@@ -251,6 +261,17 @@ subroutine convect_deep_tend( &
      call pbuf_get_field(pbuf, tpert_idx, tpert)
 
      call zm_conv_tend( pblh    ,mcon    ,cme     , &
+          tpert   ,dlf     ,pflx    ,zdu      , &
+          rliq    , &
+          ztodt   , &
+          jctop, jcbot , &
+          state   ,ptend   ,landfrac, pbuf)
+
+  case('CS') !      ==> Chikira-Sugiyama
+     call pbuf_get_field(pbuf, pblh_idx,  pblh)
+     call pbuf_get_field(pbuf, tpert_idx, tpert)
+
+     call cs_conv_tend( pblh    ,mcon    ,cme     , &
           tpert   ,dlf     ,pflx    ,zdu      , &
           rliq    , &
           ztodt   , &

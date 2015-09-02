@@ -1787,10 +1787,14 @@ subroutine tphysbc (ztodt,               &
     ! Debug physics_state.
     logical :: state_debug_checks
 
+    !mdb
+    character(len=16) :: deep_scheme    ! default set in phys_control.F90, use namelist to change
+
     call phys_getopts( microp_scheme_out      = microp_scheme, &
                        macrop_scheme_out      = macrop_scheme, &
                        use_subcol_microp_out  = use_subcol_microp, &
-                       state_debug_checks_out = state_debug_checks)
+                       state_debug_checks_out = state_debug_checks, &
+                       deep_scheme_out        = deep_scheme)
     
     !-----------------------------------------------------------------------
     call t_startf('bc_init')
@@ -1812,6 +1816,8 @@ subroutine tphysbc (ztodt,               &
     ifld = pbuf_get_index('CLD')
     call pbuf_get_field(pbuf, ifld, cld, (/1,1,itim_old/),(/pcols,pver,1/))
 
+!-- mdb:  comment out these pbuf_gets for Chikira scheme
+    if ( deep_scheme .ne. 'CS' ) then
 !<songxl 2011-09-20---------------------------
 !   if(trigmem)then
       ifld = pbuf_get_index('TM1')
@@ -1819,6 +1825,7 @@ subroutine tphysbc (ztodt,               &
       ifld = pbuf_get_index('QM1')
       call pbuf_get_field(pbuf, ifld, qm1, (/1,1/),(/pcols,pver/))
 !   endif
+    endif
 !>songxl 2011-09-20---------------------------
 
     call pbuf_get_field(pbuf, teout_idx, teout, (/1,itim_old/), (/pcols,1/))

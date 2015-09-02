@@ -2566,6 +2566,12 @@ add_default($nl, 'zmconv_c0_lnd');
 add_default($nl, 'zmconv_c0_ocn');
 add_default($nl, 'zmconv_ke');
 
+# Chikira-Sugiyama convective scheme
+add_default($nl, 'csconv_clmd');
+add_default($nl, 'csconv_pa');
+add_default($nl, 'csconv_cpres');
+add_default($nl, 'csconv_alp0');
+
 # moist convection rainwater coefficients
 add_default($nl, 'hkconv_cmftau');
 add_default($nl, 'hkconv_c0');

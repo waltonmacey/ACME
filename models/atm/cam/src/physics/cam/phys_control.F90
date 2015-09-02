@@ -160,7 +160,8 @@ subroutine phys_ctl_readnl(nlfile)
       write(iulog,*)'waccm: illegal value of waccmx_opt:', waccmx_opt
       call endrun('waccm: illegal value of waccmx_opt')
    endif
-   if (.not. (shallow_scheme .eq. 'Hack' .or. shallow_scheme .eq. 'UW' .or. shallow_scheme .eq. 'CLUBB_SGS')) then
+   !if (.not. (shallow_scheme .eq. 'Hack' .or. shallow_scheme .eq. 'UW' .or. shallow_scheme .eq. 'CLUBB_SGS')) then
+   if (.not. (shallow_scheme .eq. 'Hack' .or. shallow_scheme .eq. 'UW' .or. shallow_scheme .eq. 'CLUBB_SGS' .or. shallow_scheme .eq. 'off')) then
       write(iulog,*)'phys_setopts: illegal value of shallow_scheme:', shallow_scheme
       call endrun('phys_setopts: illegal value of shallow_scheme')
    endif
@@ -198,12 +199,13 @@ subroutine phys_ctl_readnl(nlfile)
    endif
 
    ! Check that eddy_scheme, macrop_scheme, shallow_scheme are all set to CLUBB_SGS if do_clubb_sgs is true
-   if (do_clubb_sgs) then
-      if (eddy_scheme .ne. 'CLUBB_SGS' .or. macrop_scheme .ne. 'CLUBB_SGS' .or. shallow_scheme .ne. 'CLUBB_SGS') then
-         write(iulog,*)'eddy_scheme, macrop_scheme and shallow_scheme must all be CLUBB_SGS.  Quiting'
-         call endrun('CLUBB and eddy, macrop or shallow schemes incompatible')
-      endif
-   endif
+!### mark:  comment this out for now (running CS clouds with CLUBB)
+!   if (do_clubb_sgs) then
+!      if (eddy_scheme .ne. 'CLUBB_SGS' .or. macrop_scheme .ne. 'CLUBB_SGS' .or. shallow_scheme .ne. 'CLUBB_SGS') then
+!         write(iulog,*)'eddy_scheme, macrop_scheme and shallow_scheme must all be CLUBB_SGS.  Quiting'
+!         call endrun('CLUBB and eddy, macrop or shallow schemes incompatible')
+!      endif
+!   endif
       
 
 

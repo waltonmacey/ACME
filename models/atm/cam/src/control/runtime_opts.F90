@@ -338,6 +338,7 @@ contains
    use cloud_fraction,      only: cldfrc_readnl
    use cldwat,              only: cldwat_readnl
    use zm_conv,             only: zmconv_readnl
+   use cs_conv,             only: csconv_readnl
    use hk_conv,             only: hkconv_readnl
    use uwshcu,              only: uwshcu_readnl
    use pkg_cld_sediment,    only: cld_sediment_readnl
@@ -729,6 +730,7 @@ contains
    call subcol_readnl(nlfilename)
    call cldfrc_readnl(nlfilename)
    call zmconv_readnl(nlfilename)
+   call csconv_readnl(nlfilename)
    call cldwat_readnl(nlfilename)
    call hkconv_readnl(nlfilename)
    call uwshcu_readnl(nlfilename)

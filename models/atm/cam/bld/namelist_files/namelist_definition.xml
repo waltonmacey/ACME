@@ -1787,6 +1787,33 @@ Trigger and memory option in ZM deep convection scheme.
 Default: FALSE
 </entry>
 
+<!-- Chikira-Sugiyama convection scheme -->
+
+<entry id="csconv_clmd" type="real" category="conv"
+       group="csconv_nl" valid_values="" >
+Nondimensional coefficient for entrainment efficiency
+Default: set by build-namelist
+</entry>
+
+<entry id="csconv_pa" type="real" category="conv"
+       group="csconv_nl" valid_values="" >
+Nondimensional coefficient for buoyancy to affect updraft velocity
+Default: set by build-namelist
+</entry>
+
+<entry id="csconv_cpres" type="real" category="conv"
+       group="csconv_nl" valid_values="" >
+Nondimensional coefficient for pressure factor in cumulus momentum transport
+Default: set by build-namelist
+</entry>
+
+<entry id="csconv_alp0" type="real" category="conv"
+       group="csconv_nl" valid_values="" >
+Alpha parameter in prognostic closure (m^4/kg)
+Default: set by build-namelist
+</entry>
+
+
 <!-- Cloud sedimentation -->
 
 <entry id="cldsed_ice_stokes_fac" type="real" category="cldsed"
@@ -1893,7 +1920,7 @@ Default: 10
 <!-- Moist Convection and Microphysics -->
 
 <entry id="deep_scheme" type="char*16" category="conv"
-       group="phys_ctl_nl" valid_values="ZM,off" >
+       group="phys_ctl_nl" valid_values="ZM,CS,off" >
 Type of deep convection scheme employed.  'ZM' for Zhang-McFarlane;
 'off' for none.
 Default: 'ZM'
@@ -1921,7 +1948,7 @@ Default: FALSE
 </entry>
 
 <entry id="shallow_scheme" type="char*16" category="conv"
-       group="phys_ctl_nl" valid_values="Hack,UW,CLUBB_SGS" >
+       group="phys_ctl_nl" valid_values="Hack,UW,CLUBB_SGS,off" >
 Type of shallow convection scheme employed.  'Hack' for Hack shallow convection;
 'UW' for original McCaa UW pbl scheme, modified by Sungsu Park; 'CLUBB_SGS'
 for CLUBB_SGS.
