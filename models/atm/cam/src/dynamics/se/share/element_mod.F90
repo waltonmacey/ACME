@@ -21,9 +21,9 @@ module element_mod
 
 ! =========== PRIMITIVE-EQUATION DATA-STRUCTURES =====================
 
-#if USE_OPENACC
-
   public :: setup_element_pointers
+
+#if USE_OPENACC
 
   real (kind=real_kind), allocatable, target, public :: state_Qdp (:,:,:,:,:,:) !(np,np,nlev,qsize_d,2,nelemd)   
   type, public :: elem_state_t
@@ -558,11 +558,11 @@ contains
 
 
   !___________________________________________________________________
-#if USE_OPENACC
   subroutine setup_element_pointers(elem)
     use dimensions_mod, only: nelemd
     implicit none
     type(element_t), intent(inout) :: elem(:)
+#if USE_OPENACC
     integer :: ie
     allocate( state_Qdp                (np,np,nlev,qsize_d,2,nelemd)          )
     allocate( derived_vn0              (np,np,2,nlev,nelemd)                  )
@@ -574,8 +574,8 @@ contains
       elem(ie)%derived%divdp             => derived_divdp            (:,:,:,ie)    
       elem(ie)%derived%divdp_proj        => derived_divdp_proj       (:,:,:,ie)    
     enddo
-  end subroutine setup_element_pointers
 #endif
+  end subroutine setup_element_pointers
 
   
 

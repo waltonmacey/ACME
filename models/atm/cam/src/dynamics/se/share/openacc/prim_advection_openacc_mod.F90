@@ -33,7 +33,8 @@ module prim_advection_openacc_mod
   integer :: nbuf
 
   public :: Prim_Advec_Tracers_remap_rk2
-  public :: prim_advection_openacc_init
+  public :: prim_advec_init1
+  public :: prim_advec_init2
   public :: copy_qdp_h2d
   public :: copy_qdp_d2h
 
@@ -199,7 +200,20 @@ contains
     call t_stopf('prim_advec_tracers_remap_rk2')
   end subroutine prim_advec_tracers_remap_rk2
 
-  subroutine prim_advection_openacc_init(elem,deriv,hvcoord,hybrid)
+  subroutine prim_advec_init1()
+    use edge_mod, only: initEdgeBuffer
+    implicit none
+    nbuf = 4*(np+max_corner_elem)*nelemd
+
+    call initEdgeBuffer(edgeAdvQ3 ,max(nlev,qsize*nlev*3))
+    call initEdgeBuffer(edgeAdv1  ,nlev                  )
+    call initEdgeBuffer(edgeAdv   ,qsize*nlev            )
+    call initEdgeBuffer(edgeAdv_p1,qsize*nlev + nlev     ) 
+    call initEdgeBuffer(edgeAdvQ2 ,qsize*nlev*2          )
+    call initEdgeBuffer(edgeAdv3  ,nlev*3                )
+  end subroutine prim_advec_init1
+
+  subroutine prim_advec_init2(elem,deriv,hvcoord,hybrid)
     use element_mod   , only: element_t, state_Qdp, derived_vn0, derived_divdp, derived_divdp_proj
     use derivative_mod, only: derivative_t
     use hybvcoord_mod , only: hvcoord_t
@@ -211,15 +225,6 @@ contains
     type(hvcoord_t)   , intent(in) :: hvcoord
     type(hybrid_t)    , intent(in) :: hybrid
     integer :: k, ie
-
-    nbuf = 4*(np+max_corner_elem)*nelemd
-
-    call initEdgeBuffer(edgeAdvQ3 ,max(nlev,qsize*nlev*3))
-    call initEdgeBuffer(edgeAdv1  ,nlev                  )
-    call initEdgeBuffer(edgeAdv   ,qsize*nlev            )
-    call initEdgeBuffer(edgeAdv_p1,qsize*nlev + nlev     ) 
-    call initEdgeBuffer(edgeAdvQ2 ,qsize*nlev*2          )
-    call initEdgeBuffer(edgeAdv3  ,nlev*3                )
 
     !$OMP BARRIER
     !$OMP MASTER
@@ -256,7 +261,7 @@ contains
 
     !$OMP END MASTER
     !$OMP BARRIER
-  end subroutine prim_advection_openacc_init
+  end subroutine prim_advec_init2
 
   subroutine advance_hypervis_scalar( edgeAdv_dontuse , elem , hvcoord , hybrid , deriv , nt , nt_qdp , nets , nete , dt2 )
     !  hyperviscsoity operator for foward-in-time scheme

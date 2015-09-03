@@ -56,9 +56,7 @@ contains
 
   subroutine prim_init1(elem, fvm, par, dom_mt, Tl)
     ! --------------------------------
-#if USE_OPENACC
     use element_mod, only : setup_element_pointers
-#endif
     ! --------------------------------
     use thread_mod, only : nthreads, omp_get_thread_num, omp_set_num_threads
     ! --------------------------------
@@ -88,7 +86,7 @@ contains
     ! --------------------------------
     use schedule_mod, only : schedule, genEdgeSched,  PrintSchedule
     ! --------------------------------
-    use prim_advection_mod, only: prim_advec_init
+    use arch_switch_mod, only: prim_advec_init1
     ! --------------------------------    
     use prim_advance_mod, only: prim_advance_init
     ! --------------------------------    
@@ -301,9 +299,7 @@ contains
 
     if (nelemd>0) then
        allocate(elem(nelemd))
-#if USE_OPENACC
        call setup_element_pointers(elem)
-#endif
        call allocate_element_desc(elem)
 
 #ifndef CAM
@@ -528,7 +524,7 @@ contains
     allocate(deriv(0:n_domains-1))
     allocate(cg(0:n_domains-1))
     call prim_advance_init(integration)
-    call Prim_Advec_Init()
+    call Prim_Advec_Init1()
     call diffusion_init()
     if (ntrac>0) then
 #if defined(_SPELT)
@@ -573,9 +569,7 @@ contains
     use asp_tests, only : asp_tracer, asp_baroclinic, asp_rossby, asp_mountain, asp_gravity_wave, dcmip2_schar
     use aquaplanet, only : aquaplanet_init_state
 #endif
-#if USE_OPENACC
-    use prim_advection_openacc_mod, only: prim_advection_openacc_init
-#endif
+    use arch_switch_mod, only: prim_advec_init2
 
     type (element_t), intent(inout) :: elem(:)
 #if defined(_SPELT)
@@ -1067,9 +1061,7 @@ contains
     end if
 
 
-#if USE_OPENACC
-    call prim_advection_openacc_init(elem,deriv(hybrid%ithr),hvcoord,hybrid)
-#endif
+    call prim_advec_init2(elem,deriv(hybrid%ithr),hvcoord,hybrid)
     if (hybrid%masterthread) write(iulog,*) "initial state:"
     call prim_printstate(elem, tl, hybrid,hvcoord,nets,nete, fvm)
   end subroutine prim_init2
@@ -1524,11 +1516,7 @@ contains
     use control_mod, only: statefreq, integration, ftype, qsplit, nu_p, test_cfldep, rsplit
     use prim_advance_mod, only : prim_advance_exp, overwrite_SEdensity
     use prim_advection_mod, only : prim_advec_tracers_fvm, prim_advec_tracers_spelt
-#if USE_OPENACC
-    use prim_advection_openacc_mod, only: prim_advec_tracers_remap_rk2
-#else
-    use prim_advection_mod, only: prim_advec_tracers_remap_rk2
-#endif
+    use arch_switch_mod, only: prim_advec_tracers_remap_rk2
     use parallel_mod, only : abortmp
     use reduction_mod, only : parallelmax
     use derivative_mod, only : interpolate_gll2spelt_points

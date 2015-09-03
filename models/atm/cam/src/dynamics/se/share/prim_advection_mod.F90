@@ -862,7 +862,7 @@ module prim_advection_mod
   private
   save
 
-  public :: Prim_Advec_Init, Prim_Advec_Tracers_remap_rk2
+  public :: Prim_Advec_Init1, Prim_Advec_Init2, Prim_Advec_Tracers_remap_rk2
   public :: prim_advec_tracers_fvm, prim_advec_tracers_spelt
   public :: vertical_remap
 
@@ -878,7 +878,7 @@ module prim_advection_mod
 
 contains
 
-  subroutine Prim_Advec_Init()
+  subroutine Prim_Advec_Init1()
     use dimensions_mod, only : nlev, qsize, nelemd
 
     ! Shared buffer pointers.
@@ -909,7 +909,20 @@ contains
     allocate (qmin(nlev,qsize,nelemd))
     allocate (qmax(nlev,qsize,nelemd))
 
-  end subroutine Prim_Advec_Init
+  end subroutine Prim_Advec_Init1
+
+  subroutine Prim_Advec_Init2(elem,deriv,hvcoord,hybrid)
+    use element_mod   , only: element_t
+    use derivative_mod, only: derivative_t
+    use hybvcoord_mod , only: hvcoord_t
+    use hybrid_mod    , only: hybrid_t
+    implicit none
+    type(element_t)   , intent(in) :: elem(:)
+    type(derivative_t), intent(in) :: deriv
+    type(hvcoord_t)   , intent(in) :: hvcoord
+    type(hybrid_t)    , intent(in) :: hybrid
+    !Nothing to be done
+  end subroutine Prim_Advec_Init2
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
