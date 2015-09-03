@@ -1217,23 +1217,11 @@ contains
 !-----------------------------------------------------------------------------
 
   subroutine qdp_time_avg( elem , rkstage , n0_qdp , np1_qdp , limiter_option , nu_p , nets , nete )
-#if USE_CUDA_FORTRAN
-    use cuda_mod, only: qdp_time_avg_cuda
-#elif USE_OPENACC
-    use prim_advection_openacc_mod, only: qdp_time_avg_openacc
-#endif
     implicit none
     type(element_t)     , intent(inout) :: elem(:)
     integer             , intent(in   ) :: rkstage , n0_qdp , np1_qdp , nets , nete , limiter_option
     real(kind=real_kind), intent(in   ) :: nu_p
     integer :: ie
-#if USE_CUDA_FORTRAN
-    call qdp_time_avg_cuda( elem , rkstage , n0_qdp , np1_qdp , limiter_option , nu_p , nets , nete )
-    return
-#elif USE_OPENACC
-    call qdp_time_avg_openacc( elem , rkstage , n0_qdp , np1_qdp , limiter_option , nu_p , nets , nete )
-    return
-#endif
     do ie=nets,nete
       elem(ie)%state%Qdp(:,:,:,1:qsize,np1_qdp) =               &
                    ( elem(ie)%state%Qdp(:,:,:,1:qsize,n0_qdp) + &
@@ -1245,11 +1233,6 @@ contains
 !-----------------------------------------------------------------------------
 
   subroutine precompute_divdp( elem , hybrid , deriv , dt , nets , nete , n0_qdp )
-#if USE_CUDA_FORTRAN
-    use cuda_mod, only: precompute_divdp_cuda
-#elif USE_OPENACC
-    use prim_advection_openacc_mod, only: precompute_divdp_openacc
-#endif
     implicit none
     type(element_t)      , intent(inout) :: elem(:)
     type (hybrid_t)      , intent(in   ) :: hybrid
@@ -1257,13 +1240,6 @@ contains
     real(kind=real_kind) , intent(in   ) :: dt
     integer              , intent(in   ) :: nets , nete , n0_qdp
     integer :: ie , k
-#if USE_CUDA_FORTRAN
-    call precompute_divdp_cuda( elem , hybrid , deriv , dt , nets , nete , n0_qdp )
-    return
-#elif USE_OPENACC
-    call precompute_divdp_openacc( elem , hybrid , deriv , dt , nets , nete , n0_qdp )
-    return
-#endif
     do ie = nets , nete
 #if (defined ELEMENT_OPENMP)
 !$omp parallel do private(k)
@@ -1298,11 +1274,6 @@ contains
   use edge_mod       , only : edgevpack, edgevunpack
   use bndry_mod      , only : bndry_exchangev
   use hybvcoord_mod  , only : hvcoord_t
-#if USE_CUDA_FORTRAN
-  use cuda_mod, only: euler_step_cuda
-#elif USE_OPENACC
-  use prim_advection_openacc_mod, only: euler_step_openacc
-#endif
   implicit none
   integer              , intent(in   )         :: np1_qdp, n0_qdp
   real (kind=real_kind), intent(in   )         :: dt
@@ -1331,15 +1302,6 @@ contains
     call euler_step_dg( np1_qdp , n0_qdp , dt , elem , hvcoord , hybrid , deriv , nets , nete , DSSopt , rhs_multiplier )
     return
   endif
-#if USE_CUDA_FORTRAN
-  call euler_step_cuda( np1_qdp , n0_qdp , dt , elem , hvcoord , hybrid , deriv , nets , nete , DSSopt , rhs_multiplier )
-  !It's admittedly not ideal to use this form instead of a simple "return". However PGI 14.7.0 and up
-  !all segfault if I leave the return here instead of doing it this way.
-#else
-#if USE_OPENACC
-  call euler_step_openacc( np1_qdp , n0_qdp , dt , elem , hvcoord , hybrid , deriv , nets , nete , DSSopt , rhs_multiplier )
-  return
-#endif
 ! call t_barrierf('sync_euler_step', hybrid%par%comm)
 !   call t_startf('euler_step')
 
@@ -1604,8 +1566,6 @@ contains
 #endif
 !   call t_stopf('euler_step')
 
-!This terminates the #ifdef USE_CUDA_FORTRAN
-#endif
   end subroutine euler_step
 
 !-----------------------------------------------------------------------------
@@ -2117,11 +2077,6 @@ contains
   !          Q(:,:,:,np) = Q(:,:,:,np) +  dt2*nu*laplacian**order ( Q )
   !
   !  For correct scaling, dt2 should be the same 'dt2' used in the leapfrog advace
-#if USE_CUDA_FORTRAN
-  use cuda_mod       , only : advance_hypervis_scalar_cuda
-#elif USE_OPENACC
-  use prim_advection_openacc_mod , only : advance_hypervis_scalar_openacc
-#endif
   use kinds          , only : real_kind
   use dimensions_mod , only : np, nlev
   use hybrid_mod     , only : hybrid_t
@@ -2158,13 +2113,6 @@ contains
   integer :: density_scaling = 0
   if ( nu_q           == 0 ) return
   if ( hypervis_order /= 2 ) return
-#if USE_CUDA_FORTRAN
-  call advance_hypervis_scalar_cuda( edgeAdv , elem , hvcoord , hybrid , deriv , nt , nt_qdp , nets , nete , dt2 )
-  return
-#elif USE_OPENACC
-  call advance_hypervis_scalar_openacc( edgeAdv , elem , hvcoord , hybrid , deriv , nt , nt_qdp , nets , nete , dt2 )
-  return
-#endif
 !   call t_barrierf('sync_advance_hypervis_scalar', hybrid%par%comm)
   call t_startf('advance_hypervis_scalar')
   
@@ -2283,9 +2231,6 @@ contains
 #else
   use fvm_control_volume_mod, only : fvm_struct
 #endif    
-!#if USE_CUDA_FORTRAN
-!  use cuda_mod, only: vertical_remap_cuda
-!#endif
   
 #if defined(_SPELT)
   type(spelt_struct), intent(inout) :: fvm(:)
@@ -2305,11 +2250,6 @@ contains
   integer :: ie,i,j,k,np1,nets,nete,np1_qdp
   real (kind=real_kind), dimension(np,np,nlev)  :: dp,dp_star
   real (kind=real_kind), dimension(np,np,nlev,2)  :: ttmp
-
-!#if USE_CUDA_FORTRAN
-!  call vertical_remap_cuda(elem,fvm,hvcoord,dt,np1,np1_qdp,nets,nete)
-!  return
-!#endif
 
   call t_startf('vertical_remap')
   

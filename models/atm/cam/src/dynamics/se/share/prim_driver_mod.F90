@@ -573,9 +573,6 @@ contains
     use asp_tests, only : asp_tracer, asp_baroclinic, asp_rossby, asp_mountain, asp_gravity_wave, dcmip2_schar
     use aquaplanet, only : aquaplanet_init_state
 #endif
-#if USE_CUDA_FORTRAN
-    use cuda_mod, only: cuda_mod_init
-#endif
 #if USE_OPENACC
     use prim_advection_openacc_mod, only: prim_advection_openacc_init
 #endif
@@ -1070,10 +1067,6 @@ contains
     end if
 
 
-#if USE_CUDA_FORTRAN
-    !Inside this routine, we enforce an OMP BARRIER and an OMP MASTER. It's left out of here because it's ugly
-    call cuda_mod_init(elem,deriv(hybrid%ithr),hvcoord)
-#endif
 #if USE_OPENACC
     call prim_advection_openacc_init(elem,deriv(hybrid%ithr),hvcoord,hybrid)
 #endif
@@ -1327,9 +1320,7 @@ contains
     use parallel_mod, only : abortmp
     use reduction_mod, only : parallelmax
     use prim_advection_mod, only : vertical_remap
-#if USE_CUDA_FORTRAN
-    use cuda_mod, only: copy_qdp_h2d, copy_qdp_d2h
-#elif USE_OPENACC
+#if USE_OPENACC
     use prim_advection_openacc_mod, only: copy_qdp_h2d, copy_qdp_d2h
 #endif
     
@@ -1416,7 +1407,7 @@ contains
     enddo
     endif
 
-#if (USE_CUDA_FORTRAN || USE_OPENACC)
+#if (USE_OPENACC)
     call TimeLevel_Qdp( tl, qsplit, n0_qdp, np1_qdp) 
     call copy_qdp_h2d( elem , n0_qdp )
 #endif
@@ -1437,7 +1428,7 @@ contains
     !  if rsplit>0:  also remap dynamics and compute reference level ps_v
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-#if (USE_CUDA_FORTRAN || USE_OPENACC)
+#if (USE_OPENACC)
     call TimeLevel_Qdp( tl, qsplit, n0_qdp, np1_qdp) 
     call copy_qdp_d2h( elem , np1_qdp )
 #endif
@@ -1532,8 +1523,12 @@ contains
     use time_mod, only : TimeLevel_t, timelevel_update, nsplit
     use control_mod, only: statefreq, integration, ftype, qsplit, nu_p, test_cfldep, rsplit
     use prim_advance_mod, only : prim_advance_exp, overwrite_SEdensity
-    use prim_advection_mod, only : prim_advec_tracers_remap_rk2, prim_advec_tracers_fvm, &
-         prim_advec_tracers_spelt
+    use prim_advection_mod, only : prim_advec_tracers_fvm, prim_advec_tracers_spelt
+#if USE_OPENACC
+    use prim_advection_openacc_mod, only: prim_advec_tracers_remap_rk2
+#else
+    use prim_advection_mod, only: prim_advec_tracers_remap_rk2
+#endif
     use parallel_mod, only : abortmp
     use reduction_mod, only : parallelmax
     use derivative_mod, only : interpolate_gll2spelt_points

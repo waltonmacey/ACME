@@ -32,13 +32,10 @@ module prim_advection_openacc_mod
   integer,parameter :: DSSno_var = -1
   integer :: nbuf
 
+  public :: Prim_Advec_Tracers_remap_rk2
   public :: prim_advection_openacc_init
-  public :: precompute_divdp_openacc
-  public :: euler_step_openacc
-  public :: qdp_time_avg_openacc
   public :: copy_qdp_h2d
   public :: copy_qdp_d2h
-  public :: advance_hypervis_scalar_openacc
 
 contains
 
@@ -102,6 +99,106 @@ contains
     !$omp barrier
   end subroutine copy_qdp1_d2h
 
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  ! forward-in-time 2 level vertically lagrangian step
+  !  this code takes a lagrangian step in the horizontal 
+  ! (complete with DSS), and then applies a vertical remap
+  !
+  ! This routine may use dynamics fields at timelevel np1
+  ! In addition, other fields are required, which have to be 
+  ! explicitly saved by the dynamics:  (in elem(ie)%derived struct)
+  !
+  ! Fields required from dynamics: (in 
+  !    omega_p   it will be DSS'd here, for later use by CAM physics
+  !              we DSS omega here because it can be done for "free"
+  !    Consistent mass/tracer-mass advection (used if subcycling turned on)
+  !       dp()   dp at timelevel n0
+  !       vn0()  mean flux  < U dp > going from n0 to np1
+  !
+  ! 3 stage
+  !    Euler step from t     -> t+.5
+  !    Euler step from t+.5  -> t+1.0
+  !    Euler step from t+1.0 -> t+1.5
+  !    u(t) = u(t)/3 + u(t+2)*2/3
+  !
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine Prim_Advec_Tracers_remap_rk2( elem , deriv , hvcoord , flt , hybrid , dt , tl , nets , nete )
+    use perf_mod      , only : t_startf, t_stopf, t_barrierf            ! _EXTERNAL
+    use element_mod   , only: element_t
+    use derivative_mod, only: derivative_t
+    use hybvcoord_mod , only: hvcoord_t
+    use hybrid_mod    , only: hybrid_t
+    use filter_mod    , only: filter_t
+    use time_mod      , only: TimeLevel_t, TimeLevel_Qdp
+    use control_mod   , only: limiter_option, nu_p, qsplit
+    implicit none
+    type (element_t)     , intent(inout) :: elem(:)
+    type (derivative_t)  , intent(in   ) :: deriv
+    type (hvcoord_t)     , intent(in   ) :: hvcoord
+    type (filter_t)      , intent(in   ) :: flt
+    type (hybrid_t)      , intent(in   ) :: hybrid
+    real(kind=real_kind) , intent(in   ) :: dt
+    type (TimeLevel_t)   , intent(inout) :: tl
+    integer              , intent(in   ) :: nets
+    integer              , intent(in   ) :: nete
+
+    integer :: i,j,k,l,ie,q,nmin
+    integer :: nfilt,rkstage,rhs_multiplier
+    integer :: n0_qdp, np1_qdp
+
+    call t_barrierf('sync_prim_advec_tracers_remap_k2', hybrid%par%comm)
+    call t_startf('prim_advec_tracers_remap_rk2')
+    call TimeLevel_Qdp( tl, qsplit, n0_qdp, np1_qdp) !time levels for qdp are not the same
+    rkstage = 3 !   3 stage RKSSP scheme, with optimal SSP CFL
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! RK2 2D advection step
+    ! note: stage 3 we take the oppertunity to DSS omega
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! use these for consistent advection (preserve Q=1)
+    ! derived%vdp_ave        =  mean horiz. flux:   U*dp
+    ! derived%eta_dot_dpdn    =  mean vertical velocity (used for remap)
+    ! derived%omega_p         =  advection code will DSS this for the physics, but otherwise 
+    !                            it is not needed 
+    ! Also: save a copy of div(U dp) in derived%div(:,:,:,1), which will be DSS'd 
+    !       and a DSS'ed version stored in derived%div(:,:,:,2)
+    call precompute_divdp( elem , hybrid , deriv , dt , nets , nete , n0_qdp )
+
+    !rhs_multiplier is for obtaining dp_tracers at each stage:
+    !dp_tracers(stage) = dp - rhs_multiplier*dt*divdp_proj
+
+    call t_startf('euler_step_0')
+    rhs_multiplier = 0
+    call euler_step( np1_qdp , n0_qdp  , dt/2 , elem , hvcoord , hybrid , deriv , nets , nete , DSSdiv_vdp_ave , rhs_multiplier )
+    call t_stopf('euler_step_0')
+
+    call t_startf('euler_step_1')
+    rhs_multiplier = 1
+    call euler_step( np1_qdp , np1_qdp , dt/2 , elem , hvcoord , hybrid , deriv , nets , nete , DSSeta         , rhs_multiplier )
+    call t_stopf('euler_step_1')
+
+    call t_startf('euler_step_2')
+    rhs_multiplier = 2
+    call euler_step( np1_qdp , np1_qdp , dt/2 , elem , hvcoord , hybrid , deriv , nets , nete , DSSomega       , rhs_multiplier )
+    call t_stopf('euler_step_2')
+
+    !to finish the 2D advection step, we need to average the t and t+2 results to get a second order estimate for t+1.  
+    call qdp_time_avg( elem , rkstage , n0_qdp , np1_qdp , limiter_option , nu_p , nets , nete )
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !  Dissipation
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    if ( limiter_option == 8  ) then
+      ! dissipation was applied in RHS.  
+    else
+      call advance_hypervis_scalar(edgeadv,elem,hvcoord,hybrid,deriv,tl%np1,np1_qdp,nets,nete,dt)
+    endif
+
+    call t_stopf('prim_advec_tracers_remap_rk2')
+  end subroutine prim_advec_tracers_remap_rk2
+
   subroutine prim_advection_openacc_init(elem,deriv,hvcoord,hybrid)
     use element_mod   , only: element_t, state_Qdp, derived_vn0, derived_divdp, derived_divdp_proj
     use derivative_mod, only: derivative_t
@@ -161,7 +258,7 @@ contains
     !$OMP BARRIER
   end subroutine prim_advection_openacc_init
 
-  subroutine advance_hypervis_scalar_openacc( edgeAdv_dontuse , elem , hvcoord , hybrid , deriv , nt , nt_qdp , nets , nete , dt2 )
+  subroutine advance_hypervis_scalar( edgeAdv_dontuse , elem , hvcoord , hybrid , deriv , nt , nt_qdp , nets , nete , dt2 )
     !  hyperviscsoity operator for foward-in-time scheme
     !  take one timestep of:  
     !          Q(:,:,:,np) = Q(:,:,:,np) +  dt2*nu*laplacian**order ( Q )
@@ -284,7 +381,7 @@ contains
     enddo
     call copy_qdp1_d2h( elem , nt_qdp )
     call t_stopf('advance_hypervis_scalar')
-  end subroutine advance_hypervis_scalar_openacc
+  end subroutine advance_hypervis_scalar
 
   subroutine biharmonic_wk_scalar(elem,qtens,grads,deriv,edgeq,hybrid,nets,nete)
     use hybrid_mod    , only: hybrid_t
@@ -347,7 +444,7 @@ contains
     !$omp barrier
   end subroutine biharmonic_wk_scalar
 
-  subroutine qdp_time_avg_openacc( elem , rkstage , n0_qdp , np1_qdp , limiter_option , nu_p , nets , nete )
+  subroutine qdp_time_avg( elem , rkstage , n0_qdp , np1_qdp , limiter_option , nu_p , nets , nete )
     use element_mod, only: element_t, state_qdp
     use control_mod, only: limiter_option
     implicit none
@@ -373,9 +470,9 @@ contains
     !$omp barrier
     if (limiter_option == 8) call copy_qdp1_d2h( elem , np1_qdp )
     
-  end subroutine qdp_time_avg_openacc
+  end subroutine qdp_time_avg
 
-  subroutine euler_step_openacc( np1_qdp , n0_qdp , dt , elem , hvcoord , hybrid , deriv , nets , nete , DSSopt , rhs_multiplier )
+  subroutine euler_step( np1_qdp , n0_qdp , dt , elem , hvcoord , hybrid , deriv , nets , nete , DSSopt , rhs_multiplier )
   ! ===================================
   ! This routine is the basic foward
   ! euler component used to construct RK SSP methods
@@ -658,7 +755,7 @@ contains
   enddo
   !$omp end master
   !$omp barrier
-  end subroutine euler_step_openacc
+  end subroutine euler_step
 
   subroutine biharmonic_wk_scalar_minmax(elem,qtens,grads,deriv,edgeq,hybrid,nets,nete,emin,emax)
     use hybrid_mod, only: hybrid_t
@@ -1650,7 +1747,7 @@ contains
     enddo
   end subroutine limiter_optim_iter_full
 
-  subroutine precompute_divdp_openacc( elem , hybrid , deriv , dt , nets , nete , n0_qdp )
+  subroutine precompute_divdp( elem , hybrid , deriv , dt , nets , nete , n0_qdp )
     use element_mod   , only: element_t, derived_vn0, derived_divdp, derived_divdp_proj
     use hybrid_mod    , only: hybrid_t
     use derivative_mod, only: derivative_t
@@ -1699,7 +1796,7 @@ contains
         elem(ie)%derived%divdp_proj(:,:,k)   = elem(ie)%rspheremp(:,:) * elem(ie)%derived%divdp_proj(:,:,k)   
       enddo
     enddo
-  end subroutine precompute_divdp_openacc
+  end subroutine precompute_divdp
 
   subroutine copy_arr(dest,src,len)
     implicit none
