@@ -911,14 +911,12 @@ contains
 
   end subroutine Prim_Advec_Init1
 
-  subroutine Prim_Advec_Init2(elem,deriv,hvcoord,hybrid)
+  subroutine Prim_Advec_Init2(elem,hvcoord,hybrid)
     use element_mod   , only: element_t
-    use derivative_mod, only: derivative_t
     use hybvcoord_mod , only: hvcoord_t
     use hybrid_mod    , only: hybrid_t
     implicit none
     type(element_t)   , intent(in) :: elem(:)
-    type(derivative_t), intent(in) :: deriv
     type(hvcoord_t)   , intent(in) :: hvcoord
     type(hybrid_t)    , intent(in) :: hybrid
     !Nothing to be done
