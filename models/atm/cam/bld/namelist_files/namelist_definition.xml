@@ -4420,6 +4420,20 @@ Time integration method.
 Default: Set by build-namelist ("explicit").
 </entry>
 
+<entry id="mesh_file" type="char*256" input_pathname="abs" category="se"
+       group="ctl_nl" valid_values="" >
+Variable resolution mesh file
+</entry>
+
+<entry id="hypervis_scaling" type="real" category="se"
+       group="ctl_nl" valid_values="" >
+Hyperviscosity tensor setting and enabling parameter.
+</entry>
+
+<entry id="ne" type="integer" category="se"
+       group="ctl_nl" valid_values="" >
+</entry>
+
 <entry id="se_ne" type="integer" category="se"
        group="ctl_nl" valid_values="" >
 Element width of resolution.

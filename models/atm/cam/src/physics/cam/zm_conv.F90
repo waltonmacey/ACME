@@ -117,6 +117,14 @@ subroutine zmconv_readnl(nlfile)
       tau = zmconv_tau
       trigmem = zmconv_trigmem
 
+      if ( masterproc ) then
+          write(iulog,*) 'zmconv_nl parameters: zmconv_c0_lnd',zmconv_c0_lnd
+          write(iulog,*) 'zmconv_nl parameters: zmconv_c0_ocn',zmconv_c0_ocn
+          write(iulog,*) 'zmconv_nl parameters: zmconv_ke',zmconv_ke
+          write(iulog,*) 'zmconv_nl parameters: zmconv_tau',zmconv_tau
+          write(iulog,*) 'zmconv_nl parameters: zmconv_trigmem',zmconv_trigmem
+      endif
+
    end if
 
 #ifdef SPMD
