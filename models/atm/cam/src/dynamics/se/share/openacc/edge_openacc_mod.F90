@@ -42,7 +42,7 @@ contains
     maps_allocated = .true.
   end subroutine alloc_maps
 
-  subroutine edgeVpack(edge,v,vlyr,kptr,elem,tdim,tl)
+  subroutine edgeVpack(edge,v,vlyr,kptr,elem,nets,nete,tdim,tl)
     use dimensions_mod, only : max_corner_elem
     use control_mod   , only : north, south, east, west, neast, nwest, seast, swest
     use perf_mod      , only : t_startf, t_stopf
@@ -54,7 +54,7 @@ contains
     real (kind=real_kind)  ,intent(in   ) :: v(np,np,vlyr,tdim,nelemd)
     integer                ,intent(in   ) :: kptr
     type(element_t)        ,intent(in   ) :: elem(:)
-    integer                ,intent(in   ) :: tdim,tl
+    integer                ,intent(in   ) :: nets,nete,tdim,tl
     ! Local variables
     integer :: i,k,ir,ll,is,ie,in,iw,el,kc,kk
     integer, parameter :: kchunk = 32
@@ -62,7 +62,7 @@ contains
     call t_startf('edge_pack')
     if (edge%nlyr < (kptr+vlyr) ) call haltmp('edgeVpack: Buffer overflow: size of the vertical dimension must be increased!')
     !$acc parallel loop gang collapse(2) present(v,putmapP,reverse,edge%buf) vector_length(kchunk*np)
-    do el = 1 , nelemd
+    do el = nets , nete
       do kc = 1 , vlyr/kchunk+1
         !$acc loop vector collapse(2)
         do kk = 1 , kchunk
@@ -106,7 +106,7 @@ contains
     call t_stopf('edge_pack')
   end subroutine edgeVpack
 
-  subroutine edgeVunpack(edgebuf,nlyr,v,vlyr,kptr,elem,tdim,tl)
+  subroutine edgeVunpack(edgebuf,nlyr,v,vlyr,kptr,elem,nets,nete,tdim,tl)
     use dimensions_mod, only : np, max_corner_elem
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
     use perf_mod, only: t_startf, t_stopf
@@ -117,14 +117,14 @@ contains
     real(kind=real_kind)  , intent(inout) :: v(np,np,vlyr,tdim,nelemd)
     integer               , intent(in   ) :: kptr
     type(element_t)        ,intent(in   ) :: elem(:)
-    integer                ,intent(in   ) :: tdim,tl
+    integer                ,intent(in   ) :: nets,nete,tdim,tl
     ! Local
     integer :: i,k,ll,is,ie,in,iw,el,kc,kk,glob_k,loc_ind,ii,jj, j
     integer, parameter :: kchunk = 32
     real(kind=real_kind) :: vtmp(np,np,kchunk)
     call t_startf('edge_unpack')
     !$acc parallel loop gang collapse(2) present(v,getmapP,edgebuf) private(vtmp)
-    do el = 1 , nelemd
+    do el = nets , nete
       do kc = 1 , vlyr/kchunk+1
         !$acc cache(vtmp)
         !$acc loop vector collapse(2)
@@ -183,7 +183,7 @@ contains
     call t_stopf('edge_unpack')
   end subroutine edgeVunpack
 
-  subroutine edgeVunpackMin(edgebuf,nlyr,v,vlyr,kptr,elem,tdim,tl)
+  subroutine edgeVunpackMin(edgebuf,nlyr,v,vlyr,kptr,elem,nets,nete,tdim,tl)
     use dimensions_mod, only : np, max_corner_elem
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
     use perf_mod, only: t_startf, t_stopf
@@ -194,14 +194,14 @@ contains
     real(kind=real_kind)  , intent(inout) :: v(np,np,vlyr,tdim,nelemd)
     integer               , intent(in   ) :: kptr
     type(element_t)        ,intent(in   ) :: elem(:)
-    integer                ,intent(in   ) :: tdim,tl
+    integer                ,intent(in   ) :: nets,nete,tdim,tl
     ! Local
     integer :: i,k,ll,is,ie,in,iw,el,kc,kk,glob_k,loc_ind,ii,jj, j
     integer, parameter :: kchunk = 32
     real(kind=real_kind) :: vtmp(np,np,kchunk)
     call t_startf('edge_unpack_min')
     !$acc parallel loop gang collapse(2) present(v,getmapP,edgebuf) private(vtmp)
-    do el = 1 , nelemd
+    do el = nets , nete
       do kc = 1 , vlyr/kchunk+1
         !$acc cache(vtmp)
         !$acc loop vector collapse(2)
@@ -260,7 +260,7 @@ contains
     call t_stopf('edge_unpack_min')
   end subroutine edgeVunpackMin
 
-  subroutine edgeVunpackMax(edgebuf,nlyr,v,vlyr,kptr,elem,tdim,tl)
+  subroutine edgeVunpackMax(edgebuf,nlyr,v,vlyr,kptr,elem,nets,nete,tdim,tl)
     use dimensions_mod, only : np, max_corner_elem
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
     use perf_mod, only: t_startf, t_stopf
@@ -271,14 +271,14 @@ contains
     real(kind=real_kind)  , intent(inout) :: v(np,np,vlyr,tdim,nelemd)
     integer               , intent(in   ) :: kptr
     type(element_t)        ,intent(in   ) :: elem(:)
-    integer                ,intent(in   ) :: tdim,tl
+    integer                ,intent(in   ) :: nets,nete,tdim,tl
     ! Local
     integer :: i,k,ll,is,ie,in,iw,el,kc,kk,glob_k,loc_ind,ii,jj, j
     integer, parameter :: kchunk = 32
     real(kind=real_kind) :: vtmp(np,np,kchunk)
     call t_startf('edge_unpack_max')
     !$acc parallel loop gang collapse(2) present(v,getmapP,edgebuf) private(vtmp)
-    do el = 1 , nelemd
+    do el = nets , nete
       do kc = 1 , vlyr/kchunk+1
         !$acc cache(vtmp)
         !$acc loop vector collapse(2)

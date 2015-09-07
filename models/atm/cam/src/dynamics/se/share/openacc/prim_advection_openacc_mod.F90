@@ -286,7 +286,7 @@ contains
       !$omp end master
       !$omp barrier
       ! compute biharmonic operator. Qtens = input and output 
-      call biharmonic_wk_scalar( elem , Qtens , grads_tracer , deriv , edgeAdv , hybrid , nets , nete )
+      call biharmonic_wk_scalar( elem , Qtens , grads_tracer , deriv , edgeAdv , hybrid , 1 , nelemd )
       !$omp barrier
       !$omp master
       !$acc parallel loop gang vector collapse(5) present(state_qdp,elem(:),qtens)
@@ -305,7 +305,7 @@ contains
       enddo
       call limiter2d_zero(state_Qdp,2,nt_qdp)
       call t_startf('ah_scalar_PEU')
-      call edgeVpack(edgeAdv,state_qdp,qsize*nlev,0,elem(:),2,nt_qdp)
+      call edgeVpack(edgeAdv,state_qdp,qsize*nlev,0,elem(:),1,nelemd,2,nt_qdp)
       call t_startf('ah_scalar_exch')
       !$omp end master
       !$omp barrier
@@ -315,7 +315,7 @@ contains
       !$omp barrier
       !$omp master
       call t_stopf('ah_scalar_exch')
-      call edgeVunpack(edgeAdv%buf,edgeAdv%nlyr,state_qdp,qsize*nlev,0,elem(:),2,nt_qdp)
+      call edgeVunpack(edgeAdv%buf,edgeAdv%nlyr,state_qdp,qsize*nlev,0,elem(:),1,nelemd,2,nt_qdp)
       call t_stopf('ah_scalar_PEU')
       !$acc parallel loop gang vector collapse(5) present(state_qdp,elem(:))
       do ie = 1 , nelemd
@@ -381,7 +381,7 @@ contains
   use dimensions_mod        , only: np, npdg, nlev
   use hybrid_mod            , only: hybrid_t
   use element_mod           , only: element_t
-  use derivative_mod        , only: derivative_t, gradient_sphere, vorticity_sphere
+  use derivative_mod        , only: derivative_t
   use hybvcoord_mod         , only: hvcoord_t
   use control_mod           , only: limiter_option, nu_p, nu_q
   use perf_mod              , only: t_startf, t_stopf
@@ -489,7 +489,7 @@ contains
     enddo
     !$omp end master
     !$omp barrier
-    if ( rhs_multiplier == 0 ) call neighbor_minmax(elem,hybrid,edgeAdvQ2,nets,nete,qmin,qmax)
+    if ( rhs_multiplier == 0 ) call neighbor_minmax(elem,hybrid,edgeAdvQ2,1,nelemd,qmin,qmax)
     ! compute biharmonic mixing term
     if ( rhs_multiplier == 2 ) then
       rhs_viss = 3
@@ -516,7 +516,7 @@ contains
         !$omp end master
         !$omp barrier
       endif
-      call biharmonic_wk_scalar_minmax( elem , qtens_biharmonic , grads_tracer , deriv , edgeAdvQ3 , hybrid , nets , nete , qmin , qmax )
+      call biharmonic_wk_scalar_minmax( elem , qtens_biharmonic , grads_tracer , deriv , edgeAdvQ3 , hybrid , 1 , nelemd , qmin , qmax )
       !$omp barrier
       !$omp master
       !$acc parallel loop gang vector collapse(4) present(qtens_biharmonic,dp0,elem(:))
@@ -580,7 +580,7 @@ contains
       enddo
     enddo
   enddo
-  call divergence_sphere( grads_tracer , deriv , elem(:) , qtens , nlev*qsize )
+  call divergence_sphere( grads_tracer , deriv , elem(:) , qtens , nlev*qsize , 1 , nelemd , 1 , 1 )
   !$acc parallel loop gang vector collapse(5) present(qtens,state_qdp,qtens_biharmonic)
   do ie = 1 , nelemd
     ! advance Qdp
@@ -625,7 +625,7 @@ contains
   ! note: eta_dot_dpdn is actually dimension nlev+1, but nlev+1 data is
   ! all zero so we only have to DSS 1:nlev
   call t_startf('eus_PEU')
-  call edgeVpack(edgeAdv , state_Qdp , nlev*qsize , 0 , elem(:) , 2 , np1_qdp )
+  call edgeVpack(edgeAdv , state_Qdp , nlev*qsize , 0 , elem(:) , 1 , nelemd , 2 , np1_qdp )
   call t_startf('eus_exch')
   !$omp end master
   !$omp barrier
@@ -635,7 +635,7 @@ contains
   !$omp barrier
   !$omp master
   call t_stopf('eus_exch')
-  call edgeVunpack( edgeAdv%buf , edgeAdv%nlyr , state_Qdp , nlev*qsize , 0 , elem(:) , 2 , np1_qdp )
+  call edgeVunpack( edgeAdv%buf , edgeAdv%nlyr , state_Qdp , nlev*qsize , 0 , elem(:) , 1 , nelemd , 2 , np1_qdp )
   call t_stopf('eus_PEU')
   !$acc parallel loop gang vector collapse(4) present(state_Qdp,elem(:))
   do ie = 1 , nelemd
@@ -874,7 +874,7 @@ contains
     use bndry_mod             , only: bndry_exchangeV
     use control_mod           , only: limiter_option
     use derivative_openacc_mod, only: divergence_sphere
-    use openacc_utils_mod     , only: copy_arr
+    use openacc_utils_mod     , only: copy_ondev
     implicit none
     type(element_t)      , intent(inout) :: elem(:)
     type (hybrid_t)      , intent(in   ) :: hybrid
@@ -887,8 +887,8 @@ contains
     !$omp barrier
     !$omp master
     !$acc update device(derived_vn0)
-    call divergence_sphere(derived_vn0,deriv,elem,derived_divdp,nlev)
-    call copy_arr(derived_divdp_proj,derived_divdp,product(shape(derived_divdp)))
+    call divergence_sphere(derived_vn0,deriv,elem,derived_divdp,nlev,1,nelemd,1,1)
+    call copy_ondev(derived_divdp_proj,derived_divdp,product(shape(derived_divdp)))
     !$acc update host(derived_divdp,derived_divdp_proj)
     !$omp end master
     !$omp barrier

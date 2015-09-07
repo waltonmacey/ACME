@@ -11,7 +11,10 @@ module openacc_utils_mod
 
   public :: copy_qdp_h2d
   public :: copy_qdp_d2h
-  public :: copy_arr
+  public :: update_host_async
+  public :: update_device_async
+  public :: copy_ondev
+  public :: copy_ondev_async
   public :: arch_init2
 
 contains
@@ -62,7 +65,7 @@ contains
     !$omp barrier
   end subroutine copy_qdp_d2h
 
-  subroutine copy_arr(dest,src,len)
+  subroutine copy_ondev(dest,src,len)
     implicit none
     real(kind=real_kind), intent(  out) :: dest(len)
     real(kind=real_kind), intent(in   ) :: src (len)
@@ -72,7 +75,33 @@ contains
     do i = 1 , len
       dest(i) = src(i)
     enddo
-  end subroutine copy_arr
+  end subroutine copy_ondev
+
+  subroutine update_host_async(dat,len,id)
+    implicit none
+    real(kind=real_kind) :: dat(len)
+    integer              :: len, id
+    !$acc update host(dat(1:len)) async(id)
+  end subroutine update_host_async
+
+  subroutine update_device_async(dat,len,id)
+    implicit none
+    real(kind=real_kind) :: dat(len)
+    integer              :: len, id
+    !$acc update device(dat(1:len)) async(id)
+  end subroutine update_device_async
+
+  subroutine copy_ondev_async(dest,src,len,id)
+    implicit none
+    real(kind=real_kind) :: dest(len)
+    real(kind=real_kind) :: src (len)
+    integer              :: len, id
+    integer :: i
+    !$acc parallel loop gang vector present(dest,src) async(id)
+    do i = 1 , len
+      dest(i) = src(i)
+    enddo
+  end subroutine copy_ondev_async
 
 end module openacc_utils_mod
 

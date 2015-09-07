@@ -13,13 +13,14 @@ module bndry_openacc_mod
 contains
 
   subroutine bndry_exchangeV(hybrid,buffer)
-    use hybrid_mod, only : hybrid_t
-    use kinds, only : log_kind
-    use edge_mod, only : Edgebuffer_t
-    use schedule_mod, only : schedule_t, cycle_t, schedule
-    use parallel_mod, only : abortmp, status, srequest, rrequest, mpireal_t, mpiinteger_t, mpi_success
-    use openacc, only: acc_async_test
-    use mpi, only: MPI_REQUEST_NULL
+    use hybrid_mod       , only : hybrid_t
+    use kinds            , only : log_kind
+    use edge_mod         , only : Edgebuffer_t
+    use schedule_mod     , only : schedule_t, cycle_t, schedule
+    use parallel_mod     , only : abortmp, status, srequest, rrequest, mpireal_t, mpiinteger_t, mpi_success
+    use openacc          , only : acc_async_test
+    use mpi              , only : MPI_REQUEST_NULL
+    use openacc_utils_mod, only : update_host_async, update_device_async, copy_ondev_async
     implicit none
     type (hybrid_t)           :: hybrid
     type (EdgeBuffer_t)       :: buffer
@@ -152,32 +153,6 @@ contains
     endif  ! if (hybrid%ithr == 0)
     !$OMP BARRIER
   end subroutine bndry_exchangeV
-
-  subroutine update_host_async(dat,len,id)
-    implicit none
-    real(kind=real_kind) :: dat(len)
-    integer              :: len, id
-    !$acc update host(dat(1:len)) async(id)
-  end subroutine update_host_async
-
-  subroutine update_device_async(dat,len,id)
-    implicit none
-    real(kind=real_kind) :: dat(len)
-    integer              :: len, id
-    !$acc update device(dat(1:len)) async(id)
-  end subroutine update_device_async
-
-  subroutine copy_ondev_async(dest,src,len,id)
-    implicit none
-    real(kind=real_kind) :: dest(len)
-    real(kind=real_kind) :: src (len)
-    integer              :: len, id
-    integer :: i
-    !$acc parallel loop gang vector present(dest,src) async(id)
-    do i = 1 , len
-      dest(i) = src(i)
-    enddo
-  end subroutine copy_ondev_async
 
 end module bndry_openacc_mod
 

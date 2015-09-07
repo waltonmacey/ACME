@@ -59,9 +59,9 @@ contains
     !$omp barrier
     !$omp master
     if (.not. tracer_pack_allocated) call allocate_tracer_pack_arrays()
-    call laplace_sphere_wk(qtens,grads,deriv,elem,var_coef1,qtens,nlev*qsize,nets,nete)
+    call laplace_sphere_wk(qtens,grads,deriv,elem,var_coef1,qtens,nlev*qsize,nets,nete,1,1)
     call t_startf('biwksc_PEU')
-    call edgeVpack(edgeq,qtens,qsize*nlev,0,elem(:),1,1)
+    call edgeVpack(edgeq,qtens,qsize*nlev,0,elem(:),nets,nete,1,1)
     call t_startf('biwksc_exch')
     !$omp end master
     !$omp barrier
@@ -71,10 +71,10 @@ contains
     !$omp barrier
     !$omp master
     call t_stopf('biwksc_exch')
-    call edgeVunpack(edgeq%buf,edgeq%nlyr,qtens,qsize*nlev,0,elem(:),1,1)
+    call edgeVunpack(edgeq%buf,edgeq%nlyr,qtens,qsize*nlev,0,elem(:),nets,nete,1,1)
     call t_stopf('biwksc_PEU')
     !$acc parallel loop gang vector collapse(5) present(qtens,elem(:))
-    do ie = 1 , nelemd
+    do ie = nets , nete
       ! apply inverse mass matrix, then apply laplace again
       do q = 1 , qsize      
         do k = 1 , nlev    !  Potential loop inversion (AAM)
@@ -86,7 +86,7 @@ contains
         enddo
       enddo
     enddo
-    call laplace_sphere_wk(qtens,grads,deriv,elem,.true.,qtens,nlev*qsize,nets,nete)
+    call laplace_sphere_wk(qtens,grads,deriv,elem,.true.,qtens,nlev*qsize,nets,nete,1,1)
     !$omp end master
     !$omp barrier
   end subroutine biharmonic_wk_scalar
@@ -129,12 +129,12 @@ contains
     !$omp barrier
     !$omp master
     if (.not. tracer_pack_allocated) call allocate_tracer_pack_arrays()
-    call minmax_pack(qmin_pack,qmax_pack,emin,emax)
-    call laplace_sphere_wk(qtens,grads,deriv,elem,var_coef1,qtens,nlev*qsize,nets,nete)
+    call minmax_pack(qmin_pack,qmax_pack,emin,emax,nets,nete)
+    call laplace_sphere_wk(qtens,grads,deriv,elem,var_coef1,qtens,nlev*qsize,nets,nete,1,1)
     call t_startf('biwkscmm_PEU')
-    call edgeVpack(edgeq,    qtens,qsize*nlev,0           ,elem(:),1,1)
-    call edgeVpack(edgeq,Qmin_pack,nlev*qsize,nlev*qsize  ,elem(:),1,1)
-    call edgeVpack(edgeq,Qmax_pack,nlev*qsize,2*nlev*qsize,elem(:),1,1)
+    call edgeVpack(edgeq,    qtens,qsize*nlev,0           ,elem(:),nets,nete,1,1)
+    call edgeVpack(edgeq,Qmin_pack,nlev*qsize,nlev*qsize  ,elem(:),nets,nete,1,1)
+    call edgeVpack(edgeq,Qmax_pack,nlev*qsize,2*nlev*qsize,elem(:),nets,nete,1,1)
     call t_startf('biwkscmm_exch')
     !$omp end master
     !$omp barrier
@@ -144,12 +144,12 @@ contains
     !$omp barrier
     !$omp master
     call t_stopf('biwkscmm_exch')
-    call edgeVunpack   (edgeq%buf,edgeq%nlyr,    qtens,qsize*nlev,0           ,elem(:),1,1)
-    call edgeVunpackMin(edgeq%buf,edgeq%nlyr,Qmin_pack,qsize*nlev,qsize*nlev  ,elem(:),1,1)
-    call edgeVunpackMax(edgeq%buf,edgeq%nlyr,Qmax_pack,qsize*nlev,2*qsize*nlev,elem(:),1,1)
+    call edgeVunpack   (edgeq%buf,edgeq%nlyr,    qtens,qsize*nlev,0           ,elem(:),nets,nete,1,1)
+    call edgeVunpackMin(edgeq%buf,edgeq%nlyr,Qmin_pack,qsize*nlev,qsize*nlev  ,elem(:),nets,nete,1,1)
+    call edgeVunpackMax(edgeq%buf,edgeq%nlyr,Qmax_pack,qsize*nlev,2*qsize*nlev,elem(:),nets,nete,1,1)
     call t_stopf('biwkscmm_PEU')
     !$acc parallel loop gang vector collapse(5) present(qtens,elem(:))
-    do ie = 1 , nelemd
+    do ie = nets , nete
       do q = 1 , qsize      
         do k = 1 , nlev
           do j = 1 , np
@@ -160,8 +160,8 @@ contains
         enddo
       enddo
     enddo
-    call laplace_sphere_wk(qtens,grads,deriv,elem,.true.,qtens,nlev*qsize,nets,nete)
-    call minmax_reduce_corners(qmin_pack,qmax_pack,emin,emax)
+    call laplace_sphere_wk(qtens,grads,deriv,elem,.true.,qtens,nlev*qsize,nets,nete,1,1)
+    call minmax_reduce_corners(qmin_pack,qmax_pack,emin,emax,nets,nete)
     !$omp end master
     !$omp barrier
   end subroutine biharmonic_wk_scalar_minmax
@@ -187,10 +187,10 @@ contains
     !$omp barrier
     !$omp master
     if (.not. tracer_pack_allocated) call allocate_tracer_pack_arrays()
-    call minmax_pack(qmin_pack,qmax_pack,min_neigh,max_neigh)
+    call minmax_pack(qmin_pack,qmax_pack,min_neigh,max_neigh,nets,nete)
     call t_startf('nmm_PEU')
-    call edgeVpack(edgeMinMax,Qmin_pack,nlev*qsize,0         ,elem(:),1,1)
-    call edgeVpack(edgeMinMax,Qmax_pack,nlev*qsize,nlev*qsize,elem(:),1,1)
+    call edgeVpack(edgeMinMax,Qmin_pack,nlev*qsize,0         ,elem(:),nets,nete,1,1)
+    call edgeVpack(edgeMinMax,Qmax_pack,nlev*qsize,nlev*qsize,elem(:),nets,nete,1,1)
     call t_startf('nmm_exch')
     !$omp end master
     !$omp barrier
@@ -200,23 +200,24 @@ contains
     !$omp barrier
     !$omp master
     call t_stopf('nmm_exch')
-    call edgeVunpackMin(edgeMinMax%buf,edgeMinMax%nlyr,Qmin_pack,nlev*qsize,0         ,elem(:),1,1)
-    call edgeVunpackMax(edgeMinMax%buf,edgeMinMax%nlyr,Qmax_pack,nlev*qsize,nlev*qsize,elem(:),1,1)
+    call edgeVunpackMin(edgeMinMax%buf,edgeMinMax%nlyr,Qmin_pack,nlev*qsize,0         ,elem(:),nets,nete,1,1)
+    call edgeVunpackMax(edgeMinMax%buf,edgeMinMax%nlyr,Qmax_pack,nlev*qsize,nlev*qsize,elem(:),nets,nete,1,1)
     call t_stopf('nmm_PEU')
-    call minmax_reduce_corners(qmin_pack,qmax_pack,min_neigh,max_neigh)
+    call minmax_reduce_corners(qmin_pack,qmax_pack,min_neigh,max_neigh,nets,nete)
     !$omp end master
     !$omp barrier
   end subroutine neighbor_minmax
 
-  subroutine minmax_pack(qmin_pack,qmax_pack,min_neigh,max_neigh)
+  subroutine minmax_pack(qmin_pack,qmax_pack,min_neigh,max_neigh,nets,nete)
     implicit none
     real(kind=real_kind), intent(  out) :: qmin_pack(np,np,nlev,qsize,nelemd)
     real(kind=real_kind), intent(  out) :: qmax_pack(np,np,nlev,qsize,nelemd)
     real(kind=real_kind), intent(in   ) :: min_neigh(nlev,qsize,nelemd)
     real(kind=real_kind), intent(in   ) :: max_neigh(nlev,qsize,nelemd)
+    integer             , intent(in   ) :: nets , nete
     integer :: ie,q,k,j,i
     !$acc parallel loop gang vector collapse(5) present(min_neigh,max_neigh,qmin_pack,qmax_pack)
-    do ie = 1 , nelemd
+    do ie = nets , nete
       do q = 1 , qsize
         do k = 1 , nlev
           do j = 1 , np
@@ -230,17 +231,18 @@ contains
     enddo
   end subroutine minmax_pack
 
-  subroutine minmax_reduce_corners(qmin_pack,qmax_pack,min_neigh,max_neigh)
+  subroutine minmax_reduce_corners(qmin_pack,qmax_pack,min_neigh,max_neigh,nets,nete)
     implicit none
     real(kind=real_kind), intent(in   ) :: qmin_pack(np,np,nlev,qsize,nelemd)
     real(kind=real_kind), intent(in   ) :: qmax_pack(np,np,nlev,qsize,nelemd)
     real(kind=real_kind), intent(  out) :: min_neigh(nlev,qsize,nelemd)
     real(kind=real_kind), intent(  out) :: max_neigh(nlev,qsize,nelemd)
+    integer             , intent(in   ) :: nets , nete
     integer :: ie,q,k
     !$acc parallel loop gang vector collapse(3) present(min_neigh,max_neigh,qmin_pack,qmax_pack)
-    do ie=1,nelemd
-      do q=1,qsize
-        do k=1,nlev
+    do ie = nets , nete
+      do q = 1 , qsize
+        do k = 1 , nlev
           ! note: only need to consider the corners, since the data we packed was
           ! constant within each element
           min_neigh(k,q,ie)=min(qmin_pack(1,1,k,q,ie),qmin_pack(1,np,k,q,ie),qmin_pack(np,1,k,q,ie),qmin_pack(np,np,k,q,ie))
