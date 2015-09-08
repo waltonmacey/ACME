@@ -92,11 +92,9 @@ contains
      enddo
    enddo
 
-   !$acc enter data pcopyin( phi_oacc, hvcoord%hyai, hvcoord%hybi, hvcoord%hyam, hvcoord%hybm, &
-   !$acc&                    elem(1:nelemd)) &
-   !$acc&           pcreate (grad_p, p, dp, divdp, vdp, vgrad_p, eta_dot_dpdn, vort, kappa_star, &
-   !$acc&                     omega_p, sdot_sum, T_v )
-
+!   !$acc enter data pcopyin( phi_oacc, hvcoord, elem(1:nelemd), deriv) &
+!   !$acc&           pcreate (grad_p, p, dp, divdp, vdp, vgrad_p, eta_dot_dpdn, vort, kappa_star) &
+!   !$acc&           pcreate (omega_p, sdot_sum, T_v, vtens1, vtens2, ttens)
  
  end subroutine prim_advance_oacc_init
 
@@ -104,7 +102,7 @@ contains
  subroutine prim_advance_oacc_exit( )
  implicit none
 
-   !$acc exit data
+!   !$acc exit data
  end subroutine prim_advance_oacc_exit
   
   subroutine compute_and_apply_oacc_rhs(np1,nm1,n0,qn0,dt2,elem,hvcoord,hybrid,&
@@ -223,11 +221,10 @@ contains
  if (hybrid%ithr == 0) then
 
 
-!  !$acc update device( elem(nets:nete))
-! !$acc parallel loop gang vector pcreate(dsdx00, dsdy00, v_tmp1, v_tmp2, grad_ps) &
-! !$acc&               present(phi_oacc) copyout( dp, grad_p, p) &
-! !$acc&               copyin(np, deriv%Dvv, hvcoord, hvcoord, &
-! !$acc&                        rsplit, rrearth)
+!  !$acc update device( elem(1:nelemd), deriv,  hvcoord)
+  !$acc parallel loop gang vector ! pcreate(dsdx00, dsdy00, v_tmp1, v_tmp2, grad_ps) &
+!  !$acc&                          present(phi_oacc, dp, grad_p, p) &
+!  !$acc&                          copyin(np, rsplit, rrearth)
 
   do ie=1, nelemd
 
@@ -240,12 +237,12 @@ contains
      ! vertically eulerian only needs grad(ps)
      if (rsplit==0) then 
           !! inlined gradient_sphere below: grad_ps = gradient_sphere(elem(ie)%state%ps_v(:,:,n0),deriv,elem(ie)%Dinv)
-!         !$acc loop vector collapse(2)
+         !$acc loop vector collapse(2)
           do j=1,np
             do l=1,np
              dsdx00=0.0d0
              dsdy00=0.0d0
-!              !$acc loop seq
+              !$acc loop seq
               do i=1,np
                dsdx00 = dsdx00 + deriv%Dvv(i,l  )*elem(ie)%state%ps_v(i,j,n0)
                dsdy00 = dsdy00 + deriv%Dvv(i,l  )*elem(ie)%state%ps_v(j,i,n0)
@@ -254,7 +251,7 @@ contains
               v_tmp2(j  ,l  ) = dsdy00*rrearth
              enddo
            enddo
-!          !$acc loop vector collapse(2)
+          !$acc loop vector collapse(2)
            do j=1,np
             do i=1,np
              grad_ps(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_tmp2(i,j)
@@ -266,9 +263,9 @@ contains
      ! ============================
      ! compute p and delta p
      ! ============================
-!    !$acc loop vector 
+    !$acc loop vector 
      do k=1,nlev
-!      !$acc loop vector collapse(2)
+      !$acc loop vector collapse(2)
       do j = 1 , np
         do i = 1 , np
           if (rsplit==0) then
@@ -278,14 +275,6 @@ contains
             grad_p(i,j,1,k,ie) = hvcoord%hybm(k)*grad_ps(i,j,1)
             grad_p(i,j,2,k,ie) = hvcoord%hybm(k)*grad_ps(i,j,2)
            else
-           ! vertically lagrangian code: we advect dp3d instead of ps_v
-           ! we also need grad(p) at all levels (not just grad(ps))
-           !p(k)= hyam(k)*ps0 + hybm(k)*ps
-           !    = .5*(hyai(k+1)+hyai(k))*ps0 + .5*(hybi(k+1)+hybi(k))*ps
-           !    = .5*(ph(k+1) + ph(k) )  = ph(k) + dp(k)/2
-           !
-           ! p(k+1)-p(k) = ph(k+1)-ph(k) + (dp(k+1)-dp(k))/2
-           !             = dp(k) + (dp(k+1)-dp(k))/2 = (dp(k+1)+dp(k))/2
              dp(i,j,k,ie) = elem(ie)%state%dp3d(i,j,k,n0)
              if (k==1) then
                 p(i,j,k,ie)=hvcoord%hyai(k)*hvcoord%ps0 + dp(i,j,k,ie)/2
@@ -301,12 +290,12 @@ contains
           ! ============================
           ! compute gradien_sphere 
           ! ============================
-!          !$acc loop vector collapse(2)
+          !$acc loop vector collapse(2)
           do j=1,np
             do l=1,np
              dsdx00=0.0d0
              dsdy00=0.0d0
-!              !$acc loop seq
+              !$acc loop seq
               do i=1,np
                dsdx00 = dsdx00 + deriv%Dvv(i,l  )*p(i,j,k,ie)
                dsdy00 = dsdy00 + deriv%Dvv(i,l  )*p(j,i,k,ie)
@@ -315,7 +304,7 @@ contains
               v_tmp2(j  ,l  ) = dsdy00*rrearth
              enddo
            enddo
-!           !$acc loop vector collapse(2)
+           !$acc loop vector collapse(2)
            do j=1,np
             do i=1,np
              grad_p(i,j,1,k,ie)=elem(ie)%Dinv(1,1,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_tmp2(i,j)
@@ -327,8 +316,8 @@ contains
       enddo
     enddo
    !end of the first openacc kernel
-
-
+ !  !$acc update host(p, grad_p,dp)
+  
     do ie=1, nelemd 
  
       do k=1,nlev
