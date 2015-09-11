@@ -13,13 +13,13 @@ module cam_comp
    use cam_abortutils,        only: endrun
    use camsrfexch,        only: cam_out_t, cam_in_t     
    use shr_sys_mod,       only: shr_sys_flush
-   use physics_types,     only: physics_state, physics_tend
+   use physics_types,     only: physics_state, physics_tend,physics_state_copy,physics_ptend_copy !PMC added last 2.
    use cam_control_mod,   only: nsrest, print_step_cost, obliqr, lambm0, mvelpp, eccen
    use dyn_comp,          only: dyn_import_t, dyn_export_t
-   use ppgrid,            only: begchunk, endchunk
+   use ppgrid,            only: begchunk, endchunk,pcols !PMC added pcols
    use perf_mod
    use cam_logfile,       only: iulog
-   use physics_buffer,            only: physics_buffer_desc
+   use physics_buffer,    only: physics_buffer_desc,pbuf_initialize !PMC added pbuf_initialize
 
    implicit none
    private
@@ -56,6 +56,12 @@ module cam_comp
   type(physics_state), pointer :: phys_state(:) => null()
   type(physics_tend ), pointer :: phys_tend(:) => null()
   type(physics_buffer_desc), pointer :: pbuf2d(:,:) => null()
+
+!+++PMC
+  logical, parameter :: ParPhysDyn = .false. #eventually make namelist param.
+  type(physics_state), pointer :: phys_state_old(:) => null()
+  type(physics_tend ), pointer :: phys_tend_old(:) => null()
+!---PMC
 
   real(r8) :: wcstart, wcend     ! wallclock timestamp at start, end of timestep
   real(r8) :: usrstart, usrend   ! user timestamp at start, end of timestep
@@ -175,6 +181,14 @@ subroutine cam_init( cam_out, cam_in, mpicom_atm, &
 
    call phys_init( phys_state, phys_tend, pbuf2d,  cam_out )
 
+   !+++PMC
+   !don't want to call phys_init 2x because it also initializes a bunch of stuff other than
+   !its explicit arguments.
+   if (ParPhysDyn) then
+      call physics_type_alloc(phys_state_old, phys_tend_old, begchunk, endchunk, pcols)
+   end if
+   !---PMC
+
    call bldfld ()       ! master field list (if branch, only does hash tables)
 
    !
@@ -245,6 +259,14 @@ subroutine cam_run1(cam_in, cam_out)
    !
    call t_barrierf ('sync_phys_run1', mpicom)
    call t_startf ('phys_run1')
+
+   !+++PMC - if state exists, save it for use by stepon_run2.
+   if (ParPhysDyn .and. .not. (is_first_step() .or. is_first_restart_step())) then 
+      call physics_state_copy(phys_state,phys_state_old)
+      call physics_ptend_copy(phys_tend,phys_tend_old)
+   end if
+   !---PMC
+
    call phys_run1(phys_state, dtime, phys_tend, pbuf2d,  cam_in, cam_out)
    call t_stopf  ('phys_run1')
 
@@ -288,7 +310,19 @@ subroutine cam_run2( cam_out, cam_in )
    !
    call t_barrierf ('sync_stepon_run2', mpicom)
    call t_startf ('stepon_run2')
-   call stepon_run2( phys_state, phys_tend, dyn_in, dyn_out )
+
+   !+++PMC - if first step so state/tend didn't exist until call above, copy now.
+   if (ParPhysDyn) then 
+      if  (is_first_step() .or. is_first_restart_step()) then 
+         call physics_state_copy(phys_state,phys_state_old)
+         call physics_ptend_copy(phys_tend,phys_tend_old)
+      end if
+      !call stepon_run2 with state known at start of step. 
+      call stepon_run2( phys_state_old, phys_tend_old, dyn_in, dyn_out )
+
+   else
+      call stepon_run2( phys_state, phys_tend, dyn_in, dyn_out )
+   end if
 
    call t_stopf  ('stepon_run2')
 
