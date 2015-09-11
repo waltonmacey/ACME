@@ -2,7 +2,7 @@
 #include "config.h"
 #endif
 
-! This module contains constants and namelist variables used through out the model
+! This module contains constants and namelist variables used throughout the model
 ! to avoid circular dependancies please do not 'use' any further modules here.
 !
 module control_mod
