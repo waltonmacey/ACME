@@ -278,7 +278,7 @@ contains
     io_system => shr_pio_getiosys(glcid)
 
     pio_iotype = shr_pio_getiotype(glcid)
-    call MPAS_io_set_iotype(pio_iotype)
+    call MPAS_io_set_iotype(domain % iocontext, pio_iotype)
 
  stdout_shr = shr_file_getUnit()
 #ifndef MPAS_DEBUG
@@ -440,7 +440,7 @@ contains
     !
     ! Set up run-time streams
     !
-    call MPAS_stream_mgr_init(domain % streamManager, domain % clock, domain % blocklist % allFields, domain % packages, domain % blocklist % allStructs)
+    call MPAS_stream_mgr_init(domain % streamManager, domain % ioContext, domain % clock, domain % blocklist % allFields, domain % packages, domain % blocklist % allStructs)
 
     call add_stream_attributes(domain % streamManager, domain)
 
