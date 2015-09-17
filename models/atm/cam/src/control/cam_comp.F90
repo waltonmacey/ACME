@@ -13,13 +13,13 @@ module cam_comp
    use cam_abortutils,        only: endrun
    use camsrfexch,        only: cam_out_t, cam_in_t     
    use shr_sys_mod,       only: shr_sys_flush
-   use physics_types,     only: physics_state, physics_tend,physics_state_copy,physics_ptend_copy !PMC added last 2.
+   use physics_types,     only: physics_state, physics_tend, physics_state_alloc, physics_tend_alloc !PMC added last 2.
    use cam_control_mod,   only: nsrest, print_step_cost, obliqr, lambm0, mvelpp, eccen
    use dyn_comp,          only: dyn_import_t, dyn_export_t
-   use ppgrid,            only: begchunk, endchunk,pcols !PMC added pcols
+   use ppgrid,            only: begchunk, endchunk, pcols !PMC added last.
    use perf_mod
    use cam_logfile,       only: iulog
-   use physics_buffer,    only: physics_buffer_desc,pbuf_initialize !PMC added pbuf_initialize
+   use physics_buffer,    only: physics_buffer_desc
 
    implicit none
    private
@@ -58,9 +58,9 @@ module cam_comp
   type(physics_buffer_desc), pointer :: pbuf2d(:,:) => null()
 
 !+++PMC
-  logical, parameter :: ParPhysDyn = .false. #eventually make namelist param.
-  type(physics_state), pointer :: phys_state_old(:) => null()
-  type(physics_tend ), pointer :: phys_tend_old(:) => null()
+  logical, parameter :: ParPhysDyn = .false. !eventually make namelist param.
+  type(physics_state),allocatable :: phys_state_old(:)
+  type(physics_tend ),allocatable :: phys_tend_old(:)
 !---PMC
 
   real(r8) :: wcstart, wcend     ! wallclock timestamp at start, end of timestep
@@ -129,6 +129,9 @@ subroutine cam_init( cam_out, cam_in, mpicom_atm, &
    integer :: dtime_cam        ! Time-step
    logical :: log_print        ! Flag to print out log information or not
    character(len=cs) :: filein ! Input namelist filename
+   integer :: lchnk !PMC added
+   integer :: ierr  !PMC added
+
    !-----------------------------------------------------------------------
    etamid = nan
    !
@@ -181,11 +184,42 @@ subroutine cam_init( cam_out, cam_in, mpicom_atm, &
 
    call phys_init( phys_state, phys_tend, pbuf2d,  cam_out )
 
-   !+++PMC
-   !don't want to call phys_init 2x because it also initializes a bunch of stuff other than
-   !its explicit arguments.
+   !+++PMC allocate _old arrays
    if (ParPhysDyn) then
-      call physics_type_alloc(phys_state_old, phys_tend_old, begchunk, endchunk, pcols)
+      !PMC note: ParPhysDyn aims to use the physics state and tendencies from 
+      !the state before the most recent update for dynamics. This requires saving 
+      !a copy of the earlier state. The first step is declaring these variables 
+      !(called phys_state_old and phys_tend_old) which is done above. Because the 
+      !size of these variables aren't known until compile-time, these variables 
+      !need to be allocatable. Allocation is done below. The first step is needed
+      !because phys_{state,tend}_old was not declared to be a single object of 
+      !physics_{state,tend} type, but rather is a vector of objects of that type
+      !just like "real x(:)" is a vector of real objects (look at the declaration
+      !for _old things above). In this case, each object in the vector is a different
+      !column. The second stage of allocation is to allocate space for each of the 
+      !many objects contained in the physics_{state,tend} derived data type. Basically,
+      !they need to know how many levels each column has.
+
+      allocate(phys_state_old(begchunk:endchunk), stat=ierr)
+      if( ierr /= 0 ) then
+         write(iulog,*) 'cam_comp: phys_state_old allocation error = ',ierr
+         call endrun('cam_comp: failed to allocate phys_state_old array')
+      end if
+
+      do lchnk=begchunk,endchunk
+         call physics_state_alloc(phys_state_old(lchnk),lchnk,pcols)
+      end do
+
+      allocate(phys_tend_old(begchunk:endchunk), stat=ierr)
+      if( ierr /= 0 ) then
+         write(iulog,*) 'cam_comp: phys_tend_old allocation error = ',ierr
+         call endrun('cam_comp: failed to allocate phys_tend_old array')
+      end if
+
+      do lchnk=begchunk,endchunk
+         call physics_tend_alloc(phys_tend_old(lchnk),phys_state(lchnk)%psetcols)
+      end do
+
    end if
    !---PMC
 
@@ -226,7 +260,7 @@ subroutine cam_run1(cam_in, cam_out)
 #if ( defined SPMD )
    use mpishorthand,     only: mpicom
 #endif
-   use time_manager,     only: get_nstep
+   use time_manager,     only: get_nstep, is_first_step, is_first_restart_step !PMC added last 2 args.
 
    type(cam_in_t)  :: cam_in(begchunk:endchunk)
    type(cam_out_t) :: cam_out(begchunk:endchunk)
@@ -261,9 +295,15 @@ subroutine cam_run1(cam_in, cam_out)
    call t_startf ('phys_run1')
 
    !+++PMC - if state exists, save it for use by stepon_run2.
+   !NOTE 1: we can't use phys_*_copy() to make copies below because these subroutines get argument
+   !sizes implicitly (which won't work for pointers like phys_state and phys_tend). Instead we
+   !are copying the contents of these pointer references to local, static variables using F90's
+   !built-in treatment of "=". This works because phys_{state,tend} are taken to be static
+   !variables in stepon_run2 (where these variables are used).
+   !NOTE 2: we can't do this copy if first step because phys_state and phys_tend are not known yet.
    if (ParPhysDyn .and. .not. (is_first_step() .or. is_first_restart_step())) then 
-      call physics_state_copy(phys_state,phys_state_old)
-      call physics_ptend_copy(phys_tend,phys_tend_old)
+      phys_state_old = phys_state
+      phys_tend_old = phys_tend
    end if
    !---PMC
 
@@ -311,18 +351,27 @@ subroutine cam_run2( cam_out, cam_in )
    call t_barrierf ('sync_stepon_run2', mpicom)
    call t_startf ('stepon_run2')
 
-   !+++PMC - if first step so state/tend didn't exist until call above, copy now.
+   !+++PMC
    if (ParPhysDyn) then 
+
+      !COPY phys_{state,tend}_old IF IT DOESN'T ALREADY EXIST:
+      !-------------------------------------------------------
+      !NOTE 1: The goal of ParPhysDyn is to use copies of phys_{state,tend}_old from before
+      !physics was called. For the first step that's not possible, so we copy the phys state
+      !now.
+      !NOTE 2: see the note about using phys_{state,tend}_copy() in cam_run1 above.
       if  (is_first_step() .or. is_first_restart_step()) then 
-         call physics_state_copy(phys_state,phys_state_old)
-         call physics_ptend_copy(phys_tend,phys_tend_old)
+         phys_state_old = phys_state
+         phys_tend_old = phys_tend
       end if
-      !call stepon_run2 with state known at start of step. 
+
+      !call stepon_run2 with state known at start of step.
       call stepon_run2( phys_state_old, phys_tend_old, dyn_in, dyn_out )
 
    else
-      call stepon_run2( phys_state, phys_tend, dyn_in, dyn_out )
+     call stepon_run2( phys_state, phys_tend, dyn_in, dyn_out )
    end if
+   !---PMC
 
    call t_stopf  ('stepon_run2')
 
