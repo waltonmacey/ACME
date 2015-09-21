@@ -523,6 +523,7 @@ contains
 
     call glc_SetGSMap_mct( mpicom_g, glcID, GSMap_g )
     lsize = mct_gsMap_lsize(gsMap_g, mpicom_g)
+    write(shrlogunit, *) ' MPASLI gsMap lsize is: ', lsize
 
     ! Initialize mct glc domain (needs glc initialization info)
     call glc_domain_mct( lsize, gsMap_g, dom_g )
@@ -580,7 +581,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-    call glc_export_mct(g2x_g % rAttr, errorCode)
+    call glc_export_mct(g2x_g, errorCode)
     if (errorCode /= 0) then
        call mpas_dmpar_global_abort('ERROR in glc_export_mct')
     endif
@@ -610,7 +611,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-    call glc_import_mct(x2g_g % rAttr, errorCode)
+    call glc_import_mct(x2g_g, errorCode)
     if (errorCode /= 0) then
        call mpas_dmpar_global_abort('ERROR in glc_import_mct')
     endif
@@ -749,7 +750,7 @@ contains
       err = ior(err, err_tmp)
 
       ! Import state from coupler
-      call glc_import_mct(x2g_g % rAttr, err_tmp)
+      call glc_import_mct(x2g_g, err_tmp)
       err = ior(err,err_tmp)
 
       ! Handle writing initial state
@@ -894,7 +895,7 @@ contains
 !      end do
 
       ! Export state to coupler
-      call glc_export_mct(g2x_g % rAttr, err_tmp)
+      call glc_export_mct(g2x_g, err_tmp)
       err = ior(err,err_tmp)
 
       ! Move time levels back the way MPAS will expect them on the next time step
@@ -1251,6 +1252,7 @@ contains
 
    type (block_type), pointer :: block
 
+   type (mpas_pool_type), pointer :: meshPool
    type (mpas_pool_type), pointer :: geometryPool
    type (mpas_pool_type), pointer :: thermalPool
 
@@ -1267,27 +1269,31 @@ contains
     n = 0
     block => domain % blocklist
 
-      do while (associated(block))
+    do while (associated(block))
+         call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+         call mpas_pool_get_dimension(meshPool, 'nCellsSolve', nCellsSolve)
+
          ! Get variables from pools
          call mpas_pool_get_subpool(block % structs, 'geometry', geometryPool)
-         call mpas_pool_get_subpool(block % structs, 'thernal', thermalPool)
+         !call mpas_pool_get_subpool(block % structs, 'thermal', thermalPool)
 
-         call mpas_pool_get_array(geometryPool, 'sfcMassBal',sfcMassBal)
-         call mpas_pool_get_array(geometryPool, 'basalOceanMassBal',basalOceanMassBal)
-         call mpas_pool_get_array(thermalPool, 'surfaceTemperature',surfaceTemperature)
-         call mpas_pool_get_array(thermalPool, 'basalOceanHeatflx',basalOceanHeatflx)
+         call mpas_pool_get_array(geometryPool, 'sfcMassBal', sfcMassBal)
+         !call mpas_pool_get_array(geometryPool, 'basalOceanMassBal',basalOceanMassBal)
+         !call mpas_pool_get_array(thermalPool, 'surfaceTemperature',surfaceTemperature)
+         !call mpas_pool_get_array(thermalPool, 'basalOceanHeatflx',basalOceanHeatflx)
          !call mpas_pool_get_array(geometryPool, 'OceanDensity',OceanDensity)
 
          do i = 1, nCellsSolve
             n = n + 1
             sfcMassBal(i) = x2g_g % rAttr(index_x2g_Flgl_qice, n)
-            basalOceanMassBal(i) = x2g_g % rAttr(index_x2g_Fogo_qicel, n)
-            surfaceTemperature(i) = x2g_g % rAttr(index_x2g_Sl_tsrf, n)
-            basalOceanHeatflx(i) = x2g_g % rAttr(index_x2g_Fogo_qiceh, n)
+            !basalOceanMassBal(i) = x2g_g % rAttr(index_x2g_Fogo_qicel, n)
+            !surfaceTemperature(i) = x2g_g % rAttr(index_x2g_Sl_tsrf, n)
+            !basalOceanHeatflx(i) = x2g_g % rAttr(index_x2g_Fogo_qiceh, n)
             !OceanDensity (i) = x2g_g % rAttr(, n)
          end do
 
          block => block % next
+    end do
 
 
 !Need to loop over blocks
@@ -1309,13 +1315,13 @@ contains
  !   use glc_route_ice_runoff, only: route_ice_runoff
  !   use glc_override_frac   , only: frac_overrides_enabled, do_frac_overrides
 
-    real(RKIND)    ,intent(inout) :: g2x(:,:)
+    type(mct_aVect) , intent(inout) :: g2x
     integer, intent(out) :: errorCode
 
     real(RKIND), pointer :: gfrac_to_cpl(:,:,:)   ! if overriding gfrac, this is the modified version,
                                                ! sent to the coupler; otherwise it points to the real gfrac
     logical :: gfrac_to_cpl_allocated          ! whether we allocated gfrac_to_cpl
-    integer(IN) :: j,jj,i,g,nxg,nyg,n,elev_class
+    integer :: j,jj,i,g,nxg,nyg,n,elev_class
     character(*), parameter :: subName = "(glc_export) "
     !-------------------------------------------------------------------
 
