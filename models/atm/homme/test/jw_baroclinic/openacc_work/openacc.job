@@ -15,7 +15,7 @@ set HOMME  = /ccs/home/imn/ACME/models/atm/homme                # HOMME svn chec
 set input  = $HOMME/test/jw_baroclinic/openacc_work    # input files for test case
 set vdir   = $HOMME/test/vcoord            # vertical coordinate files
 set exedir = $HOMME/build/preqx
-set exe    = preqx.cpu
+set exe    = preqx.openacc
 
 
 
@@ -47,7 +47,7 @@ set exe    = preqx.cpu
     module switch cray-libsci cray-libsci/13.0.4
     module load esmf/5.2.0rp2
     module switch atp atp/1.7.5
-
+    module add cudatoolkit
     setenv CRAY_CPU_TARGET istanbul
     module load cray-netcdf-hdf5parallel/4.3.3.1
     module load cray-parallel-netcdf/1.5.0
@@ -63,13 +63,14 @@ setenv MPICH_ENV_DISPLAY 1
 setenv MPICH_VERSION_DISPLAY 1
 setenv MPICH_CPUMASK_DISPLAY 1
 
+ setenv CRAY_CUDA_PROXY 1
+#setenv PMI_NO_FORK 1
+#setenv CUDA_PROFILE 1
+#setenv CUDA_PROFILE_LOG "cuda_profile_%p.log"
+#setenv CUDA_PROFILE_CONFIG ./cuda_config
+#setenv PGI_ACC_DEBUG 1
 
-
-
-
-
-
-setenv OMP_NUM_THREADS 1
+setenv OMP_NUM_THREADS 8
 set NCPU = $PBS_NUM_NODES
 @ NCPU *= 16
 @ NCPU /= $OMP_NUM_THREADS
@@ -165,7 +166,7 @@ sed s:vfile_int.\*:"vfile_int = '$vfile_int'":  |\
 sed s/qsize.\*/"qsize = $qsize"/  > input.nl
 
 cp $exedir/$exe .
-
+cp ~/HOMME_ACME/cuda_config .
 date
 $mpirun ./$exe < input.nl
 date
