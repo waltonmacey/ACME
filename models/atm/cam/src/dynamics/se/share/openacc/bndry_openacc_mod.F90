@@ -27,7 +27,8 @@ contains
     type (Schedule_t),pointer :: pSchedule
     type (Cycle_t),pointer    :: pCycle
     integer                   :: dest,length,tag
-    integer                   :: icycle,ierr
+    integer                   :: icycle
+    integer                   :: ierr
     integer                   :: iptr,source,nlyr
     integer                   :: nSendCycles,nRecvCycles
     integer                   :: errorcode,errorlen
