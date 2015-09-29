@@ -338,7 +338,7 @@ contains
     endif
 
 
-!    call prim_advance_oacc_init2(elem)
+    call prim_advance_oacc_init2(elem)
 
     ! ==================================
     ! Take timestep
@@ -2586,58 +2586,9 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
 
   call t_startf('compute_and_apply_rhs')
 
-   call prim_advance_oacc_init2(elem)
 
   !$omp barrier
   !$omp master
-
- if (rsplit==0) then
-   !$acc parallel loop gang vector  private (dsdx00, dsdy00, v_tmp1, v_tmp2) create(grad_ps)  pcopyin (deriv%Dvv, elem(:)) present(dp, p, grad_p)
-    do ie=1, nelemd
-      !$acc loop collapse(2)
-       do j=1,np
-            do l=1,np
-             dsdx00=0.0d0
-             dsdy00=0.0d0
-              do i=1,np
-               dsdx00 = dsdx00 + deriv%Dvv(i,l  )*elem(ie)%state%ps_v(i,j,n0)
-               dsdy00 = dsdy00 + deriv%Dvv(i,l  )*elem(ie)%state%ps_v(j,i,n0)
-              enddo
-              v_tmp1(l  ,j  ) = dsdx00*rrearth
-              v_tmp2(j  ,l  ) = dsdy00*rrearth
-             enddo
-       enddo
-       !$acc  loop collapse(2)
-       do j=1,np
-            do i=1,np
-             grad_ps(i,j,1,ie)=elem(ie)%Dinv(1,1,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_tmp2(i,j)
-             grad_ps(i,j,2,ie)=elem(ie)%Dinv(1,2,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_tmp2(i,j)
-            enddo
-        enddo
-     enddo
-
-
-    !$acc parallel loop gang vector collapse(4) present (grad_ps, p, dp, grad_p, elem(:)) pcopyin (hvcoord%hyai,  hvcoord%hybi,  hvcoord%ps0, hvcoord%hyam, hvcoord%hybm,n0) 
-    do ie=1, nelemd
-     ! ============================
-     ! compute p and delta p
-     ! ============================
-     do k=1,nlev
-      do j = 1 , np
-        do i = 1 , np
-            dp(i,j,k,ie) = (hvcoord%hyai(k+1)*hvcoord%ps0 + hvcoord%hybi(k+1)*elem(ie)%state%ps_v(i,j,n0)) &
-                        - (hvcoord%hyai(k)*hvcoord%ps0 + hvcoord%hybi(k)*elem(ie)%state%ps_v(i,j,n0))
-            p(i,j,k,ie)  = hvcoord%hyam(k)*hvcoord%ps0 + hvcoord%hybm(k)*elem(ie)%state%ps_v(i,j,n0)
-            grad_p(i,j,1,k,ie) = hvcoord%hybm(k)*grad_ps(i,j,1,ie)
-            grad_p(i,j,2,k,ie) = hvcoord%hybm(k)*grad_ps(i,j,2,ie)
-          enddo
-        enddo
-      enddo
-     enddo
-
-   endif
-
-print*, "Irina debug4"
 
   if (rsplit==0) then 
     !$acc parallel loop gang vector  private (dsdx00, dsdy00, v_tmp1, v_tmp2) create(grad_ps)  pcopyin (deriv%Dvv, elem(:)) present(dp, p, grad_p)
