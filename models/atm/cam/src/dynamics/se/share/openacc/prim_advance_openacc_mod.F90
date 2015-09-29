@@ -112,16 +112,6 @@ contains
 
 
 
-   !$omp barrier
-   !$omp master
-
-!    !$acc enter data pcreate(phi_oacc, grad_p, p, dp, vdp, vgrad_p, divdp, eta_dot_dpdn, vort)
-!    !$acc enter data pcreate(kappa_star, omega_p, sdot_sum, T_v, v_vadv, T_vadv, vtens1, vtens2, ttens)
-!    !$acc enter data pcopyin()
-!
-  !$omp end master
-  !$omp barrier
-
 
   end subroutine prim_advance_init
 
@@ -147,6 +137,10 @@ contains
        enddo
      enddo
    enddo
+
+    !$acc enter data pcopyin(phi_oacc) 
+    !$acc enter data pcreate(grad_p, p, dp, vdp, vgrad_p, divdp, eta_dot_dpdn, vort)
+    !$acc enter data pcreate(kappa_star, omega_p, sdot_sum, T_v, v_vadv, T_vadv, vtens1, vtens2, ttens)
 
   !$omp end master
   !$omp barrier
@@ -343,6 +337,8 @@ contains
        return
     endif
 
+
+!    call prim_advance_oacc_init2(elem)
 
     ! ==================================
     ! Take timestep
@@ -2590,12 +2586,102 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
 
   call t_startf('compute_and_apply_rhs')
 
+   call prim_advance_oacc_init2(elem)
+
   !$omp barrier
   !$omp master
 
-  call prim_advance_oacc_init2(elem)
-  
-  print*, "Inside OpenACC"
+   !$acc parallel loop gang vector  private (dsdx00, dsdy00, v_tmp1, v_tmp2, grad_ps)  pcopyin (deriv%Dvv, elem(:), hvcoord%hyai,  hvcoord%hybi,  hvcoord%ps0, hvcoord%hyam, hvcoord%hybm,n0) present(dp, p, grad_p)
+    do ie=1, nelemd
+     if (rsplit==0) then
+      !$acc loop collapse(2)
+       do j=1,np
+            do l=1,np
+             dsdx00=0.0d0
+             dsdy00=0.0d0
+              do i=1,np
+               dsdx00 = dsdx00 + deriv%Dvv(i,l  )*elem(ie)%state%ps_v(i,j,n0)
+               dsdy00 = dsdy00 + deriv%Dvv(i,l  )*elem(ie)%state%ps_v(j,i,n0)
+              enddo
+              v_tmp1(l  ,j  ) = dsdx00*rrearth
+              v_tmp2(j  ,l  ) = dsdy00*rrearth
+             enddo
+       enddo
+       !$acc  loop collapse(2)
+       do j=1,np
+            do i=1,np
+             grad_ps(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_tmp2(i,j)
+             grad_ps(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_tmp2(i,j)
+            enddo
+        enddo
+       endif
+     !enddo
+      !$acc  loop collapse(3)
+     do k=1,nlev
+      do j = 1 , np
+        do i = 1 , np
+!          if (rsplit==0) then
+!            dp(i,j,k,ie) = 1.0 !(hvcoord%hyai(k+1)*hvcoord%ps0)! + hvcoord%hybi(k+1)*elem(ie)%state%ps_v(i,j,n0)) &
+                     !   - (hvcoord%hyai(k)*hvcoord%ps0 + hvcoord%hybi(k)*elem(ie)%state%ps_v(i,j,n0))
+!            p(i,j,k,ie)  = hvcoord%hyam(k)*hvcoord%ps0 + hvcoord%hybm(k)*elem(ie)%state%ps_v(i,j,n0)
+            grad_p(i,j,1,k,ie) = 1.0; !hvcoord%hybm(k)*grad_ps(i,j,1)
+!            grad_p(i,j,2,k,ie) = hvcoord%hybm(k)*grad_ps(i,j,2)
+!           else
+!             dp(i,j,k,ie) = elem(ie)%state%dp3d(i,j,k,n0)
+!             if (k==1) then
+     !           p(i,j,k,ie)=hvcoord%hyai(k)*hvcoord%ps0 + dp(i,j,k,ie)/2
+!             else
+      !          p(i,j,k,ie)=p(i,j,k-1,ie) + dp(i,j,k-1,ie)/2 + dp(i,j,k,ie)/2
+!             endif
+!           endif
+          enddo
+        enddo
+       enddo
+     enddo
+
+print*, "Irina debug1"
+
+    !$acc parallel loop gang vector collapse(4) present( p)
+    do ie=1, nelemd
+      do k=1,nlev
+        do j = 1 , np
+          do i = 1 , np
+             p(i,j,k,ie)= 1.0;
+          enddo
+         enddo
+       enddo
+     enddo
+print*, "Irina debug2"
+     !$acc parallel loop gang vector collapse(4) copyin( p)
+    do ie=1, nelemd
+      do k=1,nlev
+        do j = 1 , np
+          do i = 1 , np
+             p(i,j,k,ie)= 1.0;
+          enddo
+         enddo
+       enddo
+     enddo
+
+   
+
+print*, "Irina debug3"
+
+    !$acc parallel loop gang vector collapse(4) pcopyin( p)
+    do ie=1, nelemd
+      do k=1,nlev
+        do j = 1 , np
+          do i = 1 , np
+             p(i,j,k,ie)= 1.0;
+          enddo
+         enddo
+       enddo
+     enddo
+print*, "Irina debug4"
+ 
+!  !$acc parallel loop gang vector collapse(1) present(phi_oacc, grad_p, p, dp) &
+!  !$acc& pcopyin(elem(:), deriv%Dvv, rrearth, hvcoord%hyai, hvcoord%ps0, hvcoord%hybi,hvcoord%hyam,hvcoord%hybm) & 
+!  !$acc& private (dsdx00, dsdy00, v_tmp1, v_tmp2, grad_ps)
   do ie=1, nelemd
 
      ! ==================================================
@@ -2678,7 +2764,8 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
       enddo
     enddo
    !end of the first openacc kernel
-
+   
+!   !$acc update host (grad_p, p, dp)
     do ie=1, nelemd
       do k=1,nlev
      
