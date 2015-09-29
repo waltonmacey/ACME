@@ -2559,7 +2559,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
   real (kind=real_kind), dimension(np,np,2     )         :: v         !
   real (kind=real_kind), dimension(np,np)                :: vgrad_T    ! v.grad(T)
   real (kind=real_kind), dimension(np,np)                :: Ephi       ! kinetic energy + PHI term
-  real (kind=real_kind), dimension(np,np,2)              :: grad_ps    ! lat-lon coord version
+  real (kind=real_kind), dimension(np,np,2,nlev)         :: grad_ps    ! lat-lon coord version
   real (kind=real_kind), dimension(np,np,2,nlev)         :: grad_p_m_pmet  ! gradient(p - p_met)
   real (kind=real_kind), dimension(np,np,nlev)           :: rdp        ! inverse of delta pressure
   real (kind=real_kind), dimension(np,np,nlev+1)         :: ph               ! half level pressures on p-grid
@@ -2591,9 +2591,9 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
   !$omp barrier
   !$omp master
 
-   !$acc parallel loop gang vector  private (dsdx00, dsdy00, v_tmp1, v_tmp2, grad_ps)  pcopyin (deriv%Dvv, elem(:), hvcoord%hyai,  hvcoord%hybi,  hvcoord%ps0, hvcoord%hyam, hvcoord%hybm,n0) present(dp, p, grad_p)
+ if (rsplit==0) then
+   !$acc parallel loop gang vector  private (dsdx00, dsdy00, v_tmp1, v_tmp2) create(grad_ps)  pcopyin (deriv%Dvv, elem(:)) present(dp, p, grad_p)
     do ie=1, nelemd
-     if (rsplit==0) then
       !$acc loop collapse(2)
        do j=1,np
             do l=1,np
@@ -2610,79 +2610,38 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
        !$acc  loop collapse(2)
        do j=1,np
             do i=1,np
-             grad_ps(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_tmp2(i,j)
-             grad_ps(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_tmp2(i,j)
+             grad_ps(i,j,1,ie)=elem(ie)%Dinv(1,1,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_tmp2(i,j)
+             grad_ps(i,j,2,ie)=elem(ie)%Dinv(1,2,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_tmp2(i,j)
             enddo
         enddo
-       endif
-     !enddo
-      !$acc  loop collapse(3)
+     enddo
+
+
+    !$acc parallel loop gang vector collapse(4) present (grad_ps, p, dp, grad_p, elem(:)) pcopyin (hvcoord%hyai,  hvcoord%hybi,  hvcoord%ps0, hvcoord%hyam, hvcoord%hybm,n0) 
+    do ie=1, nelemd
+     ! ============================
+     ! compute p and delta p
+     ! ============================
      do k=1,nlev
       do j = 1 , np
         do i = 1 , np
-!          if (rsplit==0) then
-!            dp(i,j,k,ie) = 1.0 !(hvcoord%hyai(k+1)*hvcoord%ps0)! + hvcoord%hybi(k+1)*elem(ie)%state%ps_v(i,j,n0)) &
-                     !   - (hvcoord%hyai(k)*hvcoord%ps0 + hvcoord%hybi(k)*elem(ie)%state%ps_v(i,j,n0))
-!            p(i,j,k,ie)  = hvcoord%hyam(k)*hvcoord%ps0 + hvcoord%hybm(k)*elem(ie)%state%ps_v(i,j,n0)
-            grad_p(i,j,1,k,ie) = 1.0; !hvcoord%hybm(k)*grad_ps(i,j,1)
-!            grad_p(i,j,2,k,ie) = hvcoord%hybm(k)*grad_ps(i,j,2)
-!           else
-!             dp(i,j,k,ie) = elem(ie)%state%dp3d(i,j,k,n0)
-!             if (k==1) then
-     !           p(i,j,k,ie)=hvcoord%hyai(k)*hvcoord%ps0 + dp(i,j,k,ie)/2
-!             else
-      !          p(i,j,k,ie)=p(i,j,k-1,ie) + dp(i,j,k-1,ie)/2 + dp(i,j,k,ie)/2
-!             endif
-!           endif
+            dp(i,j,k,ie) = (hvcoord%hyai(k+1)*hvcoord%ps0 + hvcoord%hybi(k+1)*elem(ie)%state%ps_v(i,j,n0)) &
+                        - (hvcoord%hyai(k)*hvcoord%ps0 + hvcoord%hybi(k)*elem(ie)%state%ps_v(i,j,n0))
+            p(i,j,k,ie)  = hvcoord%hyam(k)*hvcoord%ps0 + hvcoord%hybm(k)*elem(ie)%state%ps_v(i,j,n0)
+            grad_p(i,j,1,k,ie) = hvcoord%hybm(k)*grad_ps(i,j,1,ie)
+            grad_p(i,j,2,k,ie) = hvcoord%hybm(k)*grad_ps(i,j,2,ie)
           enddo
         enddo
-       enddo
+      enddo
      enddo
 
-print*, "Irina debug1"
+   endif
 
-    !$acc parallel loop gang vector collapse(4) present( p)
-    do ie=1, nelemd
-      do k=1,nlev
-        do j = 1 , np
-          do i = 1 , np
-             p(i,j,k,ie)= 1.0;
-          enddo
-         enddo
-       enddo
-     enddo
-print*, "Irina debug2"
-     !$acc parallel loop gang vector collapse(4) copyin( p)
-    do ie=1, nelemd
-      do k=1,nlev
-        do j = 1 , np
-          do i = 1 , np
-             p(i,j,k,ie)= 1.0;
-          enddo
-         enddo
-       enddo
-     enddo
-
-   
-
-print*, "Irina debug3"
-
-    !$acc parallel loop gang vector collapse(4) pcopyin( p)
-    do ie=1, nelemd
-      do k=1,nlev
-        do j = 1 , np
-          do i = 1 , np
-             p(i,j,k,ie)= 1.0;
-          enddo
-         enddo
-       enddo
-     enddo
 print*, "Irina debug4"
- 
-!  !$acc parallel loop gang vector collapse(1) present(phi_oacc, grad_p, p, dp) &
-!  !$acc& pcopyin(elem(:), deriv%Dvv, rrearth, hvcoord%hyai, hvcoord%ps0, hvcoord%hybi,hvcoord%hyam,hvcoord%hybm) & 
-!  !$acc& private (dsdx00, dsdy00, v_tmp1, v_tmp2, grad_ps)
-  do ie=1, nelemd
+
+  if (rsplit==0) then 
+    !$acc parallel loop gang vector  private (dsdx00, dsdy00, v_tmp1, v_tmp2) create(grad_ps)  pcopyin (deriv%Dvv, elem(:)) present(dp, p, grad_p)
+    do ie=1, nelemd
 
      ! ==================================================
      ! compute pressure (p) on half levels from ps
@@ -2691,8 +2650,8 @@ print*, "Irina debug4"
      ! (NCAR/TN-382+STR), June 1993, p. 24.
      ! ==================================================
      ! vertically eulerian only needs grad(ps)
-     if (rsplit==0) then
-          !! inlined gradient_sphere below: grad_ps = gradient_sphere(elem(ie)%state%ps_v(:,:,n0),deriv,elem(ie)%Dinv)
+     !! inlined gradient_sphere below: grad_ps = gradient_sphere(elem(ie)%state%ps_v(:,:,n0),deriv,elem(ie)%Dinv)
+          !$acc loop collapse(2)
           do j=1,np
             do l=1,np
              dsdx00=0.0d0
@@ -2705,42 +2664,63 @@ print*, "Irina debug4"
               v_tmp2(j  ,l  ) = dsdy00*rrearth
              enddo
            enddo
+           !$acc loop collapse(2)
            do j=1,np
             do i=1,np
-             grad_ps(i,j,1)=elem(ie)%Dinv(1,1,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_tmp2(i,j)
-             grad_ps(i,j,2)=elem(ie)%Dinv(1,2,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_tmp2(i,j)
+             grad_ps(i,j,1,ie)=elem(ie)%Dinv(1,1,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_tmp2(i,j)
+             grad_ps(i,j,2,ie)=elem(ie)%Dinv(1,2,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_tmp2(i,j)
             enddo
            enddo
-       endif
+     enddo
 
+     !$acc parallel loop gang vector collapse(4) present (grad_ps, p, dp, grad_p, elem(:)) pcopyin (hvcoord%hyai,  hvcoord%hybi,  hvcoord%ps0, hvcoord%hyam, hvcoord%hybm,n0)
+     do ie=1, nelemd
+      ! ============================
+      ! compute p and delta p
+      ! ============================
+      do k=1,nlev
+       do j = 1 , np
+        do i = 1 , np
+            dp(i,j,k,ie) = (hvcoord%hyai(k+1)*hvcoord%ps0 + hvcoord%hybi(k+1)*elem(ie)%state%ps_v(i,j,n0)) &
+                        - (hvcoord%hyai(k)*hvcoord%ps0 + hvcoord%hybi(k)*elem(ie)%state%ps_v(i,j,n0))
+            p(i,j,k,ie)  = hvcoord%hyam(k)*hvcoord%ps0 + hvcoord%hybm(k)*elem(ie)%state%ps_v(i,j,n0)
+            grad_p(i,j,1,k,ie) = hvcoord%hybm(k)*grad_ps(i,j,1,ie)
+            grad_p(i,j,2,k,ie) = hvcoord%hybm(k)*grad_ps(i,j,2,ie)
+          enddo
+        enddo
+      enddo
+     enddo
+    endif
+
+    !$acc update host(dp, p, grad_p)
+
+    if (rsplit/=0) then
+
+      do ie=1, nelemd
      ! ============================
      ! compute p and delta p
      ! ============================
      do k=1,nlev
       do j = 1 , np
         do i = 1 , np
-          if (rsplit==0) then
-            dp(i,j,k,ie) = (hvcoord%hyai(k+1)*hvcoord%ps0 + hvcoord%hybi(k+1)*elem(ie)%state%ps_v(i,j,n0)) &
-                        - (hvcoord%hyai(k)*hvcoord%ps0 + hvcoord%hybi(k)*elem(ie)%state%ps_v(i,j,n0))
-            p(i,j,k,ie)  = hvcoord%hyam(k)*hvcoord%ps0 + hvcoord%hybm(k)*elem(ie)%state%ps_v(i,j,n0)
-            grad_p(i,j,1,k,ie) = hvcoord%hybm(k)*grad_ps(i,j,1)
-            grad_p(i,j,2,k,ie) = hvcoord%hybm(k)*grad_ps(i,j,2)
-           else
              dp(i,j,k,ie) = elem(ie)%state%dp3d(i,j,k,n0)
              if (k==1) then
                 p(i,j,k,ie)=hvcoord%hyai(k)*hvcoord%ps0 + dp(i,j,k,ie)/2
              else
                 p(i,j,k,ie)=p(i,j,k-1,ie) + dp(i,j,k-1,ie)/2 + dp(i,j,k,ie)/2
              endif
-           endif
           enddo
         enddo
+      enddo
+     enddo
 
-       if (rsplit/=0) then
+
           !! inline gradient_sphere here: grad_p(:,:,:,k) = gradient_sphere(p(:,:,k),deriv,elem(ie)%Dinv)
           ! ============================
           ! compute gradien_sphere
           ! ============================
+       do ie=1, nelemd
+        do k=1,nlev
           do j=1,np
             do l=1,np
              dsdx00=0.0d0
@@ -2759,10 +2739,9 @@ print*, "Irina debug4"
              grad_p(i,j,2,k,ie)=elem(ie)%Dinv(1,2,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,2,i,j)*v_tmp2(i,j)
             enddo
            enddo
-
-        endif
-      enddo
-    enddo
+         enddo
+        enddo
+      endif
    !end of the first openacc kernel
    
 !   !$acc update host (grad_p, p, dp)
