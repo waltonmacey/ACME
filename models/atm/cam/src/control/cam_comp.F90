@@ -58,7 +58,7 @@ module cam_comp
   type(physics_buffer_desc), pointer :: pbuf2d(:,:) => null()
 
 !+++PMC
-  logical, parameter :: ParPhysDyn = .false. !eventually make namelist param.
+  logical, parameter :: ParPhysDyn = .true. !eventually make namelist param.
   type(physics_state),allocatable :: phys_state_old(:)
   type(physics_tend ),allocatable :: phys_tend_old(:)
 !---PMC
@@ -294,19 +294,6 @@ subroutine cam_run1(cam_in, cam_out)
    call t_barrierf ('sync_phys_run1', mpicom)
    call t_startf ('phys_run1')
 
-   !+++PMC - if state exists, save it for use by stepon_run2.
-   !NOTE 1: we can't use phys_*_copy() to make copies below because these subroutines get argument
-   !sizes implicitly (which won't work for pointers like phys_state and phys_tend). Instead we
-   !are copying the contents of these pointer references to local, static variables using F90's
-   !built-in treatment of "=". This works because phys_{state,tend} are taken to be static
-   !variables in stepon_run2 (where these variables are used).
-   !NOTE 2: we can't do this copy if first step because phys_state and phys_tend are not known yet.
-   if (ParPhysDyn .and. .not. (is_first_step() .or. is_first_restart_step())) then 
-      phys_state_old = phys_state
-      phys_tend_old = phys_tend
-   end if
-   !---PMC
-
    call phys_run1(phys_state, dtime, phys_tend, pbuf2d,  cam_in, cam_out)
    call t_stopf  ('phys_run1')
 
@@ -359,7 +346,12 @@ subroutine cam_run2( cam_out, cam_in )
       !NOTE 1: The goal of ParPhysDyn is to use copies of phys_{state,tend}_old from before
       !physics was called. For the first step that's not possible, so we copy the phys state
       !now.
-      !NOTE 2: see the note about using phys_{state,tend}_copy() in cam_run1 above.
+      !NOTE 2: we can't use phys_*_copy() to make copies because these subroutines get argument
+      !sizes implicitly (which won't work for pointers like phys_state and phys_tend). Instead we
+      !are copying the contents of these pointer references to local, static variables using F90's
+      !built-in treatment of "=". This works because phys_{state,tend} are taken to be static
+      !variables.
+
       if  (is_first_step() .or. is_first_restart_step()) then 
          phys_state_old = phys_state
          phys_tend_old = phys_tend
@@ -367,6 +359,15 @@ subroutine cam_run2( cam_out, cam_in )
 
       !call stepon_run2 with state known at start of step.
       call stepon_run2( phys_state_old, phys_tend_old, dyn_in, dyn_out )
+
+      !if not 1st step, need to make our copy of output from physics before 
+      !dp_coupling is called because that overwrites phys_state with the value
+      !at the end of dynamics... which overwrites any info we would gain from 
+      !calling physics.
+      if (.not. (is_first_step() .or. is_first_restart_step())) then 
+         phys_state_old = phys_state
+         phys_tend_old = phys_tend
+      end if
 
    else
      call stepon_run2( phys_state, phys_tend, dyn_in, dyn_out )
