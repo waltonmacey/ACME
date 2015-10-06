@@ -260,7 +260,7 @@ subroutine cam_run1(cam_in, cam_out)
 #if ( defined SPMD )
    use mpishorthand,     only: mpicom
 #endif
-   use time_manager,     only: get_nstep, is_first_step, is_first_restart_step !PMC added last 2 args.
+   use time_manager,     only: get_nstep
 
    type(cam_in_t)  :: cam_in(begchunk:endchunk)
    type(cam_out_t) :: cam_out(begchunk:endchunk)
