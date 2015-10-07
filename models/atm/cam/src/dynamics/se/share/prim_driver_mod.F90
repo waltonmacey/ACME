@@ -567,7 +567,7 @@ contains
     use asp_tests, only : asp_tracer, asp_baroclinic, asp_rossby, asp_mountain, asp_gravity_wave, dcmip2_schar
     use aquaplanet, only : aquaplanet_init_state
 #endif
-    use arch_switch_mod, only: prim_advec_init2, arch_init2
+    use arch_switch_mod, only: prim_advec_init2, arch_init2, prim_advance_init2
 
     type (element_t), intent(inout) :: elem(:)
 #if defined(_SPELT)
@@ -1061,6 +1061,7 @@ contains
 
     call arch_init2(elem,deriv(hybrid%ithr))
     call prim_advec_init2(elem,hvcoord,hybrid)
+    call prim_advance_init2(elem, hvcoord)    
     if (hybrid%masterthread) write(iulog,*) "initial state:"
     call prim_printstate(elem, tl, hybrid,hvcoord,nets,nete, fvm)
   end subroutine prim_init2

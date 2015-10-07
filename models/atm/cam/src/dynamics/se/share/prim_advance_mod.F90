@@ -64,6 +64,14 @@ contains
 
   end subroutine prim_advance_init
 
+  subroutine prim_advance_init2(elem)
+  use element_mod, only : element_t
+
+  implicit none
+
+    type(element_t)      , intent(in) :: elem(:)
+ end subroutine prim_advance_init2
+
 
   subroutine prim_advance_exp(elem, deriv, hvcoord, hybrid,&
        dt, tl,  nets, nete, compute_diagnostics)

@@ -22,7 +22,7 @@ module prim_advance_openacc_mod
   implicit none
   private
   save
-  public :: prim_advance_exp, prim_advance_si, prim_advance_init, preq_robert3,&
+  public :: prim_advance_exp, prim_advance_si, prim_advance_init, prim_advance_init2, preq_robert3,&
        applyCAMforcing_dynamics, applyCAMforcing, smooth_phis, overwrite_SEdensity
 
   type (EdgeBuffer_t) :: edge1
@@ -115,14 +115,16 @@ contains
 
   end subroutine prim_advance_init
 
- subroutine prim_advance_oacc_init2(elem)
+ subroutine prim_advance_init2(elem, hvcoord)
   use kinds, only : real_kind
   use dimensions_mod, only : np, nc, nlev,  nelemd
   use element_mod, only : element_t
+  use hybvcoord_mod, only : hvcoord_t
 
   implicit none
 
     type(element_t)      , intent(in) :: elem(:)
+    type (hvcoord_t)     , intent(in)  :: hvcoord
     integer :: i, j, k, l, ie
 
    !$omp barrier
@@ -138,13 +140,12 @@ contains
      enddo
    enddo
 
-    !$acc enter data pcopyin(phi_oacc) 
-    !$acc enter data pcreate(grad_p, p, dp, vdp, vgrad_p, divdp, eta_dot_dpdn, vort)
+    !$acc enter data pcopyin(phi_oacc(:,:,:,:), hvcoord%hyai, hvcoord%ps0) 
+    !$acc enter data pcreate( grad_p, p, dp, vdp, vgrad_p, divdp, eta_dot_dpdn, vort)
     !$acc enter data pcreate(kappa_star, omega_p, sdot_sum, T_v, v_vadv, T_vadv, vtens1, vtens2, ttens)
-
   !$omp end master
   !$omp barrier
- end subroutine prim_advance_oacc_init2
+ end subroutine prim_advance_init2
 
   subroutine prim_advance_exp(elem, deriv, hvcoord, hybrid,&
        dt, tl,  nets, nete, compute_diagnostics)
@@ -338,7 +339,13 @@ contains
     endif
 
 
-    call prim_advance_oacc_init2(elem)
+    !call prim_advance_oacc_init2(elem)
+
+    do ie = 1 , nelemd
+     !$acc update device(elem(ie)%state%dp3d)
+    enddo
+     !$acc update device (hvcoord%hyai, hvcoord%ps0)
+
 
     ! ==================================
     ! Take timestep
@@ -2552,7 +2559,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
   type (element_t)     , intent(inout), target :: elem(:)
   type (derivative_t)  , intent(in) :: deriv
   !type (EdgeBuffer_t)  , intent(in) :: edge3p1
-  real (kind=real_kind) :: eta_ave_w  ! weighting for eta_dot_dpdn mean flux
+  real (kind=real_kind), intent (in) :: eta_ave_w  ! weighting for eta_dot_dpdn mean flux
 
   ! local
   real (kind=real_kind), dimension(np,np,2)              :: vtemp     ! generic gradient storage
@@ -2578,7 +2585,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
   real(kind=real_kind) hkk,hkl, term          ! diagonal term of energy conversion matrix
   real(kind=real_kind), dimension(np,np,nlev) :: phii, phi      ! Geopotential at interfaces
   integer :: i,j,k,l,kptr,ie
-  real (kind=real_kind) ::  u_m_umet, v_m_vmet, t_m_tmet
+  real (kind=real_kind) ::  u_m_umet, v_m_vmet, t_m_tmet, tmp
 
 
   call t_barrierf('sync_compute_and_apply_rhs', hybrid%par%comm)
@@ -2590,8 +2597,14 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
   !$omp barrier
   !$omp master
 
+    do ie = 1 , nelemd
+     !$acc update device(elem(ie)%state%dp3d(:,:,:,:), elem(ie)%state%ps_v)
+     !$acc update device(elem(ie)%Dinv(:,:,:,:), elem(ie)%state%v, elem(ie)%state%T)
+     !$acc update device(elem(ie)%state%ps_v)
+   enddo
+
   if (rsplit==0) then 
-    !$acc parallel loop gang vector  private (dsdx00, dsdy00, v_tmp1, v_tmp2) create(grad_ps)  pcopyin (deriv%Dvv, elem(:)) present(dp, p, grad_p)
+    !$acc parallel loop gang vector  private (dsdx00, dsdy00, v_tmp1, v_tmp2) create(grad_ps)  present (deriv%Dvv, elem(:), dp, p, grad_p)
     do ie=1, nelemd
 
      ! ==================================================
@@ -2624,7 +2637,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
            enddo
      enddo
 
-     !$acc parallel loop gang vector collapse(4) present (grad_ps, p, dp, grad_p, elem(:)) pcopyin (hvcoord%hyai,  hvcoord%hybi,  hvcoord%ps0, hvcoord%hyam, hvcoord%hybm,n0)
+     !$acc parallel loop gang vector collapse(4) present (grad_ps, p, dp, grad_p, elem(:), hvcoord%hyai,  hvcoord%hybi,  hvcoord%ps0, hvcoord%hyam, hvcoord%hybm,n0)
      do ie=1, nelemd
       ! ============================
       ! compute p and delta p
@@ -2641,19 +2654,22 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
         enddo
       enddo
      enddo
-    endif
+   !$acc update host(dp, p, grad_p) 
+   endif
 
-    !$acc update host(dp, p, grad_p)
 
     if (rsplit/=0) then
 
-      do ie=1, nelemd
+
+     !$acc parallel loop gang vector collapse(3) present( p(:,:,:,:), dp(:,:,:,:), elem(:), hvcoord%hyai(:), hvcoord%ps0)
+     do ie=1, nelemd
      ! ============================
      ! compute p and delta p
      ! ============================
-     do k=1,nlev
+   !  do k=1,nlev
       do j = 1 , np
         do i = 1 , np
+          do k=1,nlev
              dp(i,j,k,ie) = elem(ie)%state%dp3d(i,j,k,n0)
              if (k==1) then
                 p(i,j,k,ie)=hvcoord%hyai(k)*hvcoord%ps0 + dp(i,j,k,ie)/2
@@ -2665,13 +2681,14 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
       enddo
      enddo
 
-
           !! inline gradient_sphere here: grad_p(:,:,:,k) = gradient_sphere(p(:,:,k),deriv,elem(ie)%Dinv)
           ! ============================
           ! compute gradien_sphere
           ! ============================
+      !$acc parallel loop gang vector collapse(2) present (p, dp, grad_p, deriv%Dvv, elem(:)) private (dsdx00, dsdy00, v_tmp1, v_tmp2) 
        do ie=1, nelemd
         do k=1,nlev
+          !$acc loop collapse(2)
           do j=1,np
             do l=1,np
              dsdx00=0.0d0
@@ -2684,6 +2701,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
               v_tmp2(j  ,l  ) = dsdy00*rrearth
              enddo
            enddo
+          !$acc loop collapse(2)
            do j=1,np
             do i=1,np
              grad_p(i,j,1,k,ie)=elem(ie)%Dinv(1,1,i,j)*v_tmp1(i,j) + elem(ie)%Dinv(2,1,i,j)*v_tmp2(i,j)
@@ -2693,9 +2711,10 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
          enddo
         enddo
       endif
-   !end of the first openacc kernel
    
-!   !$acc update host (grad_p, p, dp)
+  !$acc update host (grad_p, p, dp)
+
+  !  !$acc parallel loop gang vector collapse(2) present (divdp, vdp, vgrad_p, grad_p, dp, elem(:), deriv) private(v1, v2, gv,dsdx00, dsdy00, v_tmp1, v_tmp2,tmp) pcopyin (eta_ave_w)
     do ie=1, nelemd
       do k=1,nlev
      
@@ -2711,7 +2730,11 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
               vdp(i,j,2,k,ie) = v2*dp(i,j,k,ie)
            end do
         end do
+     enddo
+    enddo
 #if ( defined CAM ) 
+print*, "inside CAM"
+!Irina TODO
       ! ============================
       ! compute grad(P-P_met)
       ! ============================
@@ -2724,16 +2747,20 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
       endif
 
 #endif      
+
         ! ================================
         ! Accumulate mean Vel_rho flux in vn0
         ! ================================
+    do ie=1, nelemd
+      do k=1,nlev
         do j=1,np
            do i=1,np
               elem(ie)%derived%vn0(i,j,1,k)=elem(ie)%derived%vn0(i,j,1,k)+eta_ave_w*vdp(i,j,1,k,ie)
               elem(ie)%derived%vn0(i,j,2,k)=elem(ie)%derived%vn0(i,j,2,k)+eta_ave_w*vdp(i,j,2,k,ie)
            enddo
         enddo
-
+      enddo
+    enddo
         ! =========================================
         !
         ! Compute relative vorticity and divergence
@@ -2742,6 +2769,8 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
         ! inline divdp(:,:,k)=divergence_sphere(vtemp,deriv,elem(ie))
 
         ! convert to contra variant form and multiply by g
+     do ie=1, nelemd
+      do k=1,nlev
         do j=1,np
            do i=1,np
              gv(i,j,1)=elem(ie)%metdet(i,j)*(elem(ie)%Dinv(1,1,i,j)*vdp(i,j,1,k,ie) + elem(ie)%Dinv(1,2,i,j)*vdp(i,j,2,k,ie))
@@ -2770,6 +2799,10 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
     enddo
    !end of the second openacc kernel
 
+!   !$acc update host (divdp, vdp, vgrad_p,grad_p, p, dp)
+   do ie=1, nelemd
+!     !$acc update host (elem(ie)%derived%vn0)
+   enddo
 
     do ie=1, nelemd
 

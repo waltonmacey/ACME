@@ -179,7 +179,6 @@ contains
     allocate(qtens(np,np,nlev,qsize,nelemd))
     allocate(grads_tracer(np,np,2,nlev,qsize,nelemd))
     allocate(dp0(nlev))
-    print*, "prim_advec_init1"
   end subroutine prim_advec_init1
 
   subroutine prim_advec_init2(elem,hvcoord,hybrid)
@@ -195,11 +194,9 @@ contains
 
     !$omp barrier
     !$omp master
-print*, "prim_advec_init2"
     do k = 1 , nlev
       dp0(k) = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*hvcoord%ps0
     enddo
-
     !$acc enter data pcreate(qmin,qmax,qtens_biharmonic,grads_tracer,dp_star,qtens)
     !$acc enter data pcopyin(dp0)
     !$acc enter data pcopyin(edgeAdvQ3,edgeAdv1,edgeAdv,edgeAdv_p1,edgeAdvQ2)
