@@ -2714,7 +2714,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
    
   !$acc update host (grad_p, p, dp)
 
-  !  !$acc parallel loop gang vector collapse(2) present (divdp, vdp, vgrad_p, grad_p, dp, elem(:), deriv) private(v1, v2, gv,dsdx00, dsdy00, v_tmp1, v_tmp2,tmp) pcopyin (eta_ave_w)
+    !$acc parallel loop gang vector collapse(4) present ( vdp, vgrad_p, grad_p, dp, elem(:)) private(v1, v2) 
     do ie=1, nelemd
       do k=1,nlev
      
@@ -2732,6 +2732,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
         end do
      enddo
     enddo
+   !$acc update host (vgrad_p, vdp)
 #if ( defined CAM ) 
 print*, "inside CAM"
 !Irina TODO
@@ -2751,6 +2752,7 @@ print*, "inside CAM"
         ! ================================
         ! Accumulate mean Vel_rho flux in vn0
         ! ================================
+! IRINA TODO TOFIX   !$acc parallel loop gang vector collapse(4) present ( vdp, elem(:)) 
     do ie=1, nelemd
       do k=1,nlev
         do j=1,np
@@ -2761,6 +2763,10 @@ print*, "inside CAM"
         enddo
       enddo
     enddo
+!    do ie=1, nelemd
+!     !$acc update host (elem(ie)%derived%vn0)
+!   enddo
+
         ! =========================================
         !
         ! Compute relative vorticity and divergence
@@ -2769,6 +2775,7 @@ print*, "inside CAM"
         ! inline divdp(:,:,k)=divergence_sphere(vtemp,deriv,elem(ie))
 
         ! convert to contra variant form and multiply by g
+     !$acc parallel loop gang vector collapse(2) present ( vdp, elem(:)), private (v_tmp1, dsdx00, dsdy00, gv) 
      do ie=1, nelemd
       do k=1,nlev
         do j=1,np
@@ -2798,6 +2805,8 @@ print*, "inside CAM"
        enddo
     enddo
    !end of the second openacc kernel
+
+   !$acc update host (divdp)
 
 !   !$acc update host (divdp, vdp, vgrad_p,grad_p, p, dp)
    do ie=1, nelemd
