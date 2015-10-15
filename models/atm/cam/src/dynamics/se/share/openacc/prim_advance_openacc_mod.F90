@@ -2813,6 +2813,7 @@ print*, "inside CAM"
 !     !$acc update host (elem(ie)%derived%vn0)
    enddo
 
+    !$acc parallel loop gang vector collapse(2) present ( vort, elem(:)), private (v_tmp1, dsdx00, dsdy00, gv) 
     do ie=1, nelemd
 
       do k=1,nlev
@@ -2848,13 +2849,15 @@ print*, "inside CAM"
    enddo
    !end of the third openacc kernel
 
+   !$acc update host (vort)
 
-  do ie=1, nelemd
 
+  if (qn0 == -1 ) then
+   !$acc parallel loop gang vector collapse(4) present ( kappa_star, T_v, elem(:))
+   do ie=1, nelemd
 
      ! compute T_v for timelevel n0
      !if ( moisture /= "dry") then
-     if (qn0 == -1 ) then
         do k=1,nlev
            do j=1,np
               do i=1,np
@@ -2863,7 +2866,10 @@ print*, "inside CAM"
               end do
            end do
         end do
-     else
+     enddo
+   else
+     !$acc parallel loop gang vector collapse(4) present ( kappa_star, T_v, elem(:), dp), private (Qt)
+      do ie=1, nelemd
         do k=1,nlev
            do j=1,np
               do i=1,np
@@ -2877,11 +2883,14 @@ print*, "inside CAM"
               end do
            end do
         end do
-     end if
-   enddo !ie
-
+    enddo !ie
+   endif
+  
   !endo of openacc loop
 
+  !$acc update host (T_v, kappa_star)
+
+   !$acc parallel loop gang vector collapse(2) present (phi_oacc, T_v, elem(:), p, dp), private (hkk, hkl, phii)
    do ie=1, nelemd
 
 
@@ -2921,7 +2930,9 @@ print*, "inside CAM"
   enddo!ie
   !endo of openacc loop
 
-
+  !$acc update host (phi_oacc)
+   
+    !$acc parallel loop gang vector collapse(2) present (omega_p, T_v, elem(:), vgrad_p, p, divdp), private (hkk, hkl, term, v_tmp1)
     do ie=1, nelemd
      ! ====================================================
      ! Compute omega_p according to CCM-3
@@ -2960,8 +2971,9 @@ print*, "inside CAM"
 
        end do
     enddo!ie
-
     !end of the openacc loop
+
+    !$acc update host (omega_p)
 
     do ie=1, nelemd
 
