@@ -2654,7 +2654,6 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
         enddo
       enddo
      enddo
-   !$acc update host(dp, p, grad_p) 
    endif
 
 
@@ -2666,7 +2665,6 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      ! ============================
      ! compute p and delta p
      ! ============================
-   !  do k=1,nlev
       do j = 1 , np
         do i = 1 , np
           do k=1,nlev
@@ -2763,6 +2761,9 @@ print*, "inside CAM"
         enddo
       enddo
     enddo
+    do ie=1, nelemd
+     !$acc update device (elem(ie)%derived%vn0)
+   enddo
 !    do ie=1, nelemd
 !     !$acc update host (elem(ie)%derived%vn0)
 !   enddo
@@ -2808,10 +2809,6 @@ print*, "inside CAM"
 
    !$acc update host (divdp)
 
-!   !$acc update host (divdp, vdp, vgrad_p,grad_p, p, dp)
-   do ie=1, nelemd
-!     !$acc update host (elem(ie)%derived%vn0)
-   enddo
 
     !$acc parallel loop gang vector collapse(2) present ( vort, elem(:)), private (v_tmp1, dsdx00, dsdy00, gv) 
     do ie=1, nelemd
@@ -2975,26 +2972,45 @@ print*, "inside CAM"
 
     !$acc update host (omega_p)
 
-    do ie=1, nelemd
+    if (rsplit>0) then
+     !$acc parallel loop gang vector collapse(4) present (eta_dot_dpdn, T_vadv, v_vadv)
+     do ie=1, nelemd     
+       do k=1,nlev-1
+           do j=1,np
+              do i=1,np
+
+                 ! VERTICALLY LAGRANGIAN:   no vertical motion
+                 eta_dot_dpdn(i,j,k,ie)=0
+                 T_vadv(i,j,k,ie)=0
+                 v_vadv(i,j,1,k,ie)=0
+                 v_vadv(i,j,2,k,ie)=0
+              enddo
+            enddo
+         enddo
+      enddo
+    else
+
+     !$acc parallel loop gang vector present (eta_dot_dpdn, divdp, hvcoord) private (sdot_sum)
+     do ie=1, nelemd
 
      ! ==================================================
      ! zero partial sum for accumulating sum
      !    (div(v_k) + v_k.grad(lnps))*dsigma_k = div( v dp )
      ! used by eta_dot_dpdn and lnps tendency
      ! ==================================================
-     sdot_sum=0
+      !$acc loop collapse(2)
+       do j=1,np
+         do i=1,np
+           sdot_sum(i,j,ie)=0
+         enddo
+       enddo
 
 
      ! ==================================================
      ! Compute eta_dot_dpdn
      ! save sdot_sum as this is the -RHS of ps_v equation
      ! ==================================================
-     if (rsplit>0) then
-        ! VERTICALLY LAGRANGIAN:   no vertical motion
-        eta_dot_dpdn=0
-        T_vadv=0
-        v_vadv=0
-     else
+        !$acc loop collapse(3)
         do k=1,nlev
            ! ==================================================
            ! add this term to PS equation so we exactly conserve dry mass
@@ -3015,6 +3031,7 @@ print*, "inside CAM"
         ! for reference: at mid layers we have:
         !    omega = v grad p  - integral_etatop^eta[ divdp ]
         ! ===========================================================
+        !$acc loop collapse(3)
         do k=1,nlev-1
            do j=1,np
               do i=1,np
@@ -3023,6 +3040,7 @@ print*, "inside CAM"
             enddo
         enddo
 
+        !$acc loop collapse(2)
         do j=1,np
           do i=1,np
             eta_dot_dpdn(i,j,1,ie) = 0.0D0
@@ -3030,19 +3048,24 @@ print*, "inside CAM"
           enddo
         enddo
 
+      enddo
+      !$acc update host (eta_dot_dpdn)    
         ! ===========================================================
         ! Compute vertical advection of T and v from eq. CCM2 (3.b.1)
         ! ==============================================
-
+ 
+    !$acc parallel loop gang vector present (dp, T_vadv, v_vadv, elem(:), eta_dot_dpdn) private(rdp, hkk, hkl) 
+     do ie=1, nelemd
+      !$acc loop collapse(3)
+       do k=1,nlev
          do j=1,np
            do i=1,np
              rdp(i,j,k) = 1.0D0/dp(i,j,k,ie)
            enddo
          enddo
+       enddo
 
-        !inline   call preq_vertadv(elem(ie)%state%T(:,:,:,n0),elem(ie)%state%v(:,:,:,:,n0), eta_dot_dpdn,rdp,T_vadv,v_vadv)
-                                    !                                                  eta_dot_dp_deta, rpdel, T_vadv, v_vadv)
-         do j=1,np   !   Loop inversion (AAM)
+         !do j=1,np   !   Loop inversion (AAM)
 
           ! ===========================================================
           ! Compute vertical advection of T and v from eq. (3.b.1)
@@ -3050,13 +3073,15 @@ print*, "inside CAM"
           ! k = 1 case:
           ! ===========================================================
 
-           k=1
+          !$acc loop collapse(2)
+          do j=1,np 
             do i=1,np
-               hkk             = (0.5_real_kind*rdp(i,j,k))*eta_dot_dpdn(i,j,k+1,ie)
-               T_vadv(i,j,k,ie)   = hkk*(elem(ie)%state%T(i,j,k+1,n0)   - elem(ie)%state%T(i,j,k,n0))
-               v_vadv(i,j,1,k,ie) = hkk*(elem(ie)%state%v(i,j,1,k+1,n0) - elem(ie)%state%v(i,j,1,k,n0))
-               v_vadv(i,j,2,k,ie) = hkk*(elem(ie)%state%v(i,j,2,k+1,n0) - elem(ie)%state%v(i,j,2,k,n0))
+               hkk             = (0.5_real_kind*rdp(i,j,1))*eta_dot_dpdn(i,j,2,ie)
+               T_vadv(i,j,1,ie)   = hkk*(elem(ie)%state%T(i,j,2,n0)   - elem(ie)%state%T(i,j,1,n0))
+               v_vadv(i,j,1,1,ie) = hkk*(elem(ie)%state%v(i,j,1,2,n0) - elem(ie)%state%v(i,j,1,1,n0))
+               v_vadv(i,j,2,1,ie) = hkk*(elem(ie)%state%v(i,j,2,2,n0) - elem(ie)%state%v(i,j,2,1,n0))
             end do
+          enddo
 
           ! ===========================================================
           ! vertical advection
@@ -3064,7 +3089,9 @@ print*, "inside CAM"
           ! 1 < k < nlev case:
           ! ===========================================================
 
+          !$acc loop collapse(3)
           do k=2,nlev-1
+            do j=1,np
              do i=1,np
                 hkk            = (0.5_real_kind*rdp(i,j,k))*eta_dot_dpdn(i,j,k+1,ie)
                 hkl            = (0.5_real_kind*rdp(i,j,k))*eta_dot_dpdn(i,j,k,ie)
@@ -3075,6 +3102,7 @@ print*, "inside CAM"
                 v_vadv(i,j,2,k,ie) = hkk*(elem(ie)%state%v(i,j,2,k+1,n0) - elem(ie)%state%v(i,j,2,k,n0)) + &
                                      hkl*(elem(ie)%state%v(i,j,2,k,n0)   - elem(ie)%state%v(i,j,2,k-1,n0))
              end do
+            enddo
            end do
 
           ! ===========================================================
@@ -3083,20 +3111,22 @@ print*, "inside CAM"
           ! k = nlev case:
           ! ===========================================================
 
-          k=nlev
-          do i=1,np
-              hkk             = (0.5_real_kind*rdp(i,j,k))*eta_dot_dpdn(i,j,k,ie)
-              T_vadv(i,j,k,ie)   = hkl*(elem(ie)%state%T(i,j,k,n0)- elem(ie)%state%T(i,j,k-1,n0))
-              v_vadv(i,j,1,k,ie) = hkl*(elem(ie)%state%v(i,j,1,k,n0)- elem(ie)%state%v(i,j,1,k-1,n0))
-              v_vadv(i,j,2,k,ie) = hkl*(elem(ie)%state%v(i,j,2,k,n0)- elem(ie)%state%v(i,j,2,k-1,n0))
-          end do
+          !$acc loop collapse(2)
+          do j=1,np
+           do i=1,np
+              hkk             = (0.5_real_kind*rdp(i,j,nlev))*eta_dot_dpdn(i,j,nlev,ie)
+              T_vadv(i,j,nlev,ie)   = hkl*(elem(ie)%state%T(i,j,nlev,n0)- elem(ie)%state%T(i,j,nlev-1,n0))
+              v_vadv(i,j,1,nlev,ie) = hkl*(elem(ie)%state%v(i,j,1,nlev,n0)- elem(ie)%state%v(i,j,1,nlev-1,n0))
+              v_vadv(i,j,2,nlev,ie) = hkl*(elem(ie)%state%v(i,j,2,nlev,n0)- elem(ie)%state%v(i,j,2,nlev-1,n0))
+           enddo
+          enddo
 
-        enddo
+     enddo
+    endif
 
-
-
-     endif
-
+  !$acc update host (T_vadv, v_vadv) 
+ 
+   do ie=1, nelemd
 
      ! ================================
      ! accumulate mean vertical flux:
