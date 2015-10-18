@@ -676,7 +676,7 @@ for mct, etc.
   <PIO_FILESYSTEM_HINTS>lustre</PIO_FILESYSTEM_HINTS>
   <ADD_SLIBS> $(shell nf-config --flibs) </ADD_SLIBS>  
   <TRILINOS_PATH>/lustre/atlas/world-shared/cli900/cesm/software/Trilinos/Trilinos-11.10.2_gptl/titan-pgi-ci-nophal/install</TRILINOS_PATH>
-  <CXX_LIBS> -lfmpich -lmpichf90_pgi $(PGI_PATH)/linux86-64/$(PGI_VERSION)/lib/f90main.o </CXX_LIBS>
+  <CXX_LIBS> -lfmpich -lmpichf90_pgi $(PGI_PATH)/linux86-64/$(PGI_VERSION)/lib/f90main.o /opt/gcc/4.8.2/snos/lib64/libstdc++.a  </CXX_LIBS>
   <SUPPORTS_CXX>TRUE</SUPPORTS_CXX>
   <MPIFC> ftn </MPIFC>
   <MPICC> cc </MPICC>
