@@ -52,7 +52,12 @@ module prim_advance_openacc_mod
   real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: vtens1
   real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: vtens2
   real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: ttens
+#if defined(CAM)
+  real (kind=real_kind),allocatable, dimension(:,:,:,:,:):: grad_p_m_pmet
+  real (kind=real_kind),allocatable, dimension(:,:,:,:,:):: grads
+#endif
   integer :: ierr
+ 
 
 contains
 
@@ -109,7 +114,10 @@ contains
    allocate( vtens1       (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
    allocate( vtens2       (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
    allocate( ttens        (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
-
+#if defined(CAM)
+   allocate( grad_p_m_pmet(np, np, 2, nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( grads       (np, np, 2, nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+#endif
 
 
 
@@ -143,6 +151,9 @@ contains
     !$acc enter data pcopyin(phi_oacc(:,:,:,:), hvcoord%hyai, hvcoord%ps0) 
     !$acc enter data pcreate( grad_p, p, dp, vdp, vgrad_p, divdp, eta_dot_dpdn, vort)
     !$acc enter data pcreate(kappa_star, omega_p, sdot_sum, T_v, v_vadv, T_vadv, vtens1, vtens2, ttens)
+#if defined(CAM)
+    !$acc enter data pcreate(grads, grad_p_m_pmet)
+#endif
   !$omp end master
   !$omp barrier
  end subroutine prim_advance_init2
@@ -2530,7 +2541,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
   ! ===================================
   use kinds, only : real_kind
   use hybrid_mod, only : hybrid_t
-  use element_mod, only : element_t !uncomment after merge , PrintElem
+  use element_mod, only : element_t , derived_vn0!uncomment after merge , PrintElem
   use derivative_mod, only : derivative_t, divergence_sphere, gradient_sphere, vorticity_sphere
 !uncomment after merge  use derivative_mod, only : subcell_div_fluxes, subcell_dss_fluxes
   use edge_mod, only : edgevpack, edgevunpack, edgeDGVunpack
@@ -2567,7 +2578,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
   real (kind=real_kind), dimension(np,np)                :: vgrad_T    ! v.grad(T)
   real (kind=real_kind), dimension(np,np)                :: Ephi       ! kinetic energy + PHI term
   real (kind=real_kind), dimension(np,np,2,nlev)         :: grad_ps    ! lat-lon coord version
-  real (kind=real_kind), dimension(np,np,2,nlev)         :: grad_p_m_pmet  ! gradient(p - p_met)
+!  real (kind=real_kind), dimension(np,np,2,nlev)         :: grad_p_m_pmet  ! gradient(p - p_met)
   real (kind=real_kind), dimension(np,np,nlev)           :: rdp        ! inverse of delta pressure
   real (kind=real_kind), dimension(np,np,nlev+1)         :: ph               ! half level pressures on p-grid
   real (kind=real_kind), dimension(np+1,np+1,nlev)       :: corners
@@ -2601,6 +2612,20 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      !$acc update device(elem(ie)%state%dp3d(:,:,:,:), elem(ie)%state%ps_v)
      !$acc update device(elem(ie)%Dinv(:,:,:,:), elem(ie)%state%v, elem(ie)%state%T)
      !$acc update device(elem(ie)%state%ps_v)
+     !$acc update device (elem(ie)%derived%eta_dot_dpdn)
+     !$acc update device (elem(ie)%derived%omega_p)
+     !$acc update device (elem(ie)%derived%pecnd)
+     !$acc update device (elem(ie)%fcor)
+#if ( defined CAM ) 
+     !$acc update device (elem(ie)%derived%u_met)
+     !$acc update device (elem(ie)%derived%v_met)
+     !$acc update device (elem(ie)%derived%Utnd)
+     !$acc update device (elem(ie)%derived%nudge_factor)
+     !$acc update device (elem(ie)%derived%Vtnd)
+     !$acc update device (elem(ie)%derived%dTdt_met)
+     !$acc update device (elem(ie)%derived%T_met)
+#endif
+     !$acc update device (derived_vn0)
    enddo
 
   if (rsplit==0) then 
@@ -2732,17 +2757,28 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
     enddo
    !$acc update host (vgrad_p, vdp)
 #if ( defined CAM ) 
-print*, "inside CAM"
-!Irina TODO
+!Irina TOCHECK
       ! ============================
       ! compute grad(P-P_met)
       ! ============================
       if (se_met_nudge_p.gt.0.D0) then
-         grad_p_m_pmet(:,:,:,k) = &
-                grad_p(:,:,:,k,ie) - &
-                hvcoord%hybm(k) * &
-                gradient_sphere( elem(ie)%derived%ps_met(:,:)+tevolve*elem(ie)%derived%dpsdt_met(:,:), &
-                                deriv,elem(ie)%Dinv)
+      call gradient_sphere(elem(ie)%derived%ps_met(:,:)+tevolve*elem(ie)%derived%dpsdt_met(:,:), &
+                                deriv,elem(ie)%Dinv, grads,qtens,nlev*qsize,nets,nete,1,1) 
+       !$acc parallel loop gang vector collapse(3) present (grads, hvcoord%hybm, grad_p, grad_p_m_pmet)
+      do k=1,nlev
+        do j=1,np
+         do i=1,np 
+            grad_p_m_pmet(i,j,1,k,ie)=grad_p(i,j,1,k,ie) - hvcoord%hybm(k) *grads(i,j,1,k,ie)
+            grad_p_m_pmet(i,j,2,k,ie)=grad_p(i,j,2,k,ie) - hvcoord%hybm(k) *grads(i,j,2,k,ie)
+         enddo
+        enddo
+      enddo
+
+!         grad_p_m_pmet(:,:,:,k) = &
+!                grad_p(:,:,:,k,ie) - &
+!                hvcoord%hybm(k) * &
+!                gradient_sphere( elem(ie)%derived%ps_met(:,:)+tevolve*elem(ie)%derived%dpsdt_met(:,:), &
+!                                deriv,elem(ie)%Dinv)
       endif
 
 #endif      
@@ -2750,23 +2786,18 @@ print*, "inside CAM"
         ! ================================
         ! Accumulate mean Vel_rho flux in vn0
         ! ================================
-! IRINA TODO TOFIX   !$acc parallel loop gang vector collapse(4) present ( vdp, elem(:)) 
+   !$acc parallel loop gang vector collapse(3) present ( vdp,derived_vn0) 
     do ie=1, nelemd
       do k=1,nlev
         do j=1,np
            do i=1,np
-              elem(ie)%derived%vn0(i,j,1,k)=elem(ie)%derived%vn0(i,j,1,k)+eta_ave_w*vdp(i,j,1,k,ie)
-              elem(ie)%derived%vn0(i,j,2,k)=elem(ie)%derived%vn0(i,j,2,k)+eta_ave_w*vdp(i,j,2,k,ie)
+              derived_vn0(i,j,1,k, ie)=derived_vn0(i,j,1,k, ie)+eta_ave_w*vdp(i,j,1,k,ie)
+              derived_vn0(i,j,2,k, ie)=derived_vn0(i,j,2,k, ie)+eta_ave_w*vdp(i,j,2,k,ie)
            enddo
         enddo
       enddo
     enddo
-    do ie=1, nelemd
-     !$acc update device (elem(ie)%derived%vn0)
-   enddo
-!    do ie=1, nelemd
-!     !$acc update host (elem(ie)%derived%vn0)
-!   enddo
+   !$acc update host (derived_vn0)
 
         ! =========================================
         !
@@ -3050,13 +3081,15 @@ print*, "inside CAM"
 
       enddo
       !$acc update host (eta_dot_dpdn)    
+
         ! ===========================================================
         ! Compute vertical advection of T and v from eq. CCM2 (3.b.1)
         ! ==============================================
- 
-    !$acc parallel loop gang vector present (dp, T_vadv, v_vadv, elem(:), eta_dot_dpdn) private(rdp, hkk, hkl) 
+
+!Irina TOFIX 
+!    !$acc parallel loop gang vector present (dp, T_vadv, v_vadv, elem(:), eta_dot_dpdn) private(rdp, hkk, hkl) 
      do ie=1, nelemd
-      !$acc loop collapse(3)
+!      !$acc loop collapse(3)
        do k=1,nlev
          do j=1,np
            do i=1,np
@@ -3073,7 +3106,7 @@ print*, "inside CAM"
           ! k = 1 case:
           ! ===========================================================
 
-          !$acc loop collapse(2)
+!          !$acc loop collapse(2)
           do j=1,np 
             do i=1,np
                hkk             = (0.5_real_kind*rdp(i,j,1))*eta_dot_dpdn(i,j,2,ie)
@@ -3089,7 +3122,7 @@ print*, "inside CAM"
           ! 1 < k < nlev case:
           ! ===========================================================
 
-          !$acc loop collapse(3)
+!          !$acc loop collapse(3)
           do k=2,nlev-1
             do j=1,np
              do i=1,np
@@ -3111,7 +3144,7 @@ print*, "inside CAM"
           ! k = nlev case:
           ! ===========================================================
 
-          !$acc loop collapse(2)
+!          !$acc loop collapse(2)
           do j=1,np
            do i=1,np
               hkk             = (0.5_real_kind*rdp(i,j,nlev))*eta_dot_dpdn(i,j,nlev,ie)
@@ -3124,8 +3157,9 @@ print*, "inside CAM"
      enddo
     endif
 
-  !$acc update host (T_vadv, v_vadv) 
- 
+  !$acc update device (T_vadv, v_vadv) 
+
+   !$acc parallel loop gang vector present (omega_p, elem(:), eta_dot_dpdn)  
    do ie=1, nelemd
 
      ! ================================
@@ -3150,8 +3184,16 @@ print*, "inside CAM"
      enddo
    enddo!ie
 
+   do ie=1, nelemd
+     !$acc update host (elem(ie)%derived%eta_dot_dpdn)
+     !$acc update host (elem(ie)%derived%omega_p)
+   enddo
+
     !end of the openacc loop
 
+    !$acc parallel loop gang vector collapse (2) present (elem(:), phi_oacc, vtens1, vtens2, T_v, p, &
+    !$acc & grad_p, v_vadv, vort, ttens, T_vadv,  kappa_star, omega_p) &
+    !$acc & private (v1, v2, E, Ephi, dsdx00, dsdy00, v_tmp1, v_tmp2, vtemp, vgrad_T, gpterm, glnps1, glnps2) 
     do ie=1, nelemd
      ! ==============================================
      ! Compute phi + kinetic energy term: 10*nv*nv Flops
@@ -3189,7 +3231,7 @@ print*, "inside CAM"
            enddo
 
 
-
+        
         do j=1,np
            do i=1,np
               v1     = elem(ie)%state%v(i,j,1,k,n0)
@@ -3243,7 +3285,7 @@ print*, "inside CAM"
               !
 
 #if ( defined CAM )
-
+!Irina TOFIX
               if (se_prescribed_wind_2d) then
                  vtens1(i,j,k,ie) = 0.D0
                  vtens2(i,j,k,ie) = 0.D0
@@ -3270,8 +3312,8 @@ print*, "inside CAM"
                  endif
 
                  if(se_met_nudge_p.gt.0.D0)then
-                    vtens1(i,j,k,ie) =   vtens1(i,j,k,ie) - se_met_nudge_p*grad_p_m_pmet(i,j,1,k)  * elem(ie)%derived%nudge_factor(i,j,k)
-                    vtens2(i,j,k,ie) =   vtens2(i,j,k,ie) - se_met_nudge_p*grad_p_m_pmet(i,j,2,k)  * elem(ie)%derived%nudge_factor(i,j,k)
+                    vtens1(i,j,k,ie) =   vtens1(i,j,k,ie) - se_met_nudge_p*grad_p_m_pmet(i,j,1,k,ie)  * elem(ie)%derived%nudge_factor(i,j,k)
+                    vtens2(i,j,k,ie) =   vtens2(i,j,k,ie) - se_met_nudge_p*grad_p_m_pmet(i,j,2,k,ie)  * elem(ie)%derived%nudge_factor(i,j,k)
                  endif
 
                  if(se_met_nudge_t.gt.0.D0)then
@@ -3292,9 +3334,17 @@ print*, "inside CAM"
      end do vertloop
    enddo!ie
 
+   !$acc update host (vtens1, vtens2, ttens)
+#if ( defined CAM )
+   do ie=1, nelemd
+     !$acc update host (elem(ie)%derived%Ttnd)
+     !$acc update host (elem(ie)%derived%Vtnd)
+     !$acc update host (elem(ie)%derived%Utnd)
+   enddo
+#endif
+
     !end of the openacc loop
 
-    do ie=1, nelemd
 #ifdef ENERGY_DIAGNOSTICS
 
      ! =========================================================
@@ -3309,7 +3359,7 @@ print*, "inside CAM"
      ! (AAM) - This section has accumulations over vertical levels.
      !   Be careful if implementing OpenMP
      ! =========================================================
-
+   do ie=1, nelemd
     if (compute_diagnostics) then
         elem(ie)%accum%KEhorz1=0
         elem(ie)%accum%KEhorz2=0
@@ -3527,6 +3577,7 @@ print*, "inside CAM"
 
         enddo
      endif
+   enddo
 #endif
      ! =========================================================
      ! local element timestep, store in np1.
@@ -3535,6 +3586,7 @@ print*, "inside CAM"
      ! =========================================================
      if (dt2<0) then
         ! calling program just wanted DSS'd RHS, skip time advance
+      do ie=1, nelemd
         do k=1,nlev
           do j=1,np
              do i=1,np
@@ -3545,12 +3597,12 @@ print*, "inside CAM"
                   elem(ie)%state%dp3d(i,j,k,np1) = -elem(ie)%spheremp(i,j)*&
                      (divdp(i,j,k,ie) + eta_dot_dpdn(i,j,k+1,ie)-eta_dot_dpdn(i,j,k,ie))
               if (0<rsplit.and.0<ntrac.and.eta_ave_w.ne.0.) then
-              v(i,j,1) =  elem(ie)%Dinv(i,j,1,1)*vdp(i,j,1,k,ie) + elem(ie)%Dinv(i,j,1,2)*vdp(i,j,2,k,ie)
-              v(i,j,2) =  elem(ie)%Dinv(i,j,2,1)*vdp(i,j,1,k,ie) + elem(ie)%Dinv(i,j,2,2)*vdp(i,j,2,k,ie)
+                v(i,j,1) =  elem(ie)%Dinv(i,j,1,1)*vdp(i,j,1,k,ie) + elem(ie)%Dinv(i,j,1,2)*vdp(i,j,2,k,ie)
+                v(i,j,2) =  elem(ie)%Dinv(i,j,2,1)*vdp(i,j,1,k,ie) + elem(ie)%Dinv(i,j,2,2)*vdp(i,j,2,k,ie)
 !uncomment after merge               tempflux =  eta_ave_w*subcell_div_fluxes(v, np, nc, elem(ie)%metdet)
 !Irina TOFIX
 !uncomment after merge              elem(ie)%sub_elem_mass_flux(i,j,:,k) = elem(ie)%sub_elem_mass_flux(i,j,:,k) - tempflux
-           end if
+              end if
 
              enddo
           enddo
@@ -3560,7 +3612,9 @@ print*, "inside CAM"
                  elem(ie)%state%ps_v(i,j,np1) = -elem(ie)%spheremp(i,j)*sdot_sum(i,j,ie)
              enddo
         enddo
+      enddo
      else
+      do ie=1, nelemd
         do k=1,nlev
           do j=1,np
              do i=1,np
@@ -3577,7 +3631,7 @@ print*, "inside CAM"
 !uncomment after merge                   tempflux =  eta_ave_w*subcell_div_fluxes(v, np, nc, elem(ie)%metdet)
 !Irina TOFiX
 !uncomment after merge                  elem(ie)%sub_elem_mass_flux(i,j,:,k) = elem(ie)%sub_elem_mass_flux(i,j,:,k) - tempflux
-           end if
+                end if
              enddo
           enddo
         enddo
@@ -3586,10 +3640,9 @@ print*, "inside CAM"
                 elem(ie)%state%ps_v(i,j,np1) = elem(ie)%spheremp(i,j)*( elem(ie)%state%ps_v(i,j,nm1) - dt2*sdot_sum(i,j,ie) )
            enddo
         enddo
-
+      enddo !ie
      endif
 
-  enddo
 
 
   do ie=1, nelemd
