@@ -6,17 +6,25 @@
 !#define _DBG_ !DBG
 !
 !
-module prim_advance_mod
+#ifdef CUDA_DEBUG
+#define _CHECK(line) ierr = cudaThreadSynchronize(); if (ierr .ne. 0) stop line
+#else
+#define _CHECK(line)
+#endif
+
+
+module prim_advance_openacc_mod
   use edgetype_mod, only : EdgeDescriptor_t, EdgeBuffer_t
   use kinds, only : real_kind, iulog
   use perf_mod, only: t_startf, t_stopf, t_barrierf, t_adj_detailf ! _EXTERNAL
   use parallel_mod, only : abortmp, parallel_t, iam
   use control_mod, only : se_prescribed_wind_2d
+  use dimensions_mod , only: np,nc, ntrac, nlevp,nlev,qsize,qsize_d,max_corner_elem,max_neigh_edges,nelemd
 
   implicit none
   private
   save
-  public :: prim_advance_exp, prim_advance_si, prim_advance_init, preq_robert3,&
+  public :: prim_advance_exp, prim_advance_si, prim_advance_init, prim_advance_init2, preq_robert3,&
        applyCAMforcing_dynamics, applyCAMforcing, smooth_phis, overwrite_SEdensity
 
 #ifdef TRILINOS
@@ -30,6 +38,30 @@ module prim_advance_mod
   real (kind=real_kind) :: initialized_for_dt   = 0
 
   real (kind=real_kind), allocatable :: ur_weights(:)
+
+  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: phi_oacc
+  real (kind=real_kind),allocatable, dimension(:,:,:,:,:):: grad_p
+  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: p
+  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: dp
+  real (kind=real_kind),allocatable, dimension(:,:,:,:,:):: vdp
+  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: vgrad_p
+  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: divdp
+  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: eta_dot_dpdn
+  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: vort
+  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: kappa_star
+  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: omega_p
+  real (kind=real_kind),allocatable, dimension(:,:,:)    :: sdot_sum
+  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: T_v
+  real (kind=real_kind),allocatable, dimension(:,:,:,:,:):: v_vadv
+  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: T_vadv
+  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: vtens1
+  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: vtens2
+  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: ttens
+#if defined(CAM)
+  real (kind=real_kind),allocatable, dimension(:,:,:,:,:):: grad_p_m_pmet
+  real (kind=real_kind),allocatable, dimension(:,:,:,:,:):: grads
+#endif
+  integer :: ierr
 
 
 contains
@@ -78,9 +110,37 @@ contains
          ur_weights(i)=2.0d0/qsplit
        enddo
     endif
- end subroutine prim_advance_init
+
+      !allocate device arrays
+   allocate( phi_oacc     (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( grad_p       (np, np, 2, nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( p            (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( dp           (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( vdp          (np, np, 2, nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( vgrad_p      (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( divdp        (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( eta_dot_dpdn (np, np,    nlev+1, nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( vort         (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( kappa_star   (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( omega_p      (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( sdot_sum     (np, np,            nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( T_v          (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( v_vadv       (np, np, 2, nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( T_vadv       (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( vtens1       (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( vtens2       (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( ttens        (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+#if defined(CAM)
+   allocate( grad_p_m_pmet(np, np, 2, nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( grads       (np, np, 2, nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+#endif
+
+  end subroutine prim_advance_init
+
 
   subroutine prim_advance_init2(elem, hvcoord)
+  use kinds, only : real_kind
+  use dimensions_mod, only : np, nc, nlev,  nelemd
   use element_mod, only : element_t
   use hybvcoord_mod, only : hvcoord_t
 
@@ -88,7 +148,29 @@ contains
 
     type(element_t)      , intent(in) :: elem(:)
     type (hvcoord_t)     , intent(in)  :: hvcoord
+    integer :: i, j, k, l, ie
 
+   !$omp barrier
+   !$omp master
+
+   do ie=1,nelemd
+     do i=1,np
+       do j=1,np
+         do k=1,nlev
+           phi_oacc(i,j,k,ie)=elem(ie)%derived%phi(i,j,k)
+         enddo
+       enddo
+     enddo
+   enddo
+
+    !$acc enter data pcopyin(phi_oacc(:,:,:,:), hvcoord%hyai, hvcoord%ps0) 
+    !$acc enter data pcreate( grad_p, p, dp, vdp, vgrad_p, divdp, eta_dot_dpdn, vort)
+    !$acc enter data pcreate(kappa_star, omega_p, sdot_sum, T_v, v_vadv, T_vadv, vtens1, vtens2, ttens)
+#if defined(CAM)
+    !$acc enter data pcreate(grads, grad_p_m_pmet)
+#endif
+  !$omp end master
+  !$omp barrier
  end subroutine prim_advance_init2
 
 
@@ -3679,5 +3761,5 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
   end subroutine overwrite_SEdensity
 
 
-end module prim_advance_mod
+end module prim_advance_openacc_mod
 
