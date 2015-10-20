@@ -35,6 +35,7 @@ if (-e /opt/modules/default/init/csh) then
   module rm craype-sandybridge
   module rm craype-ivybridge
   module rm craype
+  module purge
 endif
 
 if ( $COMPILER == "intel" ) then
