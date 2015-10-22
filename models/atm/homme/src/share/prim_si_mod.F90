@@ -11,6 +11,8 @@ module prim_si_mod
   public :: preq_hydrostatic, geopotential_t
   public :: preq_pressure
   public :: preq_vertadv
+  public :: preq_hydrostatic_oacc
+  public :: preq_omega_ps_oacc
 contains
 	
 ! ==========================================================
@@ -232,6 +234,66 @@ contains
 
   end subroutine preq_omega_ps
 
+  subroutine preq_omega_ps_oacc(omega_p,hvcoord,p,vgrad_p,divdp)
+    use kinds, only : real_kind
+    use dimensions_mod, only : np, nlev, nelemd
+    use hybvcoord_mod, only : hvcoord_t
+    implicit none
+
+
+    !------------------------------Arguments---------------------------------------------------------------
+    real(kind=real_kind), intent(in) :: divdp(np,np,nlev, nelemd)      ! divergence
+    real(kind=real_kind), intent(in) :: vgrad_p(np,np,nlev,nelemd) ! v.grad(p)
+    real(kind=real_kind), intent(in) :: p(np,np,nlev,nelemd)     ! layer thicknesses (pressure)
+    type (hvcoord_t),     intent(in) :: hvcoord
+    real(kind=real_kind), intent(out):: omega_p(np,np,nlev,nelemd)   ! vertical pressure velocity
+    !------------------------------------------------------------------------------------------------------
+
+    !---------------------------Local workspace-----------------------------
+    integer i,j,k,ie                         ! longitude, level indices
+    real(kind=real_kind) term             ! one half of basic term in omega/p summation 
+    real(kind=real_kind) Ckk,Ckl          ! diagonal term of energy conversion matrix
+    real(kind=real_kind) suml(np,np)      ! partial sum over l = (1, k-1)
+    !-----------------------------------------------------------------------
+
+    do ie=1, nelemd
+       do j=1,np   !   Loop inversion (AAM)
+
+          do i=1,np
+             ckk = 0.5d0/p(i,j,1,ie)
+             term = divdp(i,j,1,ie)
+!             omega_p(i,j,1) = hvcoord%hybm(1)*vgrad_ps(i,j,1)/p(i,j,1)
+             omega_p(i,j,1,ie) = vgrad_p(i,j,1,ie)/p(i,j,1,ie)
+             omega_p(i,j,1,ie) = omega_p(i,j,1,ie) - ckk*term
+             suml(i,j) = term
+          end do
+
+          do k=2,nlev-1
+             do i=1,np
+                ckk = 0.5d0/p(i,j,k,ie)
+                ckl = 2*ckk
+                term = divdp(i,j,k,ie)
+!                omega_p(i,j,k) = hvcoord%hybm(k)*vgrad_ps(i,j,k)/p(i,j,k)
+                omega_p(i,j,k,ie) = vgrad_p(i,j,k,ie)/p(i,j,k,ie)
+                omega_p(i,j,k,ie) = omega_p(i,j,k,ie) - ckl*suml(i,j) - ckk*term
+                suml(i,j) = suml(i,j) + term
+
+             end do
+          end do
+
+          do i=1,np
+             ckk = 0.5d0/p(i,j,nlev,ie)
+             ckl = 2*ckk
+             term = divdp(i,j,nlev,ie)
+!             omega_p(i,j,nlev) = hvcoord%hybm(nlev)*vgrad_ps(i,j,nlev)/p(i,j,nlev)
+             omega_p(i,j,nlev,ie) = vgrad_p(i,j,nlev,ie)/p(i,j,nlev,ie)
+             omega_p(i,j,nlev,ie) = omega_p(i,j,nlev,ie) - ckl*suml(i,j) - ckk*term
+          end do
+
+       end do
+     enddo
+
+  end subroutine preq_omega_ps_oacc
 
 
 
@@ -364,6 +426,62 @@ contains
 
 end subroutine preq_hydrostatic
 
+!OpenACC version:
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
+  subroutine preq_hydrostatic_oacc(phi,phis,T_v,p,dp)
+    use kinds, only : real_kind
+    use dimensions_mod, only : np, nlev, nelemd
+    use physical_constants, only : rgas
+!    use hybvcoord_mod, only : hvcoord_t
+    implicit none
+
+
+    !------------------------------Arguments---------------------------------------------------------------
+    real(kind=real_kind), intent(out) :: phi(np,np,nlev,nelemd)
+    real(kind=real_kind), intent(in) :: phis(np,np,nelemd)
+    real(kind=real_kind), intent(in) :: T_v(np,np,nlev,nelemd)
+    real(kind=real_kind), intent(in) :: p(np,np,nlev,nelemd)
+    real(kind=real_kind), intent(in) :: dp(np,np,nlev,nelemd)
+ !   type (hvcoord_t),     intent(in) :: hvcoord
+    !------------------------------------------------------------------------------------------------------
+
+    !---------------------------Local workspace-----------------------------
+    integer i,j,k,ie                      ! longitude, level indices
+    real(kind=real_kind) Hkk,Hkl          ! diagonal term of energy conversion matrix
+    real(kind=real_kind), dimension(np,np,nlev) :: phii       ! Geopotential at interfaces
+    !-----------------------------------------------------------------------
+
+     do ie=1, nelemd
+       do j=1,np   !   Loop inversion (AAM)
+
+          do i=1,np
+             hkk = dp(i,j,nlev,ie)*0.5d0/p(i,j,nlev,ie)
+             hkl = 2*hkk
+             phii(i,j,nlev)  = Rgas*T_v(i,j,nlev,ie)*hkl
+             phi(i,j,nlev,ie) = phis(i,j,ie) + Rgas*T_v(i,j,nlev,ie)*hkk
+          end do
+
+          do k=nlev-1,2,-1
+             do i=1,np
+                ! hkk = dp*ckk
+                hkk = dp(i,j,k,ie)*0.5d0/p(i,j,k,ie)
+                hkl = 2*hkk
+                phii(i,j,k) = phii(i,j,k+1) + Rgas*T_v(i,j,k,ie)*hkl
+                phi(i,j,k,ie) = phis(i,j,ie) + phii(i,j,k+1) + Rgas*T_v(i,j,k,ie)*hkk
+             end do
+          end do
+
+          do i=1,np
+             ! hkk = dp*ckk
+             hkk = 0.5d0*dp(i,j,1,ie)/p(i,j,1,ie)
+             phi(i,j,1,ie) = phis(i,j,ie) + phii(i,j,2) + Rgas*T_v(i,j,1,ie)*hkk
+          end do
+
+       end do
+     enddo
+
+
+end subroutine preq_hydrostatic_oacc
 
 
 !
