@@ -21,7 +21,9 @@ module element_mod
   real (kind=real_kind), allocatable, target, public :: derived_vn0              (:,:,:,:,:)      ! (np,np,2,nlev,nelemd)                   velocity for SE tracer advection
   real (kind=real_kind), allocatable, target, public :: derived_divdp            (:,:,:,:)        ! (np,np,nlev,nelemd)                     divergence of dp
   real (kind=real_kind), allocatable, target, public :: derived_divdp_proj       (:,:,:,:)        ! (np,np,nlev,nelemd)                     DSSed divdp
-
+  real (kind=real_kind), allocatable, target, public :: state_ps_v               (:,:,:,:)
+  real (kind=real_kind), allocatable, target, public :: state_phis               (:,:,:)          ! (np,np,nelemd)
+  real (kind=real_kind), allocatable, target, public :: derived_phi              (:,:,:,:)        ! (np,np,nlen,nelemd)
 #if USE_OPENACC
 
   type, public :: elem_state_t
@@ -33,8 +35,8 @@ module element_mod
     real (kind=real_kind) :: T   (np,np,nlev,timelevels)              ! temperature                        2
     real (kind=real_kind) :: dp3d(np,np,nlev,timelevels)              ! delta p on levels                  8
     real (kind=real_kind) :: lnps(np,np,timelevels)                   ! log surface pressure               3
-    real (kind=real_kind) :: ps_v(np,np,timelevels)                   ! surface pressure                   4
-    real (kind=real_kind) :: phis(np,np)                              ! surface geopotential (prescribed)  5
+    real (kind=real_kind), pointer :: ps_v(:,:,:)                     ! surface pressure                   4
+    real (kind=real_kind), pointer :: phis(:,:)                       ! surface geopotential (prescribed)  5
     real (kind=real_kind) :: Q   (np,np,nlev,qsize_d)                 ! Tracer concentration               6
     real (kind=real_kind), pointer :: Qdp (:,:,:,:,:)  ! Tracer mass                        7  (np,np,nlev,qsize_d,2)   
   end type elem_state_t
@@ -50,7 +52,7 @@ module element_mod
     real (kind=real_kind) :: dpdiss_ave(np,np,nlev)                   ! mean dp used to compute psdiss_tens
 
     ! diagnostics for explicit timestep
-    real (kind=real_kind) :: phi(np,np,nlev)                          ! geopotential
+    real (kind=real_kind), pointer :: phi(:,:,:)                      ! geopotential
     real (kind=real_kind) :: omega_p(np,np,nlev)                      ! vertical tendency (derived)       
     real (kind=real_kind) :: eta_dot_dpdn(np,np,nlevp)                ! mean vertical flux from dynamics
 
@@ -561,11 +563,18 @@ contains
     allocate( derived_vn0              (np,np,2,nlev,nelemd)                  )
     allocate( derived_divdp            (np,np,nlev,nelemd)                    )
     allocate( derived_divdp_proj       (np,np,nlev,nelemd)                    )
+    allocate( state_ps_v               (np,np,nlev,nelemd)                    )
+    allocate( state_phis               (np,np,nelemd)                         )
+    allocate( derived_phi              (np,np,nlev,nelemd)                    )
+
     do ie = 1 , nelemd
       elem(ie)%state%Qdp                 => state_Qdp                (:,:,:,:,:,ie)
       elem(ie)%derived%vn0               => derived_vn0              (:,:,:,:,ie)  
       elem(ie)%derived%divdp             => derived_divdp            (:,:,:,ie)    
       elem(ie)%derived%divdp_proj        => derived_divdp_proj       (:,:,:,ie)    
+      elem(ie)%state%ps_v                => state_ps_v               (:,:,:,ie)
+      elem(ie)%state%phis                => state_phis               (:,:,ie)
+      elem(ie)%derived%phi               => derived_phi              (:,:,:,ie)
     enddo
 #endif
   end subroutine setup_element_pointers
