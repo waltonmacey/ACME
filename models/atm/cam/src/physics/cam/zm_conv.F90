@@ -47,17 +47,35 @@ module zm_conv
    real(r8) :: zmconv_tau    = unset_r8   
    logical  :: zmconv_trigmem= .false.    
 
+!!! ddl ++
+   real(r8) :: zmconv_alfa      = unset_r8
+   real(r8) :: zmconv_dmpdz     = unset_r8
+   real(r8) :: zmconv_epsm_fact = unset_r8
+   real(r8) :: zmconv_capelmt   = unset_r8
+   real(r8) :: zmconv_dcapelmt  = unset_r8
+!!! ddl --
+
    real(r8) rl         ! wg latent heat of vaporization.
    real(r8) cpres      ! specific heat at constant pressure in j/kg-degk.
-   real(r8), parameter :: capelmt = 70._r8  ! threshold value for cape for deep convection.
-!<songxl 2014-05-20------------------
-    real(r8), parameter :: dcapelmt = 1.81e-2_r8  ! threshold value of dcape for deep convection. 65J/kg/hr
-!>songxl 2014-05-20------------------
+
+!!! ddl ++
+!    real(r8), parameter :: capelmt = 70._r8  ! threshold value for cape for deep convection.
+! !<songxl 2014-05-20------------------
+!    real(r8), parameter :: dcapelmt = 1.81e-2_r8  ! threshold value of dcape for deep convection. 65J/kg/hr
+! !>songxl 2014-05-20------------------
+   real(r8) :: capelmt = 70._r8  ! threshold value for cape for deep convection.
+   real(r8) :: dcapelmt = 1.81e-2_r8  ! threshold value of dcape for deep convection. 65J/kg/hr
+   real(r8) :: alfax   =  0.1_r8
+   real(r8) :: dmpdz   = -1.0e-3_r8   ! Parcel fractional mass entrainment rate (/m).
+   real(r8) :: epsm_fact =  2._r8
+   real(r8) :: tau       = 3600.0_r8  ! Convective time scale.
+!!! ddl --
+
    real(r8) :: ke           ! Tunable evaporation efficiency set from namelist input zmconv_ke
    real(r8) :: c0_lnd       ! set from namelist input zmconv_c0_lnd
    real(r8) :: c0_ocn       ! set from namelist input zmconv_c0_ocn
    logical  :: trigmem      ! set from namelist input zmconv_trigmem
-   real(r8) tau   ! convective time scale
+!!!    real(r8) tau   ! convective time scale
    real(r8),parameter :: c1 = 6.112_r8
    real(r8),parameter :: c2 = 17.67_r8
    real(r8),parameter :: c3 = 243.5_r8
@@ -93,10 +111,17 @@ subroutine zmconv_readnl(nlfile)
    integer :: unitn, ierr
    character(len=*), parameter :: subname = 'zmconv_readnl'
 
-   namelist /zmconv_nl/ zmconv_c0_lnd, zmconv_c0_ocn, zmconv_ke, zmconv_tau, zmconv_trigmem
-   !-----------------------------------------------------------------------------
+!!! ddl ++
+!    namelist /zmconv_nl/ zmconv_c0_lnd, zmconv_c0_ocn, zmconv_ke, zmconv_tau, zmconv_trigmem
+!    !-----------------------------------------------------------------------------
+   namelist /zmconv_nl/ zmconv_c0_lnd, zmconv_c0_ocn, zmconv_ke, & 
+                        zmconv_tau, zmconv_trigmem, zmconv_alfa, & 
+                        zmconv_dmpdz, zmconv_epsm_fact, zmconv_capelmt, & 
+                        zmconv_dcapelmt
 
-   zmconv_tau = 3600._r8
+!    zmconv_tau = 3600._r8
+!!! ddl --
+
    if (masterproc) then
       unitn = getunit()
       open( unitn, file=trim(nlfile), status='old' )
@@ -117,12 +142,27 @@ subroutine zmconv_readnl(nlfile)
       tau = zmconv_tau
       trigmem = zmconv_trigmem
 
+!!! ddl ++
+      alfax = zmconv_alfa
+      dmpdz = zmconv_dmpdz
+      epsm_fact = zmconv_epsm_fact
+      capelmt = zmconv_capelmt
+      dcapelmt = zmconv_dcapelmt
+!!! ddl --
+
       if ( masterproc ) then
           write(iulog,*) 'zmconv_nl parameters: zmconv_c0_lnd',zmconv_c0_lnd
           write(iulog,*) 'zmconv_nl parameters: zmconv_c0_ocn',zmconv_c0_ocn
           write(iulog,*) 'zmconv_nl parameters: zmconv_ke',zmconv_ke
           write(iulog,*) 'zmconv_nl parameters: zmconv_tau',zmconv_tau
           write(iulog,*) 'zmconv_nl parameters: zmconv_trigmem',zmconv_trigmem
+!!! ddl ++
+          write(iulog,*) 'zmconv_nl parameters: zmconv_alfa',zmconv_alfa
+          write(iulog,*) 'zmconv_nl parameters: zmconv_dmpdz',zmconv_dmpdz
+          write(iulog,*) 'zmconv_nl parameters: zmconv_epsm_fact',zmconv_epsm_fact
+          write(iulog,*) 'zmconv_nl parameters: zmconv_capelmt',zmconv_capelmt
+          write(iulog,*) 'zmconv_nl parameters: zmconv_dcapelmt',zmconv_dcapelmt
+!!! ddl --
       endif
 
    end if
@@ -134,6 +174,13 @@ subroutine zmconv_readnl(nlfile)
    call mpibcast(ke,                1, mpir8,  0, mpicom)
    call mpibcast(tau,               1, mpir8,  0, mpicom)
    call mpibcast(trigmem,           1, mpir8,  0, mpicom)
+!!! ddl ++
+   call mpibcast(zmconv_alfa,       1, mpir8,  0, mpicom)
+   call mpibcast(zmconv_dmpdz,      1, mpir8,  0, mpicom)
+   call mpibcast(zmconv_epsm_fact,  1, mpir8,  0, mpicom)
+   call mpibcast(zmconv_capelmt,    1, mpir8,  0, mpicom)
+   call mpibcast(zmconv_dcapelmt,   1, mpir8,  0, mpicom)
+!!! ddl --
 #endif
 
 end subroutine zmconv_readnl
@@ -170,14 +217,53 @@ subroutine zm_convi(limcnv_in, no_deep_pbl_in)
    ! convection is too weak, thus adjusted to 2400.
 
    hgrid = get_resolution()
-   if(trigmem)tau = 3600._r8
+!!! ddl ++
+!    if(trigmem)tau = 3600._r8
 
-   if ( masterproc ) then
+   if (zmconv_tau /= unset_r8) then
+      tau = zmconv_tau
+   end if
+
+   if (zmconv_alfa /= unset_r8) then
+      alfax = zmconv_alfa
+   end if
+
+   if (zmconv_dmpdz /= unset_r8) then
+      if (zmconv_dmpdz > 0) then
+         dmpdz = -zmconv_dmpdz
+         write(iulog,*) 'CHANGED POSITIVE dmpdz NAMELIST VALUE TO NEGATIVE!'
+      else
+         dmpdz = zmconv_dmpdz
+      end if
+   end if
+
+   if (zmconv_epsm_fact /= unset_r8) then
+      epsm_fact = zmconv_epsm_fact
+   end if
+
+   if (zmconv_capelmt /= unset_r8) then
+      capelmt = zmconv_capelmt
+   end if
+
+   if (zmconv_dcapelmt /= unset_r8) then
+      dcapelmt = zmconv_dcapelmt
+   end if
+!!! ddl --
+
+!!! ddl ++
+!    if ( masterproc ) then
       write(iulog,*) 'tuning parameters zm_convi: tau',tau
       write(iulog,*) 'tuning parameters zm_convi: c0_lnd',c0_lnd, ', c0_ocn', c0_ocn 
       write(iulog,*) 'tuning parameters zm_convi: ke',ke
       write(iulog,*) 'tuning parameters zm_convi: no_deep_pbl',no_deep_pbl
-   endif
+      
+      write(iulog,*) 'Tuning params zm_conv: alfa=', alfax
+      write(iulog,*) 'Tuning params zm_conv: epsm_fact=', epsm_fact
+      write(iulog,*) 'Tuning params zm_conv: capelmt=', capelmt
+      write(iulog,*) 'Tuning params zm_conv: dmpdz=', dmpdz
+      
+!    endif
+!!! ddl --
 
    if (masterproc) write(iulog,*)'**** ZM: DILUTE Buoyancy Calculation ****'
 
@@ -2618,7 +2704,12 @@ subroutine cldprp(lchnk   , &
 !
 ! in normal downdraft strength run alfa=0.2.  In test4 alfa=0.1
 !
-      alfa(i) = 0.1_r8
+
+!!! ddl ++
+! ! !       alfa(i) = 0.1_r8
+      alfa(i) = alfax
+!!! ddl --
+
       jt(i) = min(jt(i),jb(i)-1)
       jd(i) = max(j0(i),jt(i)+1)
       jd(i) = min(jd(i),jb(i))
@@ -2632,7 +2723,10 @@ subroutine cldprp(lchnk   , &
       do i = 1,il2g
          if ((k > jd(i) .and. k <= jb(i)) .and. eps0(i) > 0._r8) then
             zdef(i) = zf(i,jd(i)) - zf(i,k)
-            md(i,k) = -alfa(i)/ (2._r8*eps0(i))*(exp(2._r8*epsm(i)*zdef(i))-1._r8)/zdef(i)
+!!! ddl ++
+!!!             md(i,k) = -alfa(i)/ (2._r8*eps0(i))*(exp(2._r8*epsm(i)*zdef(i))-1._r8)/zdef(i)
+            md(i,k) = -alfa(i)/ (epsm_fact*eps0(i))*(exp(epsm_fact*epsm(i)*zdef(i))-1._r8)/zdef(i)
+!!! ddl --
          end if
       end do
    end do
@@ -3461,7 +3555,11 @@ real(r8) mp0(pcols)    ! Parcel launch relative mass flux.
 real(r8) lwmax      ! Maximum condesate that can be held in cloud before rainout.
 real(r8) dmpdp      ! Parcel fractional mass entrainment rate (/mb).
 !real(r8) dmpdpc     ! In cloud parcel mass entrainment rate (/mb).
-real(r8) dmpdz      ! Parcel fractional mass entrainment rate (/m)
+
+!!! ddl ++
+! real(r8) dmpdz      ! Parcel fractional mass entrainment rate (/m)
+!!! ddl --
+
 real(r8) dpdz,dzdp  ! Hydrstatic relation and inverse of.
 real(r8) senv       ! Environmental entropy at each grid point.
 real(r8) qtenv      ! Environmental total water "   "   ".
@@ -3495,7 +3593,11 @@ integer i,k,ii   ! Loop counters.
 !
 
 nit_lheat = 2 ! iterations for ds,dq changes from condensation freezing.
-dmpdz=-1.e-3_r8        ! Entrainment rate. (-ve for /m)
+
+!!! ddl ++
+! dmpdz=-1.e-3_r8        ! Entrainment rate. (-ve for /m)
+!!! ddl --
+
 !dmpdpc = 3.e-2_r8   ! In cloud entrainment rate (/mb).
 lwmax = 1.e-3_r8    ! Need to put formula in for this.
 tscool = 0.0_r8   ! Temp at which water loading freezes in the cloud.

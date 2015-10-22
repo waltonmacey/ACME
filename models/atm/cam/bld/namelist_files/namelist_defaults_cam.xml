@@ -1008,6 +1008,15 @@
 
 <zmconv_trigmem>                 .false.   </zmconv_trigmem>
 
+<!-- DDL -->
+
+<zmconv_alfa>                0.10D0      </zmconv_alfa>
+<zmconv_tau>                 3600.0D0    </zmconv_tau>
+<zmconv_dmpdz>               0.0010D0    </zmconv_dmpdz>
+<zmconv_epsm_fact>           2.0D0       </zmconv_epsm_fact>
+<zmconv_capelmt>             70.0D0      </zmconv_capelmt>
+<zmconv_dcapelmt>            0.01810D0   </zmconv_dcapelmt>
+
 <!-- Chikira-Sugiyama convection scheme -->
 <csconv_clmd                                                          > 0.6 </csconv_clmd>
 <csconv_pa                                                            > 0.15 </csconv_pa>
