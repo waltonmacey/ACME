@@ -147,7 +147,6 @@ subroutine nucleati(  &
    real(r8) :: n1, ni                    ! nucleated number
    real(r8) :: tc, A, B, regm            ! work variable
    real(r8) :: esl, esi, deles           ! work variable
-   real(r8) :: subgrid
 
    !(09/29/2014)DeMott for mixed-phase cloud ice nucleation 
    real(r8)  :: na500, na500_1                            ! aerosol number with D>500 nm (#/cm^3)

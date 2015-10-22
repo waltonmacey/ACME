@@ -93,7 +93,7 @@ subroutine qneg4 (subnam  ,lchnk   ,ncol    ,ztodt   ,        &
 9000 format(' QNEG4 WARNING from ',a8 &
             ,' Max possible LH flx exceeded at ',i4,' points. ' &
             ,', Worst excess = ',1pe12.4 &
-            ,', lchnk = ',i3 &
+            ,', lchnk = ',i5 &
             ,', i = ',i4 &
             ,', same as indices lat =', i4 &
             ,', lon =', i4 &
