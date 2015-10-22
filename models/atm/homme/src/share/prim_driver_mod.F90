@@ -94,7 +94,7 @@ contains
     ! --------------------------------
     use arch_switch_mod, only: prim_advec_init1
     ! --------------------------------
-    use prim_advance_mod, only: prim_advance_init
+    use arch_switch_mod, only: prim_advance_init
     ! --------------------------------
 #ifdef TRILINOS
     use prim_implicit_mod, only : prim_implicit_init
@@ -1157,7 +1157,7 @@ contains
     use hybvcoord_mod, only : hvcoord_t
     use time_mod, only : TimeLevel_t, timelevel_update, smooth
     use control_mod, only: statefreq, integration, ftype, qsplit, disable_diagnostics
-    use prim_advance_mod, only : prim_advance_exp, prim_advance_si, preq_robert3
+    use arch_switch_mod, only : prim_advance_exp, prim_advance_si, preq_robert3
     use prim_state_mod, only : prim_printstate, prim_diag_scalars, prim_energy_halftimes
     use arch_switch_mod, only: deriv
     use parallel_mod, only : abortmp
@@ -1349,7 +1349,7 @@ contains
     use time_mod, only : TimeLevel_t, timelevel_update, timelevel_qdp, nsplit
     use control_mod, only: statefreq,&
            energy_fixer, ftype, qsplit, rsplit, test_cfldep, disable_diagnostics
-    use prim_advance_mod, only : applycamforcing, &
+    use arch_switch_mod, only : applycamforcing, &
                                  applycamforcing_dynamics
     use prim_state_mod, only : prim_printstate, prim_diag_scalars, prim_energy_halftimes
     use parallel_mod, only : abortmp
@@ -1572,7 +1572,7 @@ contains
     use fvm_mod,     only : fvm_ideal_test, IDEAL_TEST_OFF, IDEAL_TEST_ANALYTICAL_WINDS
     use fvm_mod,     only : fvm_test_type, IDEAL_TEST_BOOMERANG, IDEAL_TEST_SOLIDBODY
     use fvm_bsp_mod, only : get_boomerang_velocities_gll, get_solidbody_velocities_gll
-    use prim_advance_mod, only : prim_advance_exp, overwrite_SEdensity
+    use arch_switch_mod, only : prim_advance_exp, overwrite_SEdensity
     use prim_advection_mod, only : prim_advec_tracers_fvm
     use arch_switch_mod, only : prim_advec_tracers_remap, deriv
     use derivative_mod, only : subcell_integration
@@ -1971,7 +1971,7 @@ contains
     use bndry_mod, only : bndry_exchangev
     use derivative_mod, only : derivative_t , laplace_sphere_wk
     use viscosity_mod, only : biharmonic_wk
-    use prim_advance_mod, only : smooth_phis
+    use arch_switch_mod, only : smooth_phis
     use arch_switch_mod, only: deriv
     implicit none
 

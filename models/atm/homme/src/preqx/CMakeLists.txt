@@ -21,6 +21,7 @@ SET(PREQX_SRCS_F90
   ${SRC_SHARE_DIR}/openacc/edge_openacc_mod.F90
   ${SRC_SHARE_DIR}/openacc/openacc_utils_mod.F90
   ${SRC_SHARE_DIR}/openacc/prim_advection_openacc_mod.F90
+  ${SRC_SHARE_DIR}/openacc/prim_advance_openacc_mod.F90
   ${SRC_SHARE_DIR}/openacc/viscosity_openacc_mod.F90
   ${SRC_SHARE_DIR}/arch_switch_mod.F90
   ${SRC_SHARE_DIR}/kinds.F90

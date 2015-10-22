@@ -1163,7 +1163,7 @@ contains
     use physical_constants, only: Cp
     use derivative_mod, only : subcell_Laplace_fluxes
     !  use time_mod, only : TimeLevel_t
-    use prim_advance_mod, only : distribute_flux_at_corners
+    use arch_switch_mod, only : distribute_flux_at_corners
     implicit none
 
     type (hybrid_t)      , intent(in) :: hybrid
