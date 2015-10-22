@@ -16,7 +16,7 @@ module prim_advance_mod
   implicit none
   private
   save
-  public :: prim_advance_exp, prim_advance_si, prim_advance_init, preq_robert3,&
+  public :: prim_advance_exp, prim_advance_si, prim_advance_init, prim_advance_init2, preq_robert3,&
        applyCAMforcing_dynamics, applyCAMforcing, smooth_phis, overwrite_SEdensity
 
 #ifdef TRILINOS
@@ -79,6 +79,17 @@ contains
     endif
 
   end subroutine prim_advance_init
+
+    subroutine prim_advance_init2(elem, hvcoord)
+  use element_mod, only : element_t
+  use hybvcoord_mod, only : hvcoord_t
+
+  implicit none
+
+    type(element_t)      , intent(in) :: elem(:)
+    type (hvcoord_t)     , intent(in)  :: hvcoord
+
+ end subroutine prim_advance_init2
 
 
   subroutine prim_advance_exp(elem, deriv, hvcoord, hybrid,&

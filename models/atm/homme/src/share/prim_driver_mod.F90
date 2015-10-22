@@ -607,7 +607,7 @@ contains
     use derivative_mod, only : derivinit, interpolate_gll2fvm_points, interpolate_gll2spelt_points, v2pinit
     use global_norms_mod, only : test_global_integral, print_cfl
     use hybvcoord_mod, only : hvcoord_t
-    use arch_switch_mod, only: prim_advec_init2, prim_advec_init_deriv, deriv, arch_init2
+    use arch_switch_mod, only: prim_advec_init2, prim_advance_init2, prim_advec_init_deriv, deriv, arch_init2
 #ifdef CAM
 #else
     use column_model_mod, only : InitColumnModel
@@ -1101,6 +1101,7 @@ contains
 
     call arch_init2(elem(:), deriv(hybrid%ithr))
     call Prim_Advec_Init2(elem(:), hvcoord, hybrid)
+    call prim_advance_init2 (elem(:), hvcoord)
 
   end subroutine prim_init2
 
