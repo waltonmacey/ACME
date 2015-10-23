@@ -611,6 +611,11 @@ subroutine microp_aero_run ( &
       end do
    end do
 
+   call outfld('WSUB',   wsub, pcols, lchnk)
+   call outfld('WSUBI', wsubi, pcols, lchnk)
+
+   if (trim(eddy_scheme) == 'CLUBB_SGS') deallocate(tke)
+
    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
    !ICE Nucleation
 
