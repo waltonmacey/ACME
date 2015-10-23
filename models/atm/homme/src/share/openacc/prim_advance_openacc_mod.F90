@@ -2763,7 +2763,6 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
   real (kind=real_kind), pointer, dimension(:,:)      :: ps         ! surface pressure for current tiime level
   real (kind=real_kind), pointer, dimension(:,:,:)   :: phi
 
-  real (kind=real_kind), dimension(np,np,2)    :: vtemp     ! generic gradient storage
   real (kind=real_kind), dimension(np,np,2     ):: v         !                            
   real (kind=real_kind), dimension(np,np)      :: vgrad_T    ! v.grad(T)
   real (kind=real_kind), dimension(np,np)      :: Ephi       ! kinetic energy + PHI term
@@ -2771,12 +2770,8 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
   real (kind=real_kind), dimension(np,np,2,nlev) :: grad_p_m_pmet  ! gradient(p - p_met)
   real (kind=real_kind), dimension(np,np,nlev)   :: rdp        ! inverse of delta pressure
   real (kind=real_kind), dimension(np,np,nlev+1) :: ph               ! half level pressures on p-grid
-  real (kind=real_kind), dimension(np,np,2,nlev) :: v_vadv   ! velocity vertical advection
   real (kind=real_kind), dimension(0:np+1,0:np+1,nlev)          :: corners
   real (kind=real_kind), dimension(2,2,2)                         :: cflux
-  real (kind=real_kind) ::  vtens1(np,np,nlev)
-  real (kind=real_kind) ::  vtens2(np,np,nlev)
-  real (kind=real_kind) ::  ttens(np,np,nlev)
   real (kind=real_kind) ::  stashdp3d (np,np,nlev)
   real (kind=real_kind) ::  tempdp3d  (np,np)
   real (kind=real_kind) ::  tempflux  (nc,nc,4)
@@ -2937,7 +2932,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
         ! VERTICALLY LAGRANGIAN:   no vertical motion
         eta_dot_dpdn_d=0
         T_vadv_d=0
-        v_vadv=0
+        v_vadv_d=0
      else
         do k=1,nlev
            ! ==================================================
@@ -2966,7 +2961,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
         ! Compute vertical advection of T and v from eq. CCM2 (3.b.1)
         ! ==============================================
         call preq_vertadv(elem(ie)%state%T(:,:,:,n0),elem(ie)%state%v(:,:,:,:,n0), &
-             eta_dot_dpdn_d,rdp,T_vadv_d(:,:,:,ie),v_vadv)
+             eta_dot_dpdn_d,rdp,T_vadv_d(:,:,:,ie),v_vadv_d(:,:,:,:,ie))
      endif
 
 
@@ -3001,18 +2996,18 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
         ! ================================================
         ! compute gradp term (ps/p)*(dp/dps)*T
         ! ================================================
-        vtemp(:,:,:)   = gradient_sphere(elem(ie)%state%T(:,:,k,n0),deriv,elem(ie)%Dinv)
+        vtemp_d(:,:,:,ie)   = gradient_sphere(elem(ie)%state%T(:,:,k,n0),deriv,elem(ie)%Dinv)
         do j=1,np
            do i=1,np
               v1     = elem(ie)%state%v(i,j,1,k,n0)
               v2     = elem(ie)%state%v(i,j,2,k,n0)
-              vgrad_T(i,j) =  v1*vtemp(i,j,1) + v2*vtemp(i,j,2)
+              vgrad_T(i,j) =  v1*vtemp_d(i,j,1,ie) + v2*vtemp_d(i,j,2,ie)
            end do
         end do
 
 
         ! vtemp = grad ( E + PHI )
-        vtemp = gradient_sphere(Ephi(:,:),deriv,elem(ie)%Dinv)
+        vtemp_d(:,:,:,ie) = gradient_sphere(Ephi(:,:),deriv,elem(ie)%Dinv)
 
         do j=1,np
            do i=1,np
@@ -3026,19 +3021,19 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
               v1     = elem(ie)%state%v(i,j,1,k,n0)
               v2     = elem(ie)%state%v(i,j,2,k,n0)
 
-              vtens1(i,j,k) =   - v_vadv(i,j,1,k)                           &
+              vtens1_d(i,j,k,ie) =   - v_vadv_d(i,j,1,k,ie)                           &
                    + v2*(elem(ie)%fcor(i,j) + vort_d(i,j,k,ie))        &
-                   - vtemp(i,j,1) - glnps1
+                   - vtemp_d(i,j,1,ie) - glnps1
               !
               ! phl: add forcing term to zonal wind u
               !
-              vtens2(i,j,k) =   - v_vadv(i,j,2,k)                            &
+              vtens2_d(i,j,k,ie) =   - v_vadv_d(i,j,2,k,ie)                            &
                    - v1*(elem(ie)%fcor(i,j) + vort_d(i,j,k,ie))        &
-                   - vtemp(i,j,2) - glnps2
+                   - vtemp_d(i,j,2,ie) - glnps2
               !
               ! phl: add forcing term to meridional wind v
               !
-              ttens(i,j,k)  = - T_vadv_d(i,j,k,ie) - vgrad_T(i,j) + kappa_star_d(i,j,k,ie)*T_v_d(i,j,k,ie)*omega_p_d(i,j,k,ie)
+              ttens_d(i,j,k,ie)  = - T_vadv_d(i,j,k,ie) - vgrad_T(i,j) + kappa_star_d(i,j,k,ie)*T_v_d(i,j,k,ie)*omega_p_d(i,j,k,ie)
               !
               ! phl: add forcing term to T
               !
@@ -3046,9 +3041,9 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
 #if ( defined CAM )
               
               if (se_prescribed_wind_2d) then
-                 vtens1(i,j,k) = 0.D0
-                 vtens2(i,j,k) = 0.D0
-                 ttens(i,j,k) = 0.D0
+                 vtens1_d(i,j,k,ie) = 0.D0
+                 vtens2_d(i,j,k,ie) = 0.D0
+                 ttens_d(i,j,k,ie) = 0.D0
               else
                  if(se_met_nudge_u.gt.0.D0)then
                     u_m_umet = v1 - &
@@ -3058,12 +3053,12 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
                          elem(ie)%derived%v_met(i,j,k) - &
                          se_met_tevolve*tevolve*elem(ie)%derived%dvdt_met(i,j,k)
 
-                    vtens1(i,j,k) =   vtens1(i,j,k) - se_met_nudge_u*u_m_umet * elem(ie)%derived%nudge_factor(i,j,k)
+                    vtens1_d(i,j,k,ie) =   vtens1_d(i,j,k,ie) - se_met_nudge_u*u_m_umet * elem(ie)%derived%nudge_factor(i,j,k)
 
                     elem(ie)%derived%Utnd(i+(j-1)*np,k) = elem(ie)%derived%Utnd(i+(j-1)*np,k) &
                          + se_met_nudge_u*u_m_umet * elem(ie)%derived%nudge_factor(i,j,k)
 
-                    vtens2(i,j,k) =   vtens2(i,j,k) - se_met_nudge_u*v_m_vmet * elem(ie)%derived%nudge_factor(i,j,k)
+                    vtens2_d(i,j,k,ie) =   vtens2_d(i,j,k,ie) - se_met_nudge_u*v_m_vmet * elem(ie)%derived%nudge_factor(i,j,k)
 
                     elem(ie)%derived%Vtnd(i+(j-1)*np,k) = elem(ie)%derived%Vtnd(i+(j-1)*np,k) &
                          + se_met_nudge_u*v_m_vmet * elem(ie)%derived%nudge_factor(i,j,k)
@@ -3071,15 +3066,15 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
                  endif
 
                  if(se_met_nudge_p.gt.0.D0)then
-                    vtens1(i,j,k) =   vtens1(i,j,k) - se_met_nudge_p*grad_p_m_pmet(i,j,1,k)  * elem(ie)%derived%nudge_factor(i,j,k)
-                    vtens2(i,j,k) =   vtens2(i,j,k) - se_met_nudge_p*grad_p_m_pmet(i,j,2,k)  * elem(ie)%derived%nudge_factor(i,j,k)
+                    vtens1_d(i,j,k,ie) =   vtens1_d(i,j,k,ie) - se_met_nudge_p*grad_p_m_pmet(i,j,1,k)  * elem(ie)%derived%nudge_factor(i,j,k)
+                    vtens2_d(i,j,k,ie) =   vtens2_d(i,j,k,ie) - se_met_nudge_p*grad_p_m_pmet(i,j,2,k)  * elem(ie)%derived%nudge_factor(i,j,k)
                  endif
 
                  if(se_met_nudge_t.gt.0.D0)then
                     t_m_tmet = elem(ie)%state%T(i,j,k,n0) - &
                          elem(ie)%derived%T_met(i,j,k) - &
                          se_met_tevolve*tevolve*elem(ie)%derived%dTdt_met(i,j,k)
-                    ttens(i,j,k)  = ttens(i,j,k) - se_met_nudge_t*t_m_tmet * elem(ie)%derived%nudge_factor(i,j,k)
+                    ttens_d(i,j,k,ie)  = ttens_d(i,j,k,ie) - se_met_nudge_t*t_m_tmet * elem(ie)%derived%nudge_factor(i,j,k)
                     elem(ie)%derived%Ttnd(i+(j-1)*np,k) = elem(ie)%derived%Ttnd(i+(j-1)*np,k) &
                          + se_met_nudge_t*t_m_tmet * elem(ie)%derived%nudge_factor(i,j,k)
                  endif
@@ -3099,9 +3094,9 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      if (dt2<0) then
         ! calling program just wanted DSS'd RHS, skip time advance
         do k=1,nlev
-           elem(ie)%state%v(:,:,1,k,np1) = elem(ie)%spheremp(:,:)*vtens1(:,:,k)
-           elem(ie)%state%v(:,:,2,k,np1) = elem(ie)%spheremp(:,:)*vtens2(:,:,k)
-           elem(ie)%state%T(:,:,k,np1) = elem(ie)%spheremp(:,:)*ttens(:,:,k)
+           elem(ie)%state%v(:,:,1,k,np1) = elem(ie)%spheremp(:,:)*vtens1_d(:,:,k,ie)
+           elem(ie)%state%v(:,:,2,k,np1) = elem(ie)%spheremp(:,:)*vtens2_d(:,:,k,ie)
+           elem(ie)%state%T(:,:,k,np1) = elem(ie)%spheremp(:,:)*ttens_d(:,:,k,ie)
            if (rsplit>0) &
               elem(ie)%state%dp3d(:,:,k,np1) = -elem(ie)%spheremp(:,:)*&
               (divdp_d(:,:,k,ie) + eta_dot_dpdn_d(:,:,k+1,ie)-eta_dot_dpdn_d(:,:,k,ie))
@@ -3115,9 +3110,9 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
         elem(ie)%state%ps_v(:,:,np1) = -elem(ie)%spheremp(:,:)*sdot_sum_d(:,:,ie)
      else
         do k=1,nlev
-           elem(ie)%state%v(:,:,1,k,np1) = elem(ie)%spheremp(:,:)*( elem(ie)%state%v(:,:,1,k,nm1) + dt2*vtens1(:,:,k) )
-           elem(ie)%state%v(:,:,2,k,np1) = elem(ie)%spheremp(:,:)*( elem(ie)%state%v(:,:,2,k,nm1) + dt2*vtens2(:,:,k) )
-           elem(ie)%state%T(:,:,k,np1) = elem(ie)%spheremp(:,:)*(elem(ie)%state%T(:,:,k,nm1) + dt2*ttens(:,:,k))
+           elem(ie)%state%v(:,:,1,k,np1) = elem(ie)%spheremp(:,:)*( elem(ie)%state%v(:,:,1,k,nm1) + dt2*vtens1_d(:,:,k,ie) )
+           elem(ie)%state%v(:,:,2,k,np1) = elem(ie)%spheremp(:,:)*( elem(ie)%state%v(:,:,2,k,nm1) + dt2*vtens2_d(:,:,k,ie) )
+           elem(ie)%state%T(:,:,k,np1) = elem(ie)%spheremp(:,:)*(elem(ie)%state%T(:,:,k,nm1) + dt2*ttens_d(:,:,k,ie))
            if (rsplit>0) &
                 elem(ie)%state%dp3d(:,:,k,np1) = &
                   elem(ie)%spheremp(:,:) * (elem(ie)%state%dp3d(:,:,k,nm1) - &
