@@ -1039,6 +1039,14 @@ if (options.ensemble_file != ''):
     print(str(nsamples)+' parameter samples provided')
     
     #if directories and parameter files have not yet been created, create them
+    #first, get current date/time for log file timestamps
+    os.system('date +%y%m%d-%H%M%S > mytime')
+    myinput=open('./mytime','r')
+    for s in myinput:
+        timestr = s.strip()
+    myinput.close()
+    os.system('rm mytime')
+
     if (not options.ensemble_nocopy):
         for i in range(0,int(math.ceil(float(nsamples)/options.ninst))):
             gst=str(100000+i+1)
@@ -1047,7 +1055,7 @@ if (options.ensemble_file != ''):
             print('Copying directories for ensemble run: '+str(i+1)+' of '+str(nsamples))
             os.system('mkdir -p '+runroot+'/UQ/'+casename+'/g'+gst[1:])
             os.system('cp '+orig_dir+'/* '+ens_dir)
-
+        
             #loop through all filenames, change directories, parameter files
             for f in os.listdir(ens_dir):
                 if (os.path.isfile(ens_dir+'/'+f) and (f[-2:] == 'in' or f[-3:] == 'nml' or 'streams' in f)):
@@ -1076,6 +1084,8 @@ if (options.ensemble_file != ''):
                                 param[0:] = samples[pnum][int(gst[1:])-1]
                                 ierr = putvar(pftfile, p, param)
                                 pnum = pnum+1
+                        elif ('logfile =' in s):
+                            myoutput.write(s.replace('`date +%y%m%d-%H%M%S`',timestr))
                         else:
                             myoutput.write(s.replace(orig_dir,ens_dir))
                             
@@ -1096,6 +1106,8 @@ if (options.ensemble_file != ''):
         numst=str(1000+num)
         output = open(csmdir+'/cime/scripts-acme/pointclm/temp/ensemble_run'+numst[1:]+'.pbs','w')
         for s in input:
+            if ("perl" in s):
+	        output.write("#!/bin/csh -f\n")
             if ("#PBS" in s or "#!" in s):
                 #edit number of required nodes for ensemble runs
                 if ('nodes' in s):
@@ -1124,6 +1136,9 @@ if (options.ensemble_file != ''):
             if (int(est)-100000 <= math.ceil(float(nsamples)/options.ninst)):
                 output.write('cd '+ens_dir+'\n')
                 output.write('mkdir -p timing/checkpoints\n')
+                #if (options.mpilib == 'mpi-serial'):
+                #  output.write(orig_dir+'/cesm.exe > ccsm_log.txt &\n')
+                #else:
                 output.write('mpirun -np '+str(options.np)+' --hostfile '+ \
                                  csmdir+'/cime/scripts-acme/pointclm/temp/mynodefile'+ngst[1:]+ \
                                  ' '+orig_dir+'/cesm.exe > ccsm_log.txt &\n')
