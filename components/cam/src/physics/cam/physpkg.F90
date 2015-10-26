@@ -1872,6 +1872,7 @@ subroutine tphysbc (ztodt,               &
     logical :: l_rad
     !HuiWan (2014/15): added for a short-term time step convergence test ==
 
+    logical,parameter :: SwitchOrd=.false. !PMC if true, call micro before macro.
 
     call phys_getopts( microp_scheme_out      = microp_scheme, &
                        macrop_scheme_out      = macrop_scheme, &
@@ -2147,7 +2148,16 @@ end if
        !===================================================
        ! Calculate macrophysical tendency (sedimentation, detrain, cloud fraction)
        !===================================================
+
+     !+++PMC hack for switching order of macro and micro calls
+     !200 is right before micro=>do micro first
+     if (SwitchOrd .and. .not. is_first_step() ) go to 200
+     !end of micro has 'goto 100' =>do macro after micro
+     100 continue
+     !---PMC
+
      if (l_st_mac) then
+
        call t_startf('macrop_tend')
 
        ! don't call Park macrophysics if CLUBB is called
@@ -2192,6 +2202,13 @@ end if
 
        call t_stopf('macrop_tend') 
      end if ! l_st_mac
+
+     !+++PMC hack for switching order of macro and micro calls
+     !SwitchOrd => did micro first, so skip now from end of macro to end of micro 
+     if (SwitchOrd .and. .not. is_first_step() ) go to 300
+     !'goto 200' called from beginning of macro, so doing micro first.
+     200 continue
+     !---PMC
 
      if (l_st_mic) then
        !===================================================
@@ -2249,7 +2266,14 @@ end if
 
      end if ! l_st_mic
 
-    endif
+     !+++PMC SwitchOrd
+     !if Switchord, then we did micro before macro... so go do that now.
+     if (SwitchOrd  .and. .not. is_first_step() ) go to 100
+     ! 'goto 300' called from end of macro - if did micro already, skip it and come here.
+     300 continue
+     !---PMC
+
+    endif !RK or MG
 
 if (l_tracer_aero) then
 
