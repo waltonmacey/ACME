@@ -2766,8 +2766,6 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
   real (kind=real_kind), dimension(np,np,2     ):: v         !                            
   real (kind=real_kind), dimension(np,np)      :: vgrad_T    ! v.grad(T)
   real (kind=real_kind), dimension(np,np)      :: Ephi       ! kinetic energy + PHI term
-  real (kind=real_kind), dimension(np,np,2)      :: grad_ps    ! lat-lon coord version
-  real (kind=real_kind), dimension(np,np,2,nlev) :: grad_p_m_pmet  ! gradient(p - p_met)
   real (kind=real_kind), dimension(np,np,nlev)   :: rdp        ! inverse of delta pressure
   real (kind=real_kind), dimension(np,np,nlev+1) :: ph               ! half level pressures on p-grid
   real (kind=real_kind), dimension(0:np+1,0:np+1,nlev)          :: corners
@@ -2803,7 +2801,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      ! ==================================================
      ! vertically eulerian only needs grad(ps)
      if (rsplit==0) &
-          grad_ps = gradient_sphere(elem(ie)%state%ps_v(:,:,n0),deriv,elem(ie)%Dinv)
+          grad_ps_d(:,:,:,ie) = gradient_sphere(elem(ie)%state%ps_v(:,:,n0),deriv,elem(ie)%Dinv)
 
 
      ! ============================
@@ -2818,7 +2816,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
            dp_d(:,:,k,ie) = (hvcoord%hyai(k+1)*hvcoord%ps0 + hvcoord%hybi(k+1)*elem(ie)%state%ps_v(:,:,n0)) &
                 - (hvcoord%hyai(k)*hvcoord%ps0 + hvcoord%hybi(k)*elem(ie)%state%ps_v(:,:,n0))
            p_d(:,:,k,ie)   = hvcoord%hyam(k)*hvcoord%ps0 + hvcoord%hybm(k)*elem(ie)%state%ps_v(:,:,n0)
-           grad_p_d(:,:,:,k,ie) = hvcoord%hybm(k)*grad_ps(:,:,:)
+           grad_p_d(:,:,:,k,ie) = hvcoord%hybm(k)*grad_ps_d(:,:,:,ie)
         else
            ! vertically lagrangian code: we advect dp3d instead of ps_v
            ! we also need grad(p) at all levels (not just grad(ps))
@@ -3066,8 +3064,8 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
                  endif
 
                  if(se_met_nudge_p.gt.0.D0)then
-                    vtens1_d(i,j,k,ie) =   vtens1_d(i,j,k,ie) - se_met_nudge_p*grad_p_m_pmet(i,j,1,k)  * elem(ie)%derived%nudge_factor(i,j,k)
-                    vtens2_d(i,j,k,ie) =   vtens2_d(i,j,k,ie) - se_met_nudge_p*grad_p_m_pmet(i,j,2,k)  * elem(ie)%derived%nudge_factor(i,j,k)
+                    vtens1_d(i,j,k,ie) =   vtens1_d(i,j,k,ie) - se_met_nudge_p*grad_p_m_pmet(i,j,1,k,ie)  * elem(ie)%derived%nudge_factor(i,j,k)
+                    vtens2_d(i,j,k,ie) =   vtens2_d(i,j,k,ie) - se_met_nudge_p*grad_p_m_pmet(i,j,2,k,ie)  * elem(ie)%derived%nudge_factor(i,j,k)
                  endif
 
                  if(se_met_nudge_t.gt.0.D0)then
