@@ -2963,18 +2963,24 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      ! ==================================================
    do ie=1,nelemd
      sdot_sum_d=0
-
+   enddo
 
      ! ==================================================
      ! Compute eta_dot_dpdn
      ! save sdot_sum as this is the -RHS of ps_v equation
      ! ==================================================
-     if (rsplit>0) then
+   if (rsplit>0) then
+
+     do ie=1,nelemd
         ! VERTICALLY LAGRANGIAN:   no vertical motion
         eta_dot_dpdn_d=0
         T_vadv_d=0
         v_vadv_d=0
-     else
+     enddo
+
+   else
+
+     do ie=1,nelemd
         do k=1,nlev
            ! ==================================================
            ! add this term to PS equation so we exactly conserve dry mass
@@ -2982,7 +2988,6 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
            sdot_sum_d(:,:,ie) = sdot_sum_d(:,:,ie) + divdp_d(:,:,k,ie)
            eta_dot_dpdn_d(:,:,k+1,ie) = sdot_sum_d(:,:,ie)
         end do
-
 
         ! ===========================================================
         ! at this point, eta_dot_dpdn contains integral_etatop^eta[ divdp ]
@@ -2997,15 +3002,18 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
 
         eta_dot_dpdn_d(:,:,1,ie) = 0.0D0
         eta_dot_dpdn_d(:,:,nlev+1,ie) = 0.0D0
-
         ! ===========================================================
         ! Compute vertical advection of T and v from eq. CCM2 (3.b.1)
         ! ==============================================
+     enddo
+
+     do ie=1,nelemd
         call preq_vertadv(elem(ie)%state%T(:,:,:,n0),elem(ie)%state%v(:,:,:,:,n0), &
              eta_dot_dpdn_d,rdp_d(:,:,:,ie),T_vadv_d(:,:,:,ie),v_vadv_d(:,:,:,:,ie))
-     endif
+     enddo
+   endif
 
-
+   do ie=1,nelemd
      ! ================================
      ! accumulate mean vertical flux:
      ! ================================
