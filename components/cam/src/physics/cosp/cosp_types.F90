@@ -21,7 +21,7 @@
 ! DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER 
 ! IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
 ! OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
+#include "cosp_gpm_debugflag.F90"
 MODULE MOD_COSP_TYPES
     USE MOD_COSP_CONSTANTS
     USE MOD_COSP_UTILS
@@ -37,13 +37,19 @@ MODULE MOD_COSP_TYPES
   ! Configuration choices (simulators, variables)
   TYPE COSP_CONFIG
      logical :: Lradar_sim,Llidar_sim,Lisccp_sim,Lmodis_sim,Lmisr_sim,Lrttov_sim,Lstats,Lwrite_output, &
+#ifdef GPM_KU
+                Lgpmku_sim,Lcfaddbzegpmku,Ldbzegpmku, &
+#endif
+#ifdef GPM_KA
+                Lgpmka_sim,Lcfaddbzegpmka,Ldbzegpmka, &
+#endif
                 Lalbisccp,Latb532,Lboxptopisccp,Lboxtauisccp,LcfadDbze94, &
                 LcfadLidarsr532,Lclcalipso2,Lclcalipso,Lclhcalipso,Lclisccp,Lcllcalipso, &
                 Lclmcalipso,Lcltcalipso,Lcltlidarradar,Lcltradar,Lcltradar2,Lpctisccp,Ldbze94,Ltauisccp,Lcltisccp, & !+JEK
                 Ltoffset,LparasolRefl,LclMISR,Lmeantbisccp,Lmeantbclrisccp, &
                 Lclcalipsoliq,Lclcalipsoice,Lclcalipsoun, &
                 Lclcalipsotmp,Lclcalipsotmpliq,Lclcalipsotmpice,Lclcalipsotmpun, &
-	              Lcltcalipsoliq,Lcltcalipsoice,Lcltcalipsoun, &
+                Lcltcalipsoliq,Lcltcalipsoice,Lcltcalipsoun, &
                 Lclhcalipsoliq,Lclhcalipsoice,Lclhcalipsoun, &
                 Lclmcalipsoliq,Lclmcalipsoice,Lclmcalipsoun, &
                 Lcllcalipsoliq,Lcllcalipsoice,Lcllcalipsoun, &
@@ -51,8 +57,7 @@ MODULE MOD_COSP_TYPES
                 Lcltmodis,Lclwmodis,Lclimodis,Lclhmodis,Lclmmodis,Lcllmodis,Ltautmodis,Ltauwmodis,Ltauimodis,Ltautlogmodis, &
                 Ltauwlogmodis,Ltauilogmodis,Lreffclwmodis,Lreffclimodis,Lpctmodis,Llwpmodis, &
                 Liwpmodis,Lclmodis
-
-     character(len=32) :: out_list(N_OUT_LIST)
+     character(len=32) :: out_list(N_OUT_LIST)  ! YLu: here may need to be changed for GPM
   END TYPE COSP_CONFIG
   
   ! Outputs from RTTOV
@@ -185,7 +190,41 @@ MODULE MOD_COSP_TYPES
     ! Arrays with dimensions (Npoints,Nlevels)
     real, dimension(:,:),pointer :: lidar_only_freq_cloud
   END TYPE COSP_RADARSTATS
+#if defined(GPM_KU) || defined(GPM_KA)
+  !! copied from COSP radar simulator for now for GPM radar simulator.
+  ! Output data from radar code
+  TYPE COSP_SGGPMDPR
+    ! Dimensions
+    integer :: Npoints   ! Number of gridpoints
+    integer :: Ncolumns  ! Number of columns
+    integer :: Nlevels   ! Number of levels
+    integer :: Nhydro    ! Number of hydrometeors
+    ! output vertical levels: spaceborne radar -> from TOA to SURFACE
+    ! Arrays with dimensions (Npoints,Nlevels)
+    real,dimension(:,:),pointer :: att_gas ! 2-way attenuation by gases [dBZ]
+    ! Arrays with dimensions (Npoints,Ncolumns,Nlevels)
+    real,dimension(:,:,:),pointer :: Ze_tot ! Effective reflectivity factor [dBZ]
+ 
+  END TYPE COSP_SGGPMDPR
 
+  
+  ! Summary statistics from radar
+  TYPE COSP_GPMDPRSTATS
+    integer :: Npoints  ! Number of sampled points
+    integer :: Ncolumns ! Number of subgrid columns
+    integer :: Nlevels  ! Number of model levels
+    integer :: Nhydro   ! Number of hydrometeors
+    ! Array with dimensions (Npoints,dBZe_bins,Nlevels)
+    real, dimension(:,:,:), pointer :: cfad_ze ! Ze CFAD
+    ! Array with dimensions (Npoints)
+    !! YLu: radar_lidar_tcc, radar_tcc, radar_tcc_2, and lidar_only_freq_cloud are not relative to GPM radar simulator. commented out
+    !real,dimension(:),pointer :: radar_lidar_tcc ! Radar&lidar total cloud amount, grid-box scale  
+    !real,dimension(:),pointer :: radar_tcc !Radar total cloud amount !+JEK
+    !real,dimension(:),pointer :: radar_tcc_2 !Radar total cloud amount without the data for the first kilometer above surface !+JEK
+    ! Arrays with dimensions (Npoints,Nlevels)
+    !real, dimension(:,:),pointer :: lidar_only_freq_cloud
+  END TYPE COSP_GPMDPRSTATS
+#endif
   ! Summary statistics from lidar
   TYPE COSP_LIDARSTATS
     integer :: Npoints  ! Number of sampled points
@@ -274,9 +313,35 @@ MODULE MOD_COSP_TYPES
            use_gas_abs, & ! include gaseous absorption? yes=1,no=0
            do_ray, & ! calculate/output Rayleigh refl=1, not=0
            melt_lay ! melting layer model off=0, on=1
- 
+#ifdef GPM_KU
+    ! GPM Ku band Radar ancillary info
+    real :: gpmku_radar_freq, & ! Radar frequency [GHz]
+            gpmku_k2 ! |K|^2, -1=use frequency dependent default
+    integer :: gpmku_surface_radar, & ! surface=1, spaceborne=0
+           gpmku_use_mie_tables, & ! use a precomputed loopup table? yes=1,no=0
+           gpmku_use_gas_abs, & ! include gaseous absorption? yes=1,no=0
+           gpmku_do_ray, & ! calculate/output Rayleigh refl=1, not=0
+           gpmku_melt_lay ! melting layer model off=0, on=1
+#endif
+#ifdef GPM_KA
+    ! GPM Ka band Radar ancillary info
+    real :: gpmka_radar_freq, & ! Radar frequency [GHz]
+            gpmka_k2 ! |K|^2, -1=use frequency dependent default
+    integer :: gpmka_surface_radar, & ! surface=1, spaceborne=0
+           gpmka_use_mie_tables, & ! use a precomputed loopup table? yes=1,no=0
+           gpmka_use_gas_abs, & ! include gaseous absorption? yes=1,no=0
+           gpmka_do_ray, & ! calculate/output Rayleigh refl=1, not=0
+           gpmka_melt_lay ! melting layer model off=0, on=1
+#endif
+           
     ! structures used by radar simulator that need to be set only ONCE per radar configuration (e.g. freq, pointing direction) ... added by roj Feb 2008
     type(class_param) ::  hp    ! structure used by radar simulator to store Ze and N scaling constants and other information
+#ifdef GPM_KU
+    type(class_param) ::  hp_gpmku    ! structure used by radar simulator to store Ze and N scaling constants and other information
+#endif
+#ifdef GPM_KA
+    type(class_param) ::  hp_gpmka    ! structure used by radar simulator to store Ze and N scaling constants and other information
+#endif
     integer :: nsizes       ! number of discrete drop sizes (um) used to represent the distribution
     
     ! Lidar
@@ -771,6 +836,133 @@ CONTAINS
               ,x%radar_tcc,x%radar_tcc_2) !+JEK
   END SUBROUTINE FREE_COSP_RADARSTATS
 
+#if defined(GPM_KU) || defined(GPM_KA)
+
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+!------------- SUBROUTINE CONSTRUCT_COSP_SGGPMDPR ------------------
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  SUBROUTINE CONSTRUCT_COSP_SGGPMDPR(cfg,Npoints,Ncolumns,Nlevels,Nhydro,idx,x)
+    type(cosp_config),intent(in) :: cfg ! Configuration options
+    integer,intent(in) :: Npoints  ! Number of sampled points
+    integer,intent(in) :: Ncolumns ! Number of subgrid columns
+    integer,intent(in) :: Nlevels  ! Number of model levels
+    integer,intent(in) :: Nhydro   ! Number of hydrometeors
+    integer,intent(in) :: idx      ! Which GPM radar channel. 1=Ku, 2=Ka
+    type(cosp_sggpmdpr),intent(out) :: x
+    ! Local variables
+    integer :: i,j,k,l
+#if defined(GPM_KU) && defined(GPM_KA)
+    if (  ( (idx==1) .AND. cfg%Lgpmku_sim) .OR. ( (idx==2) .AND. cfg%Lgpmka_sim)) then
+#elif defined(GPM_KU)
+    if (  ( (idx==1) .AND. cfg%Lgpmku_sim) ) then
+#elif defined(GPM_KA)
+    if (  ( (idx==2) .AND. cfg%Lgpmka_sim) ) then
+#endif
+      i = Npoints
+      j = Ncolumns
+      k = Nlevels
+      l = Nhydro
+    else ! Allocate minumum storage if simulator not used
+      i = 1
+      j = 1
+      k = 1
+      l = 1
+    endif
+    
+    ! Dimensions
+    x%Npoints  = i
+    x%Ncolumns = j
+    x%Nlevels  = k
+    x%Nhydro   = l
+    
+    ! --- Allocate arrays ---
+    allocate(x%att_gas(i,k), x%Ze_tot(i,j,k))
+    ! --- Initialise to zero ---
+    x%att_gas   = 0.0
+    x%Ze_tot    = 0.0
+    ! The following line give a compilation error on the Met Office NEC
+!     call zero_real(x%Z_hydro, x%att_hydro)
+!     f90: error(666): cosp_types.f90, line nnn:
+!                                        Actual argument corresponding to dummy
+!                                        argument of ELEMENTAL subroutine
+!                                        "zero_real" with INTENET(OUT) attribute
+!                                        is not array.
+  END SUBROUTINE CONSTRUCT_COSP_SGGPMDPR
+
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+!------------------ SUBROUTINE FREE_COSP_SGGPMDPR ----------------
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  SUBROUTINE FREE_COSP_SGGPMDPR(x)
+    type(cosp_sggpmdpr),intent(inout) :: x
+
+    deallocate(x%att_gas, x%Ze_tot)
+  END SUBROUTINE FREE_COSP_SGGPMDPR
+
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+!----------- SUBROUTINE CONSTRUCT_COSP_GPMDPRSTATS ---------------
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  SUBROUTINE CONSTRUCT_COSP_GPMDPRSTATS(cfg,Npoints,Ncolumns,Nlevels,Nhydro,idx,x)
+    type(cosp_config),intent(in) :: cfg ! Configuration options
+    integer,intent(in) :: Npoints  ! Number of sampled points
+    integer,intent(in) :: Ncolumns ! Number of subgrid columns
+    integer,intent(in) :: Nlevels  ! Number of model levels
+    integer,intent(in) :: Nhydro   ! Number of hydrometeors
+    integer,intent(in) :: idx      ! Which GPM radar channel. 1=Ku, 2=Ka
+    type(cosp_gpmdprstats),intent(out) :: x    
+    ! Local variables
+    integer :: i,j,k,l
+    
+    ! Allocate minumum storage if simulator not used
+#if defined(GPM_KU) && defined(GPM_KA)
+    if (  ( (idx==1) .AND. cfg%Lgpmku_sim) .OR. ( (idx==2) .AND. cfg%Lgpmka_sim)) then
+#elif defined(GPM_KU)
+    if (  ( (idx==1) .AND. cfg%Lgpmku_sim) ) then
+#elif defined(GPM_KA)
+    if (  ( (idx==2) .AND. cfg%Lgpmka_sim) ) then
+#endif
+      i = Npoints
+      j = Ncolumns
+      k = Nlevels
+      l = Nhydro
+    else
+      i = 1
+      j = 1
+      k = 1
+      l = 1
+    endif
+    
+    ! Dimensions
+    x%Npoints  = i
+    x%Ncolumns = j
+    x%Nlevels  = k
+    x%Nhydro   = l
+    
+    ! --- Allocate arrays ---
+    
+    allocate(x%cfad_ze(i,DBZE_BINS,k))
+    !allocate(x%cfad_ze(i,DBZE_BINS,k),x%lidar_only_freq_cloud(i,k))
+    !allocate(x%radar_lidar_tcc(i),x%radar_tcc(i),x%radar_tcc_2(i)) !+JEK
+    ! --- Initialise to zero ---
+    x%cfad_ze = 0.0
+    !x%lidar_only_freq_cloud = 0.0
+    !x%radar_lidar_tcc = 0.0
+    !x%radar_tcc = 0.0   !+JEK
+    !x%radar_tcc_2 = 0.0 !+JEK
+  END SUBROUTINE CONSTRUCT_COSP_GPMDPRSTATS
+
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+!------------------ SUBROUTINE FREE_COSP_GPMDPRSTATS -------------
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  SUBROUTINE FREE_COSP_GPMDPRSTATS(x)
+    type(cosp_gpmdprstats),intent(inout) :: x
+
+    !deallocate(x%cfad_ze,x%lidar_only_freq_cloud,x%radar_lidar_tcc &
+    !          ,x%radar_tcc,x%radar_tcc_2) !+JEK
+    deallocate(x%cfad_ze)
+  END SUBROUTINE FREE_COSP_GPMDPRSTATS
+
+#endif
+
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 !----------- SUBROUTINE CONSTRUCT_COSP_LIDARSTATS ---------------
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -923,6 +1115,12 @@ CONTAINS
 !------------- SUBROUTINE CONSTRUCT_COSP_GRIDBOX ------------------
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   SUBROUTINE CONSTRUCT_COSP_GRIDBOX(time,time_bnds,radar_freq,surface_radar,use_mie_tables,use_gas_abs,do_ray,melt_lay,k2, &
+#ifdef GPM_KU
+                                   gpmku_radar_freq,gpmku_surface_radar,gpmku_use_mie_tables,gpmku_use_gas_abs,gpmku_do_ray,gpmku_melt_lay,gpmku_k2,&
+#endif
+#ifdef GPM_KA
+                                   gpmka_radar_freq,gpmka_surface_radar,gpmka_use_mie_tables,gpmka_use_gas_abs,gpmka_do_ray,gpmka_melt_lay,gpmka_k2,&
+#endif
                                    Npoints,Nlevels,Ncolumns,Nhydro,Nprmts_max_hydro,Naero,Nprmts_max_aero,Npoints_it, &
                                    lidar_ice_type,isccp_top_height,isccp_top_height_direction,isccp_overlap,isccp_emsfc_lw, &
                                    use_precipitation_fluxes,use_reff, &
@@ -942,6 +1140,31 @@ CONTAINS
         use_gas_abs, &    ! include gaseous absorption? yes=1,no=0
         do_ray, &         ! calculate/output Rayleigh refl=1, not=0
         melt_lay          ! melting layer model off=0, on=1
+
+
+#ifdef GPM_KU
+    real,intent(in)    :: gpmku_radar_freq, & ! Radar frequency [GHz]
+                          gpmku_k2            ! |K|^2, -1=use frequency dependent default
+    integer,intent(in) :: &
+        gpmku_surface_radar, &  ! surface=1,spaceborne=0
+        gpmku_use_mie_tables, & ! use a precomputed lookup table? yes=1,no=0,2=use first column everywhere
+        gpmku_use_gas_abs, &    ! include gaseous absorption? yes=1,no=0
+        gpmku_do_ray, &         ! calculate/output Rayleigh refl=1, not=0
+        gpmku_melt_lay          ! melting layer model off=0, on=1
+#endif
+#ifdef GPM_KA
+    real,intent(in)    :: gpmka_radar_freq, & ! Radar frequency [GHz]
+                          gpmka_k2            ! |K|^2, -1=use frequency dependent default
+    integer,intent(in) :: &
+        gpmka_surface_radar, &  ! surface=1,spaceborne=0
+        gpmka_use_mie_tables, & ! use a precomputed lookup table? yes=1,no=0,2=use first column everywhere
+        gpmka_use_gas_abs, &    ! include gaseous absorption? yes=1,no=0
+        gpmka_do_ray, &         ! calculate/output Rayleigh refl=1, not=0
+        gpmka_melt_lay          ! melting layer model off=0, on=1
+#endif
+
+
+
     integer,intent(in) :: Npoints   ! Number of gridpoints
     integer,intent(in) :: Nlevels   ! Number of levels
     integer,intent(in) :: Ncolumns  ! Number of columns
@@ -986,6 +1209,25 @@ CONTAINS
     y%do_ray           = do_ray
     y%melt_lay         = melt_lay
     y%k2               = k2
+#ifdef GPM_KU 
+    y%gpmku_radar_freq       = gpmku_radar_freq
+    y%gpmku_surface_radar    = gpmku_surface_radar
+    y%gpmku_use_mie_tables   = gpmku_use_mie_tables
+    y%gpmku_use_gas_abs      = gpmku_use_gas_abs
+    y%gpmku_do_ray           = gpmku_do_ray
+    y%gpmku_melt_lay         = gpmku_melt_lay
+    y%gpmku_k2               = gpmku_k2
+#endif    
+#ifdef GPM_KA 
+    y%gpmka_radar_freq       = gpmka_radar_freq
+    y%gpmka_surface_radar    = gpmka_surface_radar
+    y%gpmka_use_mie_tables   = gpmka_use_mie_tables
+    y%gpmka_use_gas_abs      = gpmka_use_gas_abs
+    y%gpmka_do_ray           = gpmka_do_ray
+    y%gpmka_melt_lay         = gpmka_melt_lay
+    y%gpmka_k2               = gpmka_k2
+#endif    
+    
     y%Npoints          = Npoints
     y%Nlevels          = Nlevels
     y%Ncolumns         = Ncolumns
@@ -1132,6 +1374,34 @@ CONTAINS
                       LUT_file_name, &
                       y%hp)
 
+#ifdef GPM_KU
+    call radar_simulator_init(gpmku_radar_freq,gpmku_k2, &
+                      gpmku_use_gas_abs,gpmku_do_ray,R_UNDEF, &
+                      y%Nhydro, &
+                      HCLASS_TYPE,HCLASS_PHASE, &
+                      HCLASS_DMIN,HCLASS_DMAX, &
+                      HCLASS_APM,HCLASS_BPM,HCLASS_RHO, &
+                      HCLASS_P1,HCLASS_P2,HCLASS_P3, &
+                      local_load_LUT,    &
+                      .false., &
+                      LUT_file_name, &
+                      y%hp_gpmku)
+
+#endif
+#ifdef GPM_KA
+    call radar_simulator_init(gpmka_radar_freq,gpmka_k2, &
+                      gpmka_use_gas_abs,gpmka_do_ray,R_UNDEF, &
+                      y%Nhydro, &
+                      HCLASS_TYPE,HCLASS_PHASE, &
+                      HCLASS_DMIN,HCLASS_DMAX, &
+                      HCLASS_APM,HCLASS_BPM,HCLASS_RHO, &
+                      HCLASS_P1,HCLASS_P2,HCLASS_P3, &
+                      local_load_LUT,    &
+                      .false., &
+                      LUT_file_name, &
+                      y%hp_gpmka)
+
+#endif
 END SUBROUTINE CONSTRUCT_COSP_GRIDBOX
 
 
@@ -1296,6 +1566,25 @@ SUBROUTINE COSP_SGRADAR_CPSECTION(ix,iy,x,y)
     y%Ze_tot(iy(1):iy(2),:,:) = x%Ze_tot(ix(1):ix(2),:,:)
 END SUBROUTINE COSP_SGRADAR_CPSECTION
 
+
+
+#if defined(GPM_KU) || defined(GPM_KA)
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+!------------- SUBROUTINE COSP_SGGPMDPR_CPSECTION -----------------
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+SUBROUTINE COSP_SGGPMDPR_CPSECTION(ix,iy,x,y)
+    integer,intent(in),dimension(2) :: ix,iy
+    type(cosp_sggpmdpr),intent(in) :: x
+    type(cosp_sggpmdpr),intent(inout) :: y
+    
+    y%att_gas(iy(1):iy(2),:)  = x%att_gas(ix(1):ix(2),:)
+    y%Ze_tot(iy(1):iy(2),:,:) = x%Ze_tot(ix(1):ix(2),:,:)
+END SUBROUTINE COSP_SGGPMDPR_CPSECTION
+#endif
+
+
+
+
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 !------------- SUBROUTINE COSP_SGLIDAR_CPSECTION -----------------
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1371,6 +1660,27 @@ SUBROUTINE COSP_RADARSTATS_CPSECTION(ix,iy,x,y)
     y%radar_tcc_2(iy(1):iy(2))         = x%radar_tcc_2(ix(1):ix(2)) !+JEK
     y%lidar_only_freq_cloud(iy(1):iy(2),:) = x%lidar_only_freq_cloud(ix(1):ix(2),:)
 END SUBROUTINE COSP_RADARSTATS_CPSECTION
+
+#if defined(GPM_KU) || defined(GPM_KA)
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+!------------- SUBROUTINE COSP_GPMDPRSTATS_CPSECTION --------------
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+SUBROUTINE COSP_GPMDPRSTATS_CPSECTION(ix,iy,x,y)
+    integer,intent(in),dimension(2) :: ix,iy
+    type(cosp_gpmdprstats),intent(in) :: x
+    type(cosp_gpmdprstats),intent(inout) :: y
+            
+    y%cfad_ze(iy(1):iy(2),:,:)             = x%cfad_ze(ix(1):ix(2),:,:)
+    !y%radar_lidar_tcc(iy(1):iy(2))         = x%radar_lidar_tcc(ix(1):ix(2))
+    !y%radar_tcc(iy(1):iy(2))         = x%radar_tcc(ix(1):ix(2))     !+JEK
+    !y%radar_tcc_2(iy(1):iy(2))         = x%radar_tcc_2(ix(1):ix(2)) !+JEK
+    !y%lidar_only_freq_cloud(iy(1):iy(2),:) = x%lidar_only_freq_cloud(ix(1):ix(2),:)
+END SUBROUTINE COSP_GPMDPRSTATS_CPSECTION
+#endif
+
+
+
+
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 !------------- SUBROUTINE COSP_LIDARSTATS_CPSECTION --------------
@@ -1595,6 +1905,24 @@ SUBROUTINE COSP_SGRADAR_PRINT(x)
     print *, 'shape(x%Ze_tot): ', shape(x%Ze_tot)
 END SUBROUTINE COSP_SGRADAR_PRINT
 
+#if defined(GPM_KU) || defined(GPM_KA)
+SUBROUTINE COSP_SGGPMDPR_PRINT(x)
+    type(cosp_sggpmdpr),intent(in) :: x
+            
+    print *, '%%%%----- Information on COSP_SGGPMDPR ------'
+    print *, x%Npoints
+    print *, x%Ncolumns
+    print *, x%Nlevels
+    print *, x%Nhydro
+    ! output vertical levels: spaceborne radar -> from TOA to SURFACE
+    ! Arrays with dimensions (Npoints,Nlevels)
+    print *, 'shape(x%att_gas): ', shape(x%att_gas)
+    ! Arrays with dimensions (Npoints,Ncolumns,Nlevels)
+    print *, 'shape(x%Ze_tot): ', shape(x%Ze_tot)
+END SUBROUTINE COSP_SGGPMDPR_PRINT
+#endif
+
+
 SUBROUTINE COSP_RADARSTATS_PRINT(x)
     type(cosp_radarstats),intent(in) :: x
             
@@ -1609,6 +1937,27 @@ SUBROUTINE COSP_RADARSTATS_PRINT(x)
     print *, 'shape(x%radar_tcc_2): ',shape(x%radar_tcc_2) !+JEK
     print *, 'shape(x%lidar_only_freq_cloud): ',shape(x%lidar_only_freq_cloud)
 END SUBROUTINE COSP_RADARSTATS_PRINT
+
+
+#if defined(GPM_KU) || defined(GPM_KA)
+SUBROUTINE COSP_GPMDPRSTATS_PRINT(x)
+    type(cosp_gpmdprstats),intent(in) :: x
+            
+    print *, '%%%%----- Information on COSP_SGRADAR ------'
+    print *, x%Npoints
+    print *, x%Ncolumns
+    print *, x%Nlevels
+    print *, x%Nhydro
+    print *, 'shape(x%cfad_ze): ',shape(x%cfad_ze)
+    !print *, 'shape(x%radar_lidar_tcc): ',shape(x%radar_lidar_tcc)
+    !print *, 'shape(x%radar_tcc): ',shape(x%radar_tcc)     !+JEK
+    !print *, 'shape(x%radar_tcc_2): ',shape(x%radar_tcc_2) !+JEK
+    !print *, 'shape(x%lidar_only_freq_cloud): ',shape(x%lidar_only_freq_cloud)
+END SUBROUTINE COSP_GPMDPRSTATS_PRINT
+#endif
+
+
+
 
 SUBROUTINE COSP_LIDARSTATS_PRINT(x)
     type(cosp_lidarstats),intent(in) :: x

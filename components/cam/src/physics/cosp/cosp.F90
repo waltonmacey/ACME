@@ -21,7 +21,7 @@
 ! DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER 
 ! IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
 ! OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
+#include "cosp_gpm_debugflag.F90"
 #include "cosp_defs.h"
 MODULE MOD_COSP
   USE MOD_COSP_TYPES
@@ -36,9 +36,24 @@ CONTAINS
 !--------------------- SUBROUTINE COSP ---------------------------
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 #ifdef RTTOV
-SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,rttov,stradar,stlidar)
+SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,rttov,stradar,stlidar &
+#ifdef GPM_KU
+               ,sggpmku,stgpmku &
+#endif
+#ifdef GPM_KA
+               ,sggpmka,stgpmka &
+#endif
+               )
+
 #else
-SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,stradar,stlidar)
+SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,stradar,stlidar &
+#ifdef GPM_KU
+               ,sggpmku,stgpmku &
+#endif
+#ifdef GPM_KA
+               ,sggpmka,stgpmka &
+#endif
+               )
 #endif
   ! Arguments
   integer,intent(in) :: overlap !  overlap type in SCOPS: 1=max, 2=rand, 3=max/rand
@@ -57,7 +72,15 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
 #endif
   type(cosp_radarstats),intent(inout) :: stradar ! Summary statistics from radar simulator
   type(cosp_lidarstats),intent(inout) :: stlidar ! Summary statistics from lidar simulator
-
+#ifdef GPM_KU
+  type(cosp_sggpmdpr),    intent(inout) :: sggpmku
+  type(cosp_gpmdprstats), intent(inout) :: stgpmku
+#endif
+#ifdef GPM_KA
+  type(cosp_sggpmdpr),    intent(inout) :: sggpmka
+  type(cosp_gpmdprstats), intent(inout) :: stgpmka
+#endif
+  
   ! Local variables 
   integer :: Npoints   ! Number of gridpoints
   integer :: Nlevels   ! Number of levels
@@ -87,7 +110,14 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
 #endif
   type(cosp_radarstats) :: stradar_it
   type(cosp_lidarstats) :: stlidar_it
-
+#ifdef GPM_KU
+  type(cosp_sggpmdpr)    :: sggpmku_it
+  type(cosp_gpmdprstats) :: stgpmku_it
+#endif
+#ifdef GPM_KA
+  type(cosp_sggpmdpr)    :: sggpmka_it
+  type(cosp_gpmdprstats) :: stgpmka_it
+#endif
 !++++++++++ Dimensions ++++++++++++
   Npoints  = gbx%Npoints
   Nlevels  = gbx%Nlevels
@@ -189,9 +219,23 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
    if (gbx%Npoints_it >= gbx%Npoints) then ! One iteration gbx%Npoints
 
 #ifdef RTTOV
-        call cosp_iter(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,rttov,stradar,stlidar)
+        call cosp_iter(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,rttov,stradar,stlidar &
+#ifdef GPM_KU
+               ,sggpmku,stgpmku &
+#endif
+#ifdef GPM_KA
+               ,sggpmka,stgpmka &
+#endif
+        )
 #else
-        call cosp_iter(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,stradar,stlidar)
+        call cosp_iter(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,stradar,stlidar &
+#ifdef GPM_KU
+               ,sggpmku,stgpmku &
+#endif
+#ifdef GPM_KA
+               ,sggpmka,stgpmka &
+#endif
+        )
 #endif
    else ! Several iterations to save memory
         Niter = gbx%Npoints/gbx%Npoints_it ! Integer division
@@ -203,8 +247,18 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
             Ni = i_last - i_first + 1
             if (i == 1) then
                 ! Allocate types for all but last iteration
-                call construct_cosp_gridbox(gbx%time,gbx%time_bnds,gbx%radar_freq,gbx%surface_radar,gbx%use_mie_tables, &
-                                            gbx%use_gas_abs,gbx%do_ray,gbx%melt_lay,gbx%k2,Ni,Nlevels, &
+                call construct_cosp_gridbox(gbx%time,gbx%time_bnds,&
+                                            gbx%radar_freq,gbx%surface_radar,gbx%use_mie_tables, &
+                                            gbx%use_gas_abs,gbx%do_ray,gbx%melt_lay,gbx%k2,&
+#ifdef GPM_KU
+                                            gbx%gpmku_radar_freq,gbx%gpmku_surface_radar,gbx%gpmku_use_mie_tables, &
+                                            gbx%gpmku_use_gas_abs,gbx%gpmku_do_ray,gbx%gpmku_melt_lay,gbx%gpmku_k2,&
+#endif
+#ifdef GPM_KA
+                                            gbx%gpmka_radar_freq,gbx%gpmka_surface_radar,gbx%gpmka_use_mie_tables, &
+                                            gbx%gpmka_use_gas_abs,gbx%gpmka_do_ray,gbx%gpmka_melt_lay,gbx%gpmka_k2,&
+#endif
+                                            Ni,Nlevels, &
                                             Ncolumns,N_HYDRO,gbx%Nprmts_max_hydro, &
                                             gbx%Naero,gbx%Nprmts_max_aero,Ni,gbx%lidar_ice_type,gbx%isccp_top_height, &
                                             gbx%isccp_top_height_direction,gbx%isccp_overlap,gbx%isccp_emsfc_lw, &
@@ -225,6 +279,15 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
 #endif
                 call construct_cosp_radarstats(cfg,Ni,Ncolumns,vgrid%Nlvgrid,N_HYDRO,stradar_it)
                 call construct_cosp_lidarstats(cfg,Ni,Ncolumns,vgrid%Nlvgrid,N_HYDRO,PARASOL_NREFL,stlidar_it)
+#ifdef GPM_KU
+                call construct_cosp_sggpmdpr(cfg,Ni,Ncolumns,Nlevels,N_HYDRO,1,sggpmku_it)
+                call construct_cosp_gpmdprstats(cfg,Ni,Ncolumns,vgrid%Nlvgrid,N_HYDRO,1,stgpmku_it)
+#endif
+#ifdef GPM_KA
+                call construct_cosp_sggpmdpr(cfg,Ni,Ncolumns,Nlevels,N_HYDRO,2,sggpmka_it)
+                call construct_cosp_gpmdprstats(cfg,Ni,Ncolumns,vgrid%Nlvgrid,N_HYDRO,2,stgpmka_it)
+#endif
+    
             elseif (i == Niter) then ! last iteration
                 call free_cosp_gridbox(gbx_it,.true.)
                 call free_cosp_subgrid(sgx_it)
@@ -239,9 +302,27 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
 #endif
                 call free_cosp_radarstats(stradar_it)
                 call free_cosp_lidarstats(stlidar_it)
+#ifdef GPM_KU
+                call free_cosp_sggpmdpr(sggpmku_it)
+                call free_cosp_gpmdprstats(stgpmku_it)
+#endif
+#ifdef GPM_KA
+                call free_cosp_sggpmdpr(sggpmka_it)
+                call free_cosp_gpmdprstats(stgpmka_it)
+#endif
                 ! Allocate types for iterations
-                call construct_cosp_gridbox(gbx%time,gbx%time_bnds,gbx%radar_freq,gbx%surface_radar,gbx%use_mie_tables, &
-                                            gbx%use_gas_abs,gbx%do_ray,gbx%melt_lay,gbx%k2,Ni,Nlevels, &
+                call construct_cosp_gridbox(gbx%time,gbx%time_bnds,&
+                                            gbx%radar_freq,gbx%surface_radar,gbx%use_mie_tables, &
+                                            gbx%use_gas_abs,gbx%do_ray,gbx%melt_lay,gbx%k2,&
+#ifdef GPM_KU
+                                            gbx%gpmku_radar_freq,gbx%gpmku_surface_radar,gbx%gpmku_use_mie_tables, &
+                                            gbx%gpmku_use_gas_abs,gbx%gpmku_do_ray,gbx%gpmku_melt_lay,gbx%gpmku_k2,&
+#endif
+#ifdef GPM_KA
+                                            gbx%gpmka_radar_freq,gbx%gpmka_surface_radar,gbx%gpmka_use_mie_tables, &
+                                            gbx%gpmka_use_gas_abs,gbx%gpmka_do_ray,gbx%gpmka_melt_lay,gbx%gpmka_k2,&
+#endif
+                                            Ni,Nlevels, &
                                             Ncolumns,N_HYDRO,gbx%Nprmts_max_hydro, &
                                             gbx%Naero,gbx%Nprmts_max_aero,Ni,gbx%lidar_ice_type,gbx%isccp_top_height, &
                                             gbx%isccp_top_height_direction,gbx%isccp_overlap,gbx%isccp_emsfc_lw, &
@@ -265,6 +346,14 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
 #endif 
                 call construct_cosp_radarstats(cfg,Ni,Ncolumns,vgrid%Nlvgrid,N_HYDRO,stradar_it)
                 call construct_cosp_lidarstats(cfg,Ni,Ncolumns,vgrid%Nlvgrid,N_HYDRO,PARASOL_NREFL,stlidar_it)
+#ifdef GPM_KU
+                call construct_cosp_sggpmdpr(cfg,Ni,Ncolumns,Nlevels,N_HYDRO,1,sggpmku_it)
+                call construct_cosp_gpmdprstats(cfg,Ni,Ncolumns,vgrid%Nlvgrid,N_HYDRO,1,stgpmku_it)
+#endif
+#ifdef GPM_KA
+                call construct_cosp_sggpmdpr(cfg,Ni,Ncolumns,Nlevels,N_HYDRO,2,sggpmka_it)
+                call construct_cosp_gpmdprstats(cfg,Ni,Ncolumns,vgrid%Nlvgrid,N_HYDRO,2,stgpmka_it)
+#endif
             endif
             ! --- Copy sections of arrays with Npoints as dimension ---
             ix=(/i_first,i_last/)
@@ -282,12 +371,34 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
 #endif
             if (cfg%Lradar_sim) call cosp_radarstats_cpsection(ix,iy,stradar,stradar_it)
             if (cfg%Llidar_sim) call cosp_lidarstats_cpsection(ix,iy,stlidar,stlidar_it)
+#ifdef GPM_KU
+            if (cfg%Lgpmku_sim) call cosp_sggpmdpr_cpsection(ix,iy,sggpmku,sggpmku_it)
+            if (cfg%Lgpmku_sim) call cosp_gpmdprstats_cpsection(ix,iy,stgpmku,stgpmku_it)
+#endif
+#ifdef GPM_KA
+            if (cfg%Lgpmka_sim) call cosp_sggpmdpr_cpsection(ix,iy,sggpmka,sggpmka_it)
+            if (cfg%Lgpmka_sim) call cosp_gpmdprstats_cpsection(ix,iy,stgpmka,stgpmka_it)
+#endif
 #ifdef RTTOV
-            call cosp_iter(overlap,seed(ix(1):ix(2)),cfg,vgrid_it,gbx_it,sgx_it,sgradar_it, &
-                           sglidar_it,isccp_it,misr_it,modis_it,rttov_it,stradar_it,stlidar_it)
+               call cosp_iter(overlap,seed(ix(1):ix(2)),cfg,vgrid_it,gbx_it,sgx_it,sgradar_it, &
+                           sglidar_it,isccp_it,misr_it,modis_it,rttov_it,stradar_it,stlidar_it &
+#ifdef GPM_KU
+                           ,sggpmku_it, stgpmku_it&
+#endif
+#ifdef GPM_KA
+                           ,sggpmka_it, stgpmka_it&
+#endif
+                           )
 #else
             call cosp_iter(overlap,seed(ix(1):ix(2)),cfg,vgrid_it,gbx_it,sgx_it,sgradar_it, &
-                           sglidar_it,isccp_it,misr_it,modis_it,stradar_it,stlidar_it)
+                           sglidar_it,isccp_it,misr_it,modis_it,stradar_it,stlidar_it &
+#ifdef GPM_KU
+                           ,sggpmku_it, stgpmku_it&
+#endif
+#ifdef GPM_KA
+                           ,sggpmka_it, stgpmka_it&
+#endif
+                           )
 #endif
             ! --- Copy results to output structures ---
             ix=(/1,Ni/)
@@ -303,6 +414,14 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
 #endif 
             if (cfg%Lradar_sim) call cosp_radarstats_cpsection(ix,iy,stradar_it,stradar)
             if (cfg%Llidar_sim) call cosp_lidarstats_cpsection(ix,iy,stlidar_it,stlidar)
+#ifdef GPM_KU
+            if (cfg%Lgpmku_sim) call cosp_sggpmdpr_cpsection(ix,iy,sggpmku_it,sggpmku)
+            if (cfg%Lgpmku_sim) call cosp_gpmdprstats_cpsection(ix,iy,stgpmku_it,stgpmku)
+#endif
+#ifdef GPM_KA
+            if (cfg%Lgpmka_sim) call cosp_sggpmdpr_cpsection(ix,iy,sggpmka_it,sggpmka)
+            if (cfg%Lgpmka_sim) call cosp_gpmdprstats_cpsection(ix,iy,stgpmka_it,stgpmka)
+#endif
         enddo
         ! Deallocate types
         call free_cosp_gridbox(gbx_it,.true.)
@@ -318,6 +437,14 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
 #endif
         call free_cosp_radarstats(stradar_it)
         call free_cosp_lidarstats(stlidar_it)
+#ifdef GPM_KU
+        call free_cosp_sggpmdpr(sggpmku_it)
+        call free_cosp_gpmdprstats(stgpmku_it)
+#endif
+#ifdef GPM_KA
+        call free_cosp_sggpmdpr(sggpmka_it)
+        call free_cosp_gpmdprstats(stgpmka_it)
+#endif
    endif
    deallocate(seed)
 
@@ -328,9 +455,23 @@ END SUBROUTINE COSP
 !--------------------- SUBROUTINE COSP_ITER ----------------------
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 #ifdef RTTOV
-SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,rttov,stradar,stlidar)
+SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,rttov,stradar,stlidar &
+#ifdef GPM_KU
+               ,sggpmku,stgpmku &
+#endif
+#ifdef GPM_KA
+               ,sggpmka,stgpmka &
+#endif
+                     )
 #else
-SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,stradar,stlidar)
+SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,stradar,stlidar &
+#ifdef GPM_KU
+               ,sggpmku,stgpmku &
+#endif
+#ifdef GPM_KA
+               ,sggpmka,stgpmka &
+#endif
+                     )
 #endif
   ! Arguments
   integer,intent(in) :: overlap !  overlap type in SCOPS: 1=max, 2=rand, 3=max/rand
@@ -349,6 +490,14 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
 #endif
   type(cosp_radarstats),intent(inout) :: stradar ! Summary statistics from radar simulator
   type(cosp_lidarstats),intent(inout) :: stlidar ! Summary statistics from lidar simulator
+#ifdef GPM_KU
+  type(cosp_sggpmdpr),    intent(inout) :: sggpmku
+  type(cosp_gpmdprstats), intent(inout) :: stgpmku
+#endif
+#ifdef GPM_KA
+  type(cosp_sggpmdpr),    intent(inout) :: sggpmka
+  type(cosp_gpmdprstats), intent(inout) :: stgpmka
+#endif
 
   ! Local variables 
   integer :: Npoints   ! Number of gridpoints
@@ -610,9 +759,23 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
   
    !++++++++++ Simulator ++++++++++
 #ifdef RTTOV
-    call cosp_simulator(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,modis,rttov,stradar,stlidar)
+    call cosp_simulator(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,modis,rttov,stradar,stlidar &
+#ifdef GPM_KU
+               ,sggpmku,stgpmku &
+#endif
+#ifdef GPM_KA
+               ,sggpmka,stgpmka &
+#endif
+                        )
 #else
-    call cosp_simulator(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,modis,stradar,stlidar)
+    call cosp_simulator(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,modis,stradar,stlidar &
+#ifdef GPM_KU
+               ,sggpmku,stgpmku &
+#endif
+#ifdef GPM_KA
+               ,sggpmka,stgpmka &
+#endif
+    )
 #endif
 
     ! Deallocate subgrid arrays

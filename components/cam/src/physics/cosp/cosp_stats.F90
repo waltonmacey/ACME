@@ -35,6 +35,7 @@
 !                             - Added phase 3D/3Dtemperature/Map output variables in diag_lidar 
 !
 !
+#include "cosp_gpm_debugflag.F90"
 #include "cosp_defs.h" 
 MODULE MOD_COSP_STATS
   USE MOD_COSP_CONSTANTS
@@ -48,7 +49,14 @@ CONTAINS
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 !------------------- SUBROUTINE COSP_STATS ------------------------
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-SUBROUTINE COSP_STATS(gbx,sgx,cfg,sgradar,sglidar,vgrid,stradar,stlidar)
+SUBROUTINE COSP_STATS(gbx,sgx,cfg,sgradar,sglidar,vgrid,stradar,stlidar  &
+#ifdef GPM_KU
+                     ,sggpmku,stgpmku &
+#endif
+#ifdef GPM_KA
+                     ,sggpmka,stgpmka &
+#endif
+                     )
 
    ! Input arguments
    type(cosp_gridbox),intent(in) :: gbx
@@ -60,6 +68,14 @@ SUBROUTINE COSP_STATS(gbx,sgx,cfg,sgradar,sglidar,vgrid,stradar,stlidar)
    ! Output arguments
    type(cosp_radarstats),intent(inout) :: stradar ! Summary statistics for radar
    type(cosp_lidarstats),intent(inout) :: stlidar ! Summary statistics for lidar
+#ifdef GPM_KU
+   type(cosp_sggpmdpr),   intent(inout) :: sggpmku
+   type(cosp_gpmdprstats),intent(inout) :: stgpmku
+#endif
+#ifdef GPM_KA
+   type(cosp_sggpmdpr),   intent(inout) :: sggpmka
+   type(cosp_gpmdprstats),intent(inout) :: stgpmka
+#endif
 
    ! Local variables
    integer :: Npoints  !# of grid points
@@ -69,6 +85,12 @@ SUBROUTINE COSP_STATS(gbx,sgx,cfg,sgradar,sglidar,vgrid,stradar,stlidar)
    integer :: Nlr
    logical :: ok_lidar_cfad = .false.
    real,dimension(:,:,:),allocatable :: Ze_out,betatot_out,betamol_in,betamol_out,ph_in,ph_out
+#ifdef GPM_KU
+   real,dimension(:,:,:),allocatable :: Zegpmku_out
+#endif
+#ifdef GPM_KA
+   real,dimension(:,:,:),allocatable :: Zegpmka_out
+#endif
    real,dimension(:,:),allocatable :: ph_c,betamol_c
    real,dimension(:,:,:),allocatable ::  betaperptot_out, temp_in, temp_out 
    real,dimension(:,:),allocatable :: temp_c
@@ -85,6 +107,12 @@ SUBROUTINE COSP_STATS(gbx,sgx,cfg,sgradar,sglidar,vgrid,stradar,stlidar)
         allocate(Ze_out(Npoints,Ncolumns,Nlr),betatot_out(Npoints,Ncolumns,Nlr), &
                  betamol_in(Npoints,1,Nlevels),betamol_out(Npoints,1,Nlr),betamol_c(Npoints,Nlr), &
                  ph_in(Npoints,1,Nlevels),ph_out(Npoints,1,Nlr),ph_c(Npoints,Nlr))
+#ifdef GPM_KU
+        allocate(Zegpmku_out(Npoints,Ncolumns,Nlr))
+#endif
+#ifdef GPM_KA
+        allocate(Zegpmka_out(Npoints,Ncolumns,Nlr))
+#endif
         Ze_out = 0.0
         betatot_out  = 0.0
         betamol_out= 0.0
@@ -106,6 +134,26 @@ SUBROUTINE COSP_STATS(gbx,sgx,cfg,sgradar,sglidar,vgrid,stradar,stlidar)
             stradar%cfad_ze = cosp_cfad(Npoints,Ncolumns,Nlr,DBZE_BINS,Ze_out, &
                                         DBZE_MIN,DBZE_MAX,CFAD_ZE_MIN,CFAD_ZE_WIDTH)
         endif
+#ifdef GPM_KU
+        !++++++++++++ GPMKU CFAD ++++++++++++++++
+        ! use Radar implementation for now
+        if (cfg%Lgpmku_sim) then
+            call cosp_change_vertical_grid(Npoints,Ncolumns,Nlevels,gbx%zlev,gbx%zlev_half,sggpmku%Ze_tot, &
+                                           Nlr,vgrid%zl,vgrid%zu,Zegpmku_out,log_units=.true.)
+            stgpmku%cfad_ze = cosp_cfad(Npoints,Ncolumns,Nlr,DBZE_BINS,Zegpmku_out, &
+                                        DBZE_MIN,DBZE_MAX,CFAD_ZE_MIN,CFAD_ZE_WIDTH)
+        endif
+#endif
+#ifdef GPM_KA
+        !++++++++++++ GPMKA CFAD ++++++++++++++++
+        ! use Radar implementation for now
+        if (cfg%Lgpmka_sim) then
+            call cosp_change_vertical_grid(Npoints,Ncolumns,Nlevels,gbx%zlev,gbx%zlev_half,sggpmka%Ze_tot, &
+                                           Nlr,vgrid%zl,vgrid%zu,Zegpmka_out,log_units=.true.)
+            stgpmka%cfad_ze = cosp_cfad(Npoints,Ncolumns,Nlr,DBZE_BINS,Zegpmka_out, &
+                                        DBZE_MIN,DBZE_MAX,CFAD_ZE_MIN,CFAD_ZE_WIDTH)
+        endif
+#endif
         !++++++++++++ Lidar CFAD ++++++++++++++++
         if (cfg%Llidar_sim) then
             betamol_in(:,1,:) = sglidar%beta_mol(:,:)
@@ -144,10 +192,32 @@ SUBROUTINE COSP_STATS(gbx,sgx,cfg,sgradar,sglidar,vgrid,stradar,stlidar)
 
         ! Deallocate arrays at coarse resolution
         deallocate(Ze_out,betatot_out,betamol_in,betamol_out,betamol_c,ph_in,ph_out,ph_c)
+#ifdef GPM_KU
+        deallocate(Zegpmku_out)
+#endif
+#ifdef GPM_KA
+        deallocate(Zegpmka_out)
+#endif
    else ! Statistics in model levels
         !++++++++++++ Radar CFAD ++++++++++++++++
         if (cfg%Lradar_sim) stradar%cfad_ze = cosp_cfad(Npoints,Ncolumns,Nlr,DBZE_BINS,sgradar%Ze_tot, &
                                         DBZE_MIN,DBZE_MAX,CFAD_ZE_MIN,CFAD_ZE_WIDTH)
+#ifdef GPM_KU
+        !++++++++++++ GPMKU CFAD ++++++++++++++++
+        ! use Radar implementation for now
+        if (cfg%Lgpmku_sim) then
+            stgpmku%cfad_ze = cosp_cfad(Npoints,Ncolumns,Nlr,DBZE_BINS,sggpmku%Ze_tot, &
+                                        DBZE_MIN,DBZE_MAX,CFAD_ZE_MIN,CFAD_ZE_WIDTH)
+        endif
+#endif
+#ifdef GPM_KA
+        !++++++++++++ GPMKA CFAD ++++++++++++++++
+        ! use Radar implementation for now
+        if (cfg%Lgpmka_sim) then
+            stgpmka%cfad_ze = cosp_cfad(Npoints,Ncolumns,Nlr,DBZE_BINS,sggpmka%Ze_tot, &
+                                        DBZE_MIN,DBZE_MAX,CFAD_ZE_MIN,CFAD_ZE_WIDTH)
+        endif
+#endif
         !++++++++++++ Lidar CFAD ++++++++++++++++
         ! Stats from lidar_stat_summary
         if (cfg%Llidar_sim) call diag_lidar(Npoints,Ncolumns,Nlr,SR_BINS,PARASOL_NREFL &

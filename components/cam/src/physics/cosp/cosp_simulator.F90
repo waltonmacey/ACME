@@ -29,7 +29,7 @@
 ! Jul 2007 - A. Bodas-Salcedo - Initial version
 ! Jan 2013 - G. Cesana - Add new variables linked to the lidar cloud phase 
 !
-
+#include "cosp_gpm_debugflag.F90"
 #include "cosp_defs.h" 
 MODULE MOD_COSP_SIMULATOR
   USE MOD_COSP_CONSTANTS, ONLY: I_RADAR, I_LIDAR, I_ISCCP, I_MISR, I_MODIS, &
@@ -44,6 +44,10 @@ MODULE MOD_COSP_SIMULATOR
   USE MOD_COSP_RTTOV_SIMULATOR
 #endif
   USE MOD_COSP_STATS
+
+#if defined(GPM_KU) || defined(GPM_KA)
+  USE MOD_COSP_GPMDPR
+#endif
   IMPLICIT NONE
 
 CONTAINS
@@ -53,9 +57,23 @@ CONTAINS
 !--------------------- SUBROUTINE COSP_SIMULATOR ------------------
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 #ifdef RTTOV
-SUBROUTINE COSP_SIMULATOR(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,modis,rttov,stradar,stlidar)
+SUBROUTINE COSP_SIMULATOR(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,modis,rttov,stradar,stlidari &
+#ifdef GPM_KU
+                           ,sggpmku, stgpmku &
+#endif
+#ifdef GPM_KA
+                           ,sggpmka, stgpmka &
+#endif
+                           )
 #else
-SUBROUTINE COSP_SIMULATOR(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,modis,stradar,stlidar)
+SUBROUTINE COSP_SIMULATOR(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,modis,stradar,stlidar  &
+#ifdef GPM_KU
+                           ,sggpmku, stgpmku &
+#endif
+#ifdef GPM_KA
+                           ,sggpmka, stgpmka &
+#endif
+                           )
 #endif
 
   ! Arguments
@@ -74,6 +92,14 @@ SUBROUTINE COSP_SIMULATOR(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,m
 #endif
   type(cosp_radarstats),intent(inout) :: stradar ! Summary statistics from radar simulator
   type(cosp_lidarstats),intent(inout) :: stlidar ! Summary statistics from lidar simulator
+#ifdef GPM_KU
+  type(cosp_sggpmdpr),   intent(inout)  :: sggpmku
+  type(cosp_gpmdprstats),intent(inout)  :: stgpmku
+#endif
+#ifdef GPM_KA
+  type(cosp_sggpmdpr),   intent(inout)  :: sggpmka
+  type(cosp_gpmdprstats),intent(inout)  :: stgpmka
+#endif
   ! Local variables
   integer :: i,j,k,isim
   logical :: inconsistent
@@ -103,6 +129,29 @@ SUBROUTINE COSP_SIMULATOR(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,m
     tsim(isim) = tsim(isim) + (t1 -t0)
   endif
 
+#ifdef GPM_KU
+  !+++++++++ GPM_KU model ++++++++++
+  ! use Radar model for now
+  isim = I_GPMKU
+  if (cfg%Lgpmku_sim) then
+    call system_clock(t0)
+    call cosp_gpmdpr(gbx,sgx,sghydro,1,sggpmku)
+    call system_clock(t1)
+    tsim(isim) = tsim(isim) + (t1 -t0)
+  endif
+#endif
+
+#ifdef GPM_KA
+  !+++++++++ GPM_KU model ++++++++++
+  ! use Radar model for now
+  isim = I_GPMKA
+  if (cfg%Lgpmka_sim) then
+    call system_clock(t0)
+    call cosp_gpmdpr(gbx,sgx,sghydro,2,sggpmka)
+    call system_clock(t1)
+    tsim(isim) = tsim(isim) + (t1 -t0)
+  endif
+#endif
   !+++++++++ Lidar model ++++++++++
   isim = I_LIDAR
   if (cfg%Llidar_sim) then
@@ -154,7 +203,14 @@ SUBROUTINE COSP_SIMULATOR(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,m
   isim = I_STATS
   if (cfg%Lstats) then
     call system_clock(t0)
-    call cosp_stats(gbx,sgx,cfg,sgradar,sglidar,vgrid,stradar,stlidar)
+    call cosp_stats(gbx,sgx,cfg,sgradar,sglidar,vgrid,stradar,stlidar &
+#ifdef GPM_KU
+                     ,sggpmku,stgpmku&
+#endif
+#ifdef GPM_KA
+                     ,sggpmka,stgpmka&
+#endif
+                     )
     call system_clock(t1)
     tsim(isim) = tsim(isim) + (t1 -t0)
   endif

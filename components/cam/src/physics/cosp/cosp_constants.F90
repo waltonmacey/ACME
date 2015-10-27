@@ -31,7 +31,7 @@
 ! 
 !
 ! 
-
+#include "cosp_gpm_debugflag.F90"
 #include "cosp_defs.h"
 MODULE MOD_COSP_CONSTANTS
     IMPLICIT NONE
@@ -66,7 +66,11 @@ MODULE MOD_COSP_CONSTANTS
                           I_CVC = 2    ! Convective clouds
 
     ! Timing of different simulators, including statistics module
+#if defined(GPM_KU) || defined(GPM_KA)
+    integer, parameter :: N_SIMULATORS = 9
+#else
     integer, parameter :: N_SIMULATORS = 7
+#endif
     integer,parameter :: I_RADAR = 1
     integer,parameter :: I_LIDAR = 2
     integer,parameter :: I_ISCCP = 3
@@ -74,7 +78,13 @@ MODULE MOD_COSP_CONSTANTS
     integer,parameter :: I_MODIS = 5
     integer,parameter :: I_RTTOV = 6
     integer,parameter :: I_STATS = 7
+#if defined(GPM_KU) || defined(GPM_KA)
+    integer,parameter :: I_GPMKU = 8
+    integer,parameter :: I_GPMKA = 9
+    character*32, dimension(N_SIMULATORS) :: SIM_NAME = (/'Radar','Lidar','ISCCP','MISR ','MODIS','RTTOV','Stats','GPMKU','GPMKA'/)
+#else
     character*32, dimension(N_SIMULATORS) :: SIM_NAME = (/'Radar','Lidar','ISCCP','MISR ','MODIS','RTTOV','Stats'/)
+#endif
     integer,dimension(N_SIMULATORS) :: tsim
     data tsim/N_SIMULATORS*0.0/
 

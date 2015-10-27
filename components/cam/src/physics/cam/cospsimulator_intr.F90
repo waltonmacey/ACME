@@ -36,6 +36,7 @@ module cospsimulator_intr
 !   call t_stopf ('cospsimulator_intr_run')
 
 !----------------------------------------------------------------------------------------------------------------------
+#include "../cosp/cosp_gpm_debugflag.F90"
    use shr_kind_mod,    only: r8 => shr_kind_r8
    use spmd_utils,      only: masterproc
    use ppgrid,          only: pcols, pver, pverp, begchunk, endchunk 
@@ -46,6 +47,7 @@ module cospsimulator_intr
    use cam_pio_utils,   only: max_chars
    use phys_control,    only: cam_physpkg_is
    use cam_logfile,     only: iulog !!+COSP1.4
+
 
    implicit none
    private
@@ -162,6 +164,12 @@ module cospsimulator_intr
    logical :: cosp_cfmip_off = .false.       ! CAM namelist variable default, not in COSP namelist
    logical :: cosp_cfmip_mon = .false.       ! CAM namelist variable default, not in COSP namelist
    logical :: cosp_lradar_sim = .false.      ! CAM namelist variable default
+#ifdef GPM_KU
+   logical :: cosp_gpmku_sim = .false.      ! +YLu
+#endif
+#ifdef GPM_KA
+   logical :: cosp_gpmka_sim = .false.      ! +YLu
+#endif
    logical :: cosp_llidar_sim = .false.      ! CAM namelist variable default
    logical :: cosp_lisccp_sim = .false.      ! CAM namelist variable default
    logical :: cosp_lmisr_sim = .false.       ! CAM namelist variable default
@@ -181,6 +189,13 @@ module cospsimulator_intr
    logical :: lmisr_sim  = .false.              ! ""
    logical :: lmodis_sim = .false.              ! ""
    logical :: lrttov_sim = .false.              ! not running rttov, always set to .false.
+#ifdef GPM_KU
+   logical :: lgpmku_sim = .false.             ! GPM Ku band radar simulator   ! +YLu
+#endif
+#ifdef GPM_KA
+   logical :: lgpmka_sim = .false.             ! GPM Ka band radar simulator   ! +YLu
+#endif
+
 
    ! Output variables 
    ! All initialized to .false., some set to .true. based on CAM namelist in cospsimulator_intr_run 
@@ -220,6 +235,14 @@ module cospsimulator_intr
    logical :: ldbze94 = .false.
    logical :: lcltradar = .false.
    logical :: lcltradar2 = .false.
+#ifdef GPM_KU
+   logical :: lcfad_dbzegpmku = .false.
+   logical :: ldbzegpmku = .false.    ! GPM Ku dBz      ! +YLu
+#endif
+#ifdef GPM_KA
+   logical :: lcfad_dbzegpmka = .false.
+   logical :: ldbzegpmka = .false.    ! GPM Ka dBz      ! +YLu
+#endif
    logical :: ltauisccp = .false.
    logical :: ltclisccp = .false.
    logical :: lparasol_refl = .false.
@@ -274,6 +297,27 @@ module cospsimulator_intr
    integer :: do_ray = 0                                ! calculate/output Rayleigh refl=1, not=0 (0)
    integer :: melt_lay = 0                              ! melting layer model off=0, on=1 (0)
    real(r8) :: k2 = -1                                  ! |K|^2, -1=use frequency dependent default (-1)
+#ifdef GPM_KU   
+   ! namelist variables for COSP input related to GPM Ku radar simulator                                                !+YLu
+   real(r8) :: gpmku_radar_freq = 13.6_r8                     ! GPM Ku band radar frequency (GHz) (13.6)               !+YLu
+   integer :: gpmku_surface_radar = 0                         ! surface=1, spaceborne=0 (0)                            !+YLu
+   integer :: gpmku_use_mie_tables = 0                        ! use a precomputed lookup table? yes=1,no=0 (0)         !+YLu
+   integer :: gpmku_use_gas_abs = 1                           ! include gaseous absorption? yes=1,no=0 (1)             !+YLu
+   integer :: gpmku_do_ray = 0                                ! calculate/output Rayleigh refl=1, not=0 (0)            !+YLu
+   integer :: gpmku_melt_lay = 0                              ! melting layer model off=0, on=1 (0)                    !+YLu
+   real(r8) :: gpmku_k2 = -1                                  ! |K|^2, -1=use frequency dependent default (-1)         !+YLu
+#endif
+#ifdef GPM_KA
+   ! namelist variables for COSP input related to GPM Ka radar simulator                                                !+YLu
+   real(r8) :: gpmka_radar_freq = 94.0_r8 !35.5_r8                     ! GPM Ka band radar frequency (GHz) (35.5)               !+YLu
+   integer :: gpmka_surface_radar = 0                         ! surface=1, spaceborne=0 (0)                            !+YLu
+   integer :: gpmka_use_mie_tables = 0                        ! use a precomputed lookup table? yes=1,no=0 (0)         !+YLu
+   integer :: gpmka_use_gas_abs = 1                           ! include gaseous absorption? yes=1,no=0 (1)             !+YLu
+   integer :: gpmka_do_ray = 0                                ! calculate/output Rayleigh refl=1, not=0 (0)            !+YLu
+   integer :: gpmka_melt_lay = 0                              ! melting layer model off=0, on=1 (0)                    !+YLu
+   real(r8) :: gpmka_k2 = -1                                  ! |K|^2, -1=use frequency dependent default (-1)         !+YLu
+#endif  
+   
    ! namelist variables for COSP input related to lidar simulator
    integer, parameter :: Nprmts_max_hydro = 12          ! Max # params for hydrometeor size distributions (12)
    integer, parameter :: Naero = 1                      ! Number of aerosol species (Not used) (1)
@@ -543,7 +587,15 @@ subroutine cospsimulator_intr_readnl(nlfile)
     namelist /cospsimulator_nl/ docosp, cosp_active, cosp_amwg, cosp_atrainorbitdata, cosp_cfmip_3hr, cosp_cfmip_da, &
         cosp_cfmip_mon, cosp_cfmip_off, cosp_histfile_num, cosp_histfile_aux, cosp_histfile_aux_num, cosp_isccp, cosp_lfrac_out, &
         cosp_lite, cosp_lradar_sim, cosp_llidar_sim, cosp_lisccp_sim,  cosp_lmisr_sim, cosp_lmodis_sim, cosp_ncolumns, &
+#ifdef GPM_KU
+        cosp_gpmku_sim, &
+#endif
+#ifdef GPM_KA
+        cosp_gpmka_sim, &                                    ! +Ylu
+#endif
         cosp_nradsteps, cosp_passive, cosp_sample_atrain, cosp_runall
+
+
    !-----------------------------------------------------------------------------
 
    !! read in the namelist
@@ -588,6 +640,12 @@ subroutine cospsimulator_intr_readnl(nlfile)
    call mpibcast(cosp_histfile_aux_num,1,  mpiint, 0, mpicom)
    call mpibcast(cosp_histfile_aux,    1,  mpilog, 0, mpicom)
    call mpibcast(cosp_nradsteps,       1,  mpiint, 0, mpicom)
+#ifdef GPM_KU
+   call mpibcast(cosp_gpmku_sim,      1,  mpilog, 0, mpicom)  ! +YLu
+#endif
+#ifdef GPM_KA
+   call mpibcast(cosp_gpmka_sim,      1,  mpilog, 0, mpicom)  ! +YLu
+#endif
 #endif
 
    !! reset COSP namelist variables based on input from cam namelist variables
@@ -628,7 +686,16 @@ subroutine cospsimulator_intr_readnl(nlfile)
    if (cosp_lmodis_sim) then
       lmodis_sim = .true.
    end if
-
+#ifdef GPM_KU
+   if (cosp_gpmku_sim) then   ! +YLu
+      lgpmku_sim = .true.     ! +YLu
+   end if                      ! +YLu
+#endif
+#ifdef GPM_KA
+   if (cosp_gpmka_sim) then   ! +YLu
+      lgpmka_sim = .true.     ! +YLu
+   end if                      ! +YLu
+#endif
    if (cosp_histfile_aux .and. cosp_histfile_aux_num == -1) then
       cosp_histfile_aux_num = cosp_histfile_num
    end if
@@ -687,6 +754,16 @@ subroutine cospsimulator_intr_readnl(nlfile)
       cosp_nradsteps = 3
    end if
 
+#ifdef GPM_KU
+      if(lradar_sim) then
+         lgpmku_sim = .true.
+      endif
+#endif
+#ifdef GPM_KA
+      if(lradar_sim) then
+         lgpmka_sim = .true.
+      endif
+#endif
 
    !! reset COSP namelist variables based on input from cam namelist variables
    if (cosp_ncolumns .ne. ncolumns) then
@@ -700,6 +777,20 @@ subroutine cospsimulator_intr_readnl(nlfile)
       lcltradar = .true.
       lcltradar2 = .true.
    end if
+#ifdef GPM_KU
+   if (lgpmku_sim) then                                    ! +YLu
+      !! turn on the outputs for the GPM Ku simulator       ! +YLu
+      lcfad_dbzegpmku = .true.
+      ldbzegpmku = .true.                                    ! +YLu
+   end if                                                   ! +YLu
+#endif
+#ifdef GPM_KA
+   if (lgpmka_sim) then                                    ! +YLu
+      !! turn on the outputs for the GPM Ka simulator       ! +YLu
+      lcfad_dbzegpmka = .true.
+      ldbzegpmka = .true.                                    ! +YLu
+   end if                                                   ! +YLu
+#endif
    if ((lradar_sim) .and. (llidar_sim)) then
       !! turn on the outputs that require both the radar and the lidar simulator
       lclcalipso2 = .true.
@@ -1158,6 +1249,61 @@ endif
       end if
    end if
 
+!!! GPM KuPR SIMULATOR OUTPUTS  ! +YLu
+   !! Use CloudSat coordinates for now
+#ifdef GPM_KU
+   if (lgpmku_sim) then
+      call add_hist_coord('cosp_ht', nht_cosp,                                &
+           'COSP Mean Height for lidar and radar simulator outputs', 'm',     &
+           htmid_cosp, bounds_name='cosp_ht_bnds', bounds=htlim_cosp)
+      call add_hist_coord('cosp_dbze', ndbze_cosp,                            &
+           'COSP Mean dBZe for radar simulator CFAD output', 'dBZ',           &
+           dbzemid_cosp, bounds_name='cosp_dbze_bnds', bounds=dbzelim_cosp)
+      call add_hist_coord('cosp_scol', nscol_cosp, 'COSP subcolumn',          &
+           values=scol_cosp)
+      !!! addfld calls
+      call addfld('CFAD_DBZEGPMKU_CS','fraction',nht_cosp*ndbze_cosp,'A', &
+                  'Radar Reflectivity Factor CFAD GPM KuPR (13.6 GHz)', phys_decomp, &
+                  flag_xyfill=.true., mdimnames=(/'cosp_dbze','cosp_ht'/), &
+                  fill_value=R_UNDEF)
+      call addfld('DBZEGPMKU_CS','dBZe', nhtml_cosp*nscol_cosp,'I', &
+                  'GPM KuPR dBZe (13.6 GHz) in each subcolumn', phys_decomp, &
+                  flag_xyfill=.true., mdimnames=(/'cosp_scol','lev'/), &
+                  fill_value=R_UNDEF)
+      !!! add default calls
+      call add_default('CFAD_DBZEGPMKU_CS',cosp_histfile_num,' ')
+      call add_default('DBZEGPMKU_CS',cosp_histfile_num,' ')
+   end if
+#endif
+#ifdef GPM_KA
+!!! GPM KaPR SIMULATOR OUTPUTS  ! +YLu
+   !! Use CloudSat coordinates for now
+   if (lgpmka_sim) then
+      call add_hist_coord('cosp_ht', nht_cosp,                                &
+           'COSP Mean Height for lidar and radar simulator outputs', 'm',     &
+           htmid_cosp, bounds_name='cosp_ht_bnds', bounds=htlim_cosp)
+      call add_hist_coord('cosp_dbze', ndbze_cosp,                            &
+           'COSP Mean dBZe for radar simulator CFAD output', 'dBZ',           &
+           dbzemid_cosp, bounds_name='cosp_dbze_bnds', bounds=dbzelim_cosp)
+      call add_hist_coord('cosp_scol', nscol_cosp, 'COSP subcolumn',          &
+           values=scol_cosp)
+      !!! addfld calls
+      call addfld('CFAD_DBZEGPMKA_CS','fraction',nht_cosp*ndbze_cosp,'A', &
+                  'Radar Reflectivity Factor CFAD GPM KaPR (35.5 GHz)', phys_decomp, &
+                  flag_xyfill=.true., mdimnames=(/'cosp_dbze','cosp_ht'/), &
+                  fill_value=R_UNDEF)
+      call addfld('DBZEGPMKA_CS','dBZe', nhtml_cosp*nscol_cosp,'I', &
+                  'GPM KaPR dBZe (35.5 GHz) in each subcolumn', phys_decomp, &
+                  flag_xyfill=.true., mdimnames=(/'cosp_scol','lev'/), &
+                  fill_value=R_UNDEF)
+      !!! add default calls
+      call add_default('CFAD_DBZEGPMKA_CS',cosp_histfile_num,' ')
+      call add_default('DBZEGPMKA_CS',cosp_histfile_num,' ')
+   end if
+#endif
+
+
+
 !!! MISR SIMULATOR OUTPUTS
    if (lmisr_sim) then
       call add_hist_coord('cosp_htmisr', nhtmisr_cosp, 'COSP MISR height',    &
@@ -1397,7 +1543,6 @@ endif
     first_run_cosp(begchunk:endchunk)=.true.
     allocate(run_cosp(1:pcols,begchunk:endchunk))
     run_cosp(1:pcols,begchunk:endchunk)=.false.
-
 end subroutine cospsimulator_intr_init
 
 !------------------------------------------------------------------------------
@@ -1431,6 +1576,11 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
                                 free_cosp_lidarstats,free_cosp_isccp,free_cosp_misr,&
                                 cosp_config,cosp_gridbox,cosp_subgrid,cosp_sgradar, &
                                 cosp_sglidar,cosp_isccp,cosp_misr,cosp_vgrid,cosp_radarstats,&
+#if defined(GPM_KU) || defined(GPM_KA)
+                                cosp_sggpmdpr,cosp_gpmdprstats,&
+                                construct_cosp_sggpmdpr,construct_cosp_gpmdprstats,&
+                                free_cosp_sggpmdpr,free_cosp_gpmdprstats,&
+#endif
                                 cosp_radarstats,cosp_lidarstats
    use mod_cosp_modis_simulator,         only: construct_cosp_modis,free_cosp_modis,cosp_modis
    use mod_cosp,         only: cosp
@@ -1590,6 +1740,14 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    type(cosp_vgrid)   :: vgrid                          ! Information on vertical grid of stats
    type(cosp_radarstats) :: stradar                     ! Summary statistics from radar simulator
    type(cosp_lidarstats) :: stlidar                     ! Summary statistics from lidar simulator
+#ifdef GPM_KU
+   type(cosp_sggpmdpr)    :: sggpmku
+   type(cosp_gpmdprstats) :: stgpmku
+#endif
+#ifdef GPM_KA
+   type(cosp_sggpmdpr)    :: sggpmka
+   type(cosp_gpmdprstats) :: stgpmka
+#endif
    type(cosp_modis)   :: modis                          ! Output from MODIS simulator (new in cosp v1.3)
    !!!type(cosp_rttov)   :: rttov                       ! Output from RTTOV (not using)
 
@@ -1644,6 +1802,12 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    integer, parameter :: nf_isccp=9                     ! number of isccp outputs
    integer, parameter :: nf_misr=1                      ! number of misr outputs
    integer, parameter :: nf_modis=18                    ! number of modis outputs
+#ifdef GPM_KU
+   integer, parameter :: nf_gpmku=2                    ! number of gpm KuPR outputs  ! +YLu
+#endif
+#ifdef GPM_KA
+   integer, parameter :: nf_gpmka=2                    ! number of gpm KaPR outputs  ! +YLu
+#endif
    !! list of all output field names for each simulator
 
 !! bluefire complaining "All elements in an array constructor must have the same type and type parameters."
@@ -1653,7 +1817,16 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    character(len=max_fieldname_len),dimension(nf_radar),parameter :: &
         fname_radar = (/'CFAD_DBZE94_CS','CLD_CAL_NOTCS ','DBZE_CS       ', &
                 'CLDTOT_CALCS  ','CLDTOT_CS     ','CLDTOT_CS2    '/)
-
+#ifdef GPM_KU
+   !list of GPM KuPR outputs  ! +YLu
+   character(len=max_fieldname_len),dimension(nf_gpmku),parameter:: &
+        fname_gpmku = (/'CFAD_DBZEGPMKU_CS','DBZEGPMKU_CS'/)
+#endif
+#ifdef GPM_KA
+   !list of GPM KaPR outputs  ! +YLu
+   character(len=max_fieldname_len),dimension(nf_gpmka),parameter:: &
+        fname_gpmka = (/'CFAD_DBZEGPMKA_CS','DBZEGPMKA_CS'/)
+#endif
    !list of lidar outputs
    character(len=max_fieldname_len),dimension(nf_lidar),parameter :: &
         fname_lidar=(/'CLDLOW_CAL     ','CLDMED_CAL     ','CLDHGH_CAL     ','CLDTOT_CAL     ','CLD_CAL        ',&
@@ -1685,7 +1858,12 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    logical :: run_isccp(nf_isccp,pcols)                 !logical telling you if you should run isccp simulator
    logical :: run_misr(nf_misr,pcols)                   !logical telling you if you should run misr simulator
    logical :: run_modis(nf_modis,pcols)                 !logical telling you if you should run modis simulator
-
+#ifdef GPM_KU
+   logical :: run_gpmku(nf_gpmku,pcols)                !logical telling you if you should run GPM Ku simulator  ! +YLu
+#endif
+#ifdef GPM_KA
+   logical :: run_gpmka(nf_gpmka,pcols)                !logical telling you if you should run GPM Ka simulator  ! +YLu
+#endif
    ! CAM pointers to get variables from radiation interface (get from rad_cnst_get_gas)
    real(r8), pointer, dimension(:,:) :: q               ! specific humidity (kg/kg)
    real(r8), pointer, dimension(:,:) :: o3              ! Mass mixing ratio 03
@@ -1752,9 +1930,21 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    ! 5) !! Note: after running COSP, it looks like height_mlev is actually the model levels after all!!
 
    real(r8) :: clisccp2(pcols,ntau_cosp,nprs_cosp)      ! clisccp2 (time,tau,plev,profile)
-   real(r8) :: cfad_dbze94(pcols,ndbze_cosp,nht_cosp)   ! cfad_dbze94 (time,height,dbze,profile)
+   real(r8) :: cfad_dbze94(pcols,ndbze_cosp,nht_cosp)   ! cfad_dbze94 (time,height,dbze,profile)  
+#ifdef GPM_KU
+   real(r8) :: cfad_dbzegpmku(pcols,ndbze_cosp,nht_cosp)!cfad_dbzegpmku (time,height,dbze,profile) ! +YLu
+#endif
+#ifdef GPM_KA
+   real(r8) :: cfad_dbzegpmka(pcols,ndbze_cosp,nht_cosp)!cfad_dbzegpmka (time,height,dbze,profile) ! +YLu
+#endif
    real(r8) :: cfad_lidarsr532(pcols,nsr_cosp,nht_cosp) ! cfad_lidarsr532 (time,height,scat_ratio,profile)
    real(r8) :: dbze94(pcols,nscol_cosp,nhtml_cosp)      ! dbze94 (time,height_mlev,column,profile)
+#ifdef GPM_KU
+   real(r8) :: dbzegpmku(pcols,nscol_cosp,nhtml_cosp)  ! dbzegpmku(time,height_mlev,column,profile) ! +YLu
+#endif
+#ifdef GPM_KA
+   real(r8) :: dbzegpmka(pcols,nscol_cosp,nhtml_cosp)  ! dbzegpmka(time,height_mlev,column,profile) ! +YLu
+#endif
    real(r8) :: atb532(pcols,nscol_cosp,nhtml_cosp)      ! atb532 (time,height_mlev,column,profile)
    real(r8) :: clMISR(pcols,ntau_cosp,nhtmisr_cosp)     ! clMISR (time,tau,CTH_height_bin,profile)
    real(r8) :: frac_out(pcols,nscol_cosp,nhtml_cosp)    ! frac_out (time,height_mlev,column,profile)
@@ -1802,6 +1992,14 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    real(r8) :: cld_misr(pcols,nhtmisr_cosp*ntau_cosp)   ! CAM clMISR (time,tau,CTH_height_bin,profile)
    real(r8) :: refl_parasol(pcols,nsza_cosp)            ! CAM parasol_refl (time,sza,profile)
    real(r8) :: scops_out(pcols,nhtml_cosp*nscol_cosp)   ! CAM frac_out (time,height_mlev,column,profile)
+#ifdef GPM_KU
+   real(r8) :: cfad_dbzegpmku_cs(pcols,nht_cosp*ndbze_cosp)
+   real(r8) :: dbzegpmku_cs(pcols,nhtml_cosp*nscol_cosp)
+#endif
+#ifdef GPM_KA
+   real(r8) :: cfad_dbzegpmka_cs(pcols,nht_cosp*ndbze_cosp)
+   real(r8) :: dbzegpmka_cs(pcols,nhtml_cosp*nscol_cosp)
+#endif
    real(r8) :: cltmodis(pcols)
    real(r8) :: clwmodis(pcols)
    real(r8) :: climodis(pcols)
@@ -1826,7 +2024,6 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    integer, parameter :: extrap_method = 1              ! sets extrapolation method to boundary value (1)
 
   !---------------- End of declaration of variables --------------
-
    !! find the chunk and ncol from the state vector
    lchnk = state%lchnk   !! state variable contains a number of columns, one chunk
    ncol = state%ncol     !! number of columns in the chunk
@@ -1842,6 +2039,14 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    ! initialize over all pcols, not just ncol.  missing values needed in chunks where ncol<pcols
    clisccp2(1:pcols,1:ntau_cosp,1:nprs_cosp)=R_UNDEF
    cfad_dbze94(1:pcols,1:ndbze_cosp,1:nht_cosp)=R_UNDEF
+#ifdef GPM_KU
+   cfad_dbzegpmku(1:pcols,1:ndbze_cosp,1:nht_cosp)=R_UNDEF ! +YLu
+   dbzegpmku(1:pcols,1:nscol_cosp,1:nhtml_cosp)=R_UNDEF    ! +YLu
+#endif
+#ifdef GPM_KA
+   cfad_dbzegpmka(1:pcols,1:ndbze_cosp,1:nht_cosp)=R_UNDEF ! +YLu
+   dbzegpmka(1:pcols,1:nscol_cosp,1:nhtml_cosp)=R_UNDEF    ! +YLu
+#endif
    cfad_lidarsr532(1:pcols,1:nsr_cosp,1:nht_cosp)=R_UNDEF
    dbze94(1:pcols,1:nscol_cosp,1:nhtml_cosp)=R_UNDEF
    atb532(1:pcols,1:nscol_cosp,1:nhtml_cosp)=R_UNDEF
@@ -1884,6 +2089,14 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    meantb_isccp(1:pcols)=R_UNDEF
    meantbclr_isccp(1:pcols)=R_UNDEF     
    dbze_cs(1:pcols,1:nhtml_cosp*nscol_cosp)=R_UNDEF
+#ifdef GPM_KU
+   cfad_dbzegpmku_cs(1:pcols,1:nht_cosp*ndbze_cosp)=R_UNDEF
+   dbzegpmku_cs(1:pcols,1:nhtml_cosp*nscol_cosp)=R_UNDEF
+#endif
+#ifdef GPM_KA
+   cfad_dbzegpmka_cs(1:pcols,1:nht_cosp*ndbze_cosp)=R_UNDEF
+   dbzegpmka_cs(1:pcols,1:nhtml_cosp*nscol_cosp)=R_UNDEF
+#endif
    cldtot_calcs(1:pcols)=R_UNDEF
    cldtot_cs(1:pcols)=R_UNDEF
    cldtot_cs2(1:pcols)=R_UNDEF
@@ -1925,6 +2138,12 @@ if (first_run_cosp(lchnk)) then
    !! initalize to run logicals as false
    run_cosp(1:ncol,lchnk)=.false.
    run_radar(1:nf_radar,1:ncol)=.false.
+#ifdef GPM_KU
+   run_gpmku(1:nf_gpmku,1:ncol)=.false.
+#endif
+#ifdef GPM_KA
+   run_gpmka(1:nf_gpmka,1:ncol)=.false.
+#endif
    run_lidar(1:nf_lidar,1:ncol)=.false.
    run_isccp(1:nf_isccp,1:ncol)=.false.
    run_misr(1:nf_misr,1:ncol)=.false.
@@ -1935,6 +2154,20 @@ if (first_run_cosp(lchnk)) then
         run_radar(i,1:pcols)=hist_fld_col_active(fname_radar(i),lchnk)
      end do
    end if
+#ifdef GPM_KU
+   if (lgpmku_sim) then                                                 ! +YLu
+     do i=1,nf_gpmku                                                    ! +YLu
+        run_gpmku(i,1:pcols)=hist_fld_col_active(fname_gpmku(i),lchnk) ! +YLu
+     end do                                                              ! +YLu
+   end if                                                                ! +YLu
+#endif
+#ifdef GPM_KA
+   if (lgpmka_sim) then                                                 ! +YLu
+     do i=1,nf_gpmka                                                    ! +YLu
+        run_gpmka(i,1:pcols)=hist_fld_col_active(fname_gpmka(i),lchnk) ! +YLu
+     end do                                                              ! +YLu
+   end if                                                                ! +YLu
+#endif
    if (llidar_sim) then
      do i=1,nf_lidar
         run_lidar(i,1:pcols)=hist_fld_col_active(fname_lidar(i),lchnk)
@@ -1958,6 +2191,12 @@ if (first_run_cosp(lchnk)) then
 
    do i=1,ncol
      if ((any(run_radar(:,i))) .or. (any(run_lidar(:,i))) .or. (any(run_isccp(:,i))) &
+#ifdef GPM_KU
+               .or. (any(run_gpmku(:,i))) &
+#endif
+#ifdef GPM_KA
+               .or. (any(run_gpmka(:,i))) &
+#endif
                 .or. (any(run_misr(:,i))) .or. (any(run_modis(:,i)))) then
         run_cosp(i,lchnk)=.true.
      end if
@@ -1994,6 +2233,12 @@ end if
    ! Simulator flags
    cfg%Lradar_sim=lradar_sim
    cfg%Llidar_sim=llidar_sim
+#ifdef GPM_KU
+   cfg%Lgpmku_sim=lgpmku_sim
+#endif
+#ifdef GPM_KA
+   cfg%Lgpmka_sim=lgpmka_sim
+#endif
    cfg%Lisccp_sim=lisccp_sim
    cfg%Lmisr_sim=lmisr_sim
    cfg%Lmodis_sim=lmodis_sim
@@ -2003,6 +2248,12 @@ end if
    cfg%Lboxptopisccp=lboxptopisccp
    cfg%Lboxtauisccp=lboxtauisccp
    cfg%Lcfaddbze94=lcfad_dbze94
+#ifdef GPM_KU
+   cfg%Lcfaddbzegpmku=lcfad_dbzegpmku
+#endif
+#ifdef GPM_KA
+   cfg%Lcfaddbzegpmka=lcfad_dbzegpmka
+#endif
    cfg%LcfadLidarsr532=lcfad_lidarsr532
    cfg%Lclcalipso2=lclcalipso2
    cfg%Lclcalipso=lclcalipso
@@ -2014,6 +2265,12 @@ end if
    cfg%Lcltlidarradar=lcltlidarradar
    cfg%Lpctisccp=lctpisccp
    cfg%Ldbze94=ldbze94
+#ifdef GPM_KU
+   cfg%Ldbzegpmku=ldbzegpmku
+#endif
+#ifdef GPM_KA
+   cfg%Ldbzegpmka=ldbzegpmka
+#endif
    cfg%Ltauisccp=ltauisccp
    cfg%Lcltisccp=ltclisccp
    cfg%LparasolRefl=lparasol_refl
@@ -2566,6 +2823,25 @@ if (cosp_runall) then
                                 do_ray, &                       ! 6 integer X 
                                 melt_lay, &                     ! 7 integer X 
                                 k2, &                           ! 8 real(r8) X
+#ifdef GPM_KU
+                                gpmku_radar_freq, &                   ! 2 real(r8) X
+                                gpmku_surface_radar, &                ! 3 integer X
+                                gpmku_use_mie_tables, &               ! 4 integer X
+                                gpmku_use_gas_abs, &                  ! 5 integer X
+                                gpmku_do_ray, &                       ! 6 integer X 
+                                gpmku_melt_lay, &                     ! 7 integer X 
+                                gpmku_k2, &                           ! 8 real(r8) X
+#endif
+#ifdef GPM_KA
+                                gpmka_radar_freq, &                   ! 2 real(r8) X
+                                gpmka_surface_radar, &                ! 3 integer X
+                                gpmka_use_mie_tables, &               ! 4 integer X
+                                gpmka_use_gas_abs, &                  ! 5 integer X
+                                gpmka_do_ray, &                       ! 6 integer X 
+                                gpmka_melt_lay, &                     ! 7 integer X 
+                                gpmka_k2, &                           ! 8 real(r8) X
+#endif
+
                                 Npoints, &                      ! 9 integer X, same as CAM's ncol
                                 Nlevels, &                      ! 10 integer X
                                 ncolumns,&                      ! 11 integer X
@@ -2658,6 +2934,14 @@ if (cosp_runall) then
    call construct_cosp_subgrid(Npoints, ncolumns, Nlevels, sgx)
    call construct_cosp_sgradar(cfg,Npoints,ncolumns,Nlevels,nhydro,sgradar)
    call construct_cosp_radarstats(cfg,Npoints,ncolumns,vgrid%Nlvgrid,nhydro,stradar)
+#ifdef GPM_KU
+   call construct_cosp_sggpmdpr(cfg,Npoints,ncolumns,Nlevels,nhydro,1,sggpmku)
+   call construct_cosp_gpmdprstats(cfg,Npoints,ncolumns,vgrid%Nlvgrid,nhydro,1,stgpmku)
+#endif
+#ifdef GPM_KA
+   call construct_cosp_sggpmdpr(cfg,Npoints,ncolumns,Nlevels,nhydro,2,sggpmka)
+   call construct_cosp_gpmdprstats(cfg,Npoints,ncolumns,vgrid%Nlvgrid,nhydro,2,stgpmka)
+#endif
    call construct_cosp_sglidar(cfg,Npoints,ncolumns,Nlevels,nhydro,PARASOL_NREFL,sglidar)
    call construct_cosp_lidarstats(cfg,Npoints,ncolumns,vgrid%Nlvgrid,nhydro,PARASOL_NREFL,stlidar)
    call construct_cosp_isccp(cfg,Npoints,ncolumns,Nlevels,isccp)
@@ -2711,7 +2995,14 @@ if (cosp_runall) then
    end if
 
    !print *, 'Calling the COSP simulator and running on all columns...'
-   call cosp(overlap,ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,stradar,stlidar)
+   call cosp(overlap,ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,stradar,stlidar &
+#ifdef GPM_KU
+            ,sggpmku, stgpmku &
+#endif
+#ifdef GPM_KA
+            ,sggpmka, stgpmka &
+#endif
+            )
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !  TRANSLATE COSP OUTPUT INTO INDIVIDUAL VARIABLES FOR OUTPUT (see nc_write_cosp_1d in cosp_io.f90)
@@ -2766,6 +3057,15 @@ if (cosp_runall) then
    cfad_lidarsr532(1:ncol,1:nsr_cosp,1:nht_cosp)= stlidar%cfad_sr       ! cfad_lidarsr532 (time,height,scat_ratio,profile)
    clisccp2(1:ncol,1:ntau_cosp,1:nprs_cosp) = isccp%fq_isccp            ! clisccp2 (time,tau,plev,profile)
    clMISR(1:ncol,1:ntau_cosp,1:nhtmisr_cosp) = misr%fq_MISR             ! clMISR (time,tau,CTH_height_bin,profile)
+   !! GPM variables, if any
+#ifdef GPM_KU
+   dbzegpmku(1:ncol,1:nscol_cosp,1:nhtml_cosp) = sggpmku%Ze_tot
+   cfad_dbzegpmku(1:ncol,1:nscol_cosp,1:nhtml_cosp) = stgpmku%cfad_ze
+#endif
+#ifdef GPM_KA
+   dbzegpmka(1:ncol,1:nscol_cosp,1:nhtml_cosp) = sggpmka%Ze_tot
+   cfad_dbzegpmka(1:ncol,1:nscol_cosp,1:nhtml_cosp) = stgpmka%cfad_ze
+#endif
    !! modis variables
    cltmodis(1:ncol)=modis%Cloud_Fraction_Total_Mean
    clwmodis(1:ncol)=modis%Cloud_Fraction_Water_Mean
@@ -2801,6 +3101,25 @@ if (cosp_runall) then
            cfad_dbze94_cs(i,ihd) = cfad_dbze94(i,id,ih)         ! cfad_dbze94_cs(pcols,nht_cosp*ndbze_cosp)
         end do
         end do
+       
+#ifdef GPM_KU 
+        ! CAM cfad_dbzegpmku (time,height,dbze,profile) 
+        do ih=1,nht_cosp
+        do id=1,ndbze_cosp
+           ihd=(ih-1)*ndbze_cosp+id                     
+           cfad_dbzegpmku_cs(i,ihd) = cfad_dbzegpmku(i,id,ih)         ! cfad_dbzegpmku_cs(pcols,nht_cosp*ndbze_cosp)
+        end do
+        end do
+#endif
+#ifdef GPM_KA 
+        ! CAM cfad_dbzegpmka (time,height,dbze,profile) 
+        do ih=1,nht_cosp
+        do id=1,ndbze_cosp
+           ihd=(ih-1)*ndbze_cosp+id                     
+           cfad_dbzegpmka_cs(i,ihd) = cfad_dbzegpmka(i,id,ih)         ! cfad_dbzegpmka_cs(pcols,nht_cosp*ndbze_cosp)
+        end do
+        end do
+#endif
         ! CAM cfad_lidarsr532 (time,height,scat_ratio,profile)
         do ih=1,nht_cosp
         do is=1,nsr_cosp
@@ -2815,6 +3134,24 @@ if (cosp_runall) then
            dbze_cs(i,ihsc) = dbze94(i,isc,ihml)                 ! dbze_cs(pcols,pver*nscol_cosp) 
         end do
         end do
+#ifdef GPM_KU
+        ! CAM dbzegpmku (time,height_mlev,column,profile)
+        do ihml=1,nhtml_cosp
+        do isc=1,nscol_cosp
+           ihsc=(ihml-1)*nscol_cosp+isc                 
+           dbzegpmku_cs(i,ihsc) = dbzegpmku(i,isc,ihml)                 ! dbzegpmku_cs(pcols,pver*nscol_cosp) 
+        end do
+        end do
+#endif
+#ifdef GPM_KA
+        ! CAM dbzegpmka (time,height_mlev,column,profile)
+        do ihml=1,nhtml_cosp
+        do isc=1,nscol_cosp
+           ihsc=(ihml-1)*nscol_cosp+isc                 
+           dbzegpmka_cs(i,ihsc) = dbzegpmka(i,isc,ihml)                 ! dbzegpmka_cs(pcols,pver*nscol_cosp) 
+        end do
+        end do
+#endif
         ! CAM clMISR (time,tau,CTH_height_bin,profile)
         do ihm=1,nhtmisr_cosp
         do it=1,ntau_cosp
@@ -2853,6 +3190,14 @@ if (cosp_runall) then
    call free_cosp_subgrid(sgx)
    call free_cosp_sgradar(sgradar)
    call free_cosp_radarstats(stradar)
+#ifdef GPM_KU
+   call free_cosp_sggpmdpr(sggpmku)
+   call free_cosp_gpmdprstats(stgpmku)
+#endif
+#ifdef GPM_KA
+   call free_cosp_sggpmdpr(sggpmka)
+   call free_cosp_gpmdprstats(stgpmka)
+#endif
    call free_cosp_sglidar(sglidar)
    call free_cosp_lidarstats(stlidar)
    call free_cosp_isccp(isccp)
@@ -2902,6 +3247,14 @@ if ((.not.cosp_runall) .and. (lisccp_sim.or.lmisr_sim.or.lmodis_sim)) then  !! R
    cfg%Lcllcalipsoun=lcllcalipsoun !+cosp1.4
    cfg%Lpctisccp=lctpisccp
    cfg%Ldbze94=ldbze94
+#ifdef GPM_KU
+   cfg%Lcfaddbzegpmku=lcfad_dbzegpmku
+   cfg%Ldbzegpmku=ldbzegpmku
+#endif
+#ifdef GPM_KA
+   cfg%Lcfaddbzegpmka=lcfad_dbzegpmka
+   cfg%Ldbzegpmka=ldbzegpmka
+#endif
    cfg%Lcltradar=lcltradar
    cfg%Lcltradar2=lcltradar2
    cfg%Ltauisccp=ltauisccp
@@ -2960,6 +3313,12 @@ end if
 ! Don't run the radar/lidar simulators by setting COSP input structure cfg
 cfg%Lradar_sim= .false.
 cfg%Llidar_sim= .false.
+#ifdef GPM_KU
+cfg%Lgpmku_sim= .false.
+#endif
+#ifdef GPM_KA
+cfg%Lgpmka_sim= .false.
+#endif
 
 ! Also set radar/lidar/modis simulator outputs to false in COSP input structure cfg
 cfg%Latb532= .false.
@@ -2990,6 +3349,14 @@ cfg%Lcllcalipsoliq=.false.
 cfg%Lcllcalipsoice=.false.
 cfg%Lcllcalipsoun=.false. !+cosp1.4
 cfg%Ldbze94= .false.
+#ifdef GPM_KU
+cfg%Lcfaddbzegpmku= .false.
+cfg%Ldbzegpmku= .false.
+#endif
+#ifdef GPM_KA
+cfg%Lcfaddbzegpmka= .false.
+cfg%Ldbzegpmka= .false.
+#endif
 cfg%Lcltradar= .false.
 cfg%Lcltradar2= .false.
 cfg%LparasolRefl= .false.
@@ -3079,6 +3446,24 @@ end do
                                 do_ray, &                       ! 6 integer X 
                                 melt_lay, &                     ! 7 integer X 
                                 k2, &                           ! 8 real(r8) X
+#ifdef GPM_KU
+                                gpmku_radar_freq, &                   ! 2 real(r8) X
+                                gpmku_surface_radar, &                ! 3 integer X
+                                gpmku_use_mie_tables, &               ! 4 integer X
+                                gpmku_use_gas_abs, &                  ! 5 integer X
+                                gpmku_do_ray, &                       ! 6 integer X 
+                                gpmku_melt_lay, &                     ! 7 integer X 
+                                gpmku_k2, &                           ! 8 real(r8) X
+#endif
+#ifdef GPM_KA
+                                gpmka_radar_freq, &                   ! 2 real(r8) X
+                                gpmka_surface_radar, &                ! 3 integer X
+                                gpmka_use_mie_tables, &               ! 4 integer X
+                                gpmka_use_gas_abs, &                  ! 5 integer X
+                                gpmka_do_ray, &                       ! 6 integer X 
+                                gpmka_melt_lay, &                     ! 7 integer X 
+                                gpmka_k2, &                           ! 8 real(r8) X
+#endif
                                 Npoints, &                      ! 9 integer X
                                 Nlevels, &                      ! 10 integer X
                                 ncolumns,&                      ! 11 integer X
@@ -3165,6 +3550,14 @@ end do
    call construct_cosp_subgrid(Npoints, ncolumns, Nlevels, sgx)
    call construct_cosp_sgradar(cfg,Npoints,ncolumns,Nlevels,nhydro,sgradar)
    call construct_cosp_radarstats(cfg,Npoints,ncolumns,vgrid%Nlvgrid,nhydro,stradar)
+#ifdef GPM_KU
+   call construct_cosp_sggpmdpr(cfg,Npoints,ncolumns,Nlevels,nhydro,1,sggpmku)
+   call construct_cosp_gpmdprstats(cfg,Npoints,ncolumns,vgrid%Nlvgrid,nhydro,1,stgpmku)
+#endif
+#ifdef GPM_KA
+   call construct_cosp_sggpmdpr(cfg,Npoints,ncolumns,Nlevels,nhydro,2,sggpmka)
+   call construct_cosp_gpmdprstats(cfg,Npoints,ncolumns,vgrid%Nlvgrid,nhydro,2,stgpmka)
+#endif
    call construct_cosp_sglidar(cfg,Npoints,ncolumns,Nlevels,nhydro,PARASOL_NREFL,sglidar)
    call construct_cosp_lidarstats(cfg,Npoints,ncolumns,vgrid%Nlvgrid,nhydro,PARASOL_NREFL,stlidar)
    call construct_cosp_isccp(cfg,Npoints,ncolumns,Nlevels,isccp)
@@ -3177,7 +3570,14 @@ end do
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
    !print *, 'Calling the COSP simulator and running on sunlit columns...'
-   call cosp(overlap,ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,stradar,stlidar)
+   call cosp(overlap,ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,stradar,stlidar &
+#ifdef GPM_KU
+            ,sggpmku, stgpmku &
+#endif
+#ifdef GPM_KA
+            ,sggpmka, stgpmka &
+#endif
+            )
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !  TRANSLATE COSP OUTPUT INTO INDIVIDUAL VARIABLES FOR OUTPUT (see nc_write_cosp_1d in cosp_io.f90)
@@ -3360,6 +3760,14 @@ end if
    call free_cosp_subgrid(sgx)
    call free_cosp_sgradar(sgradar)
    call free_cosp_radarstats(stradar)
+#ifdef GPM_KU
+   call free_cosp_sggpmdpr(sggpmku)
+   call free_cosp_gpmdprstats(stgpmku)
+#endif
+#ifdef GPM_KA
+   call free_cosp_sggpmdpr(sggpmka)
+   call free_cosp_gpmdprstats(stgpmka)
+#endif
    call free_cosp_sglidar(sglidar)
    call free_cosp_lidarstats(stlidar)
    call free_cosp_isccp(isccp)
@@ -3420,6 +3828,22 @@ if (llidar_sim) then
    cfg%Lcllcalipsoice= .true.
    cfg%Lcllcalipsoun= .true. !+cosp1.4
 end if
+#ifdef GPM_KU
+   if (lgpmku_sim) then
+   cfg%Lgpmku_sim= .true.
+   cfg%Lcfaddbzegpmku= .true.
+   cfg%Ldbzegpmku= .true.
+   end if
+#endif
+#ifdef GPM_KA
+   if (lgpmka_sim) then
+   cfg%Lgpmka_sim= .true.
+   cfg%Lcfaddbzegpmka= .true.
+   cfg%Ldbzegpmka= .true.
+   end if
+#endif
+
+
 
 ! Run cosp_stats.f90 for radar and lidar output
 cfg%Lstats = .true.
@@ -3761,6 +4185,24 @@ if (((.not.cosp_sample_atrain) .and. Natrain .gt. 0) .or. ((cosp_sample_atrain) 
                                 do_ray, &                       ! 6 integer X 
                                 melt_lay, &                     ! 7 integer X 
                                 k2, &                           ! 8 real(r8) X
+#ifdef GPM_KU
+                                gpmku_radar_freq, &                   ! 2 real(r8) X
+                                gpmku_surface_radar, &                ! 3 integer X
+                                gpmku_use_mie_tables, &               ! 4 integer X
+                                gpmku_use_gas_abs, &                  ! 5 integer X
+                                gpmku_do_ray, &                       ! 6 integer X 
+                                gpmku_melt_lay, &                     ! 7 integer X 
+                                gpmku_k2, &                           ! 8 real(r8) X
+#endif
+#ifdef GPM_KA
+                                gpmka_radar_freq, &                   ! 2 real(r8) X
+                                gpmka_surface_radar, &                ! 3 integer X
+                                gpmka_use_mie_tables, &               ! 4 integer X
+                                gpmka_use_gas_abs, &                  ! 5 integer X
+                                gpmka_do_ray, &                       ! 6 integer X 
+                                gpmka_melt_lay, &                     ! 7 integer X 
+                                gpmka_k2, &                           ! 8 real(r8) X
+#endif
                                 Npoints, &                      ! 9 integer X
                                 Nlevels, &                      ! 10 integer X
                                 ncolumns,&                      ! 11 integer X
@@ -3846,6 +4288,14 @@ if (((.not.cosp_sample_atrain) .and. Natrain .gt. 0) .or. ((cosp_sample_atrain) 
    call construct_cosp_subgrid(Npoints, ncolumns, Nlevels, sgx)
    call construct_cosp_sgradar(cfg,Npoints,ncolumns,Nlevels,nhydro,sgradar)
    call construct_cosp_radarstats(cfg,Npoints,ncolumns,vgrid%Nlvgrid,nhydro,stradar)
+#ifdef GPM_KU
+   call construct_cosp_sggpmdpr(cfg,Npoints,ncolumns,Nlevels,nhydro,1,sggpmku)
+   call construct_cosp_gpmdprstats(cfg,Npoints,ncolumns,vgrid%Nlvgrid,nhydro,1,stgpmku)
+#endif
+#ifdef GPM_KA
+   call construct_cosp_sggpmdpr(cfg,Npoints,ncolumns,Nlevels,nhydro,2,sggpmka)
+   call construct_cosp_gpmdprstats(cfg,Npoints,ncolumns,vgrid%Nlvgrid,nhydro,2,stgpmka)
+#endif
    call construct_cosp_sglidar(cfg,Npoints,ncolumns,Nlevels,nhydro,PARASOL_NREFL,sglidar)
    call construct_cosp_lidarstats(cfg,Npoints,ncolumns,vgrid%Nlvgrid,nhydro,PARASOL_NREFL,stlidar)
    call construct_cosp_isccp(cfg,Npoints,ncolumns,Nlevels,isccp)
@@ -3858,7 +4308,14 @@ if (((.not.cosp_sample_atrain) .and. Natrain .gt. 0) .or. ((cosp_sample_atrain) 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
    !print *, 'Calling the COSP simulator and running on all/atrain columns...'
-   call cosp(overlap,ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,stradar,stlidar)
+   call cosp(overlap,ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,stradar,stlidar &
+#ifdef GPM_KU
+            ,sggpmku, stgpmku &
+#endif
+#ifdef GPM_KA
+            ,sggpmka, stgpmka &
+#endif
+            )
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !  TRANSLATE COSP OUTPUT INTO INDIVIDUAL VARIABLES FOR OUTPUT (see nc_write_cosp_1d in cosp_io.f90)
@@ -3919,6 +4376,16 @@ if (lradar_sim) then
       ! (3d variables)
       dbze94(1:ncol,1:nscol_cosp,1:nhtml_cosp) = sgradar%Ze_tot  ! dbze94 (time,height_mlev,column,profile)
       cfad_dbze94(1:ncol,1:ndbze_cosp,1:nht_cosp) = stradar%cfad_ze     ! cfad_dbze94 (time,height,dbze,profile)
+#ifdef GPM_KU
+      dbzegpmku(1:ncol,1:nscol_cosp,1:nhtml_cosp) = sggpmku%Ze_tot
+      cfad_dbzegpmku(1:ncol,1:ndbze_cosp,1:nht_cosp) = stgpmku%cfad_ze
+#endif
+#ifdef GPM_KA
+      dbzegpmka(1:ncol,1:nscol_cosp,1:nhtml_cosp) = sggpmka%Ze_tot
+      cfad_dbzegpmka(1:ncol,1:ndbze_cosp,1:nht_cosp) = stgpmka%cfad_ze
+#endif
+   
+   
    end if
 
    ! Use high-dimensional output to populate CAM collapsed output variables
@@ -3930,13 +4397,51 @@ if (lradar_sim) then
            dbze_cs(i,ihsc) = dbze94(i,isc,ihml)                 ! dbze_cs(pcols,pver*nscol_cosp) 
         end do
         end do
-        ! CAM cfad_dbze94 (time,height,dbze,profile) 
+#ifdef GPM_KU 
+        ! CAM cfad_dbzegpmku (time,height,dbze,profile) 
+        do ih=1,nht_cosp
+        do id=1,ndbze_cosp
+           ihd=(ih-1)*ndbze_cosp+id                     
+           cfad_dbzegpmku_cs(i,ihd) = cfad_dbzegpmku(i,id,ih)         ! cfad_dbzegpmku_cs(pcols,nht_cosp*ndbze_cosp)
+        end do
+        end do
+#endif
+#ifdef GPM_KA 
+        ! CAM cfad_dbzegpmka (time,height,dbze,profile) 
+        do ih=1,nht_cosp
+        do id=1,ndbze_cosp
+           ihd=(ih-1)*ndbze_cosp+id                     
+           cfad_dbzegpmka_cs(i,ihd) = cfad_dbzegpmka(i,id,ih)         ! cfad_dbzegpmka_cs(pcols,nht_cosp*ndbze_cosp)
+        end do
+        end do
+#endif
+! CAM cfad_dbze94 (time,height,dbze,profile) 
         do ih=1,nht_cosp
         do id=1,ndbze_cosp
            ihd=(ih-1)*ndbze_cosp+id                     
            cfad_dbze94_cs(i,ihd) = cfad_dbze94(i,id,ih)         ! cfad_dbze94_cs(pcols,nht_cosp*ndbze_cosp)
         end do
         end do
+#ifdef GPM_KU
+        ! CAM dbzegpmku (time,height_mlev,column,profile)
+        do ihml=1,nhtml_cosp
+        do isc=1,nscol_cosp
+           ihsc=(ihml-1)*nscol_cosp+isc                 
+           dbzegpmku_cs(i,ihsc) = dbzegpmku(i,isc,ihml)                 ! dbzegpmku_cs(pcols,pver*nscol_cosp) 
+        end do
+        end do
+#endif
+#ifdef GPM_KA
+        ! CAM dbzegpmka (time,height_mlev,column,profile)
+        do ihml=1,nhtml_cosp
+        do isc=1,nscol_cosp
+           ihsc=(ihml-1)*nscol_cosp+isc                 
+           dbzegpmka_cs(i,ihsc) = dbzegpmka(i,isc,ihml)                 ! dbzegpmka_cs(pcols,pver*nscol_cosp) 
+        end do
+        end do
+#endif
+ 
+         
    end do
 
 end if
@@ -4147,6 +4652,14 @@ end if
    call free_cosp_subgrid(sgx)
    call free_cosp_sgradar(sgradar)
    call free_cosp_radarstats(stradar)
+#ifdef GPM_KU
+   call free_cosp_sggpmdpr(sggpmku)
+   call free_cosp_gpmdprstats(stgpmku)
+#endif
+#ifdef GPM_KA
+   call free_cosp_sggpmdpr(sggpmka)
+   call free_cosp_gpmdprstats(stgpmka)
+#endif
    call free_cosp_sglidar(sglidar)
    call free_cosp_lidarstats(stlidar)
    call free_cosp_isccp(isccp)
@@ -4284,7 +4797,22 @@ end if  !!! END RUNNING COSP ONLY RADAR/LIDAR
       call outfld('CLDTOT_CS2',cldtot_cs2    ,pcols,lchnk)
       call outfld('CLD_CAL_NOTCS',cld_cal_notcs    ,pcols,lchnk)
    end if
-
+#ifdef GPM_KU
+   if (lgpmku_sim) then
+      where (cfad_dbzegpmku_cs(:ncol,:nht_cosp*ndbze_cosp) .eq. R_UNDEF)
+         cfad_dbzegpmku_cs(:ncol,:nht_cosp*ndbze_cosp) = 0.0_r8
+      end where
+      call outfld('CFAD_DBZEGPMKU_CS',cfad_dbzegpmku_cs, pcols, lchnk)
+   end if
+#endif
+#ifdef GPM_KA
+   if (lgpmka_sim) then
+      where (cfad_dbzegpmka_cs(:ncol,:nht_cosp*ndbze_cosp) .eq. R_UNDEF)
+         cfad_dbzegpmka_cs(:ncol,:nht_cosp*ndbze_cosp) = 0.0_r8
+      end where
+      call outfld('CFAD_DBZEGPMKA_CS',cfad_dbzegpmka_cs, pcols, lchnk)
+   end if
+#endif
 !!! MISR SIMULATOR OUTPUTS
    if (lmisr_sim) then
       call outfld('CLD_MISR',cld_misr    ,pcols,lchnk)
@@ -4406,11 +4934,26 @@ end if  !!! END RUNNING COSP ONLY RADAR/LIDAR
       if (lradar_sim) then
          call outfld('DBZE_CS',dbze_cs   ,pcols,lchnk) !! fails check_accum if 'A'
       end if
+#ifdef GPM_KU
+      if (lgpmku_sim) then
+         call outfld('DBZEGPMKU_CS',dbzegpmku_cs, pcols, lchnk)
+      end if
+#endif
+#ifdef GPM_KA
+      if (lgpmka_sim) then
+         call outfld('DBZEGPMKA_CS',dbzegpmka_cs, pcols, lchnk)
+      end if
+#endif
+
    end if
 
 
 #endif
 ! USE_COSP
+
+
+
+
 
 end subroutine cospsimulator_intr_run
 

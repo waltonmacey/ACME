@@ -50,7 +50,8 @@ OBJS =  cosp_radar.o cosp_types.o cosp_constants.o cosp_simulator.o \
         lidar_simulator.o llnl_stats.o lmd_ipsl_stats.o \
         cosp_isccp_simulator.o icarus.o \
         cosp_misr_simulator.o MISR_simulator.o \
-        cosp_modis_simulator.o modis_simulator.o
+        cosp_modis_simulator.o modis_simulator.o \
+		  cosp_gpmdpr.o
 
 libcosp.a: $(OBJS)
 	ar cr libcosp.a $(OBJS)
@@ -65,9 +66,12 @@ cosp.o          : cosp_simulator.o cosp_types.o cosp_modis_simulator.o
 cosp_lidar.o    : cosp_constants.o cosp_types.o
 cosp_radar.o    : cosp_constants.o cosp_types.o radar_simulator_types.o \
 	              array_lib.o atmos_lib.o format_input.o math_lib.o optics_lib.o
+cosp_gpmdpr.o   : cosp_constants.o cosp_types.o radar_simulator_types.o \
+	              array_lib.o atmos_lib.o format_input.o math_lib.o optics_lib.o
 cosp_simulator.o: cosp_types.o cosp_radar.o cosp_lidar.o \
                   cosp_isccp_simulator.o cosp_misr_simulator.o \
-                  cosp_modis_simulator.o cosp_stats.o 
+                  cosp_modis_simulator.o cosp_stats.o \
+						cosp_gpmdpr.o
 cosp_stats.o    : cosp_constants.o cosp_types.o llnl_stats.o lmd_ipsl_stats.o
 cosp_types.o    : cosp_constants.o cosp_utils.o radar_simulator_types.o \
                   scale_LUTs_io.o radar_simulator_init.o
@@ -159,6 +163,9 @@ llnl_stats.o : $(LLNL_PATH)/llnl_stats.F90
 	$(F90) $(F90FLAGS) -c $<
 
 cosp_radar.o : $(LLNL_PATH)/cosp_radar.F90
+	$(F90) $(F90FLAGS) -c $<
+
+cosp_gpmdpr.o : $(LLNL_PATH)/cosp_gpmdpr.F90
 	$(F90) $(F90FLAGS) -c $<
 
 MISR_simulator.o : $(MISR_PATH)/MISR_simulator.f90
