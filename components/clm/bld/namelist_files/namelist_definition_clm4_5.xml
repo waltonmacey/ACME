@@ -355,6 +355,26 @@ Per tape series history write frequency.
 <default>Default: 0,-24,-24,-24,-24,-24</default>
 </entry>
 
+<entry id="metdata_type" type="char*400" category="datasets"
+       group="clm_inparm" valid_values="">
+</entry>
+
+<entry id="metdata_bypass" type="char*400" category="datasets"
+       group="clm_inparm" valid_values="">
+</entry>
+
+<entry id="metdata_biases" type="char*400" category="datasets"
+       group="clm_inparm" valid_values="">
+</entry>
+
+<entry id="co2_file" type="char*400" category="datasets"
+       group="clm_inparm" valid_values="">
+</entry>
+
+<entry id="aero_file" type="char*400" category="datasets"
+       group="clm_inparm" valid_values="">
+</entry>
+
 <entry id="nsegspc" type="integer" category="clm_performance"
        group="clm_inparm" valid_values="" >
 number of segments per clump for decomposition
@@ -1131,6 +1151,14 @@ Flag for setting the state of the Accelerated decomposition spinup state for the
    0 = normal model behavior; 
    1 = AD spinup.  
 Entering and exiting spinup mode occurs automatically by comparing the namelist and restart file values for this variable.
+</entry>
+
+<entry id="nyears_ad_carbon_only" type="integer" category="clm_vertcn"
+       group="clm_inparm" valid_values="" >
+</entry>
+
+<entry id="spinup_mortality_factor" type="real" category="clm_vertcn"
+       group="clm_inparm" valid_values="" >
 </entry>
 
 <!-- vertical mixing switches    -->

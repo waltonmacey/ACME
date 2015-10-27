@@ -97,7 +97,6 @@ module clm_varctl
   character(len=fname_len), public :: nrevsn     = ' '        ! restart data file name for branch run
   character(len=fname_len), public :: fsnowoptics  = ' '      ! snow optical properties file name
   character(len=fname_len), public :: fsnowaging   = ' '      ! snow aging parameters file name
-
  !! X. YANG  : add soil order dependent parameter file
   character(len=fname_len), public :: fsoilordercon    = ' '  ! ASCII data file with soil order dependent  constants
 
@@ -150,6 +149,8 @@ module clm_varctl
   ! State of the model for the accelerated decomposition (AD) spinup. 
   ! 0 (default) = normal model; 1 = AD SPINUP
   integer, public :: spinup_state = 0 
+  integer, public :: nyears_ad_carbon_only = 0
+  real(r8), public :: spinup_mortality_factor = 1._r8
 
   ! true => anoxia is applied to heterotrophic respiration also considered in CH4 model
   ! default value reset in controlMod
@@ -290,7 +291,6 @@ module clm_varctl
   !
   logical, private :: clmvarctl_isset = .false.
  !-----------------------------------------------------------------------
-
   !-----------------------------------------------------------------------
   ! bgc & pflotran interface
   !
@@ -304,6 +304,14 @@ module clm_varctl
   logical, public :: pf_frzmode   = .false.                 ! switch for 'freezing' mode availablity in PF-thmode (will be updated in interface)
   logical, public :: pf_cmode     = .false.                 ! switch for 'C' mode coupling (will be updated in interface)
   logical, public :: initth_pf2clm= .false.                 ! switch for initializing CLM TH states from pflotran
+
+  ! cpl_bypass
+   character(len=fname_len), public :: metdata_type   = ' '    ! metdata type for CPL_BYPASS mode
+   character(len=fname_len), public :: metdata_bypass = ' '    ! met data directory for CPL_BYPASS mode (site, qian, cru_ncep)
+   character(len=fname_len), public :: metdata_biases = ' '    ! met biases files for CPL_BYPASS mode
+   character(len=fname_len), public :: co2_file       = ' '    ! co2 file for CPL_BYPASS mode
+   character(len=fname_len), public :: aero_file      = ' '    ! aerosol deposition file for CPL_BYPASS mode
+
 
 contains
 
