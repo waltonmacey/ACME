@@ -2800,6 +2800,8 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      if (rsplit==0) &
           grad_ps_d(:,:,:,ie) = gradient_sphere(elem(ie)%state%ps_v(:,:,n0),deriv,elem(ie)%Dinv)
 
+  enddo
+
 
      ! ============================
      ! compute p and delta p
@@ -2808,13 +2810,21 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
 !       ph(:,:,k)   = hvcoord%hyai(k)*hvcoord%ps0 + hvcoord%hybi(k)*elem(ie)%state%ps_v(:,:,n0)
 !     end do
 
-     do k=1,nlev
-        if (rsplit==0) then
+   if (rsplit==0) then
+
+      do ie=1,nelemd
+        do k=1,nlev 
            dp_d(:,:,k,ie) = (hvcoord%hyai(k+1)*hvcoord%ps0 + hvcoord%hybi(k+1)*elem(ie)%state%ps_v(:,:,n0)) &
                 - (hvcoord%hyai(k)*hvcoord%ps0 + hvcoord%hybi(k)*elem(ie)%state%ps_v(:,:,n0))
            p_d(:,:,k,ie)   = hvcoord%hyam(k)*hvcoord%ps0 + hvcoord%hybm(k)*elem(ie)%state%ps_v(:,:,n0)
            grad_p_d(:,:,:,k,ie) = hvcoord%hybm(k)*grad_ps_d(:,:,:,ie)
-        else
+        enddo
+      enddo
+ 
+   else
+
+       do ie=1,nelemd
+        do k=1,nlev
            ! vertically lagrangian code: we advect dp3d instead of ps_v
            ! we also need grad(p) at all levels (not just grad(ps))
            !p(k)= hyam(k)*ps0 + hybm(k)*ps
@@ -2829,14 +2839,29 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
            else
               p_d(:,:,k,ie)=p_d(:,:,k-1,ie) + dp_d(:,:,k-1,ie)/2 + dp_d(:,:,k,ie)/2
            endif
+          enddo
+        enddo
+ 
+       do ie=1,nelemd
+        do k=1,nlev
            grad_p_d(:,:,:,k,ie) = gradient_sphere(p_d(:,:,k,ie),deriv,elem(ie)%Dinv)
-        endif
+        enddo
+       enddo
 
-        rdp_d(:,:,k,ie) = 1.0D0/dp_d(:,:,k,ie)
+  endif
 
+  do ie=1,nelemd
+     do k=1,nlev
+           rdp_d(:,:,k,ie) = 1.0D0/dp_d(:,:,k,ie)
+     enddo
+   enddo
+       
         ! ============================
         ! compute vgrad_lnps
         ! ============================
+   do ie=1,nelemd
+     do k=1,nlev
+
         do j=1,np
            do i=1,np
               v1 = elem(ie)%state%v(i,j,1,k,n0)
