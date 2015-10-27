@@ -2761,12 +2761,10 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
 
   ! local
   real (kind=real_kind), pointer, dimension(:,:)      :: ps         ! surface pressure for current tiime level
-  real (kind=real_kind), pointer, dimension(:,:,:)   :: phi
 
   real (kind=real_kind), dimension(np,np,2     ):: v         !                            
   real (kind=real_kind), dimension(np,np)      :: vgrad_T    ! v.grad(T)
   real (kind=real_kind), dimension(np,np)      :: Ephi       ! kinetic energy + PHI term
-  real (kind=real_kind), dimension(np,np,nlev)   :: rdp        ! inverse of delta pressure
   real (kind=real_kind), dimension(np,np,nlev+1) :: ph               ! half level pressures on p-grid
   real (kind=real_kind), dimension(0:np+1,0:np+1,nlev)          :: corners
   real (kind=real_kind), dimension(2,2,2)                         :: cflux
@@ -2791,7 +2789,6 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
 
   do ie=1,nelemd
      !ps => elem(ie)%state%ps_v(:,:,n0)
-     phi => elem(ie)%derived%phi(:,:,:)
 
      ! ==================================================
      ! compute pressure (p) on half levels from ps
@@ -2835,7 +2832,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
            grad_p_d(:,:,:,k,ie) = gradient_sphere(p_d(:,:,k,ie),deriv,elem(ie)%Dinv)
         endif
 
-        rdp(:,:,k) = 1.0D0/dp_d(:,:,k,ie)
+        rdp_d(:,:,k,ie) = 1.0D0/dp_d(:,:,k,ie)
 
         ! ============================
         ! compute vgrad_lnps
@@ -2906,7 +2903,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      ! Compute Hydrostatic equation, modeld after CCM-3
      ! ====================================================
      !call geopotential_t(p,dp,T_v,Rgas,phi)
-     call preq_hydrostatic(phi,elem(ie)%state%phis,T_v_d(:,:,:,ie),p_d(:,:,:,ie),dp_d(:,:,:,ie))
+     call preq_hydrostatic( elem(ie)%derived%phi,elem(ie)%state%phis,T_v_d(:,:,:,ie),p_d(:,:,:,ie),dp_d(:,:,:,ie))
 
      ! ====================================================
      ! Compute omega_p according to CCM-3
@@ -2959,7 +2956,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
         ! Compute vertical advection of T and v from eq. CCM2 (3.b.1)
         ! ==============================================
         call preq_vertadv(elem(ie)%state%T(:,:,:,n0),elem(ie)%state%v(:,:,:,:,n0), &
-             eta_dot_dpdn_d,rdp,T_vadv_d(:,:,:,ie),v_vadv_d(:,:,:,:,ie))
+             eta_dot_dpdn_d,rdp_d(:,:,:,ie),T_vadv_d(:,:,:,ie),v_vadv_d(:,:,:,:,ie))
      endif
 
 
@@ -2988,7 +2985,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
               v1     = elem(ie)%state%v(i,j,1,k,n0)
               v2     = elem(ie)%state%v(i,j,2,k,n0)
               E = 0.5D0*( v1*v1 + v2*v2 )
-              Ephi(i,j)=E+phi(i,j,k)+elem(ie)%derived%pecnd(i,j,k)
+              Ephi(i,j)=E+ elem(ie)%derived%phi(i,j,k)+elem(ie)%derived%pecnd(i,j,k)
            end do
         end do
         ! ================================================
