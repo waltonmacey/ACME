@@ -247,6 +247,7 @@ contains
     use pftvarcon        , only: arooti, fleafi, allconsl, allconss, grperc, grpnow, nsoybean
     use clm_varpar       , only: nlevdecomp
     use clm_varcon       , only: nitrif_n2o_loss_frac, secspday
+    use clm_varctl       , only: cnallocate_carbon_only_set
 !    use landunit_varcon  , only: istsoil, istcrop
     use clm_time_manager , only: get_step_size, get_curr_date
     !
@@ -294,7 +295,7 @@ contains
 !    real(r8):: cpg                                                  !C:P ratio
 !    real(r8):: sum_pdemand_vr(bounds%begc:bounds%endc, 1:nlevdecomp) !total column P demand (gN/m3/s) at a given level
     real(r8):: puptake_prof(bounds%begc:bounds%endc, 1:nlevdecomp)
-i
+
 
     !-----------------------------------------------------------------------
 
