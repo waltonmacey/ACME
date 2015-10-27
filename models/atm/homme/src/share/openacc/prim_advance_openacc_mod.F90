@@ -2861,7 +2861,6 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
         ! ============================
    do ie=1,nelemd
      do k=1,nlev
-
         do j=1,np
            do i=1,np
               v1 = elem(ie)%state%v(i,j,1,k,n0)
@@ -2873,27 +2872,41 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
               vdp_d(i,j,2,k,ie) = v2*dp_d(i,j,k,ie)
            end do
         end do
-
+      enddo
+   enddo
+     
 
         ! ================================
         ! Accumulate mean Vel_rho flux in vn0
         ! ================================
+   do ie=1,nelemd
+     do k=1,nlev
         elem(ie)%derived%vn0(:,:,:,k)=elem(ie)%derived%vn0(:,:,:,k)+eta_ave_w*vdp_d(:,:,:,k,ie)
-
+     enddo
+   enddo
 
         ! =========================================
         !
         ! Compute relative vorticity and divergence
         !
         ! =========================================
+   do ie=1,nelemd
+     do k=1,nlev
         divdp_d(:,:,k,ie)=divergence_sphere(vdp_d(:,:,:,k,ie),deriv,elem(ie))
-        vort_d(:,:,k,ie)=vorticity_sphere(elem(ie)%state%v(:,:,:,k,n0),deriv,elem(ie))
-
      enddo
+   enddo
+
+   do ie=1,nelemd
+     do k=1,nlev
+        vort_d(:,:,k,ie)=vorticity_sphere(elem(ie)%state%v(:,:,:,k,n0),deriv,elem(ie))
+     enddo
+   enddo
 
      ! compute T_v for timelevel n0
      !if ( moisture /= "dry") then
-     if (qn0 == -1 ) then
+   if (qn0 == -1 ) then
+
+     do ie=1,nelemd
         do k=1,nlev
            do j=1,np
               do i=1,np
@@ -2902,8 +2915,11 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
               end do
            end do
         end do
-     else
+      enddo
 
+   else
+
+      do ie=1,nelemd
         do k=1,nlev
            do j=1,np
               do i=1,np
@@ -2921,26 +2937,31 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
               end do
            end do
         end do
-     end if
+      enddo
+
+   end if
 
 
      ! ====================================================
      ! Compute Hydrostatic equation, modeld after CCM-3
      ! ====================================================
      !call geopotential_t(p,dp,T_v,Rgas,phi)
+   do ie=1,nelemd
      call preq_hydrostatic( elem(ie)%derived%phi,elem(ie)%state%phis,T_v_d(:,:,:,ie),p_d(:,:,:,ie),dp_d(:,:,:,ie))
-
+   enddo
      ! ====================================================
      ! Compute omega_p according to CCM-3
      ! ====================================================
+   do ie=1,nelemd
      call preq_omega_ps(omega_p_d(:,:,:,ie),hvcoord,p_d(:,:,:,ie),vgrad_p_d(:,:,:,ie),divdp_d(:,:,:,ie))
-
+   enddo
 
      ! ==================================================
      ! zero partial sum for accumulating sum
      !    (div(v_k) + v_k.grad(lnps))*dsigma_k = div( v dp )
      ! used by eta_dot_dpdn and lnps tendency
      ! ==================================================
+   do ie=1,nelemd
      sdot_sum_d=0
 
 
