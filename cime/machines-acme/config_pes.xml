@@ -68,6 +68,10 @@
   <NTASKS_ATM>12</NTASKS_ATM> <NTHRDS_ATM>4</NTHRDS_ATM> <ROOTPE_ATM>0</ROOTPE_ATM><NINST_ATM>1</NINST_ATM>
 </pes>
 
+<pes MACH="oic5">
+  <PIO_TYPENAME>netcdf</PIO_TYPENAME>
+ </pes>
+
 <!-- Default settings based on grids -->
 
 <pes GRID="a%ne16np4">

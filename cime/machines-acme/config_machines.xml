@@ -591,6 +591,7 @@
          <OS>LINUX</OS>
          <BATCHQUERY>qstat -f</BATCHQUERY>
          <BATCHSUBMIT>qsub</BATCHSUBMIT>
+         <BATCHREDIRECT></BATCHREDIRECT>
          <SUPPORTED_BY>dmricciuto</SUPPORTED_BY>
          <GMAKE_J>8</GMAKE_J>
          <MAX_TASKS_PER_NODE>8</MAX_TASKS_PER_NODE>
@@ -599,7 +600,7 @@
               <queue default="true">esd08q</queue>
             </queues>
             <walltimes>
-              <walltime default="true">24:00:00</walltime>
+              <walltime default="true">48:00:00</walltime>
             </walltimes>
          </batch_system>
          <mpirun mpilib="mpich">
@@ -629,6 +630,7 @@
          <OS>LINUX</OS>
          <BATCHQUERY>qstat -f</BATCHQUERY>
          <BATCHSUBMIT>qsub</BATCHSUBMIT>
+         <BATCHREDIRECT></BATCHREDIRECT>	
          <SUPPORTED_BY>dmricciuto</SUPPORTED_BY>
          <GMAKE_J>32</GMAKE_J>
          <MAX_TASKS_PER_NODE>32</MAX_TASKS_PER_NODE>
@@ -638,7 +640,7 @@
               <queue walltimemax="1:00">esddbg13q</queue>
             </queues>
             <walltimes>
-              <walltime default="true">24:00:00</walltime>
+              <walltime default="true">48:00:00</walltime>
             </walltimes>
          </batch_system>
          <mpirun mpilib="mpich">

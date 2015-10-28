@@ -910,6 +910,7 @@
         <machine compiler="intel" testtype="acme_developer">wolf</machine>
         <machine compiler="gnu" testtype="acme_integration">wolf</machine>
         <machine compiler="intel" testtype="acme_integration">wolf</machine>
+        <machine compiler="gnu" testtype="acme_developer">oic5</machine>
       </test>
     </grid>
     <grid name="f19_f19">
@@ -932,6 +933,7 @@
         <machine compiler="intel" testtype="acme_developer">wolf</machine>
         <machine compiler="gnu" testtype="acme_integration">wolf</machine>
         <machine compiler="intel" testtype="acme_integration">wolf</machine>
+        <machine compiler="gnu" testtype="acme_developer">oic5</machine>
       </test>
     </grid>
   </compset>
