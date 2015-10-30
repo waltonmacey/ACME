@@ -561,7 +561,7 @@ for mct, etc.
   <MPICC> cc </MPICC>
   <MPICXX> CC </MPICXX>
   <PETSC_PATH>$(PETSC_DIR)</PETSC_PATH>
-  <ALBANY_PATH>/global/project/projectdirs/acme/software/AlbanyTrilinos_09232015/Albany/build/install</ALBANY_PATH>
+  <ALBANY_PATH>/global/project/projectdirs/acme/software/AlbanyTrilinos/Albany/build/install</ALBANY_PATH>
 </compiler>
 
 <compiler COMPILER="gnu" MACH="mac">
