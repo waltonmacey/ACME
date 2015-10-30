@@ -584,6 +584,7 @@ for mct, etc.
   <PNETCDF_PATH>$(PNETCDFROOT)</PNETCDF_PATH>
   <ADD_SLIBS> $(shell $(NETCDF_PATH)/bin/nf-config --flibs) -lblas -llapack</ADD_SLIBS>
   <ADD_CPPFLAGS> -DHAVE_COMM_F2C </ADD_CPPFLAGS>
+  <ALBANY_PATH>/projects/install/rhel6-x86_64/ACME/AlbanyTrilinos/Albany/build/install</ALBANY_PATH>
 </compiler>
 
 <compiler COMPILER="intel" MACH="skybridge">
@@ -603,6 +604,7 @@ for mct, etc.
   <ADD_SLIBS MPILIB="mvapich"> -mkl=cluster </ADD_SLIBS>
   <ADD_SLIBS MPILIB="impi"> -mkl=cluster </ADD_SLIBS>
   <ADD_SLIBS MPILIB="mpi-serial"> -mkl </ADD_SLIBS>
+  <ALBANY_PATH>/projects/ccsm/AlbanyTrilinos/Albany/build/install</ALBANY_PATH>
 </compiler>
 
 <compiler COMPILER="intel" MACH="redsky">
@@ -615,6 +617,7 @@ for mct, etc.
   <ADD_SLIBS> $(shell $(NETCDF_PATH)/bin/nf-config --flibs) -L/projects/ccsm/BLAS-intel -lblas_LINUX</ADD_SLIBS>
   <ADD_CPPFLAGS> -DHAVE_COMM_F2C </ADD_CPPFLAGS>
   <PIO_FILESYSTEM_HINTS>lustre </PIO_FILESYSTEM_HINTS>
+  <ALBANY_PATH>/projects/ccsm/AlbanyTrilinos/Albany/build/install</ALBANY_PATH>
 </compiler>
 
 <compiler COMPILER="gnu" MACH="penn">
