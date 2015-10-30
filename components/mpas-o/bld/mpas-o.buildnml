@@ -231,8 +231,6 @@ if ( -e "$CASEROOT/SourceMods/src.mpas-o/$STREAM_NAME" ) {
 	print $stream_file "	<var name=" . '"indexBoundaryLayerDepth"/>' . "\n";
 	print $stream_file "	<var name=" . '"indexSurfaceLayerDepth"/>' . "\n";
 	print $stream_file "	<var name=" . '"surfaceFrictionVelocity"/>' . "\n";
-	print $stream_file "	<var name=" . '"windStressZonalDiag"/>' . "\n";
-	print $stream_file "	<var name=" . '"windStressMeridionalDiag"/>' . "\n";
 	print $stream_file "	<var name=" . '"surfaceBuoyancyForcing"/>' . "\n";
 	print $stream_file "	<var name=" . '"seaSurfacePressure"/>' . "\n";
 	print $stream_file "\n";

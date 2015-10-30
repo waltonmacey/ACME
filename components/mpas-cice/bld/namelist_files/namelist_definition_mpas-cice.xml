@@ -189,6 +189,30 @@ Valid values: MISSING POSSIBLE VALUES
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_do_restart_hbrine" type="logical"
+	category="restart" group="restart">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_do_restart_zsalinity" type="logical"
+	category="restart" group="restart">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_do_restart_bgc" type="logical"
+	category="restart" group="restart">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
 
 <!-- initialize -->
 
@@ -460,6 +484,30 @@ Valid values: true or false
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_use_air_stress" type="logical"
+	category="velocity_solver" group="velocity_solver">
+MISSING DESCRIPTION
+
+Valid values: true or false
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_ocean_stress" type="logical"
+	category="velocity_solver" group="velocity_solver">
+MISSING DESCRIPTION
+
+Valid values: true or false
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_surface_tilt" type="logical"
+	category="velocity_solver" group="velocity_solver">
+MISSING DESCRIPTION
+
+Valid values: true or false
+Default: Defined in namelist_defaults.xml
+</entry>
+
 
 <!-- advection -->
 
@@ -492,6 +540,14 @@ Default: Defined in namelist_defaults.xml
 MISSING DESCRIPTION
 
 Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_advection_type" type="char*1024"
+	category="advection" group="advection">
+Type of advection scheme (upwind or incremental remapping)
+
+Valid values: 'upwind' and 'incremental_remap'
 Default: Defined in namelist_defaults.xml
 </entry>
 
@@ -554,6 +610,14 @@ Valid values: MISSING POSSIBLE VALUES
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_use_column_biogeochemistry" type="logical"
+	category="column_package" group="column_package">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
 <entry id="config_use_column_itd_thermodynamics" type="logical"
 	category="column_package" group="column_package">
 MISSING DESCRIPTION
@@ -597,14 +661,6 @@ Valid values: MISSING POSSIBLE VALUES
 Default: Defined in namelist_defaults.xml
 </entry>
 
-<entry id="config_use_meltponds" type="logical"
-	category="column_tracers" group="column_tracers">
-MISSING DESCRIPTION
-
-Valid values: MISSING POSSIBLE VALUES
-Default: Defined in namelist_defaults.xml
-</entry>
-
 <entry id="config_use_cesm_meltponds" type="logical"
 	category="column_tracers" group="column_tracers">
 MISSING DESCRIPTION
@@ -637,8 +693,227 @@ Valid values: MISSING POSSIBLE VALUES
 Default: Defined in namelist_defaults.xml
 </entry>
 
+
+<!-- biogeochemistry -->
+
 <entry id="config_use_brine" type="logical"
-	category="column_tracers" group="column_tracers">
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_vertical_zsalinity" type="logical"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_vertical_biochemistry" type="logical"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_shortwave_bioabsorption" type="logical"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_vertical_tracers" type="logical"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_skeletal_biochemistry" type="logical"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_nitrate" type="logical"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_carbon" type="logical"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_chlorophyll" type="logical"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_ammonium" type="logical"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_silicate" type="logical"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_DMS" type="logical"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_nonreactive" type="logical"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_humics" type="logical"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_DON" type="logical"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_iron" type="logical"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_modal_aerosols" type="logical"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_zaerosols" type="logical"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_skeletal_bgc_flux_type" type="char*1024"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_scale_initial_vertical_bgc" type="logical"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_biogrid_bottom_molecular_sublayer" type="real"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_biogrid_top_molecular_sublayer" type="real"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_bio_gravity_drainage_length_scale" type="real"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_zsalinity_molecular_sublayer" type="real"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_zsalinity_gravity_drainage_scale" type="real"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_snow_porosity_at_ice_surface" type="real"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_new_ice_fraction_biotracer" type="real"
+	category="biogeochemistry" group="biogeochemistry">
+MISSING DESCRIPTION
+
+Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_fraction_biotracer_in_frazil" type="real"
+	category="biogeochemistry" group="biogeochemistry">
 MISSING DESCRIPTION
 
 Valid values: MISSING POSSIBLE VALUES
@@ -1031,6 +1306,280 @@ Default: Defined in namelist_defaults.xml
 MISSING DESCRIPTION
 
 Valid values: MISSING POSSIBLE VALUES
+Default: Defined in namelist_defaults.xml
+</entry>
+
+
+<!-- AM_highFrequencyOutput -->
+
+<entry id="config_AM_highFrequencyOutput_enable" type="logical"
+	category="AM_highFrequencyOutput" group="AM_highFrequencyOutput">
+If true, ocean analysis member highFrequencyOutput is called.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_highFrequencyOutput_compute_interval" type="char*1024"
+	category="AM_highFrequencyOutput" group="AM_highFrequencyOutput">
+Timestamp determining how often analysis member computation should be performed.
+
+Valid values: Any valid time stamp, 'dt', or 'output_interval'
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_highFrequencyOutput_stream_name" type="char*1024"
+	category="AM_highFrequencyOutput" group="AM_highFrequencyOutput">
+Name of the stream that the highFrequencyOutput analysis member should be tied to.
+
+Valid values: Any existing stream name or 'none'
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_highFrequencyOutput_compute_on_startup" type="logical"
+	category="AM_highFrequencyOutput" group="AM_highFrequencyOutput">
+Logical flag determining if an analysis member computation occurs on start-up.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_highFrequencyOutput_write_on_startup" type="logical"
+	category="AM_highFrequencyOutput" group="AM_highFrequencyOutput">
+Logical flag determining if an analysis member write occurs on start-up.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+
+<!-- AM_temperatures -->
+
+<entry id="config_AM_temperatures_enable" type="logical"
+	category="AM_temperatures" group="AM_temperatures">
+If true, ocean analysis member temperatures is called.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_temperatures_compute_interval" type="char*1024"
+	category="AM_temperatures" group="AM_temperatures">
+Timestamp determining how often analysis member computation should be performed.
+
+Valid values: Any valid time stamp, 'dt', or 'output_interval'
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_temperatures_stream_name" type="char*1024"
+	category="AM_temperatures" group="AM_temperatures">
+Name of the stream that the temperatures analysis member should be tied to.
+
+Valid values: Any existing stream name or 'none'
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_temperatures_compute_on_startup" type="logical"
+	category="AM_temperatures" group="AM_temperatures">
+Logical flag determining if an analysis member computation occurs on start-up.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_temperatures_write_on_startup" type="logical"
+	category="AM_temperatures" group="AM_temperatures">
+Logical flag determining if an analysis member write occurs on start-up.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+
+<!-- AM_regionalStatistics -->
+
+<entry id="config_AM_regionalStatistics_enable" type="logical"
+	category="AM_regionalStatistics" group="AM_regionalStatistics">
+If true, ocean analysis member regionalStatistics is called.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_regionalStatistics_compute_interval" type="char*1024"
+	category="AM_regionalStatistics" group="AM_regionalStatistics">
+Timestamp determining how often analysis member computation should be performed.
+
+Valid values: Any valid time stamp, 'dt', or 'output_interval'
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_regionalStatistics_stream_name" type="char*1024"
+	category="AM_regionalStatistics" group="AM_regionalStatistics">
+Name of the stream that the regionalStatistics analysis member should be tied to.
+
+Valid values: Any existing stream name or 'none'
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_regionalStatistics_compute_on_startup" type="logical"
+	category="AM_regionalStatistics" group="AM_regionalStatistics">
+Logical flag determining if an analysis member computation occurs on start-up.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_regionalStatistics_write_on_startup" type="logical"
+	category="AM_regionalStatistics" group="AM_regionalStatistics">
+Logical flag determining if an analysis member write occurs on start-up.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_regionalStatistics_ice_extent_limit" type="real"
+	category="AM_regionalStatistics" group="AM_regionalStatistics">
+sea-ice fraction limit for ice extent.
+
+Valid values: real value between 0 and 1
+Default: Defined in namelist_defaults.xml
+</entry>
+
+
+<!-- AM_ridgingDiagnostics -->
+
+<entry id="config_AM_ridgingDiagnostics_enable" type="logical"
+	category="AM_ridgingDiagnostics" group="AM_ridgingDiagnostics">
+If true, ocean analysis member ridgingDiagnostics is called.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_ridgingDiagnostics_compute_interval" type="char*1024"
+	category="AM_ridgingDiagnostics" group="AM_ridgingDiagnostics">
+Timestamp determining how often analysis member computation should be performed.
+
+Valid values: Any valid time stamp, 'dt', or 'output_interval'
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_ridgingDiagnostics_stream_name" type="char*1024"
+	category="AM_ridgingDiagnostics" group="AM_ridgingDiagnostics">
+Name of the stream that the ridgingDiagnostics analysis member should be tied to.
+
+Valid values: Any existing stream name or 'none'
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_ridgingDiagnostics_compute_on_startup" type="logical"
+	category="AM_ridgingDiagnostics" group="AM_ridgingDiagnostics">
+Logical flag determining if an analysis member computation occurs on start-up.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_ridgingDiagnostics_write_on_startup" type="logical"
+	category="AM_ridgingDiagnostics" group="AM_ridgingDiagnostics">
+Logical flag determining if an analysis member write occurs on start-up.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+
+<!-- AM_conservationCheck -->
+
+<entry id="config_AM_conservationCheck_enable" type="logical"
+	category="AM_conservationCheck" group="AM_conservationCheck">
+If true, ocean analysis member conservationCheck is called.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_conservationCheck_compute_interval" type="char*1024"
+	category="AM_conservationCheck" group="AM_conservationCheck">
+Timestamp determining how often analysis member computation should be performed.
+
+Valid values: Any valid time stamp, 'dt', or 'output_interval'
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_conservationCheck_stream_name" type="char*1024"
+	category="AM_conservationCheck" group="AM_conservationCheck">
+Name of the stream that the conservationCheck analysis member should be tied to.
+
+Valid values: Any existing stream name or 'none'
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_conservationCheck_compute_on_startup" type="logical"
+	category="AM_conservationCheck" group="AM_conservationCheck">
+Logical flag determining if an analysis member computation occurs on start-up.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_conservationCheck_write_on_startup" type="logical"
+	category="AM_conservationCheck" group="AM_conservationCheck">
+Logical flag determining if an analysis member write occurs on start-up.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_conservationCheck_write_to_logfile" type="logical"
+	category="AM_conservationCheck" group="AM_conservationCheck">
+Logical flag determining if the conservation check is written to the log file.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+
+<!-- AM_geographicalVectors -->
+
+<entry id="config_AM_geographicalVectors_enable" type="logical"
+	category="AM_geographicalVectors" group="AM_geographicalVectors">
+If true, ocean analysis member geographicalVectors is called.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_geographicalVectors_compute_interval" type="char*1024"
+	category="AM_geographicalVectors" group="AM_geographicalVectors">
+Timestamp determining how often analysis member computation should be performed.
+
+Valid values: Any valid time stamp, 'dt', or 'output_interval'
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_geographicalVectors_stream_name" type="char*1024"
+	category="AM_geographicalVectors" group="AM_geographicalVectors">
+Name of the stream that the geographicalVectors analysis member should be tied to.
+
+Valid values: Any existing stream name or 'none'
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_geographicalVectors_compute_on_startup" type="logical"
+	category="AM_geographicalVectors" group="AM_geographicalVectors">
+Logical flag determining if an analysis member computation occurs on start-up.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_geographicalVectors_write_on_startup" type="logical"
+	category="AM_geographicalVectors" group="AM_geographicalVectors">
+Logical flag determining if an analysis member write occurs on start-up.
+
+Valid values: .true. or .false.
 Default: Defined in namelist_defaults.xml
 </entry>
 

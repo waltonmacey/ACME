@@ -16,7 +16,8 @@ module mpaso_cpl_indices
   integer :: index_o2x_So_s
   integer :: index_o2x_So_dhdx
   integer :: index_o2x_So_dhdy
-  integer :: index_o2x_Fioo_q
+  integer :: index_o2x_Fioo_meltp
+  integer :: index_o2x_Fioo_frazil
   integer :: index_o2x_Faoo_fco2_ocn
   integer :: index_o2x_Faoo_fdms_ocn
 
@@ -77,13 +78,14 @@ contains
     index_o2x_So_s          = mct_avect_indexra(o2x,'So_s')
     index_o2x_So_dhdx       = mct_avect_indexra(o2x,'So_dhdx')
     index_o2x_So_dhdy       = mct_avect_indexra(o2x,'So_dhdy')
-    index_o2x_Fioo_q        = mct_avect_indexra(o2x,'Fioo_q')
+    index_o2x_Fioo_meltp    = mct_avect_indexra(o2x,'Fioo_meltp',perrWith='quiet')
+    index_o2x_Fioo_frazil   = mct_avect_indexra(o2x,'Fioo_frazil',perrWith='quiet')
     index_o2x_Faoo_fco2_ocn = mct_avect_indexra(o2x,'Faoo_fco2_ocn',perrWith='quiet')
     index_o2x_Faoo_fdms_ocn = mct_avect_indexra(o2x,'Faoo_fdms_ocn',perrWith='quiet')
+
     index_x2o_Si_ifrac      = mct_avect_indexra(x2o,'Si_ifrac')
     index_x2o_Sa_pslv       = mct_avect_indexra(x2o,'Sa_pslv')
     index_x2o_So_duu10n     = mct_avect_indexra(x2o,'So_duu10n')
-
     index_x2o_Foxx_tauy     = mct_avect_indexra(x2o,'Foxx_tauy')
     index_x2o_Foxx_taux     = mct_avect_indexra(x2o,'Foxx_taux')
     index_x2o_Foxx_swnet    = mct_avect_indexra(x2o,'Foxx_swnet')

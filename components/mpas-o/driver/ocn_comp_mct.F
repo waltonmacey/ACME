@@ -621,11 +621,12 @@ contains
 
        block_ptr => domain % blocklist
        do while(associated(block_ptr))
+          call mpas_pool_get_subpool(block_ptr % structs, 'state', statePool)
           call mpas_pool_get_subpool(block_ptr % structs, 'forcing', forcingPool)
           call mpas_pool_get_subpool(block_ptr % structs, 'diagnostics', diagnosticsPool)
 
           call ocn_time_average_coupled_init(forcingPool)
-          call ocn_time_average_coupled_accumulate(diagnosticsPool, forcingPool)
+          call ocn_time_average_coupled_accumulate(diagnosticsPool, statePool, forcingPool, 1)
           block_ptr => block_ptr % next
        end do
     end if
@@ -645,13 +646,13 @@ contains
     if ( runtype == 'continue' ) then
        block_ptr => domain % blocklist
        do while(associated(block_ptr))
-          call mpas_pool_get_subpool(block_ptr % structs, 'forcing', forcingPool)
+          call mpas_pool_get_subpool(block_ptr % structs, 'state', statePool)
           call mpas_pool_get_subpool(block_ptr % structs, 'diagnostics', diagnosticsPool)
           call mpas_pool_get_subpool(block_ptr % structs, 'average', averagePool)
 
           call ocn_time_average_init(averagePool)
           call ocn_time_average_coupled_init(forcingPool)
-          call ocn_time_average_coupled_accumulate(diagnosticsPool, forcingPool)
+          call ocn_time_average_coupled_accumulate(diagnosticsPool, statePool, forcingPool, 1)
           block_ptr => block_ptr % next
        end do
     end if
@@ -861,9 +862,11 @@ contains
       ! Check if coupler wants us to write a restart file.
       ! We only write restart files at the end of a coupling interval
       if (seq_timemgr_RestartAlarmIsOn(EClock)) then
-         open(22, file=config_restart_timestamp_name, form='formatted', status='replace')
-         write(22, *) trim(timeStamp)
-         close(22)
+         if ( domain_ptr % dminfo % my_proc_id == 0 ) then
+            open(22, file=config_restart_timestamp_name, form='formatted', status='replace')
+            write(22, *) trim(timeStamp)
+            close(22)
+         end if
 
          ! Write a restart file, because the coupler asked for it.
          call mpas_stream_mgr_write(domain % streamManager, forceWriteNow=.true., streamID='restart', ierr=ierr)
@@ -1409,6 +1412,7 @@ contains
         if ( iceFractionField % isActive ) then
            iceFraction(i) = x2o_o % rAttr(index_x2o_Si_ifrac, n)
         end if
+
       end do
 
       block_ptr => block_ptr % next
@@ -1523,13 +1527,15 @@ contains
 !-----------------------------------------------------------------------
 
    integer :: i, n
-   integer, pointer :: nCellsSolve, index_temperatureSurfaceValue, index_salinitySurfaceValue, index_avgZonalSurfaceVelocity, index_avgMeridionalSurfaceVelocity, index_avgZonalSSHGradient, index_avgMeridionalSSHGradient
+   integer, pointer :: nCellsSolve, index_temperatureSurfaceValue, index_salinitySurfaceValue, &
+                       index_avgZonalSurfaceVelocity, index_avgMeridionalSurfaceVelocity,      &
+                       index_avgZonalSSHGradient, index_avgMeridionalSSHGradient
 
    type (block_type), pointer :: block_ptr
 
-   type (mpas_pool_type), pointer :: meshPool, forcingPool
+   type (mpas_pool_type), pointer :: meshPool, forcingPool, statePool
 
-   real (kind=RKIND), dimension(:), pointer :: seaIceEnergy, CO2Flux, DMSFlux, surfaceUpwardCO2Flux
+   real (kind=RKIND), dimension(:), pointer :: seaIceEnergy, accumulatedFrazilIceMass, CO2Flux, DMSFlux, surfaceUpwardCO2Flux
    real (kind=RKIND), dimension(:,:), pointer :: avgTracersSurfaceValue, avgSurfaceVelocity, avgSSHGradient
 
    logical, pointer :: frazilIceActive
@@ -1543,6 +1549,7 @@ contains
    do while(associated(block_ptr))
      call mpas_pool_get_subpool(block_ptr % structs, 'mesh', meshPool)
      call mpas_pool_get_subpool(block_ptr % structs, 'forcing', forcingPool)
+     call mpas_pool_get_subpool(block_ptr % structs, 'state', statePool)
 
      call mpas_pool_get_dimension(meshPool, 'nCellsSolve', nCellsSolve)
 
@@ -1558,6 +1565,7 @@ contains
      call mpas_pool_get_array(forcingPool, 'avgSSHGradient', avgSSHGradient)
      if ( frazilIceActive ) then
         call mpas_pool_get_array(forcingPool, 'seaIceEnergy', seaIceEnergy)
+        call mpas_pool_get_array(statePool, 'accumulatedFrazilIceMass', accumulatedFrazilIceMass)
      end if
 !    call mpas_pool_get_array(forcingPool, 'CO2Flux', CO2Flux)
 !    call mpas_pool_get_array(forcingPool, 'DMSFlux', DMSFlux)
@@ -1574,15 +1582,18 @@ contains
        o2x_o % rAttr(index_o2x_So_dhdx, n) = avgSSHGradient(index_avgZonalSSHGradient, i)
        o2x_o % rAttr(index_o2x_So_dhdy, n) = avgSSHGradient(index_avgMeridionalSSHGradient, i)
        if ( frazilIceActive ) then
-          o2x_o % rAttr(index_o2x_Fioo_q, n) = seaIceEnergy(i) / ocn_cpl_dt
+          o2x_o % rAttr(index_o2x_Fioo_meltp, n)  = seaIceEnergy(i) / ocn_cpl_dt
+          o2x_o % rAttr(index_o2x_Fioo_frazil, n) = accumulatedFrazilIceMass(i) / ocn_cpl_dt
 
-          ! Reset SeaIce Energy
+          ! Reset SeaIce Energy and Accumulated Frazil Ice
           seaIceEnergy(i) = 0.0_RKIND
+          accumulatedFrazilIceMass(i) = 0.0_RKIND
        end if
 
 !      o2x_o % rAttr(index_o2x_Faoo_fco2_ocn, n) = CO2Flux(i)
 !      o2x_o % rAttr(index_o2x_Faoo_fdms_ocn, n) = DMSFlux(i)
 !      o2x_o % rAttr(index_o2x_Faoo_fco2_ocn, n) = surfaceUpwardCO2Flux(i)
+
      end do
 
      block_ptr => block_ptr % next

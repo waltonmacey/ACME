@@ -871,6 +871,10 @@ contains
          ! ===
          call mpas_timer_start("write output")
 
+         ! Reset the restart alarm to prevent restart files being written without the coupler requesting it.
+         call mpas_stream_mgr_reset_alarms(domain % streamManager, streamID='restart', ierr=err_tmp)
+         err = ior(err, err_tmp)
+
          ! These calls will handle ALL output streams that need writing.
          ! [Could add them individually, as the ocean does, if some other actions are needed when a
          ! specific alarm is ringing (e.g., global stats calculated only when output stream gets written)]
@@ -919,9 +923,11 @@ contains
       ! Check if coupler wants us to write a restart file.
       ! We only write restart files at the end of a coupling interval
       if (seq_timemgr_RestartAlarmIsOn(EClock)) then
-         open(22, file=config_restart_timestamp_name, form='formatted', status='replace')
-         write(22, *) trim(timeStamp)
-         close(22)
+         if ( domain % dminfo % my_proc_id == 0 ) then
+            open(22, file=config_restart_timestamp_name, form='formatted', status='replace')
+            write(22, *) trim(timeStamp)
+            close(22)
+         end if
 
          ! Write a restart file, because the coupler asked for it.
          call mpas_stream_mgr_write(domain % streamManager, forceWriteNow=.true., streamID='restart', ierr=err_tmp)
