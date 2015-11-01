@@ -36,6 +36,7 @@ module atm2lndType
   ! which gives the downscaled versions of these fields.
   !----------------------------------------------------
   type, public :: atm2lnd_type
+#ifdef CPL_BYPASS
       !DMR additions for CPL_BYPASS option
       integer*2, pointer :: atm_input                (:,:,:,:) => null()  !Single-site meteorological input
       real(r8), pointer :: add_offsets                     (:) => null()  !offsets for compressed met drivers
@@ -59,6 +60,7 @@ module atm2lndType
       real, pointer :: lnfm_input                      (:,:,:) => null()  !lightning
       real(r8), pointer :: forc_hdm                      (:)   => null() 
       real(r8), pointer :: forc_lnfm                     (:)   => null()
+#endif
      ! atm->lnd not downscaled
      real(r8), pointer :: forc_u_grc                    (:)   => null() ! atm wind speed, east direction (m/s)
      real(r8), pointer :: forc_v_grc                    (:)   => null() ! atm wind speed, north direction (m/s)
@@ -181,6 +183,7 @@ contains
     ! atm->lnd
 
     !DMR - variables added for CPL_BYPASS option 
+#ifdef CPL_BYPASS
     allocate(this%timelen                             (1:8))        ; this%timelen                       (:)   = ival_int
     allocate(this%timelen_spinup                      (1:8))        ; this%timelen_spinup                (:)   = ival_int
     allocate(this%tindex                (begg:endg,1:8,1:2))        ; this%tindex                    (:,:,:)   = ival_int
@@ -204,7 +207,7 @@ contains
     allocate(this%forc_hdm                      (begg:endg))        ; this%forc_hdm                      (:)   = ival
     allocate(this%forc_lnfm                     (begg:endg))        ; this%forc_lnfm                     (:)   = ival
     !END DMR
-
+#endif
     allocate(this%forc_u_grc                    (begg:endg))        ; this%forc_u_grc                    (:)   = ival
     allocate(this%forc_v_grc                    (begg:endg))        ; this%forc_v_grc                    (:)   = ival
     allocate(this%forc_wind_grc                 (begg:endg))        ; this%forc_wind_grc                 (:)   = ival
