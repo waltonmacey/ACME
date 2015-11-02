@@ -62,7 +62,7 @@ parser.add_option("--hist_nhtfrq", dest="myhist_nhtfrq", default=-999, \
                   help = 'beginning model year to plot')
 parser.add_option("--ystart", dest="myystart", default=1, \
                   help = 'beginning model year to plot')
-parser.add_option("--yend", dest="myyend", default=1, \
+parser.add_option("--yend", dest="myyend", default=-1, \
                   help = 'final model year to plot')
 parser.add_option("--diurnal", dest="mydiurnal", default=False, \
                   action="store_true", help = 'plot diurnal cycle')
@@ -75,15 +75,18 @@ parser.add_option("--seasonal", dest="myseasonal", default=False, \
 
 (options,args) = parser.parse_args()
   
-try:
-    import pp
-    #set up parallel
-    ppservers = ("*",)
-    job_server = pp.Server(ppservers=ppservers, secret="mypswd")
-    print "Starting pp with", job_server.get_ncpus(), "workers"
-    usepp = True
-except ImportError:
-    usepp = False
+#try:
+#    import pp
+#    #set up parallel
+#    ppservers = ("*",)
+#    job_server = pp.Server(ppservers=ppservers, secret="mypswd")
+#    print "Starting pp with", job_server.get_ncpus(), "workers"
+#    usepp = True
+#except ImportError:
+#    usepp = False
+
+#pp not working at the moment
+usepp = False
 
 cesmdir=os.path.abspath(options.mycsmdir)                 
 if (options.mycase == ''): # or os.path.exists(options.mycase) == False):
@@ -274,6 +277,12 @@ for c in range(0,ncases):
     #read monthly .nc files (default output)
     if (ftype == 'default'):
         jobs=[]
+        if (yend == -1):
+	  #count number of years in directory
+	  for y in range(0,9999):
+            yst=str(10000+y)[1:5]
+	    if os.path.isfile('./'+mycase+".clm2.h0."+yst+"-12.nc"):
+               yend = y
         for y in range(ystart,yend+1):
             yst=str(10000+y)[1:5]
             for m in range(0,12):
@@ -318,6 +327,13 @@ for c in range(0,ncases):
     #read annual .nc files
     if (ftype == 'custom'):
         nstepslast=nsteps
+        if (yend == -1):
+          #count number of years in directory
+          for y in range(0,9999):
+            yst=str(10000+y)[1:5]
+            if os.path.isfile('./'+mycase+".clm2.h0."+yst+"-01-01-00000.nc"):
+               yend = y
+
         for v in range(0,nvar):
             jobs = []
             for y in range(ystart,yend+1):
