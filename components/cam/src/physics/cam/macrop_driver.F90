@@ -257,6 +257,7 @@ end subroutine macrop_driver_readnl
 
   ! Sungsu added for use in the macrophysics
 
+    if( shallow_scheme .eq. 'UNICON' ) then
     tke_idx      = pbuf_get_index('tke')
     qtl_flx_idx  = pbuf_get_index('qtl_flx')
     qti_flx_idx  = pbuf_get_index('qti_flx')
@@ -267,6 +268,7 @@ end subroutine macrop_driver_readnl
     rqcr_i_idx   = pbuf_get_index('rqcr_i')
     rncr_l_idx   = pbuf_get_index('rncr_l')
     rncr_i_idx   = pbuf_get_index('rncr_i')
+    end if
 
   ! Sungsu added for use in the macrophysics
 
