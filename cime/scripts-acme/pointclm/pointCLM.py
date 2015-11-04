@@ -601,9 +601,10 @@ if (options.refcase == 'none'):
         os.system('./xmlchange -file env_run.xml -id CLM_BLDNML_OPTS ' \
                       +' -val "-mask navy"')
 
-    os.system('./xmlchange -file env_run.xml -id ATM_DOMAIN_PATH ' \
+    if (not options.nopointdata):
+    	os.system('./xmlchange -file env_run.xml -id ATM_DOMAIN_PATH ' \
                       +' -val "\${RUNDIR}"')
-    os.system('./xmlchange -file env_run.xml -id LND_DOMAIN_PATH ' \
+    	os.system('./xmlchange -file env_run.xml -id LND_DOMAIN_PATH ' \
                       +' -val "\${RUNDIR}"')
     #turn off archiving
     os.system('./xmlchange -file env_run.xml -id DOUT_S ' \
