@@ -3260,11 +3260,14 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
           end do
         end if   
      endif
-
+   enddo !ie
      ! ====================================================
      ! Scale tendencies by inverse mass matrix
      ! ====================================================
 
+  !$omp barrier
+  !$omp master
+   do ie=1,nelemd
      do k=1,nlev
         elem(ie)%state%T(:,:,k,np1)   = elem(ie)%rspheremp(:,:)*elem(ie)%state%T(:,:,k,np1)
         elem(ie)%state%v(:,:,1,k,np1) = elem(ie)%rspheremp(:,:)*elem(ie)%state%v(:,:,1,k,np1)
@@ -3285,8 +3288,8 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
 
   end do
 
-! !$omp end master
-! !$omp barrier
+ !$omp end master
+ !$omp barrier
 
 #ifdef DEBUGOMP
 #if (defined HORIZ_OPENMP)
