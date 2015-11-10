@@ -3025,11 +3025,10 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      enddo
      elem(ie)%derived%eta_dot_dpdn(:,:,nlev+1) = &
           elem(ie)%derived%eta_dot_dpdn(:,:,nlev+1) + eta_ave_w*eta_dot_dpdn_d(:,:,nlev+1,ie)
+   enddo !ie
 
 
-
-
-
+   do ie=1,nelemd
      ! ==============================================
      ! Compute phi + kinetic energy term: 10*nv*nv Flops
      ! ==============================================
@@ -3134,7 +3133,9 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
         end do
 
      end do vertloop
-
+    enddo!ie
+  
+    do ie=1,nelemd
      ! =========================================================
      ! local element timestep, store in np1.
      ! note that we allow np1=n0 or nm1
@@ -3178,8 +3179,12 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
         elem(ie)%state%ps_v(:,:,np1) = elem(ie)%spheremp(:,:)*( elem(ie)%state%ps_v(:,:,nm1) - dt2*sdot_sum_d(:,:,ie) )
 
      endif
+    enddo!ie
 
+  !$omp end master
+  !$omp barrier
 
+    do ie=nets, nete
      ! =========================================================
      !
      ! Pack ps(np1), T, and v tendencies into comm buffer
@@ -3200,8 +3205,6 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      endif
   end do
 
-  !$omp end master
-  !$omp barrier
 
    
 
