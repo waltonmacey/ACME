@@ -55,7 +55,9 @@ module prim_advance_openacc_mod
   real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: vtens1_d
   real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: vtens2_d
   real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: ttens_d
-  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: vtemp_d
+  real (kind=real_kind),allocatable, dimension(:,:,:,:,:)  :: vtemp_d1
+  real (kind=real_kind),allocatable, dimension(:,:,:,:,:)  :: vtemp_d
+  real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: Ephi_d
   real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: grad_ps_d
   real (kind=real_kind),allocatable, dimension(:,:,:,:)  :: rdp_d
   real (kind=real_kind),allocatable, dimension(:,:,:,:,:):: tmp_d
@@ -130,7 +132,9 @@ contains
    allocate( vtens1_d       (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
    allocate( vtens2_d       (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
    allocate( ttens_d        (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
-   allocate( vtemp_d        (np, np, 2,         nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( vtemp_d1       (np, np, 2, nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( vtemp_d        (np, np, 2, nlev  ,nelemd) , stat = ierr ); _CHECK(__LINE__)
+   allocate( Ephi_d         (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
    allocate( grad_ps_d      (np, np, 2,         nelemd) , stat = ierr ); _CHECK(__LINE__)
    allocate( rdp_d          (np, np,    nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
    allocate( tmp_d          (np, np, 2, nlev  , nelemd) , stat = ierr ); _CHECK(__LINE__)
@@ -162,7 +166,7 @@ contains
     !$acc enter data pcopyin(hvcoord%hyai, hvcoord%ps0)
     !$acc enter data pcreate( grad_p_d, p_d, dp_d, vdp_d, vgrad_p_d, divdp_d, eta_dot_dpdn_d, vort_d)
     !$acc enter data pcreate(kappa_star_d, omega_p_d, sdot_sum_d, T_v_d, v_vadv_d, T_vadv_d)
-    !$acc enter data pcreate(vtens1_d, vtens2_d, ttens_d, vtemp_d, grad_ps_d, rdp_d, tmp_d, grads_d)
+    !$acc enter data pcreate(vtens1_d, vtens2_d, ttens_d, vtemp_d1, vtemp_d, Ephi_d, grad_ps_d, rdp_d, tmp_d, grads_d)
 #if defined(CAM)
     !$acc enter data pcreate(grads_d, grad_p_m_pmet_d)
 #endif
@@ -2730,9 +2734,10 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
   use kinds, only : real_kind
   use dimensions_mod, only : np, nc, nlev,nelemd,  ntrac, max_corner_elem
   use hybrid_mod, only : hybrid_t
-  use element_mod, only : element_t,PrintElem
+  use element_mod, only : element_t,PrintElem, derived_vn0, state_ps_v,derived_phi,state_phis
   use derivative_mod, only : derivative_t, divergence_sphere, gradient_sphere, vorticity_sphere
   use derivative_mod, only : subcell_div_fluxes, subcell_dss_fluxes
+  use derivative_openacc_mod, only : gradient_sphere_noacc
   use edge_mod, only : edgevpack, edgevunpack, edgeDGVunpack
   use edgetype_mod, only : edgedescriptor_t
   use bndry_mod, only : bndry_exchangev
@@ -2798,10 +2803,11 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      ! ==================================================
      ! vertically eulerian only needs grad(ps)
      if (rsplit==0) &
+ !           call gradient_sphere_noacc(state_ps_v,deriv,elem(:),grad_ps_d,nlev,1,nelemd,1,1)
           grad_ps_d(:,:,:,ie) = gradient_sphere(elem(ie)%state%ps_v(:,:,n0),deriv,elem(ie)%Dinv)
 
   enddo
-
+ 
 
      ! ============================
      ! compute p and delta p
@@ -2847,6 +2853,8 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
            grad_p_d(:,:,:,k,ie) = gradient_sphere(p_d(:,:,k,ie),deriv,elem(ie)%Dinv)
         enddo
        enddo
+
+!  call gradient_sphere_noacc(p_d,deriv,elem(:),grad_p_d,nlev,1,nelemd,1,1)
 
   endif
 
@@ -3027,35 +3035,57 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
           elem(ie)%derived%eta_dot_dpdn(:,:,nlev+1) + eta_ave_w*eta_dot_dpdn_d(:,:,nlev+1,ie)
    enddo !ie
 
+   do ie=1,nelemd
+     do k=1,nlev
+       vtemp_d1(:,:,:,k,ie)   = gradient_sphere(elem(ie)%state%T(:,:,k,n0),deriv,elem(ie)%Dinv)
+     enddo
+   enddo
+
+!  call gradient_sphere_noacc(p_d,deriv,elem(:),vtemp_d1,nlev,1,nelemd,1,1)
+
 
    do ie=1,nelemd
      ! ==============================================
      ! Compute phi + kinetic energy term: 10*nv*nv Flops
      ! ==============================================
-     vertloop: do k=1,nlev
+     do k=1,nlev
         do j=1,np
            do i=1,np
               v1     = elem(ie)%state%v(i,j,1,k,n0)
               v2     = elem(ie)%state%v(i,j,2,k,n0)
               E = 0.5D0*( v1*v1 + v2*v2 )
-              Ephi(i,j)=E+ elem(ie)%derived%phi(i,j,k)+elem(ie)%derived%pecnd(i,j,k)
+              Ephi_d(i,j,k,ie)=E+ elem(ie)%derived%phi(i,j,k)+elem(ie)%derived%pecnd(i,j,k)
            end do
         end do
+      enddo
+     enddo
         ! ================================================
         ! compute gradp term (ps/p)*(dp/dps)*T
         ! ================================================
-        vtemp_d(:,:,:,ie)   = gradient_sphere(elem(ie)%state%T(:,:,k,n0),deriv,elem(ie)%Dinv)
+        !vtemp_d(:,:,:,ie)   = gradient_sphere(elem(ie)%state%T(:,:,k,n0),deriv,elem(ie)%Dinv)
+
+   do ie=1,nelemd
+     do k=1,nlev
+       vtemp_d(:,:,:,k,ie)   = gradient_sphere(Ephi_d(:,:,k,ie),deriv,elem(ie)%Dinv)
+     enddo
+   enddo
+
+
+!   call gradient_sphere_noacc(Ephi_d,deriv,elem(:),vtemp_d,nlev,1,nelemd,1,1)
+
+    do ie=1,nelemd
+      vertloop: do k=1,nlev
         do j=1,np
            do i=1,np
               v1     = elem(ie)%state%v(i,j,1,k,n0)
               v2     = elem(ie)%state%v(i,j,2,k,n0)
-              vgrad_T(i,j) =  v1*vtemp_d(i,j,1,ie) + v2*vtemp_d(i,j,2,ie)
+              vgrad_T(i,j) =  v1*vtemp_d1(i,j,1,k,ie) + v2*vtemp_d1(i,j,2,k,ie)
            end do
         end do
 
 
         ! vtemp = grad ( E + PHI )
-        vtemp_d(:,:,:,ie) = gradient_sphere(Ephi(:,:),deriv,elem(ie)%Dinv)
+        !vtemp_d(:,:,:,ie) = gradient_sphere(Ephi(:,:),deriv,elem(ie)%Dinv)
 
         do j=1,np
            do i=1,np
@@ -3071,13 +3101,13 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
 
               vtens1_d(i,j,k,ie) =   - v_vadv_d(i,j,1,k,ie)                           &
                    + v2*(elem(ie)%fcor(i,j) + vort_d(i,j,k,ie))        &
-                   - vtemp_d(i,j,1,ie) - glnps1
+                   - vtemp_d(i,j,1,k,ie) - glnps1
               !
               ! phl: add forcing term to zonal wind u
               !
               vtens2_d(i,j,k,ie) =   - v_vadv_d(i,j,2,k,ie)                            &
                    - v1*(elem(ie)%fcor(i,j) + vort_d(i,j,k,ie))        &
-                   - vtemp_d(i,j,2,ie) - glnps2
+                   - vtemp_d(i,j,2,k,ie) - glnps2
               !
               ! phl: add forcing term to meridional wind v
               !
