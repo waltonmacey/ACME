@@ -13,7 +13,7 @@ module derivative_openacc_mod
   public :: divergence_sphere_wk
   public :: gradient_sphere
   public :: divergence_sphere
-  public :: gradient_sphere_noacc
+  public :: gradient_sphere_noacc, gradient_sphere_oacc
 
 
 contains
@@ -173,6 +173,61 @@ contains
       enddo
     enddo
   end subroutine gradient_sphere
+
+    subroutine gradient_sphere_oacc(s,deriv,elem,ds,len,nets,nete,ntl,tl)
+    use element_mod, only: element_t
+    use derivative_mod, only: derivative_t
+    use physical_constants, only: rrearth
+    implicit none
+    !   input s:  scalar
+    !   output  ds: spherical gradient of s, lat-lon coordinates
+    real(kind=real_kind), intent(in) :: s(np,np,len,ntl,nelemd)
+    type(derivative_t)  , intent(in) :: deriv
+    type(element_t)     , intent(in) :: elem(:)
+    real(kind=real_kind), intent(out):: ds(np,np,2,len,nelemd)
+    integer             , intent(in) :: len
+    integer             , intent(in) :: nets,nete,ntl,tl
+    integer, parameter :: kchunk = 8
+    integer :: i, j, l, k, ie, kc, kk
+    real(kind=real_kind) :: dsdx00, dsdy00
+    real(kind=real_kind) :: stmp(np,np,kchunk), deriv_tmp(np,np)
+    !$acc parallel loop gang collapse(2) present(ds,elem(:),s,deriv%Dvv) private(stmp,deriv_tmp)
+    do ie = nets , nete
+      do kc = 1 , len/kchunk+1
+        !$acc cache(stmp,deriv_tmp)
+        !$acc loop vector collapse(3)
+        do kk = 1 , kchunk
+          do j = 1 , np
+            do i = 1 , np
+              k = (kc-1)*kchunk+kk
+              if (k > len) k = len
+              stmp(i,j,kk) = s(i,j,k,tl,ie)
+              if (kk == 1) deriv_tmp(i,j) = deriv%Dvv(i,j)
+            enddo
+          enddo
+        enddo
+        !$acc loop vector collapse(3)
+        do kk = 1 , kchunk
+          do j = 1 , np
+            do i = 1 , np
+              k = (kc-1)*kchunk+kk
+              if (k <= len) then
+                dsdx00=0.0d0
+                dsdy00=0.0d0
+                do l = 1 , np
+                  dsdx00 = dsdx00 + deriv_tmp(l,i)*stmp(l,j,kk)
+                  dsdy00 = dsdy00 + deriv_tmp(l,j)*stmp(i,l,kk)
+                enddo
+                ds(i,j,1,k,ie) = ( elem(ie)%Dinv(i,j,1,1)*dsdx00 + elem(ie)%Dinv(i,j,2,1)*dsdy00 ) * rrearth
+                ds(i,j,2,k,ie) = ( elem(ie)%Dinv(i,j,1,2)*dsdx00 + elem(ie)%Dinv(i,j,2,2)*dsdy00 ) * rrearth
+              endif
+            enddo
+          enddo
+        enddo
+      enddo
+    enddo
+  end subroutine gradient_sphere_oacc
+
 
   subroutine gradient_sphere_noacc(s,deriv,elem,ds,len,nets,nete,ntl,tl)
     use element_mod, only: element_t

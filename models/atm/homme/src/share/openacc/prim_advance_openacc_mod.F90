@@ -2738,7 +2738,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
   use element_mod, only : element_t,PrintElem, derived_vn0, state_ps_v,derived_phi,state_phis, state_t, timelevels
   use derivative_mod, only : derivative_t, divergence_sphere, gradient_sphere, vorticity_sphere
   use derivative_mod, only : subcell_div_fluxes, subcell_dss_fluxes
-  use derivative_openacc_mod, only : gradient_sphere_noacc
+  use derivative_openacc_mod, only : gradient_sphere_noacc, gradient_sphere_oacc
   use edge_mod, only : edgevpack, edgevunpack, edgeDGVunpack
   use edgetype_mod, only : edgedescriptor_t
   use bndry_mod, only : bndry_exchangev
@@ -2798,7 +2798,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
    do ie = 1 , nelemd
      !$acc update device(elem(ie)%state%dp3d)
       !$acc update device(elem(ie)%Dinv)
-!      !$acc update device( elem(ie)%state%v, elem(ie)%state%T)
+      !$acc update device( elem(ie)%state%v, elem(ie)%state%T)
      !$acc update device (elem(ie)%derived%eta_dot_dpdn)
      !$acc update device (elem(ie)%derived%omega_p)
      !$acc update device (elem(ie)%derived%pecnd)
@@ -2825,8 +2825,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      ! ==================================================
      ! vertically eulerian only needs grad(ps)
      if (rsplit==0) then
-            call gradient_sphere_noacc(state_ps_v,deriv,elem(:),grad_ps_d,nlev,1,nelemd,1,1)
-          !$acc update device ( grad_ps_d )
+            call gradient_sphere_oacc(state_ps_v,deriv,elem(:),grad_ps_d,nlev,1,nelemd,1,1)
      endif
  
 
@@ -2854,7 +2853,6 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
           enddo
         enddo
       enddo
-   !$acc update host (dp_d, p_d, grad_p_d)  
    else
  
        !$acc parallel loop gang vector collapse(3) present( p_d, dp_d, elem(:), hvcoord%hyai(:), hvcoord%ps0) 
@@ -2880,17 +2878,11 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
             enddo
           enddo
         enddo
-       !$acc update host (dp_d, p_d)
- 
-!       do ie=1,nelemd
-!        do k=1,nlev
-!           grad_p_d(:,:,:,k,ie) = gradient_sphere(p_d(:,:,k,ie),deriv,elem(ie)%Dinv)
-!        enddo
-!       enddo
 
-  call gradient_sphere_noacc(p_d,deriv,elem(:),grad_p_d,nlev,1,nelemd,1,1)
+  call gradient_sphere_oacc(p_d,deriv,elem(:),grad_p_d,nlev,1,nelemd,1,1)
 
   endif
+  !$acc update host (dp_d, p_d, grad_p_d,  grad_ps_d)
 
   do ie=1,nelemd
      do k=1,nlev
