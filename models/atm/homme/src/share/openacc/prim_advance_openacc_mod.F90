@@ -2883,16 +2883,22 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
 
   endif
   !$acc update host (dp_d, p_d, grad_p_d,  grad_ps_d)
-
+  !$acc parallel loop gang vector collapse(4) present (rdp_d, dp_d)
   do ie=1,nelemd
      do k=1,nlev
-           rdp_d(:,:,k,ie) = 1.0D0/dp_d(:,:,k,ie)
+        do j=1,np
+           do i=1,np
+              rdp_d(i,j,k,ie) = 1.0D0/dp_d(i,j,k,ie)
+           enddo
+        enddo
      enddo
    enddo
+  !$acc update host (rdp_d)
        
         ! ============================
         ! compute vgrad_lnps
         ! ============================
+   !$acc parallel loop gang vector collapse(4) present ( vdp_d, vgrad_p_d, grad_p_d, dp_d, elem(:)) private(v1, v2)
    do ie=1,nelemd
      do k=1,nlev
         do j=1,np
@@ -2908,6 +2914,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
         end do
       enddo
    enddo
+   !$acc update host (vgrad_p_d, vdp_d)
      
 
         ! ================================
