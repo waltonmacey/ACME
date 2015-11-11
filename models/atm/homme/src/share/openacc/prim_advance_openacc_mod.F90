@@ -150,7 +150,7 @@ contains
     subroutine prim_advance_init2(elem, hvcoord)
   use kinds, only : real_kind
   use dimensions_mod, only : np, nc, nlev,  nelemd
-  use element_mod, only : element_t
+  use element_mod, only : element_t, state_ps_v, state_phis, derived_phi, state_T
   use hybvcoord_mod, only : hvcoord_t
 
   implicit none
@@ -167,6 +167,7 @@ contains
     !$acc enter data pcreate( grad_p_d, p_d, dp_d, vdp_d, vgrad_p_d, divdp_d, eta_dot_dpdn_d, vort_d)
     !$acc enter data pcreate(kappa_star_d, omega_p_d, sdot_sum_d, T_v_d, v_vadv_d, T_vadv_d)
     !$acc enter data pcreate(vtens1_d, vtens2_d, ttens_d, vtemp_d1, vtemp_d, Ephi_d, grad_ps_d, rdp_d, tmp_d, grads_d)
+    !$acc enter data pcopyin(state_ps_v, state_phis, derived_phi, state_T)
 #if defined(CAM)
     !$acc enter data pcreate(grads_d, grad_p_m_pmet_d)
 #endif
@@ -2792,8 +2793,29 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
   !$omp barrier
   !$omp master
 
- ! do ie=1,nelemd
-     !ps => elem(ie)%state%ps_v(:,:,n0)
+
+!update all data on the GPU (this will go away when we port the rest of dynamics to OpenACC)
+   do ie = 1 , nelemd
+     !$acc update device(elem(ie)%state%dp3d)
+      !$acc update device(elem(ie)%Dinv)
+!      !$acc update device( elem(ie)%state%v, elem(ie)%state%T)
+     !$acc update device (elem(ie)%derived%eta_dot_dpdn)
+     !$acc update device (elem(ie)%derived%omega_p)
+     !$acc update device (elem(ie)%derived%pecnd)
+     !$acc update device (elem(ie)%fcor)
+#if ( defined CAM ) 
+     !$acc update device (elem(ie)%derived%u_met)
+     !$acc update device (elem(ie)%derived%v_met)
+     !$acc update device (elem(ie)%derived%Utnd)
+     !$acc update device (elem(ie)%derived%nudge_factor)
+     !$acc update device (elem(ie)%derived%Vtnd)
+     !$acc update device (elem(ie)%derived%dTdt_met)
+     !$acc update device (elem(ie)%derived%T_met)
+#endif
+     !$acc update device (derived_vn0, state_ps_v)
+   enddo
+
+
 
      ! ==================================================
      ! compute pressure (p) on half levels from ps
@@ -2802,11 +2824,10 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      ! (NCAR/TN-382+STR), June 1993, p. 24.
      ! ==================================================
      ! vertically eulerian only needs grad(ps)
-     if (rsplit==0) &
+     if (rsplit==0) then
             call gradient_sphere_noacc(state_ps_v,deriv,elem(:),grad_ps_d,nlev,1,nelemd,1,1)
- !         grad_ps_d(:,:,:,ie) = gradient_sphere(elem(ie)%state%ps_v(:,:,n0),deriv,elem(ie)%Dinv)
-
-!  enddo
+          !$acc update device ( grad_ps_d )
+     endif
  
 
      ! ============================
@@ -2818,19 +2839,26 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
 
    if (rsplit==0) then
 
+      !$acc parallel loop gang vector collapse(4) present (grad_ps_d, p_d, dp_d, grad_p_d, state_ps_v, elem(:), hvcoord%hyai,  hvcoord%hybi,  hvcoord%ps0, hvcoord%hyam, hvcoord%hybm,n0)
       do ie=1,nelemd
         do k=1,nlev 
-           dp_d(:,:,k,ie) = (hvcoord%hyai(k+1)*hvcoord%ps0 + hvcoord%hybi(k+1)*elem(ie)%state%ps_v(:,:,n0)) &
-                - (hvcoord%hyai(k)*hvcoord%ps0 + hvcoord%hybi(k)*elem(ie)%state%ps_v(:,:,n0))
-           p_d(:,:,k,ie)   = hvcoord%hyam(k)*hvcoord%ps0 + hvcoord%hybm(k)*elem(ie)%state%ps_v(:,:,n0)
-           grad_p_d(:,:,:,k,ie) = hvcoord%hybm(k)*grad_ps_d(:,:,:,ie)
+          do j = 1 , np
+            do i = 1 , np
+
+               dp_d(i,j,k,ie) = (hvcoord%hyai(k+1)*hvcoord%ps0 + hvcoord%hybi(k+1)*state_ps_v(i,j,n0,ie)) &
+                         - (hvcoord%hyai(k)*hvcoord%ps0 + hvcoord%hybi(k)*state_ps_v(i,j,n0,ie))
+               p_d(i,j,k,ie)   = hvcoord%hyam(k)*hvcoord%ps0 + hvcoord%hybm(k)*state_ps_v(i,j,n0,ie)
+               grad_p_d(i,j,1,k,ie) = hvcoord%hybm(k)*grad_ps_d(i,j,1,ie)
+               grad_p_d(i,j,2,k,ie) = hvcoord%hybm(k)*grad_ps_d(i,j,2,ie)
+            enddo
+          enddo
         enddo
       enddo
- 
+   !$acc update host (dp_d, p_d, grad_p_d)  
    else
-
+ 
+       !$acc parallel loop gang vector collapse(3) present( p_d, dp_d, elem(:), hvcoord%hyai(:), hvcoord%ps0) 
        do ie=1,nelemd
-        do k=1,nlev
            ! vertically lagrangian code: we advect dp3d instead of ps_v
            ! we also need grad(p) at all levels (not just grad(ps))
            !p(k)= hyam(k)*ps0 + hybm(k)*ps
@@ -2839,14 +2867,20 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
            !
            ! p(k+1)-p(k) = ph(k+1)-ph(k) + (dp(k+1)-dp(k))/2
            !             = dp(k) + (dp(k+1)-dp(k))/2 = (dp(k+1)+dp(k))/2
-           dp_d(:,:,k,ie) = elem(ie)%state%dp3d(:,:,k,n0)
-           if (k==1) then
-              p_d(:,:,k,ie)=hvcoord%hyai(k)*hvcoord%ps0 + dp_d(:,:,k,ie)/2
-           else
-              p_d(:,:,k,ie)=p_d(:,:,k-1,ie) + dp_d(:,:,k-1,ie)/2 + dp_d(:,:,k,ie)/2
-           endif
+         do j = 1 , np
+           do i = 1 , np
+             do k=1,nlev
+               dp_d(i,j,k,ie) = elem(ie)%state%dp3d(i,j,k,n0)
+               if (k==1) then
+                  p_d(i,j,k,ie)=hvcoord%hyai(k)*hvcoord%ps0 + dp_d(i,j,k,ie)/2
+               else
+                  p_d(i,j,k,ie)=p_d(i,j,k-1,ie) + dp_d(i,j,k-1,ie)/2 + dp_d(i,j,k,ie)/2
+               endif
+             enddo
+            enddo
           enddo
         enddo
+       !$acc update host (dp_d, p_d)
  
 !       do ie=1,nelemd
 !        do k=1,nlev
@@ -3190,7 +3224,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
               elem(ie)%sub_elem_mass_flux(:,:,:,k) = elem(ie)%sub_elem_mass_flux(:,:,:,k) - tempflux
            end if
         enddo
-        elem(ie)%state%ps_v(:,:,np1) = -elem(ie)%spheremp(:,:)*sdot_sum_d(:,:,ie)
+        state_ps_v(:,:,np1,ie) = -elem(ie)%spheremp(:,:)*sdot_sum_d(:,:,ie)
      else
         do k=1,nlev
            elem(ie)%state%v(:,:,1,k,np1) = elem(ie)%spheremp(:,:)*( elem(ie)%state%v(:,:,1,k,nm1) + dt2*vtens1_d(:,:,k,ie) )
@@ -3209,7 +3243,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
               elem(ie)%sub_elem_mass_flux(:,:,:,k) = elem(ie)%sub_elem_mass_flux(:,:,:,k) - tempflux
            end if
         enddo
-        elem(ie)%state%ps_v(:,:,np1) = elem(ie)%spheremp(:,:)*( elem(ie)%state%ps_v(:,:,nm1) - dt2*sdot_sum_d(:,:,ie) )
+        state_ps_v(:,:,np1,ie) = elem(ie)%spheremp(:,:)*( state_ps_v(:,:,nm1,ie) - dt2*sdot_sum_d(:,:,ie) )
 
      endif
     enddo!ie
@@ -3224,7 +3258,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      !
      ! =========================================================
      kptr=0
-     call edgeVpack(edge3p1, elem(ie)%state%ps_v(:,:,np1),1,kptr,ie)
+     call edgeVpack(edge3p1, state_ps_v(:,:,np1,ie),1,kptr,ie)
 
      kptr=1
      call edgeVpack(edge3p1, elem(ie)%state%T(:,:,:,np1),nlev,kptr,ie)
@@ -3251,7 +3285,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      ! Unpack the edges for vgrad_T and v tendencies...
      ! ===========================================================
      kptr=0
-     call edgeVunpack(edge3p1, elem(ie)%state%ps_v(:,:,np1), 1, kptr, ie)
+     call edgeVunpack(edge3p1, state_ps_v(:,:,np1,ie), 1, kptr, ie)
 
      kptr=1
      call edgeVunpack(edge3p1, elem(ie)%state%T(:,:,:,np1), nlev, kptr, ie)
