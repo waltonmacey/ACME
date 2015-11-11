@@ -632,7 +632,7 @@ subroutine zm_conv_tend(pblh    ,mcon    ,cme     , &
                   ptend_loc%lq,state1%q, pcnst,  mu(:,:,lchnk), md(:,:,lchnk),   &
                   du(:,:,lchnk), eu(:,:,lchnk), ed(:,:,lchnk), dp(:,:,lchnk), dsubcld(:,lchnk),  &
                   jt(:,lchnk),maxg(:,lchnk), ideep(:,lchnk), 1, lengath(lchnk),  &
-                  nstep,   fracis,  ptend_loc%q, fake_dpdry)
+                  nstep,   fracis,  ptend_loc%q, fake_dpdry, ztodt)
    call t_stopf ('convtran1')
 
    call outfld('ZMDICE ',ptend_loc%q(1,1,ixcldice) ,pcols   ,lchnk   )
@@ -708,7 +708,7 @@ subroutine zm_conv_tend_2( state,  ptend,  ztodt, pbuf)
                      ptend%lq,state%q, pcnst,  mu(:,:,lchnk), md(:,:,lchnk),   &
                      du(:,:,lchnk), eu(:,:,lchnk), ed(:,:,lchnk), dp(:,:,lchnk), dsubcld(:,lchnk),  &
                      jt(:,lchnk),maxg(:,lchnk),ideep(:,lchnk), 1, lengath(lchnk),  &
-                     nstep,   fracis,  ptend%q, dpdry)
+                     nstep,   fracis,  ptend%q, dpdry, ztodt)
       call t_stopf ('convtran2')
    end if
 

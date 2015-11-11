@@ -2700,6 +2700,17 @@ add_default($nl, 'cldfrc_icecrit');
 add_default($nl, 'zmconv_c0_lnd');
 add_default($nl, 'zmconv_c0_ocn');
 add_default($nl, 'zmconv_ke');
+add_default($nl, 'zmconv_trigmem');
+add_default($nl, 'zmconv_multi_updrafts');
+add_default($nl, 'zmconv_multi_nupdrafts');
+add_default($nl, 'zmconv_multi_acoeff');
+
+if ($nl->get_value('zmconv_multi_updrafts') =~ /\.true\./i && $nl->get_value('zmconv_trigmem') !~ /\.true\./i) {
+    die "$ProgName - ERROR: if zmconv_multi_updrafts is set to .true., then zmconv_trigmem must be set to .true., for now\n";
+}
+if ($nl->get_value('zmconv_multi_nupdrafts')<0 || $nl->get_value('zmconv_multi_nupdrafts')>20) {
+    die "$ProgName - ERROR: if zmconv_multi_nupdrafts is outside expected range: [0,20]";
+}
 
 # Chikira-Sugiyama convective scheme
 add_default($nl, 'csconv_clmd');

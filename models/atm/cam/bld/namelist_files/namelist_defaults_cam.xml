@@ -1006,7 +1006,11 @@
 <zmconv_ke                       hgrid="256x512"                      > 1.0E-6 </zmconv_ke>
 <zmconv_ke                       hgrid="512x1024"                     > 1.0E-6 </zmconv_ke>
 
-<zmconv_trigmem>                 .false.   </zmconv_trigmem>
+<zmconv_trigmem>          .false. </zmconv_trigmem>
+<zmconv_multi_updrafts>   .false. </zmconv_multi_updrafts>
+<!-- a in eqn 11 of DOI:10.1002/qj.49712757104-->
+<zmconv_multi_acoeff>    0.167  </zmconv_multi_acoeff>
+<zmconv_multi_nupdrafts> 20 </zmconv_multi_nupdrafts>
 
 <!-- Chikira-Sugiyama convection scheme -->
 <csconv_clmd                                                          > 0.6 </csconv_clmd>
