@@ -1,5 +1,5 @@
 #!/bin/tcsh -f
-#PBS -A STF006
+#PBS -A CSC190ACME
 #PBS -l nodes=3
 #PBS -l walltime=0:10:00
 #PBS -N baroclinic
@@ -10,8 +10,8 @@
 #  (2) CAM6, with 60 levels and 50 tracers
 
 #  set paths to source code, build directory and run directory
-set wdir   = /lustre/atlas1/stf006/scratch/imn/HOMME_ACME             # run directory
-set HOMME  = /ccs/home/imn/ACME/models/atm/homme                # HOMME svn checkout     
+set wdir   = /lustre/atlas/world-shared/cli101/ipdemes/ACME-github2             # run directory
+set HOMME  = /lustre/atlas/world-shared/cli101/ipdemes/ACME-github2/ACME/models/atm/homme               # HOMME svn checkout     
 set input  = $HOMME/test/jw_baroclinic/openacc_work    # input files for test case
 set vdir   = $HOMME/test/vcoord            # vertical coordinate files
 set exedir = $HOMME/build/preqx

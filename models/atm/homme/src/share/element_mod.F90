@@ -24,6 +24,7 @@ module element_mod
   real (kind=real_kind), allocatable, target, public :: state_ps_v               (:,:,:,:)
   real (kind=real_kind), allocatable, target, public :: state_phis               (:,:,:)          ! (np,np,nelemd)
   real (kind=real_kind), allocatable, target, public :: derived_phi              (:,:,:,:)        ! (np,np,nlen,nelemd)
+  real (kind=real_kind), allocatable, target, public :: state_T                  (:,:,:,:,:)      ! (np,np,nlev,timelevels, nelemd)
 #if USE_OPENACC
 
   type, public :: elem_state_t
@@ -32,7 +33,7 @@ module element_mod
     ! vertically-lagrangian code advects dp3d instead of ps_v
     ! tracers Q, Qdp always use 2 level time scheme
     real (kind=real_kind) :: v   (np,np,2,nlev,timelevels)            ! velocity                           1
-    real (kind=real_kind) :: T   (np,np,nlev,timelevels)              ! temperature                        2
+    real (kind=real_kind), pointer :: T   (:,:,:,:)              ! temperature                        2
     real (kind=real_kind) :: dp3d(np,np,nlev,timelevels)              ! delta p on levels                  8
     real (kind=real_kind) :: lnps(np,np,timelevels)                   ! log surface pressure               3
     real (kind=real_kind), pointer :: ps_v(:,:,:)                     ! surface pressure                   4
@@ -566,6 +567,7 @@ contains
     allocate( state_ps_v               (np,np,nlev,nelemd)                    )
     allocate( state_phis               (np,np,nelemd)                         )
     allocate( derived_phi              (np,np,nlev,nelemd)                    )
+    allocate( state_T                  (np,np,nlev,timelevels,nelemd)         )
 
     do ie = 1 , nelemd
       elem(ie)%state%Qdp                 => state_Qdp                (:,:,:,:,:,ie)
@@ -575,6 +577,7 @@ contains
       elem(ie)%state%ps_v                => state_ps_v               (:,:,:,ie)
       elem(ie)%state%phis                => state_phis               (:,:,ie)
       elem(ie)%derived%phi               => derived_phi              (:,:,:,ie)
+      elem(ie)%state%T                   => state_T                  (:,:,:,:,ie)
     enddo
 #endif
   end subroutine setup_element_pointers

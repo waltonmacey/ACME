@@ -2734,7 +2734,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
   use kinds, only : real_kind
   use dimensions_mod, only : np, nc, nlev,nelemd,  ntrac, max_corner_elem
   use hybrid_mod, only : hybrid_t
-  use element_mod, only : element_t,PrintElem, derived_vn0, state_ps_v,derived_phi,state_phis
+  use element_mod, only : element_t,PrintElem, derived_vn0, state_ps_v,derived_phi,state_phis, state_t, timelevels
   use derivative_mod, only : derivative_t, divergence_sphere, gradient_sphere, vorticity_sphere
   use derivative_mod, only : subcell_div_fluxes, subcell_dss_fluxes
   use derivative_openacc_mod, only : gradient_sphere_noacc
@@ -2746,7 +2746,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
 
   use physical_constants, only : cp, cpwater_vapor, Rgas, kappa
   use physics_mod, only : virtual_specific_heat, virtual_temperature
-  use prim_si_mod, only : preq_vertadv, preq_omega_ps, preq_hydrostatic
+  use prim_si_mod, only : preq_vertadv, preq_omega_ps, preq_hydrostatic, preq_hydrostatic_oacc, preq_omega_ps_oacc 
 #if ( defined CAM )
   use control_mod, only: se_met_nudge_u, se_met_nudge_p, se_met_nudge_t, se_met_tevolve
 #endif
@@ -2792,7 +2792,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
   !$omp barrier
   !$omp master
 
-  do ie=1,nelemd
+ ! do ie=1,nelemd
      !ps => elem(ie)%state%ps_v(:,:,n0)
 
      ! ==================================================
@@ -2803,10 +2803,10 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      ! ==================================================
      ! vertically eulerian only needs grad(ps)
      if (rsplit==0) &
- !           call gradient_sphere_noacc(state_ps_v,deriv,elem(:),grad_ps_d,nlev,1,nelemd,1,1)
-          grad_ps_d(:,:,:,ie) = gradient_sphere(elem(ie)%state%ps_v(:,:,n0),deriv,elem(ie)%Dinv)
+            call gradient_sphere_noacc(state_ps_v,deriv,elem(:),grad_ps_d,nlev,1,nelemd,1,1)
+ !         grad_ps_d(:,:,:,ie) = gradient_sphere(elem(ie)%state%ps_v(:,:,n0),deriv,elem(ie)%Dinv)
 
-  enddo
+!  enddo
  
 
      ! ============================
@@ -2848,13 +2848,13 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
           enddo
         enddo
  
-       do ie=1,nelemd
-        do k=1,nlev
-           grad_p_d(:,:,:,k,ie) = gradient_sphere(p_d(:,:,k,ie),deriv,elem(ie)%Dinv)
-        enddo
-       enddo
+!       do ie=1,nelemd
+!        do k=1,nlev
+!           grad_p_d(:,:,:,k,ie) = gradient_sphere(p_d(:,:,k,ie),deriv,elem(ie)%Dinv)
+!        enddo
+!       enddo
 
-!  call gradient_sphere_noacc(p_d,deriv,elem(:),grad_p_d,nlev,1,nelemd,1,1)
+  call gradient_sphere_noacc(p_d,deriv,elem(:),grad_p_d,nlev,1,nelemd,1,1)
 
   endif
 
@@ -2954,15 +2954,18 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      ! Compute Hydrostatic equation, modeld after CCM-3
      ! ====================================================
      !call geopotential_t(p,dp,T_v,Rgas,phi)
-   do ie=1,nelemd
-     call preq_hydrostatic( elem(ie)%derived%phi,elem(ie)%state%phis,T_v_d(:,:,:,ie),p_d(:,:,:,ie),dp_d(:,:,:,ie))
-   enddo
+!   do ie=1,nelemd
+!     call preq_hydrostatic( elem(ie)%derived%phi,elem(ie)%state%phis,T_v_d(:,:,:,ie),p_d(:,:,:,ie),dp_d(:,:,:,ie))
+!   enddo
+    call preq_hydrostatic_oacc(derived_phi,state_phis,T_v_d,p_d,dp_d)
      ! ====================================================
      ! Compute omega_p according to CCM-3
      ! ====================================================
-   do ie=1,nelemd
-     call preq_omega_ps(omega_p_d(:,:,:,ie),hvcoord,p_d(:,:,:,ie),vgrad_p_d(:,:,:,ie),divdp_d(:,:,:,ie))
-   enddo
+!   do ie=1,nelemd
+!     call preq_omega_ps(omega_p_d(:,:,:,ie),hvcoord,p_d(:,:,:,ie),vgrad_p_d(:,:,:,ie),divdp_d(:,:,:,ie))
+!   enddo
+
+    call preq_omega_ps_oacc(omega_p_d,hvcoord,p_d,vgrad_p_d,divdp_d)
 
      ! ==================================================
      ! zero partial sum for accumulating sum
@@ -3035,13 +3038,13 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
           elem(ie)%derived%eta_dot_dpdn(:,:,nlev+1) + eta_ave_w*eta_dot_dpdn_d(:,:,nlev+1,ie)
    enddo !ie
 
-   do ie=1,nelemd
-     do k=1,nlev
-       vtemp_d1(:,:,:,k,ie)   = gradient_sphere(elem(ie)%state%T(:,:,k,n0),deriv,elem(ie)%Dinv)
-     enddo
-   enddo
+!   do ie=1,nelemd
+!     do k=1,nlev
+!       vtemp_d1(:,:,:,k,ie)   = gradient_sphere(elem(ie)%state%T(:,:,k,n0),deriv,elem(ie)%Dinv)
+!     enddo
+!   enddo
 
-!  call gradient_sphere_noacc(p_d,deriv,elem(:),vtemp_d1,nlev,1,nelemd,1,1)
+  call gradient_sphere_noacc(state_T,deriv,elem(:),vtemp_d1,nlev,1,nelemd,timelevels, n0)
 
 
    do ie=1,nelemd
@@ -3064,14 +3067,14 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
         ! ================================================
         !vtemp_d(:,:,:,ie)   = gradient_sphere(elem(ie)%state%T(:,:,k,n0),deriv,elem(ie)%Dinv)
 
-   do ie=1,nelemd
-     do k=1,nlev
-       vtemp_d(:,:,:,k,ie)   = gradient_sphere(Ephi_d(:,:,k,ie),deriv,elem(ie)%Dinv)
-     enddo
-   enddo
+!   do ie=1,nelemd
+!     do k=1,nlev
+!       vtemp_d(:,:,:,k,ie)   = gradient_sphere(Ephi_d(:,:,k,ie),deriv,elem(ie)%Dinv)
+!     enddo
+!   enddo
+   
 
-
-!   call gradient_sphere_noacc(Ephi_d,deriv,elem(:),vtemp_d,nlev,1,nelemd,1,1)
+   call gradient_sphere_noacc(Ephi_d,deriv,elem(:),vtemp_d,nlev,1,nelemd,1,1)
 
     do ie=1,nelemd
       vertloop: do k=1,nlev
