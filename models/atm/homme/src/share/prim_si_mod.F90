@@ -120,7 +120,9 @@ contains
     integer :: i,j,k,ie
     real (kind=real_kind) :: facp, facm
 
+   !$acc parallel loop gang vector collapse(2)  present (T, v, eta_dot_dp_deta,rpdel, T_vadv, v_vadv) private (facp, facm)
    do ie=1,nelemd
+    
     do j=1,np   !   Loop inversion (AAM)
 
     ! ===========================================================
@@ -142,7 +144,6 @@ contains
     !
     ! 1 < k < nlev case:
     ! ===========================================================
-
        do k=2,nlev-1
           do i=1,np
              facp            = (0.5_real_kind*rpdel(i,j,k,ie))*eta_dot_dp_deta(i,j,k+1,ie)

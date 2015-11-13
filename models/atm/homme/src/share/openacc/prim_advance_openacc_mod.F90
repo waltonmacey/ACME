@@ -3045,7 +3045,6 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
          enddo
        enddo
      enddo
-     !$acc update host (eta_dot_dpdn_d, T_vadv_d, v_vadv_d)
    else
 
      !$acc parallel loop gang vector present (eta_dot_dpdn_d, divdp_d, hvcoord,sdot_sum_d)  
@@ -3090,13 +3089,9 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
         ! Compute vertical advection of T and v from eq. CCM2 (3.b.1)
         ! ==============================================
      enddo
-     !$acc update host (eta_dot_dpdn_d, sdot_sum_d)
-!     do ie=1,nelemd
-!         call preq_vertadv(elem(ie)%state%T(:,:,:,n0),state_v(:,:,:,:,n0,ie), &
-!             eta_dot_dpdn_d,rdp_d(:,:,:,ie),T_vadv_d(:,:,:,ie),v_vadv_d(:,:,:,:,ie))
-!     enddo
      call preq_vertadv_oacc(state_T,state_v, eta_dot_dpdn_d,rdp_d,T_vadv_d,v_vadv_d,timelevels,n0)
    endif
+   !$acc update host (eta_dot_dpdn_d, sdot_sum_d, T_vadv_d, v_vadv_d)
 
    do ie=1,nelemd
      ! ================================
