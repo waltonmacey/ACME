@@ -3006,16 +3006,22 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
 
     call preq_omega_ps_oacc(omega_p_d,hvcoord,p_d,vgrad_p_d,divdp_d)
 
-    !$acc update host (omega_p_d)
+    !$acc update device (omega_p_d)
 
      ! ==================================================
      ! zero partial sum for accumulating sum
      !    (div(v_k) + v_k.grad(lnps))*dsigma_k = div( v dp )
      ! used by eta_dot_dpdn and lnps tendency
      ! ==================================================
+   !$acc parallel loop gang vector collapse(3) present (sdot_sum_d)
    do ie=1,nelemd
-     sdot_sum_d=0
+    do j=1,np
+     do i=1,np
+       sdot_sum_d(i,j,ie)=0
+     enddo
+    enddo
    enddo
+   !$acc update host (sdot_sum_d)
 
      ! ==================================================
      ! Compute eta_dot_dpdn
@@ -3023,23 +3029,39 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      ! ==================================================
    if (rsplit>0) then
 
+    !$acc parallel loop gang vector collapse(4) present (eta_dot_dpdn_d, T_vadv_d, v_vadv_d)
      do ie=1,nelemd
         ! VERTICALLY LAGRANGIAN:   no vertical motion
-        eta_dot_dpdn_d=0
-        T_vadv_d=0
-        v_vadv_d=0
+      do k=1,nlev+1
+        do j=1,np
+          do i=1,np
+           eta_dot_dpdn_d(i,j,k,ie)=0
+           if (k<=nlev) then
+              T_vadv_d(i,j,k,ie)=0
+              v_vadv_d(i,j,1,k,ie)=0
+              v_vadv_d(i,j,2,k,ie)=0
+           endif
+          enddo
+         enddo
+       enddo
      enddo
-
+     !$acc update host (eta_dot_dpdn_d, T_vadv_d, v_vadv_d)
    else
 
+     !$acc parallel loop gang vector present (eta_dot_dpdn_d, divdp_d, hvcoord,sdot_sum_d)  
      do ie=1,nelemd
+        !$acc loop collapse(3)
         do k=1,nlev
+          do j=1,np
+           do i=1,np
            ! ==================================================
            ! add this term to PS equation so we exactly conserve dry mass
            ! ==================================================
-           sdot_sum_d(:,:,ie) = sdot_sum_d(:,:,ie) + divdp_d(:,:,k,ie)
-           eta_dot_dpdn_d(:,:,k+1,ie) = sdot_sum_d(:,:,ie)
-        end do
+           sdot_sum_d(i,j,ie) = sdot_sum_d(i,j,ie) + divdp_d(i,j,k,ie)
+           eta_dot_dpdn_d(i,j,k+1,ie) = sdot_sum_d(i,j,ie)
+          enddo
+         enddo 
+       end do
 
         ! ===========================================================
         ! at this point, eta_dot_dpdn contains integral_etatop^eta[ divdp ]
@@ -3048,19 +3070,29 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
         ! for reference: at mid layers we have:
         !    omega = v grad p  - integral_etatop^eta[ divdp ]
         ! ===========================================================
+        !$acc loop collapse(3)
         do k=1,nlev-1
-           eta_dot_dpdn_d(:,:,k+1,ie) = hvcoord%hybi(k+1)*sdot_sum_d(:,:,ie) - eta_dot_dpdn_d(:,:,k+1,ie)
+          do j=1,np
+           do i=1,np
+             eta_dot_dpdn_d(i,j,k+1,ie) = hvcoord%hybi(k+1)*sdot_sum_d(i,j,ie) - eta_dot_dpdn_d(i,j,k+1,ie)
+           enddo
+          enddo
         end do
 
-        eta_dot_dpdn_d(:,:,1,ie) = 0.0D0
-        eta_dot_dpdn_d(:,:,nlev+1,ie) = 0.0D0
+        !$acc loop collapse(2)
+        do j=1,np
+           do i=1,np
+             eta_dot_dpdn_d(i,j,1,ie) = 0.0D0
+             eta_dot_dpdn_d(i,j,nlev+1,ie) = 0.0D0
+           enddo
+        enddo
         ! ===========================================================
         ! Compute vertical advection of T and v from eq. CCM2 (3.b.1)
         ! ==============================================
      enddo
-
+     !$acc update host (eta_dot_dpdn_d, sdot_sum_d)
      do ie=1,nelemd
-        call preq_vertadv(elem(ie)%state%T(:,:,:,n0),state_v(:,:,:,:,n0,ie), &
+         call preq_vertadv(elem(ie)%state%T(:,:,:,n0),state_v(:,:,:,:,n0,ie), &
              eta_dot_dpdn_d,rdp_d(:,:,:,ie),T_vadv_d(:,:,:,ie),v_vadv_d(:,:,:,:,ie))
      enddo
    endif

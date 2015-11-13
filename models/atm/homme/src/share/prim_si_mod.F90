@@ -253,19 +253,18 @@ contains
     integer i,j,k,ie                         ! longitude, level indices
     real(kind=real_kind) term             ! one half of basic term in omega/p summation 
     real(kind=real_kind) Ckk,Ckl          ! diagonal term of energy conversion matrix
-    real(kind=real_kind) suml(np,np)      ! partial sum over l = (1, k-1)
+    real(kind=real_kind) suml(np,np,nelemd)      ! partial sum over l = (1, k-1)
     !-----------------------------------------------------------------------
-    !$acc parallel loop gang vector collapse(2) present (omega_p, vgrad_p, p, divdp) private (ckk, ckl, term, suml)
+!    !$acc parallel loop gang vector collapse(2) present (omega_p, vgrad_p, p, divdp) private (ckk, ckl, term, suml)
     do ie=1, nelemd
        do j=1,np   !   Loop inversion (AAM)
-
           do i=1,np
              ckk = 0.5d0/p(i,j,1,ie)
              term = divdp(i,j,1,ie)
 !             omega_p(i,j,1) = hvcoord%hybm(1)*vgrad_ps(i,j,1)/p(i,j,1)
              omega_p(i,j,1,ie) = vgrad_p(i,j,1,ie)/p(i,j,1,ie)
              omega_p(i,j,1,ie) = omega_p(i,j,1,ie) - ckk*term
-             suml(i,j) = term
+             suml(i,j,ie) = term
           end do
 
           do k=2,nlev-1
@@ -275,8 +274,8 @@ contains
                 term = divdp(i,j,k,ie)
 !                omega_p(i,j,k) = hvcoord%hybm(k)*vgrad_ps(i,j,k)/p(i,j,k)
                 omega_p(i,j,k,ie) = vgrad_p(i,j,k,ie)/p(i,j,k,ie)
-                omega_p(i,j,k,ie) = omega_p(i,j,k,ie) - ckl*suml(i,j) - ckk*term
-                suml(i,j) = suml(i,j) + term
+                omega_p(i,j,k,ie) = omega_p(i,j,k,ie) - ckl*suml(i,j,ie) - ckk*term
+                suml(i,j,ie) = suml(i,j,ie) + term
 
              end do
           end do
@@ -287,7 +286,7 @@ contains
              term = divdp(i,j,nlev,ie)
 !             omega_p(i,j,nlev) = hvcoord%hybm(nlev)*vgrad_ps(i,j,nlev)/p(i,j,nlev)
              omega_p(i,j,nlev,ie) = vgrad_p(i,j,nlev,ie)/p(i,j,nlev,ie)
-             omega_p(i,j,nlev,ie) = omega_p(i,j,nlev,ie) - ckl*suml(i,j) - ckk*term
+             omega_p(i,j,nlev,ie) = omega_p(i,j,nlev,ie) - ckl*suml(i,j,ie) - ckk*term
           end do
 
        end do
