@@ -11,6 +11,7 @@ module prim_si_mod
   public :: preq_hydrostatic, geopotential_t
   public :: preq_pressure
   public :: preq_vertadv
+  public :: preq_vertadv_oacc
   public :: preq_hydrostatic_oacc
   public :: preq_omega_ps_oacc
 contains
@@ -97,6 +98,81 @@ contains
 
   end subroutine preq_vertadv
 
+
+    subroutine preq_vertadv_oacc(T, v, eta_dot_dp_deta, rpdel, &
+       T_vadv, v_vadv,ntl,tl)
+    use kinds,              only : real_kind
+    use dimensions_mod,     only : nlev, np, nlevp,nelemd
+    implicit none
+
+    real (kind=real_kind), intent(in) :: T(np,np,nlev,ntl,nelemd)
+    real (kind=real_kind), intent(in) :: v(np,np,2,nlev,ntl,nelemd)
+    real (kind=real_kind), intent(in) :: eta_dot_dp_deta(np,np,nlevp,nelemd)
+    real (kind=real_kind), intent(in) :: rpdel(np,np,nlev,nelemd)
+    integer              , intent(in) ::tl, ntl
+    real (kind=real_kind), intent(out) :: T_vadv(np,np,nlev,nelemd)
+    real (kind=real_kind), intent(out) :: v_vadv(np,np,2,nlev,nelemd)
+
+    ! ========================
+    ! Local Variables
+    ! ========================
+
+    integer :: i,j,k,ie
+    real (kind=real_kind) :: facp, facm
+
+   do ie=1,nelemd
+    do j=1,np   !   Loop inversion (AAM)
+
+    ! ===========================================================
+    ! Compute vertical advection of T and v from eq. (3.b.1)
+    !
+    ! k = 1 case:
+    ! ===========================================================
+
+       k=1
+       do i=1,np
+          facp            = (0.5_real_kind*rpdel(i,j,k,ie))*eta_dot_dp_deta(i,j,k+1,ie)
+          T_vadv(i,j,k,ie)   = facp*(T(i,j,k+1,tl,ie)- T(i,j,k,tl,ie))
+          v_vadv(i,j,1,k,ie) = facp*(v(i,j,1,k+1,tl,ie)- v(i,j,1,k,tl,ie))
+          v_vadv(i,j,2,k,ie) = facp*(v(i,j,2,k+1,tl,ie)- v(i,j,2,k,tl,ie))
+       end do
+
+    ! ===========================================================
+    ! vertical advection
+    !
+    ! 1 < k < nlev case:
+    ! ===========================================================
+
+       do k=2,nlev-1
+          do i=1,np
+             facp            = (0.5_real_kind*rpdel(i,j,k,ie))*eta_dot_dp_deta(i,j,k+1,ie)
+             facm            = (0.5_real_kind*rpdel(i,j,k,ie))*eta_dot_dp_deta(i,j,k,ie)
+             T_vadv(i,j,k,ie)   = facp*(T(i,j,k+1,tl,ie)- T(i,j,k,tl,ie)) + &
+                  facm*(T(i,j,k,tl,ie)- T(i,j,k-1,tl,ie))
+             v_vadv(i,j,1,k,ie) = facp*(v(i,j,1,k+1,tl,ie)- v(i,j,1,k,tl,ie)) + &
+                  facm*(v(i,j,1,k,tl,ie)- v(i,j,1,k-1,tl,ie))
+             v_vadv(i,j,2,k,ie) = facp*(v(i,j,2,k+1,tl,ie)- v(i,j,2,k,tl,ie)) + &
+                  facm*(v(i,j,2,k,tl,ie)- v(i,j,2,k-1,tl,ie))
+          end do
+       end do
+
+    ! ===========================================================
+    ! vertical advection
+    !
+    ! k = nlev case:
+    ! ===========================================================
+
+       k=nlev
+       do i=1,np
+          facm            = (0.5_real_kind*rpdel(i,j,k,ie))*eta_dot_dp_deta(i,j,k,ie)
+          T_vadv(i,j,k,ie)   = facm*(T(i,j,k,tl,ie)- T(i,j,k-1,tl,ie))
+          v_vadv(i,j,1,k,ie) = facm*(v(i,j,1,k,tl,ie)- v(i,j,1,k-1,tl,ie))
+          v_vadv(i,j,2,k,ie) = facm*(v(i,j,2,k,tl,ie)- v(i,j,2,k-1,tl,ie))
+       end do
+
+    end do
+   enddo
+  end subroutine preq_vertadv_oacc
 
 
 

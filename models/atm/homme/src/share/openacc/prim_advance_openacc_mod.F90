@@ -2747,7 +2747,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
 
   use physical_constants, only : cp, cpwater_vapor, Rgas, kappa,rrearth, Rwater_vapor
   use physics_mod, only : virtual_specific_heat, virtual_temperature
-  use prim_si_mod, only : preq_vertadv, preq_omega_ps, preq_hydrostatic, preq_hydrostatic_oacc, preq_omega_ps_oacc 
+  use prim_si_mod, only : preq_vertadv, preq_omega_ps, preq_hydrostatic, preq_hydrostatic_oacc, preq_omega_ps_oacc, preq_vertadv_oacc 
 #if ( defined CAM )
   use control_mod, only: se_met_nudge_u, se_met_nudge_p, se_met_nudge_t, se_met_tevolve
 #endif
@@ -3003,7 +3003,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      ! ====================================================
      ! Compute omega_p according to CCM-3
      ! ====================================================
-
+!Irina TOFIX : fix OpenACC version of the preq_omega_ps_oacc routine
     call preq_omega_ps_oacc(omega_p_d,hvcoord,p_d,vgrad_p_d,divdp_d)
 
     !$acc update device (omega_p_d)
@@ -3091,10 +3091,11 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
         ! ==============================================
      enddo
      !$acc update host (eta_dot_dpdn_d, sdot_sum_d)
-     do ie=1,nelemd
-         call preq_vertadv(elem(ie)%state%T(:,:,:,n0),state_v(:,:,:,:,n0,ie), &
-             eta_dot_dpdn_d,rdp_d(:,:,:,ie),T_vadv_d(:,:,:,ie),v_vadv_d(:,:,:,:,ie))
-     enddo
+!     do ie=1,nelemd
+!         call preq_vertadv(elem(ie)%state%T(:,:,:,n0),state_v(:,:,:,:,n0,ie), &
+!             eta_dot_dpdn_d,rdp_d(:,:,:,ie),T_vadv_d(:,:,:,ie),v_vadv_d(:,:,:,:,ie))
+!     enddo
+     call preq_vertadv_oacc(state_T,state_v, eta_dot_dpdn_d,rdp_d,T_vadv_d,v_vadv_d,timelevels,n0)
    endif
 
    do ie=1,nelemd
