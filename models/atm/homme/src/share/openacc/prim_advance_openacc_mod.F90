@@ -3093,28 +3093,40 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
    endif
    !$acc update host (eta_dot_dpdn_d, sdot_sum_d, T_vadv_d, v_vadv_d)
 
+   !$acc parallel loop gang vector present (eta_dot_dpdn_d,omega_p_d, elem(:))
    do ie=1,nelemd
      ! ================================
      ! accumulate mean vertical flux:
      ! ================================
+    !$acc loop collapse(3)
      do k=1,nlev  !  Loop index added (AAM)
-        elem(ie)%derived%eta_dot_dpdn(:,:,k) = &
-             elem(ie)%derived%eta_dot_dpdn(:,:,k) + eta_ave_w*eta_dot_dpdn_d(:,:,k,ie)
-        elem(ie)%derived%omega_p(:,:,k) = &
-             elem(ie)%derived%omega_p(:,:,k) + eta_ave_w*omega_p_d(:,:,k,ie)
+       do j=1,np
+          do i=1,np 
+            elem(ie)%derived%eta_dot_dpdn(i,j,k) = &
+              elem(ie)%derived%eta_dot_dpdn(i,j,k) + eta_ave_w*eta_dot_dpdn_d(i,j,k,ie)
+            elem(ie)%derived%omega_p(i,j,k) = &
+              elem(ie)%derived%omega_p(i,j,k) + eta_ave_w*omega_p_d(i,j,k,ie)
+          enddo
+        enddo
      enddo
-     elem(ie)%derived%eta_dot_dpdn(:,:,nlev+1) = &
-          elem(ie)%derived%eta_dot_dpdn(:,:,nlev+1) + eta_ave_w*eta_dot_dpdn_d(:,:,nlev+1,ie)
+     !$acc loop collapse(2)
+     do j=1,np
+        do i=1,np
+           elem(ie)%derived%eta_dot_dpdn(i,j,nlev+1) = &
+             elem(ie)%derived%eta_dot_dpdn(i,j,nlev+1) + eta_ave_w*eta_dot_dpdn_d(i,j,nlev+1,ie)
+        enddo
+      enddo
    enddo !ie
 
-!   do ie=1,nelemd
-!     do k=1,nlev
-!       vtemp_d1(:,:,:,k,ie)   = gradient_sphere(elem(ie)%state%T(:,:,k,n0),deriv,elem(ie)%Dinv)
-!     enddo
-!   enddo
+   do ie=1, nelemd
+     !$acc update host (elem(ie)%derived%eta_dot_dpdn)
+     !$acc update host (elem(ie)%derived%omega_p)
+   enddo
 
-  call gradient_sphere_noacc(state_T,deriv,elem(:),vtemp_d1,nlev,1,nelemd,timelevels, n0)
 
+  call gradient_sphere_oacc(state_T,deriv,elem(:),vtemp_d1,nlev,1,nelemd,timelevels, n0)
+
+  !$acc update host (vtemp_d1)
 
    do ie=1,nelemd
      ! ==============================================
