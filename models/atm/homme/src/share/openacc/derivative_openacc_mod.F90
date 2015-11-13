@@ -13,6 +13,7 @@ module derivative_openacc_mod
   public :: divergence_sphere_wk
   public :: gradient_sphere
   public :: divergence_sphere
+  public :: vorticity_sphere
   public :: gradient_sphere_noacc, gradient_sphere_oacc
 
 
@@ -335,6 +336,64 @@ contains
       enddo
     enddo
   end subroutine divergence_sphere
+
+  subroutine vorticity_sphere(v,deriv,elem, vort,len,nets,nete,ntl,tl)
+!
+!   input:  v = velocity in lat-lon coordinates
+!   ouput:  spherical vorticity of v
+!
+    use element_mod   , only: element_t
+    use derivative_mod, only: derivative_t
+    use physical_constants, only: rrearth
+    real(kind=real_kind), intent(in   ) :: v(np,np,2,len,ntl,nelemd)
+    type (derivative_t),  intent(in   ) :: deriv
+    type (element_t),     intent(in   ) :: elem(:)
+    real(kind=real_kind), intent(  out) :: vort(np,np,len,nelemd)
+    integer             , intent(in   ) :: len , nets , nete , ntl , tl
+  
+    integer i,j,l,k,ie
+
+    real(kind=real_kind) ::  dvdx00,dudy00
+    real(kind=real_kind) ::  vco(np,np,2)
+    real(kind=real_kind) ::  vtemp(np,np)
+
+   !$acc parallel loop gang collapse(2) private(vco, dudy00, dvdx00,vtemp) present(v,deriv,vort,elem(:))
+   do ie=nets,nete
+    do k=1,len
+     ! convert to covariant form
+      do j=1,np
+       do i=1,np
+          vco(i,j,1)=(elem(ie)%D(i,j,1,1)*v(i,j,1,k,tl,ie) + elem(ie)%D(i,j,2,1)*v(i,j,2,k,tl,ie))
+          vco(i,j,2)=(elem(ie)%D(i,j,1,2)*v(i,j,1,k,tl,ie) + elem(ie)%D(i,j,2,2)*v(i,j,2,k,tl,ie))
+       enddo
+      enddo
+
+      do j=1,np
+       do l=1,np
+
+          dudy00=0.0d0
+          dvdx00=0.0d0
+
+          do i=1,np
+             dvdx00 = dvdx00 + deriv%Dvv(i,l  )*vco(i,j  ,2)
+             dudy00 = dudy00 + deriv%Dvv(i,l  )*vco(j  ,i,1)
+          enddo
+
+          vort(l,j,k,ie) = dvdx00
+          vtemp(j,l) = dudy00
+       enddo
+      enddo
+
+      do j=1,np
+       do i=1,np
+          vort(i,j,k,ie)=(vort(i,j,k,ie)-vtemp(i,j))*(elem(ie)%rmetdet(i,j)*rrearth)
+       end do
+      end do
+     enddo
+    enddo
+ 
+
+  end subroutine vorticity_sphere
 
 end module derivative_openacc_mod
 

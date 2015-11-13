@@ -255,7 +255,7 @@ contains
     real(kind=real_kind) Ckk,Ckl          ! diagonal term of energy conversion matrix
     real(kind=real_kind) suml(np,np)      ! partial sum over l = (1, k-1)
     !-----------------------------------------------------------------------
-
+    !$acc parallel loop gang vector collapse(2) present (omega_p, vgrad_p, p, divdp) private (ckk, ckl, term, suml)
     do ie=1, nelemd
        do j=1,np   !   Loop inversion (AAM)
 
@@ -450,7 +450,7 @@ end subroutine preq_hydrostatic
     real(kind=real_kind) Hkk,Hkl          ! diagonal term of energy conversion matrix
     real(kind=real_kind), dimension(np,np,nlev) :: phii       ! Geopotential at interfaces
     !-----------------------------------------------------------------------
-
+     !$acc parallel loop gang vector collapse(2) present (phi, T_v,phis, p, dp), private (hkk, hkl, phii)
      do ie=1, nelemd
        do j=1,np   !   Loop inversion (AAM)
 

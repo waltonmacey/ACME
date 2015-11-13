@@ -11,7 +11,7 @@ module arch_switch_mod
        applyCAMforcing_dynamics, applyCAMforcing, smooth_phis, overwrite_SEdensity, prim_advance_init2
 #else
   use prim_advection_mod, only: prim_advec_init1, prim_advec_init2, prim_advec_init_deriv, deriv, Prim_Advec_Tracers_remap
-  use arch_switch_mod,only: prim_advance_exp, prim_advance_si, prim_advance_init, preq_robert3,&
+  use prim_advance_openacc_mod, only: prim_advance_exp, prim_advance_si, prim_advance_init, preq_robert3,&
        applyCAMforcing_dynamics, applyCAMforcing, smooth_phis, overwrite_SEdensity, prim_advance_init2
 #endif
   implicit none

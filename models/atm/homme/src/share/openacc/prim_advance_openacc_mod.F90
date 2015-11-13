@@ -150,7 +150,7 @@ contains
     subroutine prim_advance_init2(elem, hvcoord)
   use kinds, only : real_kind
   use dimensions_mod, only : np, nc, nlev,  nelemd
-  use element_mod, only : element_t, state_ps_v, state_phis, derived_phi, state_T
+  use element_mod, only : element_t, state_ps_v, state_phis, derived_phi, state_T, state_v
   use hybvcoord_mod, only : hvcoord_t
 
   implicit none
@@ -167,7 +167,7 @@ contains
     !$acc enter data pcreate( grad_p_d, p_d, dp_d, vdp_d, vgrad_p_d, divdp_d, eta_dot_dpdn_d, vort_d)
     !$acc enter data pcreate(kappa_star_d, omega_p_d, sdot_sum_d, T_v_d, v_vadv_d, T_vadv_d)
     !$acc enter data pcreate(vtens1_d, vtens2_d, ttens_d, vtemp_d1, vtemp_d, Ephi_d, grad_ps_d, rdp_d, tmp_d, grads_d)
-    !$acc enter data pcopyin(state_ps_v, state_phis, derived_phi, state_T)
+    !$acc enter data pcopyin(state_ps_v, state_phis, derived_phi, state_T, state_v)
 #if defined(CAM)
     !$acc enter data pcreate(grads_d, grad_p_m_pmet_d)
 #endif
@@ -2735,17 +2735,17 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
   use kinds, only : real_kind
   use dimensions_mod, only : np, nc, nlev,nelemd,  ntrac, max_corner_elem
   use hybrid_mod, only : hybrid_t
-  use element_mod, only : element_t,PrintElem, derived_vn0, state_ps_v,derived_phi,state_phis, state_t, timelevels
+  use element_mod, only : element_t,PrintElem, derived_vn0, state_ps_v,derived_phi,state_phis, state_T, state_v, timelevels
   use derivative_mod, only : derivative_t, divergence_sphere, gradient_sphere, vorticity_sphere
   use derivative_mod, only : subcell_div_fluxes, subcell_dss_fluxes
-  use derivative_openacc_mod, only : gradient_sphere_noacc, gradient_sphere_oacc
+  use derivative_openacc_mod, only : gradient_sphere_noacc, gradient_sphere_oacc, divergence_sphere ,vorticity_sphere
   use edge_mod, only : edgevpack, edgevunpack, edgeDGVunpack
   use edgetype_mod, only : edgedescriptor_t
   use bndry_mod, only : bndry_exchangev
   use control_mod, only : moisture, qsplit, use_cpstar, rsplit, swest
   use hybvcoord_mod, only : hvcoord_t
 
-  use physical_constants, only : cp, cpwater_vapor, Rgas, kappa
+  use physical_constants, only : cp, cpwater_vapor, Rgas, kappa,rrearth, Rwater_vapor
   use physics_mod, only : virtual_specific_heat, virtual_temperature
   use prim_si_mod, only : preq_vertadv, preq_omega_ps, preq_hydrostatic, preq_hydrostatic_oacc, preq_omega_ps_oacc 
 #if ( defined CAM )
@@ -2798,7 +2798,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
    do ie = 1 , nelemd
      !$acc update device(elem(ie)%state%dp3d)
       !$acc update device(elem(ie)%Dinv)
-      !$acc update device( elem(ie)%state%v, elem(ie)%state%T)
+      !$acc update device( state_v, state_T)
      !$acc update device (elem(ie)%derived%eta_dot_dpdn)
      !$acc update device (elem(ie)%derived%omega_p)
      !$acc update device (elem(ie)%derived%pecnd)
@@ -2903,8 +2903,8 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      do k=1,nlev
         do j=1,np
            do i=1,np
-              v1 = elem(ie)%state%v(i,j,1,k,n0)
-              v2 = elem(ie)%state%v(i,j,2,k,n0)
+              v1 = state_v(i,j,1,k,n0,ie)
+              v2 = state_v(i,j,2,k,n0,ie)
 !              vgrad_p(i,j,k) = &
 !                   hvcoord%hybm(k)*(v1*grad_ps(i,j,1) + v2*grad_ps(i,j,2))
               vgrad_p_d(i,j,k,ie) = (v1*grad_p_d(i,j,1,k,ie) + v2*grad_p_d(i,j,2,k,ie))
@@ -2920,38 +2920,53 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
         ! ================================
         ! Accumulate mean Vel_rho flux in vn0
         ! ================================
-   do ie=1,nelemd
-     do k=1,nlev
-        elem(ie)%derived%vn0(:,:,:,k)=elem(ie)%derived%vn0(:,:,:,k)+eta_ave_w*vdp_d(:,:,:,k,ie)
-     enddo
-   enddo
 
+   !$acc parallel loop gang vector collapse(3) present ( vdp_d,derived_vn0)
+    do ie=1, nelemd
+      do k=1,nlev
+        do j=1,np
+           do i=1,np
+              derived_vn0(i,j,1,k, ie)=derived_vn0(i,j,1,k, ie)+eta_ave_w*vdp_d(i,j,1,k,ie)
+              derived_vn0(i,j,2,k, ie)=derived_vn0(i,j,2,k, ie)+eta_ave_w*vdp_d(i,j,2,k,ie)
+           enddo
+        enddo
+      enddo
+    enddo
+   !$acc update host (derived_vn0)
+  
         ! =========================================
         !
         ! Compute relative vorticity and divergence
         !
         ! =========================================
-   do ie=1,nelemd
-     do k=1,nlev
-        divdp_d(:,:,k,ie)=divergence_sphere(vdp_d(:,:,:,k,ie),deriv,elem(ie))
-     enddo
-   enddo
+!   do ie=1,nelemd
+!     do k=1,nlev
+!        divdp_d(:,:,k,ie)=divergence_sphere(vdp_d(:,:,:,k,ie),deriv,elem(ie))
+!     enddo
+!   enddo
+    
+    call divergence_sphere(vdp_d,deriv,elem,divdp_d,nlev,1,nelemd,1,1)
+   !$acc update host (divdp_d)
 
-   do ie=1,nelemd
-     do k=1,nlev
-        vort_d(:,:,k,ie)=vorticity_sphere(elem(ie)%state%v(:,:,:,k,n0),deriv,elem(ie))
-     enddo
-   enddo
+!   do ie=1,nelemd
+!     do k=1,nlev
+!        vort_d(:,:,k,ie)=vorticity_sphere(state_v(:,:,:,k,n0,ie),deriv,elem(ie))
+!     enddo
+!   enddo
+
+  call vorticity_sphere(state_v,deriv,elem,vort_d,nlev,1,nelemd,timelevels, n0)
+  !$acc update host (vort_d)
+
 
      ! compute T_v for timelevel n0
      !if ( moisture /= "dry") then
    if (qn0 == -1 ) then
-
+     !$acc parallel loop gang vector collapse(4) present ( kappa_star_d, T_v_d, elem(:))
      do ie=1,nelemd
         do k=1,nlev
            do j=1,np
               do i=1,np
-                 T_v_d(i,j,k,ie) = elem(ie)%state%T(i,j,k,n0)
+                 T_v_d(i,j,k,ie) = state_T(i,j,k,n0,ie)
                  kappa_star_d(i,j,k,ie) = kappa
               end do
            end do
@@ -2959,19 +2974,16 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
       enddo
 
    else
-
+      !$acc parallel loop gang vector collapse(4) present ( kappa_star_d, T_v_d, elem(:), dp_d), private (Qt)
       do ie=1,nelemd
         do k=1,nlev
            do j=1,np
               do i=1,np
                  ! Qt = elem(ie)%state%Q(i,j,k,1)
                  Qt = elem(ie)%state%Qdp(i,j,k,1,qn0)/dp_d(i,j,k,ie)
-!!XXgoldyXX
-!Qt=0._real_kind
-!!XXgoldyXX
-                 T_v_d(i,j,k,ie) = Virtual_Temperature(elem(ie)%state%T(i,j,k,n0),Qt)
+                 T_v_d(i,j,k,ie) = state_T(i,j,k,n0)*(1_real_kind + (Rwater_vapor/Rgas - 1.0_real_kind)*Qt)
                  if (use_cpstar==1) then
-                    kappa_star_d(i,j,k,ie) =  Rgas/Virtual_Specific_Heat(Qt)
+                    kappa_star_d(i,j,k,ie) =  Rgas/Cp*(1.0_real_kind + (Cpwater_vapor/Cp - 1.0_real_kind)*Qt)
                  else
                     kappa_star_d(i,j,k,ie) = kappa
                  endif
@@ -2981,24 +2993,20 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
       enddo
 
    end if
-
+   !$acc update host (T_v_d, kappa_star_d)
 
      ! ====================================================
      ! Compute Hydrostatic equation, modeld after CCM-3
      ! ====================================================
-     !call geopotential_t(p,dp,T_v,Rgas,phi)
-!   do ie=1,nelemd
-!     call preq_hydrostatic( elem(ie)%derived%phi,elem(ie)%state%phis,T_v_d(:,:,:,ie),p_d(:,:,:,ie),dp_d(:,:,:,ie))
-!   enddo
     call preq_hydrostatic_oacc(derived_phi,state_phis,T_v_d,p_d,dp_d)
+    !$acc update host (derived_phi)   
      ! ====================================================
      ! Compute omega_p according to CCM-3
      ! ====================================================
-!   do ie=1,nelemd
-!     call preq_omega_ps(omega_p_d(:,:,:,ie),hvcoord,p_d(:,:,:,ie),vgrad_p_d(:,:,:,ie),divdp_d(:,:,:,ie))
-!   enddo
 
     call preq_omega_ps_oacc(omega_p_d,hvcoord,p_d,vgrad_p_d,divdp_d)
+
+    !$acc update host (omega_p_d)
 
      ! ==================================================
      ! zero partial sum for accumulating sum
@@ -3052,7 +3060,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      enddo
 
      do ie=1,nelemd
-        call preq_vertadv(elem(ie)%state%T(:,:,:,n0),elem(ie)%state%v(:,:,:,:,n0), &
+        call preq_vertadv(elem(ie)%state%T(:,:,:,n0),state_v(:,:,:,:,n0,ie), &
              eta_dot_dpdn_d,rdp_d(:,:,:,ie),T_vadv_d(:,:,:,ie),v_vadv_d(:,:,:,:,ie))
      enddo
    endif
@@ -3087,8 +3095,8 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      do k=1,nlev
         do j=1,np
            do i=1,np
-              v1     = elem(ie)%state%v(i,j,1,k,n0)
-              v2     = elem(ie)%state%v(i,j,2,k,n0)
+              v1     = state_v(i,j,1,k,n0,ie)
+              v2     = state_v(i,j,2,k,n0,ie)
               E = 0.5D0*( v1*v1 + v2*v2 )
               Ephi_d(i,j,k,ie)=E+ elem(ie)%derived%phi(i,j,k)+elem(ie)%derived%pecnd(i,j,k)
            end do
@@ -3113,8 +3121,8 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
       vertloop: do k=1,nlev
         do j=1,np
            do i=1,np
-              v1     = elem(ie)%state%v(i,j,1,k,n0)
-              v2     = elem(ie)%state%v(i,j,2,k,n0)
+              v1     = state_v(i,j,1,k,n0,ie)
+              v2     = state_v(i,j,2,k,n0,ie)
               vgrad_T(i,j) =  v1*vtemp_d1(i,j,1,k,ie) + v2*vtemp_d1(i,j,2,k,ie)
            end do
         end do
@@ -3132,8 +3140,8 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
               glnps1 = Rgas*gpterm*grad_p_d(i,j,1,k,ie)
               glnps2 = Rgas*gpterm*grad_p_d(i,j,2,k,ie)
 
-              v1     = elem(ie)%state%v(i,j,1,k,n0)
-              v2     = elem(ie)%state%v(i,j,2,k,n0)
+              v1     = state_v(i,j,1,k,n0,ie)
+              v2     = state_v(i,j,2,k,n0,ie)
 
               vtens1_d(i,j,k,ie) =   - v_vadv_d(i,j,1,k,ie)                           &
                    + v2*(elem(ie)%fcor(i,j) + vort_d(i,j,k,ie))        &
@@ -3210,8 +3218,8 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
      if (dt2<0) then
         ! calling program just wanted DSS'd RHS, skip time advance
         do k=1,nlev
-           elem(ie)%state%v(:,:,1,k,np1) = elem(ie)%spheremp(:,:)*vtens1_d(:,:,k,ie)
-           elem(ie)%state%v(:,:,2,k,np1) = elem(ie)%spheremp(:,:)*vtens2_d(:,:,k,ie)
+           state_v(:,:,1,k,np1,ie) = elem(ie)%spheremp(:,:)*vtens1_d(:,:,k,ie)
+           state_v(:,:,2,k,np1,ie) = elem(ie)%spheremp(:,:)*vtens2_d(:,:,k,ie)
            elem(ie)%state%T(:,:,k,np1) = elem(ie)%spheremp(:,:)*ttens_d(:,:,k,ie)
            if (rsplit>0) &
               elem(ie)%state%dp3d(:,:,k,np1) = -elem(ie)%spheremp(:,:)*&
@@ -3226,8 +3234,8 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
         state_ps_v(:,:,np1,ie) = -elem(ie)%spheremp(:,:)*sdot_sum_d(:,:,ie)
      else
         do k=1,nlev
-           elem(ie)%state%v(:,:,1,k,np1) = elem(ie)%spheremp(:,:)*( elem(ie)%state%v(:,:,1,k,nm1) + dt2*vtens1_d(:,:,k,ie) )
-           elem(ie)%state%v(:,:,2,k,np1) = elem(ie)%spheremp(:,:)*( elem(ie)%state%v(:,:,2,k,nm1) + dt2*vtens2_d(:,:,k,ie) )
+           state_v(:,:,1,k,np1,ie) = elem(ie)%spheremp(:,:)*( state_v(:,:,1,k,nm1,ie) + dt2*vtens1_d(:,:,k,ie) )
+           state_v(:,:,2,k,np1,ie) = elem(ie)%spheremp(:,:)*( state_v(:,:,2,k,nm1,ie) + dt2*vtens2_d(:,:,k,ie) )
            elem(ie)%state%T(:,:,k,np1) = elem(ie)%spheremp(:,:)*(elem(ie)%state%T(:,:,k,nm1) + dt2*ttens_d(:,:,k,ie))
            if (rsplit>0) &
                 elem(ie)%state%dp3d(:,:,k,np1) = &
@@ -3336,8 +3344,8 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
    do ie=1,nelemd
      do k=1,nlev
         elem(ie)%state%T(:,:,k,np1)   = elem(ie)%rspheremp(:,:)*elem(ie)%state%T(:,:,k,np1)
-        elem(ie)%state%v(:,:,1,k,np1) = elem(ie)%rspheremp(:,:)*elem(ie)%state%v(:,:,1,k,np1)
-        elem(ie)%state%v(:,:,2,k,np1) = elem(ie)%rspheremp(:,:)*elem(ie)%state%v(:,:,2,k,np1)
+        state_v(:,:,1,k,np1,ie) = elem(ie)%rspheremp(:,:)*state_v(:,:,1,k,np1,ie)
+        state_v(:,:,2,k,np1,ie) = elem(ie)%rspheremp(:,:)*state_v(:,:,2,k,np1,ie)
      end do
 
      if (rsplit>0) then
