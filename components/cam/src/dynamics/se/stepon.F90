@@ -55,6 +55,19 @@ module stepon
   type (derivative_t)   :: deriv           ! derivative struct
   type (quadrature_t)   :: gv,gp           ! quadratures on velocity and pressure grids
   type (EdgeBuffer_t) :: edgebuf              ! edge buffer
+
+  !+++PMC for ParPhysDyn
+  !note that defining variables at the module level makes them available across timesteps, but 
+  !not across restarts. That's what pbuf (in phys) and timelevels (in dyn) is for. The current
+  !approach will produce answers which are not bit-for-bit between runs which restart in different
+  !places. That is unacceptable for a model release, but is fine for the kind of testing we're doing
+  !here. 
+  real(r8), allocatable :: FT_lag(:,:,:,:)   !storage for T forcing from phys which persists over a timestep
+  real(r8), allocatable :: FM_lag(:,:,:,:,:) !storage for M=U,V forcing from phys which persists over a timestep
+  real(r8), allocatable :: FQ_lag(:,:,:,:,:) !storage for phys forcing of Q = tracers which persists over a timestep
+  logical, parameter :: ParPhysDyn = .true.
+  !---PMC
+
 !-----------------------------------------------------------------------
 
 
@@ -69,7 +82,7 @@ CONTAINS
 ! !INTERFACE:
 subroutine stepon_init( gw, etamid, dyn_in, dyn_out )
 ! !USES:
-  use dimensions_mod, only: nlev, nelemd, npsq
+  use dimensions_mod, only: nlev, nelemd, npsq, np !PMC added np
   use hycoef,         only: hyam, hybm
   use cam_history,    only: phys_decomp, addfld, add_default, dyn_decomp
   use control_mod,    only: smooth_phis_numcycle
@@ -150,6 +163,11 @@ subroutine stepon_init( gw, etamid, dyn_in, dyn_out )
      call add_default(trim(cnst_name(m))//'&IC',0, 'I')
   end do
 
+  !+++PMC
+  allocate(FT_lag(nelemd,np,np,nlev))
+  allocate(FM_lag(nelemd,np,np,2,nlev))
+  allocate(FQ_lag(nelemd,np,np,nlev,pcnst))
+  !---PMC
 
 end subroutine stepon_init
 
@@ -209,7 +227,7 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
    use parallel_mod,   only: par
    use dyn_comp,       only: TimeLevel
    
-   use time_manager,    only: dtime  ! namelist timestep
+   use time_manager,    only: dtime,is_first_step, is_first_restart_step  ! namelist timestep (PMC added is_first_*step)
    use time_mod,        only: tstep, phys_tscale, TimeLevel_Qdp   !  dynamics typestep
    use control_mod,     only: ftype, qsplit, smooth_phis_numcycle
    use hycoef,          only: hyam, hybm, hyai, hybi, ps0
@@ -224,6 +242,12 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
    integer :: kptr, ie, ic, i, j, k, tl_f, tl_fQdp
    real(r8) :: rec2dt, dyn_ps0
    real(r8) :: dp(np,np,nlev),dp_tmp,fq,fq0,qn0, ftmp(npsq,nlev,2) 
+
+   !+++PMC for ParPhysDyn
+   real(r8) :: FT_tmp(nelemd,np,np,nlev) !temporary storage for T forcing from phys
+   real(r8) :: FM_tmp(nelemd,np,np,2,nlev)!temporary storage for M=U,V forcing from phys
+   real(r8) :: FQ_tmp(nelemd,np,np,nlev,pcnst) !temporary storage for phys forcing of Q = tracers
+   !---PMC
 
    ! copy from phys structures -> dynamics structures
    call t_barrierf('sync_p_d_coupling', mpicom)
@@ -463,9 +487,45 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
       end do
    endif
    
+   !ParPhysDyn = kludge to make model behave as if phys and dyn were computed in 
+   !parallel on separate processors (without actually changing the cores used for 
+   !running phys and dyn). The basic idea is that if physics was run in parallel, 
+   !dynamics would have to use physics tendencies from 1 timestep earlier because 
+   !values for the current step wouldn't be available yet. Thus all we do below is
+   !to lag the physics info used by dynamics by 1 timestep. This could be accomplished
+   !by making derived%F{Q,T,M} have 2 time levels (in last dim) and using TimeLevel_Qdp
+   !to flip between levels. We don't do that because it would require making changes
+   !to many routines and this option is really just a kludgy test which shouldn't pollute
+   !the rest of the code. 
+
+   if (ParPhysDyn) then
+      if (is_first_step() .or. is_first_restart_step() ) then
+         do ie=1,nelemd
+      	    FT_lag(ie,:,:,:) = dyn_in%elem(ie)%derived%FT(:,:,:,1)
+	    FM_lag(ie,:,:,:,:) = dyn_in%elem(ie)%derived%FM(:,:,:,:,1)
+	    FQ_lag(ie,:,:,:,:) = dyn_in%elem(ie)%derived%FQ(:,:,:,:,1)
+	 end do !nelemd
+      else
+         do ie=1,nelemd
+	    !FIRST, SAVE NEW VALUES TO LOCAL, TMP VAR
+	    FT_tmp(ie,:,:,:) = dyn_in%elem(ie)%derived%FT(:,:,:,1)
+   	    FM_tmp(ie,:,:,:,:) = dyn_in%elem(ie)%derived%FM(:,:,:,:,1)
+	    FQ_tmp(ie,:,:,:,:) = dyn_in%elem(ie)%derived%FQ(:,:,:,:,1)
    
-   
-   
+	    !NEXT, OVERWRITE CURRENT VALS WITH VALS SAVED FROM PREVIOUS STEP
+	    dyn_in%elem(ie)%derived%FT(:,:,:,1) = FT_lag(ie,:,:,:)
+   	    dyn_in%elem(ie)%derived%FM(:,:,:,:,1) = FM_lag(ie,:,:,:,:)
+	    dyn_in%elem(ie)%derived%FQ(:,:,:,:,1) = FQ_lag(ie,:,:,:,:)
+
+	    !FINALLY, OVERWRITE VALS FROM PREVIOUS STEP WITH MOST RECENT VALS
+	    FT_lag(ie,:,:,:) = FT_tmp(ie,:,:,:)
+   	    FM_lag(ie,:,:,:,:) = FM_tmp(ie,:,:,:,:)
+	    FQ_lag(ie,:,:,:,:) = FQ_tmp(ie,:,:,:,:)
+	 end do !nelemd
+      end if !is_first_step
+   end if !ParPhysDyn
+
+
    end subroutine stepon_run2
    
 
@@ -512,6 +572,13 @@ subroutine stepon_final(dyn_in, dyn_out)
 !EOP
 !-----------------------------------------------------------------------
 !BOC
+
+!+++PMC for ParPhysDyn
+deallocate(FT_lag)
+deallocate(FM_lag)
+deallocate(FQ_lag)
+!---PMC
+
 
 
 !EOC
