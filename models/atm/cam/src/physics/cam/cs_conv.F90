@@ -30,22 +30,22 @@ module cs_conv
 ! Physical constants (temporarily following MIROC)
 !
   real(r8), parameter :: &
-    GRAV  = 9.8_r8   ,   & ! gravity
-    CP    = 1004.6_r8,   & ! specific heat of air
-    EL    = 2.5e6_r8,    & ! latent heat of condensation
-    EMELT = 3.4e5_r8,    & ! latent heat of fusion
-    RAIR  = 287.04_r8,   & ! gas constant of air
-    RVAP  = 461._r8,     & ! gas constant of vapor
-    TMELT = 273.15_r8,   & ! melting point of water
-    ES0   = 611._r8,     & ! saturation e at 0 deg C (Pa)
-    TQICE = 273.15_r8      ! T threshold for ice QSAT
+    GRAV  = 9.8_r8   ,   & ! gravity [m/s^2]
+    CP    = 1004.6_r8,   & ! specific heat of air [J/K kg]
+    EL    = 2.5e6_r8,    & ! latent heat of condensation [J/kg]
+    EMELT = 3.4e5_r8,    & ! latent heat of fusion [J/kg]
+    RAIR  = 287.04_r8,   & ! gas constant of air [J/K kg]
+    RVAP  = 461._r8,     & ! gas constant of vapor [J/K kg]
+    TMELT = 273.15_r8,   & ! melting point of water [K]
+    ES0   = 611._r8,     & ! saturation e at 0 deg C [Pa]
+    TQICE = 273.15_r8      ! T threshold for ice QSAT [K]
 !
   real(r8), save :: EPSV, EPSVT
 !
 ! Shared variables
 !
-  integer, save :: ITL          ! index of liquid water
-  integer, save :: ITI          ! index of ice water
+  integer, save :: ITL          ! index of liquid water in constituents array
+  integer, save :: ITI          ! index of ice water in constituents array
   integer, save :: ICHNK        ! chunk identifier
 !
   integer, save :: irank, ierror   ! to obtain RANK
@@ -53,10 +53,13 @@ module cs_conv
 ! Tuning parameters set from namelist
 !
   real(r8), save :: &
-    CLMD,   & ! entrainment efficiency
-    PA,     & ! factor for buoyancy to affect updraft velocity
-    CPRES,  & ! pressure factor for momentum transport
-    ALP0      ! alpha parameter in prognostic closure
+    CLMD,   & ! entrainment efficiency [ND]
+    PA,     & ! factor for buoyancy to affect updraft velocity [ND]
+    PRECZH, & ! coefficient for precipitation profile [m]
+    CPRES,  & ! pressure factor for momentum transport [ND]
+    ALP0,   & ! alpha parameter in prognostic closure [m^4/kg]
+    TAUD,   & ! dissipation time scale of CKE in prognostic closure [sec]
+    RDDR      ! coefficient for downdraft rate [m^2/kg K]
 !
 ! PUBLIC: interfaces
 !
@@ -112,12 +115,16 @@ subroutine csconv_readnl(nlfile)
    character(len=*), parameter :: subname = 'csconv_readnl'
 !
    real(r8) :: &
-     csconv_clmd  = unset_r8,   &
-     csconv_pa    = unset_r8,   &
-     csconv_cpres = unset_r8,   &
-     csconv_alp0  = unset_r8
+     csconv_clmd   = unset_r8,   &
+     csconv_pa     = unset_r8,   &
+     csconv_preczh = unset_r8,   &
+     csconv_cpres  = unset_r8,   &
+     csconv_alp0   = unset_r8,   &
+     csconv_taud   = unset_r8,   &
+     csconv_rddr   = unset_r8
 
-   namelist /csconv_nl/ csconv_clmd, csconv_pa, csconv_cpres, csconv_alp0
+   namelist /csconv_nl/ csconv_clmd, csconv_pa, csconv_preczh, csconv_cpres, &
+                        csconv_alp0, csconv_taud, csconv_rddr
 
    if ( masterproc ) then
       unitn = getunit()
@@ -132,18 +139,24 @@ subroutine csconv_readnl(nlfile)
       close( unitn )
       call freeunit( unitn )
 
-      CLMD  = csconv_clmd
-      PA    = csconv_pa
-      CPRES = csconv_cpres
-      ALP0  = csconv_alp0
+      CLMD   = csconv_clmd
+      PA     = csconv_pa
+      PRECZH = csconv_preczh
+      CPRES  = csconv_cpres
+      ALP0   = csconv_alp0
+      TAUD   = csconv_taud
+      RDDR   = csconv_rddr
    end if
 
 #ifdef SPMD
    ! Broadcast namelist variables
-   call mpibcast( CLMD , 1, mpir8, 0, mpicom)
-   call mpibcast( PA   , 1, mpir8, 0, mpicom)
-   call mpibcast( CPRES, 1, mpir8, 0, mpicom) 
-   call mpibcast( ALP0 , 1, mpir8, 0, mpicom) 
+   call mpibcast( CLMD  , 1, mpir8, 0, mpicom)
+   call mpibcast( PA    , 1, mpir8, 0, mpicom)
+   call mpibcast( PRECZH, 1, mpir8, 0, mpicom)
+   call mpibcast( CPRES , 1, mpir8, 0, mpicom) 
+   call mpibcast( ALP0  , 1, mpir8, 0, mpicom) 
+   call mpibcast( TAUD  , 1, mpir8, 0, mpicom) 
+   call mpibcast( RDDR  , 1, mpir8, 0, mpicom) 
 #endif
 
 end subroutine csconv_readnl
@@ -160,23 +173,33 @@ subroutine cs_convi(limcnv_in, no_deep_pbl_in)
    EPSV  = RAIR / RVAP
    EPSVT = 1._r8 / EPSV - 1._r8
    
-   call cnst_get_ind('CLDLIQ', ITL)
+! get indices for liquid and ice water in tracer array
+   call cnst_get_ind('CLDLIQ', ITL) 
    call cnst_get_ind('CLDICE', ITI)
 
-   if ( CLMD  == unset_r8 ) &
+   if ( CLMD   == unset_r8 ) &
       call endrun( 'cs_convi: csconv_clmd must be set in the namelist.' )
-   if ( PA    == unset_r8 ) &
+   if ( PA     == unset_r8 ) &
       call endrun( 'cs_convi: csconv_pa must be set in the namelist.' )
-   if ( CPRES == unset_r8 ) &
+   if ( PRECZH == unset_r8 ) &
+      call endrun( 'cs_convi: csconv_preczh must be set in the namelist.' )
+   if ( CPRES  == unset_r8 ) &
       call endrun( 'cs_convi: csconv_cpres must be set in the namelist.' )
-   if ( ALP0  == unset_r8 ) &
+   if ( ALP0   == unset_r8 ) &
       call endrun( 'cs_convi: csconv_alp0 must be set in the namelist.' )
+   if ( TAUD   == unset_r8 ) &
+      call endrun( 'cs_convi: csconv_taud must be set in the namelist.' )
+   if ( RDDR   == unset_r8 ) &
+      call endrun( 'cs_convi: csconv_rddr must be set in the namelist.' )
 
    if ( masterproc ) then
-      write(iulog,*) 'tuning parameters cs_convi: CLMD' , CLMD
-      write(iulog,*) 'tuning parameters cs_convi: PA'   , PA
-      write(iulog,*) 'tuning parameters cs_convi: CPRES', CPRES
-      write(iulog,*) 'tuning parameters cs_convi: ALP0' , ALP0
+      write(iulog,*) 'tuning parameters cs_convi: CLMD'  , CLMD
+      write(iulog,*) 'tuning parameters cs_convi: PA'    , PA
+      write(iulog,*) 'tuning parameters cs_convi: PRECZH', PRECZH
+      write(iulog,*) 'tuning parameters cs_convi: CPRES' , CPRES
+      write(iulog,*) 'tuning parameters cs_convi: ALP0'  , ALP0
+      write(iulog,*) 'tuning parameters cs_convi: TAUD'  , TAUD
+      write(iulog,*) 'tuning parameters cs_convi: RDDR'  , RDDR
    end if
 
 end subroutine cs_convi
@@ -364,6 +387,7 @@ subroutine cs_convr(lchnk   ,ncol    , &
      end do
   end do
 !
+  rliq = 0._r8
   do k = 1, pver
      do i = 1, ncol
         heat(i,pver-k+1) = CP*GTT(i,k) - EMELT*GTIDET(i,k)
@@ -371,7 +395,8 @@ subroutine cs_convr(lchnk   ,ncol    , &
         vtnd(i,pver-k+1) = GTV(i,k)
 !        zdu (i,pver-k+1) = CMDET(i,k)
         dlf (i,pver-k+1) = GTLDET(i,k) + GTIDET(i,k)
-        rliq(i) = ( GTLDET(i,k)+GTIDET(i,k) )*( GDPM(i,k+1)-GDPM(i,k) )/GRAV
+        rliq(i) = rliq(i) &
+                + ( GTLDET(i,k)+GTIDET(i,k) )*( GDPM(i,k+1)-GDPM(i,k) )/GRAV
 
         sigma(i,pver-k+1) = sigmacs(i,k)   !DDsigma
 
@@ -476,21 +501,29 @@ end subroutine cs_convr
       IMPLICIT NONE
 !
 !   [OUTPUT]
-      REAL(r8), INTENT(OUT) :: GTT   ( IJSDIM, KMAX      ) !! heating rate
-      REAL(r8), INTENT(OUT) :: GTQ   ( IJSDIM, KMAX, NTR ) !! change in q
-      REAL(r8), INTENT(OUT) :: GTU   ( IJSDIM, KMAX      ) !! tendency of u
-      REAL(r8), INTENT(OUT) :: GTV   ( IJSDIM, KMAX      ) !! tendency of v
-      REAL(r8), INTENT(OUT) :: CMDET ( IJSDIM, KMAX      ) !! detrainment mass flux
-      REAL(r8), INTENT(OUT) :: GTLDET( IJSDIM, KMAX      ) !! cloud liquid tendency by detrainment
-      REAL(r8), INTENT(OUT) :: GTIDET( IJSDIM, KMAX      ) !! cloud ice tendency by detrainment
-      REAL(r8), INTENT(OUT) :: GTPRP ( IJSDIM, KMAX+1    ) !! rain+snow flux
-      REAL(r8), INTENT(OUT) :: GSNWP ( IJSDIM, KMAX+1    ) !! snowfall flux
-      REAL(r8), INTENT(OUT) :: GMFX0 ( IJSDIM, KMAX+1    ) !! updraft mass flux
-      REAL(r8), INTENT(OUT) :: CAPE  ( IJSDIM            )
-      INTEGER , INTENT(OUT) :: KT    ( IJSDIM, NCTP      ) !! cloud top
+      REAL(r8), INTENT(OUT) :: GTT   ( IJSDIM, KMAX      ) !! temperature tendency [K/s]
+      REAL(r8), INTENT(OUT) :: GTQ   ( IJSDIM, KMAX, NTR ) !! tracer tendency [kg/kg/s]
+        ! NTR
+        !  1  : specific humidity
+        !  ITL: liquid water
+        !  ITI: ice water
+        !
+        ! Note: GTQ does not contain the tendency by detrainment.
+        !       The total tendency of liquid water is GTQ(ITL)+GTLDET.
+        !       That of ice water is GTQ(ITI)+GTIDET.
+      REAL(r8), INTENT(OUT) :: GTU   ( IJSDIM, KMAX      ) !! tendency of u [m/s^2]
+      REAL(r8), INTENT(OUT) :: GTV   ( IJSDIM, KMAX      ) !! tendency of v [m/s^2]
+      REAL(r8), INTENT(OUT) :: CMDET ( IJSDIM, KMAX      ) !! detrainment mass flux [kg/m^2/s]
+      REAL(r8), INTENT(OUT) :: GTLDET( IJSDIM, KMAX      ) !! cloud liquid tendency by detrainment [kg/kg/s]
+      REAL(r8), INTENT(OUT) :: GTIDET( IJSDIM, KMAX      ) !! cloud ice tendency by detrainment [kg/kg/s]
+      REAL(r8), INTENT(OUT) :: GTPRP ( IJSDIM, KMAX+1    ) !! rain+snow flux [kg/m^2/s]
+      REAL(r8), INTENT(OUT) :: GSNWP ( IJSDIM, KMAX+1    ) !! snowfall flux [kg/m^2/s]
+      REAL(r8), INTENT(OUT) :: GMFX0 ( IJSDIM, KMAX+1    ) !! updraft mass flux [kg/m^2/s]
+      REAL(r8), INTENT(OUT) :: CAPE  ( IJSDIM            ) !! convective available potential energy [J/kg]
+      INTEGER , INTENT(OUT) :: KT    ( IJSDIM, NCTP      ) !! index of cloud top layer
 !
 !   [MODIFIED]
-      REAL(r8), INTENT(INOUT) :: CBMFX ( IJSDIM, NCTP      ) !! cloud base mass flux
+      REAL(r8), INTENT(INOUT) :: CBMFX ( IJSDIM, NCTP      ) !! cloud base mass flux [kg/m**2/s]
       
    !DDsigma - output added for sigma diagnostics
    real(r8), intent(out)   :: sigmai(IJSDIM,KMAX+1,nctp)  !DDsigma  sigma by cloud type - on interfaces (1=sfc)
@@ -499,18 +532,18 @@ end subroutine cs_convr
 
 !
 !   [INPUT]
-      REAL(r8), INTENT(IN) :: GDT   ( IJSDIM, KMAX      ) !! temperature T
-      REAL(r8), INTENT(IN) :: GDQ   ( IJSDIM, KMAX, NTR ) !! humidity, tracer
-      REAL(r8), INTENT(IN) :: GDU   ( IJSDIM, KMAX      ) !! westerly u
-      REAL(r8), INTENT(IN) :: GDV   ( IJSDIM, KMAX      ) !! southern wind v
-      REAL(r8), INTENT(IN) :: GDTM  ( IJSDIM, KMAX+1    ) !! temperature T
-      REAL(r8), INTENT(IN) :: GDP   ( IJSDIM, KMAX      ) !! pressure P
-      REAL(r8), INTENT(IN) :: GDPM  ( IJSDIM, KMAX+1    ) !! pressure (half lev)
-      REAL(r8), INTENT(IN) :: GDZ   ( IJSDIM, KMAX      ) !! altitude
-      REAL(r8), INTENT(IN) :: GDZM  ( IJSDIM, KMAX+1    ) !! altitude
-      REAL(r8), INTENT(IN) :: DELTA                       !! delta(t) (dynamics)
-      REAL(r8), INTENT(IN) :: DELTI                       !! delta(t) (internal variable)
-      INTEGER, INTENT(IN) :: ISTS, IENS   !! array range
+      REAL(r8), INTENT(IN) :: GDT   ( IJSDIM, KMAX      ) !! temperature [K]
+      REAL(r8), INTENT(IN) :: GDQ   ( IJSDIM, KMAX, NTR ) !! tracer [kg/kg]
+      REAL(r8), INTENT(IN) :: GDU   ( IJSDIM, KMAX      ) !! westerly u [m/s]
+      REAL(r8), INTENT(IN) :: GDV   ( IJSDIM, KMAX      ) !! southern wind v [m/s]
+      REAL(r8), INTENT(IN) :: GDTM  ( IJSDIM, KMAX+1    ) !! temperature (half lev) [K]
+      REAL(r8), INTENT(IN) :: GDP   ( IJSDIM, KMAX      ) !! pressure [Pa]
+      REAL(r8), INTENT(IN) :: GDPM  ( IJSDIM, KMAX+1    ) !! pressure (half lev) [Pa]
+      REAL(r8), INTENT(IN) :: GDZ   ( IJSDIM, KMAX      ) !! altitude [m]
+      REAL(r8), INTENT(IN) :: GDZM  ( IJSDIM, KMAX+1    ) !! altitude (half lev) [m]
+      REAL(r8), INTENT(IN) :: DELTA                       !! delta t  (dynamics) [s]
+      REAL(r8), INTENT(IN) :: DELTI                       !! delta t  (internal variable) [s]
+      INTEGER, INTENT(IN) :: ISTS, IENS   !! array range for IJSDIM
 !
 !   [INTERNAL WORK]
       REAL(r8)     GPRCC ( IJSDIM, NTR       ) !! rainfall
@@ -813,7 +846,7 @@ end subroutine cs_convr
               GDHS  , GDQS  , GDT   , GDTM  ,                     & ! input
               GDQ   , GDQI  , GDZ   , GDZM  ,                     & ! input
               GDPM  , FDQS  , GAM   , GDZTR ,                     & ! input
-              CPRES , WCBX  , ERMR(CTP),                          & ! input
+              WCBX  , ERMR(CTP),                                  & ! input
               KB    , CTP   , ISTS  , IENS   )                      ! input
 !
          CALL CUMBMX   & !! Cloud Base Mass Flux
@@ -910,7 +943,7 @@ end subroutine cs_convr
            GDH   , GDQ   , GDQI  ,        & ! input
            GDU   , GDV   ,                & ! input
            DELP  , GMFLX , GMFX0 ,        & ! input
-           KTMXT , CPRES , ISTS  , IENS )   ! input
+           KTMXT , ISTS  , IENS    )        ! input
 !
       CALL CUMUPR   & !! Tracer Updraft
          ( GTQ   , GPRCC ,                           & ! modified
@@ -1247,7 +1280,7 @@ end subroutine cs_convr
                  GDHS  , GDQS  , GDT   , GDTM  ,   & ! input
                  GDQ   , GDQI  , GDZ   , GDZM  ,   & ! input
                  GDPM  , FDQS  , GAM   , GDZTR ,   & ! input
-                 CPRES , WCB   , ERMR  ,           & ! input
+                 WCB   , ERMR  ,                   & ! input
                  KB    , CTP   , ISTS  , IENS    )   ! input
 !
       use ppgrid      , only: IJSDIM => pcols, KMAX => pver
@@ -1298,7 +1331,6 @@ end subroutine cs_convr
       REAL(r8)   FDQS  ( IJSDIM, KMAX   )
       REAL(r8)   GAM   ( IJSDIM, KMAX   )
       REAL(r8)   GDZTR ( IJSDIM         )   !! tropopause height
-      REAL(r8)   CPRES                      !! pres. fac. for cum. fric.
       REAL(r8)   WCB                        !! updraft velocity**2 @base
       REAL(r8)   ERMR                       !! entrainment rate (ASMODE)
       INTEGER    KB    ( IJSDIM         )
@@ -1355,7 +1387,6 @@ end subroutine cs_convr
 
       REAL(r8), SAVE :: CLMP
       REAL(r8) ::  PRECZ0 = 1.5e3_r8
-      REAL(r8) ::  PRECZH = 4.e3_r8
       REAL(r8) ::  ZTREF  = 1._r8
       REAL(r8) ::  PB     = 1._r8
       REAL(r8) ::  TAUZ   = 1.e4_r8
@@ -1862,7 +1893,6 @@ end subroutine cs_convr
       REAL(r8) :: FMAX   = 1.5e-2_r8          !! maximum flux
       REAL(r8) :: RHMCRT = 0._r8              !! critical val. of RH@ all could
       REAL(r8) :: ALP1   = 0._r8
-      REAL(r8) :: TAUD   = 1.e3_r8
       REAL(r8) :: ZFMAX  = 3.5e3_r8
       REAL(r8) :: ZDFMAX = 5.e2_r8
       REAL(r8) :: FMAXP  = 2._r8
@@ -2099,7 +2129,7 @@ end subroutine cs_convr
                  GDH   , GDQ   , GDQI  ,        & ! input
                  GDU   , GDV   ,                & ! input
                  DELP  , GMFLX , GMFX0 ,        & ! input
-                 KTMX  , CPRES , ISTS  , IENS )   ! input
+                 KTMX  , ISTS  , IENS    )        ! input
 !
       use ppgrid      , only: IJSDIM => pcols, KMAX => pver
       use constituents, only: NTR => pcnst
@@ -2123,7 +2153,6 @@ end subroutine cs_convr
       REAL(r8)     GMFLX ( IJSDIM, KMAX+1 )   !! mass flux (updraft+downdraft)
       REAL(r8)     GMFX0 ( IJSDIM, KMAX+1 )   !! mass flux (updraft only)
       INTEGER      KTMX
-      REAL(r8)     CPRES                    !! pressure factor for cumulus friction
       INTEGER      ISTS, IENS
 !
 !   [INTERNAL WORK]
@@ -2323,10 +2352,9 @@ end subroutine cs_convr
 !
       REAL(r8) :: EVAPR  = 0.3_r8      !! evaporation factor
       REAL(r8) :: REVPDD = 1._r8       !! max rate of DD to evapolation
-      REAL(r8) :: RDDR   = 5.e-4_r8    !! DD rate (T0 R0 W0)^-1
       REAL(r8) :: RDDMX  = 0.5_r8      !! norm. flux of downdraft
       REAL(r8) :: VTERM  = 5._r8       !! term. vel. of precip.
-      REAL(r8) :: EVATAU = 2._r8    !! evaporation/sublimation timescale
+      REAL(r8) :: EVATAU = 2._r8       !! evaporation/sublimation timescale
       REAL(r8) :: ZDMIN  = 5.e2_r8     !! min altitude of downdraft detrainment
 !
 ! Note: It is assumed that condensate evaporates in downdraft air.
@@ -2460,7 +2488,7 @@ end subroutine cs_convr
             IF ( GDZ( IJ,K )-GDZM( IJ,1 ) .GT. ZDMIN ) THEN
                GTEVE  = EVAPE( IJ,K )+SUBLE( IJ,K )
                GMDDMX = REVPDD*GTEVE/MAX( DQW, 1.D-10 )
-               GMDDE( IJ,K ) = RDDR*( DTW*GTPRP*DELP( IJ,K ) )
+               GMDDE( IJ,K ) = RDDR*( DTW*GTPRP*DELP( IJ,K )/GRAV )
                GMDDE( IJ,K ) = MAX( MIN( GMDDE(IJ,K), GMDDMX ), 0.D0 )
                GMDDX  = GMDD( IJ,K+1 ) + GMDDE( IJ,K )
                EVSU   = GMDDE( IJ,K )*DQW*FEVP( IJ,K )

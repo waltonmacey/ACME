@@ -976,10 +976,13 @@
 <zmconv_trigmem>                 .false.   </zmconv_trigmem>
 
 <!-- Chikira-Sugiyama convection scheme -->
-<csconv_clmd                                                          > 0.6 </csconv_clmd>
-<csconv_pa                                                            > 0.15 </csconv_pa>
-<csconv_cpres                                                         > 0.55 </csconv_cpres>
-<csconv_alp0                                                          > 8.0e7 </csconv_alp0>
+<csconv_clmd                                                          > 0.6D0 </csconv_clmd>
+<csconv_pa                                                            > 0.15D0 </csconv_pa>
+<csconv_preczh                                                        > 4.0D3 </csconv_preczh>
+<csconv_cpres                                                         > 0.55D0 </csconv_cpres>
+<csconv_alp0                                                          > 8.0D7 </csconv_alp0>
+<csconv_taud                                                          > 1.0D3 </csconv_taud>
+<csconv_rddr                                                          > 5.0D-4 </csconv_rddr>
 
 <!-- Cloud sedimentation -->
 

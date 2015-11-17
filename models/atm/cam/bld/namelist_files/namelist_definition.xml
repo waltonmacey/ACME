@@ -1801,6 +1801,12 @@ Nondimensional coefficient for buoyancy to affect updraft velocity
 Default: set by build-namelist
 </entry>
 
+<entry id="csconv_preczh" type="real" category="conv"
+       group="csconv_nl" valid_values="" >
+Coefficient for precipitation profile (m)
+Default: set by build-namelist
+</entry>
+
 <entry id="csconv_cpres" type="real" category="conv"
        group="csconv_nl" valid_values="" >
 Nondimensional coefficient for pressure factor in cumulus momentum transport
@@ -1810,6 +1816,18 @@ Default: set by build-namelist
 <entry id="csconv_alp0" type="real" category="conv"
        group="csconv_nl" valid_values="" >
 Alpha parameter in prognostic closure (m^4/kg)
+Default: set by build-namelist
+</entry>
+
+<entry id="csconv_taud" type="real" category="conv"
+       group="csconv_nl" valid_values="" >
+Dissipation time scale of CKE in prognostic closure (sec)
+Default: set by build-namelist
+</entry>
+
+<entry id="csconv_rddr" type="real" category="conv"
+       group="csconv_nl" valid_values="" >
+Coefficient for downdraft entrainment (m^2/K kg)
 Default: set by build-namelist
 </entry>
 
