@@ -155,9 +155,9 @@ for mct, etc.
   <ADD_CPPDEFS> -DFORTRANUNDERSCORE -DNO_SHR_VMATH -DNO_R16  </ADD_CPPDEFS>
   <CFLAGS> -gopt -Mlist -time </CFLAGS>
 
-  <ADD_CFLAGS compile_threaded="false"> -nomp </ADD_CFLAGS>
-  <ADD_FFLAGS compile_threaded="false"> -nomp </ADD_FFLAGS>
-  <ADD_LDFLAGS compile_threaded="false"> -nomp </ADD_LDFLAGS>
+  <ADD_CFLAGS compile_threaded="false"> </ADD_CFLAGS>
+  <ADD_FFLAGS compile_threaded="false"> </ADD_FFLAGS>
+  <ADD_LDFLAGS compile_threaded="false"> </ADD_LDFLAGS>
   <ADD_CFLAGS compile_threaded="true"> -mp </ADD_CFLAGS>
   <ADD_FFLAGS compile_threaded="true"> -mp </ADD_FFLAGS>
   <ADD_LDFLAGS compile_threaded="true"> -mp </ADD_LDFLAGS>
@@ -168,7 +168,7 @@ for mct, etc.
 
   <FFLAGS>  -i4 -gopt -Mlist -time -Mextend -byteswapio -Mflushz -Kieee  </FFLAGS>
   <FFLAGS_NOOPT> -O0 </FFLAGS_NOOPT>
-  <ADD_FFLAGS_NOOPT compile_threaded="false"> -nomp </ADD_FFLAGS_NOOPT>
+  <ADD_FFLAGS_NOOPT compile_threaded="false"> </ADD_FFLAGS_NOOPT>
   <ADD_FFLAGS_NOOPT compile_threaded="true"> -mp </ADD_FFLAGS_NOOPT>
 
   <ADD_FFLAGS DEBUG="TRUE"> -O0 -g -Ktrap=fp -Mbounds -Kieee </ADD_FFLAGS>
@@ -310,7 +310,16 @@ for mct, etc.
   <NETCDF_PATH>$(NETCDFROOT)</NETCDF_PATH>
   <PNETCDF_PATH>$(PNETCDFROOT)</PNETCDF_PATH>
   <ESMF_LIBDIR>/projects/ccsm/esmf-6.3.0rp1/lib/libO/Linux.intel.64.openmpi.default</ESMF_LIBDIR>
-  <ADD_SLIBS> $(shell $(NETCDF_PATH)/bin/nf-config --flibs) </ADD_SLIBS>
+  <ADD_SLIBS> $(shell $(NETCDF_PATH)/bin/nf-config --flibs) -L/projects/ccsm/BLAS-intel -lblas_LINUX</ADD_SLIBS>
+  <ADD_CPPFLAGS> -DHAVE_COMM_F2C </ADD_CPPFLAGS>
+  <PIO_FILESYSTEM_HINTS>lustre </PIO_FILESYSTEM_HINTS>
+</compiler>
+
+<compiler COMPILER="intel" MACH="skybridge">
+  <NETCDF_PATH>$(NETCDFROOT)</NETCDF_PATH>
+  <PNETCDF_PATH>$(PNETCDFROOT)</PNETCDF_PATH>
+  <ESMF_LIBDIR>/projects/ccsm/esmf-6.3.0rp1/lib/libO/Linux.intel.64.openmpi.default</ESMF_LIBDIR>
+  <ADD_SLIBS> $(shell $(NETCDF_PATH)/bin/nf-config --flibs) -L/projects/ccsm/BLAS-intel -lblas_LINUX</ADD_SLIBS>
   <ADD_CPPFLAGS> -DHAVE_COMM_F2C </ADD_CPPFLAGS>
   <PIO_FILESYSTEM_HINTS>lustre </PIO_FILESYSTEM_HINTS>
 </compiler>
@@ -549,6 +558,14 @@ for mct, etc.
   <ADD_SLIBS> -L$(NETCDF_DIR) -lnetcdff -Wl,--as-needed,-L$(NETCDF_DIR)/lib -lnetcdff -lnetcdf $(MKL)</ADD_SLIBS>
 </compiler>
 
+<compiler COMPILER="intel" MACH="lawrencium-lr2">
+  <ADD_SLIBS> -lnetcdff -lnetcdf -mkl</ADD_SLIBS>
+</compiler>
+
+<compiler COMPILER="intel" MACH="lawrencium-lr3">
+  <ADD_SLIBS> -lnetcdff -lnetcdf -mkl</ADD_SLIBS>
+</compiler>
+
 <compiler COMPILER="gnu" MACH="yellowstone">
   <LAPACK_LIBDIR> /glade/apps/opt/lib </LAPACK_LIBDIR>
 </compiler>
@@ -557,6 +574,26 @@ for mct, etc.
   <NETCDF_PATH> $(NETCDF_PATH)</NETCDF_PATH>
   <ADD_LDFLAGS>-framework Accelerate</ADD_LDFLAGS>
   <ADD_SLIBS>-L$(NETCDF_PATH)/lib -lnetcdff -lnetcdf</ADD_SLIBS>
+</compiler>
+
+<compiler COMPILER="gnu" MACH="linux-generic">
+  <NETCDF_PATH> $(NETCDF_PATH)</NETCDF_PATH>
+  <PNETCDF_PATH> $(PNETCDF_PATH)</PNETCDF_PATH>
+  <ADD_SLIBS> $(shell $(NETCDF_PATH)/bin/nc-config --flibs) </ADD_SLIBS>
+</compiler>
+
+<compiler COMPILER="gnu" MACH="melvin">
+  <NETCDF_PATH>$(NETCDFROOT)</NETCDF_PATH>
+  <PNETCDF_PATH>$(PNETCDFROOT)</PNETCDF_PATH>
+  <ADD_SLIBS> $(shell $(NETCDF_PATH)/bin/nf-config --flibs) -L/home/jgfouca/BLAS -lblas_LINUX</ADD_SLIBS>
+  <ADD_CPPFLAGS> -DHAVE_COMM_F2C </ADD_CPPFLAGS>
+</compiler>
+ 
+<compiler COMPILER="gnu" MACH="penn">
+  <NETCDF_PATH>$(NETCDFROOT)</NETCDF_PATH>
+  <PNETCDF_PATH>$(PNETCDFROOT)</PNETCDF_PATH>
+  <ADD_SLIBS> $(shell $(NETCDF_PATH)/bin/nf-config --flibs) -lblas </ADD_SLIBS>
+  <ADD_CPPFLAGS> -DHAVE_COMM_F2C </ADD_CPPFLAGS>
 </compiler>
 
 <compiler>
@@ -606,6 +643,19 @@ for mct, etc.
   <SCC>mpicc</SCC>
   <SFC>mpif90</SFC>
 </compiler>
+
+<compiler MACH="oic2" COMPILER="gnu">
+  <NETCDF_PATH>/projects/cesm/devtools/netcdf-4.1.3-gcc4.8.1-mpich3.0.4/</NETCDF_PATH>
+  <ADD_SLIBS>-L/user/lib64 -llapack -lblas -lnetcdf -lnetcdff </ADD_SLIBS>
+  <INC_NETCDF>/projects/cesm/devtools/netcdf-4.1.3-gcc4.8.1-mpich3.0.4/include</INC_NETCDF>
+  <LIB_NETCDF>/projects/cesm/devtools/netcdf-4.1.3-gcc4.8.1-mpich3.0.4/lib</LIB_NETCDF>
+  <SFC>/projects/cesm/devtools/gcc-4.8.1/bin/gfortran</SFC>
+  <SCC>/projects/cesm/devtools/gcc-4.8.1/bin/gcc</SCC>
+  <SCXX>/projects/cesm/devtools/gcc-4.8.1/bin/g++</SCXX>
+  <MPICC>/projects/cesm/devtools/mpich-3.0.4-gcc4.8.1/bin/mpicc</MPICC>
+  <MPIFC>/projects/cesm/devtools/mpich-3.0.4-gcc4.8.1/bin/mpif90</MPIFC>
+</compiler>
+
  
 <compiler COMPILER="intel" MACH="titan">
   <ADD_CFLAGS DEBUG="FALSE"> -O2 </ADD_CFLAGS>
@@ -723,7 +773,7 @@ for mct, etc.
   <ADD_FFLAGS DEBUG="FALSE"> -O3 -qstrict -Q </ADD_FFLAGS>
   <ADD_FFLAGS DEBUG="FALSE" compile_threaded="true"> -qsmp=omp </ADD_FFLAGS>
   <ADD_FFLAGS DEBUG="TRUE" compile_threaded="true"> -qsmp=omp:noopt </ADD_FFLAGS>
-  <ADD_CPPDEFS> -DLINUX -DnoI8 </ADD_CPPDEFS>
+  <ADD_CPPDEFS> -DLINUX </ADD_CPPDEFS>
   <CONFIG_ARGS> --build=powerpc-bgp-linux --host=powerpc64-suse-linux </CONFIG_ARGS>
   <LDFLAGS>  -Wl,--relax -Wl,--allow-multiple-definition </LDFLAGS>
 </compiler>
@@ -775,25 +825,34 @@ for mct, etc.
 </compiler>    
 
 <compiler COMPILER="pgi" MACH="blues">
-  <NETCDF_PATH> /soft/netcdf/4.3.1-serial/pgi-13.9/</NETCDF_PATH>
-  <MPI_PATH MPILIB="mvapich2">/soft/mvapich2/2.0-pgi-13.9-psm</MPI_PATH>
-  <MPI_LIB_NAME MPILIB="mvapich2">mpich</MPI_LIB_NAME>
+  <PNETCDF_PATH>$(PNETCDFROOT)</PNETCDF_PATH>
+  <NETCDF_PATH>$(NETCDFROOT)</NETCDF_PATH>
+  <MPI_PATH MPILIB="openmpi">/soft/openmpi/1.8.2/pgi-13.9</MPI_PATH>
+  <MPI_PATH MPILIB="mpich">/soft/mpich2/1.4.1-pgi-13.9/</MPI_PATH>
+  <MPI_LIB_NAME MPILIB="openmpi"> mpi</MPI_LIB_NAME>
+  <MPI_LIB_NAME MPILIB="mpich">mpich</MPI_LIB_NAME>
   <ADD_SLIBS>$(shell $(NETCDF_PATH)/bin/nc-config --flibs) -llapack -lblas</ADD_SLIBS>
   <PIO_FILESYSTEM_HINTS>gpfs </PIO_FILESYSTEM_HINTS>
 </compiler>
 
 <compiler COMPILER="intel" MACH="blues">
-  <NETCDF_PATH>/soft/netcdf/4.3.1-serial/intel-13.1</NETCDF_PATH>
-  <MPI_PATH MPILIB="mvapich2">/soft/mvapich2/2.0-intel-13.1-psm</MPI_PATH>
-  <MPI_LIB_NAME MPILIB="mvapich2">mpich</MPI_LIB_NAME>
+  <PNETCDF_PATH>$(PNETCDFROOT)</PNETCDF_PATH>
+  <NETCDF_PATH>$(NETCDFROOT)</NETCDF_PATH>
+  <MPI_PATH MPILIB="openmpi">/soft/openmpi/1.8.2/intel-13.1</MPI_PATH>
+  <MPI_PATH MPILIB="mpich">/soft/mpich2/1.4.1-intel-13.1</MPI_PATH>
+  <MPI_LIB_NAME MPILIB="openmpi"> mpi</MPI_LIB_NAME>
+  <MPI_LIB_NAME MPILIB="mpich">mpich</MPI_LIB_NAME>
   <ADD_SLIBS>$(shell $(NETCDF_PATH)/bin/nc-config --flibs) -llapack -lblas</ADD_SLIBS>
   <PIO_FILESYSTEM_HINTS>gpfs </PIO_FILESYSTEM_HINTS>
 </compiler>
 
 <compiler COMPILER="gnu" MACH="blues">
-  <NETCDF_PATH>/soft/netcdf/4.3.1-serial/gcc-4.7.2</NETCDF_PATH>
-  <MPI_PATH MPILIB="mvapich2">/soft/mvapich2/2.0-gcc-4.7.2-psm</MPI_PATH>
-  <MPI_LIB_NAME MPILIB="mvapich2">mpich</MPI_LIB_NAME>
+  <PNETCDF_PATH>$(PNETCDFROOT)</PNETCDF_PATH>
+  <NETCDF_PATH>$(NETCDFROOT)</NETCDF_PATH>
+  <MPI_PATH MPILIB="openmpi">/soft/openmpi/1.6.5-gcc-4.7.2</MPI_PATH>
+  <MPI_PATH MPILIB="mpich">/soft/mpich2/1.4.1-gcc-4.7.2/</MPI_PATH>
+  <MPI_LIB_NAME MPILIB="openmpi"> mpi</MPI_LIB_NAME>
+  <MPI_LIB_NAME MPILIB="mpich">mpich</MPI_LIB_NAME>
   <ADD_SLIBS>$(shell $(NETCDF_PATH)/bin/nc-config --flibs) -llapack -lblas</ADD_SLIBS>
   <PIO_FILESYSTEM_HINTS>gpfs </PIO_FILESYSTEM_HINTS>
 </compiler>
@@ -853,9 +912,8 @@ for mct, etc.
   <NETCDF_PATH> $(NETCDF_LIB)/..</NETCDF_PATH>
   <CONFIG_ARGS> --host=Linux --enable-filesystem-hints=lustre</CONFIG_ARGS>
   <ADD_CPPDEFS> -DLINUX </ADD_CPPDEFS>
-  <ADD_FFLAGS DEBUG="TRUE"> -g -O0 </ADD_FFLAGS>
-  <SLIBS> -L$(NETCDF_PATH)/lib -lnetcdf -lpmi </SLIBS>
-  <ADD_SLIBS> -L$(NETCDF_PATH)/lib -lnetcdff  </ADD_SLIBS>
+  <ADD_FFLAGS DEBUG="TRUE"> -g -traceback  -O0 -fpe0 -check  all -check noarg_temp_created -ftrapuv </ADD_FFLAGS>
+  <SLIBS> -L$(NETCDF_PATH)/lib -lnetcdf -lnetcdff -lpmi </SLIBS>
 </compiler>
  
 <compiler COMPILER="nag" MACH="cascade">
@@ -863,6 +921,13 @@ for mct, etc.
  <MPI_PATH MPILIB="mvapich2"> $(MPI_LIB)</MPI_PATH >
  <ADD_CPPDEFS> -DnoI8 </ADD_CPPDEFS>
  <ADD_LDFLAGS compile_threaded="true">  </ADD_LDFLAGS>
+ <!--  -C=Undefined flag doesn't work as it requires MPI and NETCDF to be 
+      compiled with this flag, which is not available now. NAG has the following debug flags
+      <ADD_FFLAGS DEBUG="TRUE">  -gline  -C=all  -g  -C=undefined -C=recursion -nan -O0 -v  </ADD_FFLAGS>
+      "-nan" is an important flag. currently, it doesn't work for pio, it is only used for "cam" model. 
+ -->
+ <ADD_FFLAGS DEBUG="TRUE" >  -gline  -C=all  -g  -O0 -v  </ADD_FFLAGS>
+ <ADD_FFLAGS DEBUG="TRUE" MODEL="cam">  -gline  -C=all  -g  -nan -O0 -v  </ADD_FFLAGS>
  <ADD_SLIBS> -L$(NETCDF_ROOT)/lib -lnetcdf -lnetcdff</ADD_SLIBS>
 </compiler> 
 
@@ -936,6 +1001,13 @@ for mct, etc.
   <ADD_LDFLAGS> -Wl,-rpath /usr/local/tools/netcdf-pgi-4.1.3/lib</ADD_LDFLAGS>
 </compiler>
 
+<compiler MACH="cab">
+  <NETCDF_PATH>/usr/local/tools/netcdf-pgi-4.1.3</NETCDF_PATH>
+  <MPI_PATH>/usr/local/tools/mvapich2-pgi-1.7/</MPI_PATH>
+  <MPI_LIB_NAME> mpich</MPI_LIB_NAME>
+  <ADD_SLIBS>$(shell /usr/local/tools/netcdf-pgi-4.1.3/bin/nc-config --flibs)</ADD_SLIBS>    
+  <ADD_LDFLAGS> -Wl,-rpath /usr/local/tools/netcdf-pgi-4.1.3/lib</ADD_LDFLAGS>
+</compiler>
 
 <compiler MACH="goldbach">
  <MPI_LIB_NAME MPILIB="openmpi"> mpi</MPI_LIB_NAME>
@@ -1020,6 +1092,66 @@ for mct, etc.
   <ADD_SLIBS>$(shell $(NETCDF_PATH)/bin/nf-config --flibs) -L$(TACC_HDF5_LIB) -lhdf5</ADD_SLIBS>
   <ADD_LDFLAGS>-L$(TACC_HDF5_LIB) -lhdf5</ADD_LDFLAGS>
   <TRILINOS_PATH>$(TRILINOS_PATH)</TRILINOS_PATH>
+</compiler>
+
+<compiler MACH="mustang" COMPILER="pgi">
+	<MPICC>mpicc</MPICC>
+	<MPIFC>mpif90</MPIFC>
+	<MPICXX>mpic++</MPICXX>
+	<SFC>pgfortran</SFC>
+	<SCC>pgcc</SCC>
+	<SCXX>pgc++</SCXX>
+	<ADD_SLIBS>$(shell $(NETCDF_PATH)/bin/nf-config --flibs) -llapack -lblas</ADD_SLIBS>
+</compiler>
+
+<compiler MACH="mustang" COMPILER="intel">
+	<MPICC>mpicc</MPICC>
+	<MPIFC>mpif90</MPIFC>
+	<MPICXX>mpic++</MPICXX>
+	<SFC>ifort</SFC>
+	<SCC>icc</SCC>
+	<SCXX>icpc</SCXX>
+	<ADD_SLIBS>$(shell $(NETCDF_PATH)/bin/nf-config --flibs) -llapack -lblas</ADD_SLIBS>
+</compiler>
+
+<compiler MACH="mustang" COMPILER="gnu">
+	<MPICC>mpicc</MPICC>
+	<MPIFC>mpif90</MPIFC>
+	<MPICXX>mpic++</MPICXX>
+	<SFC>gfortran</SFC>
+	<SCC>gcc</SCC>
+	<SCXX>g++</SCXX>
+	<ADD_SLIBS>$(shell $(NETCDF_PATH)/bin/nf-config --flibs) -llapack -lblas</ADD_SLIBS>
+</compiler>
+
+<compiler MACH="wolf" COMPILER="pgi">
+	<MPICC>mpicc</MPICC>
+	<MPIFC>mpif90</MPIFC>
+	<MPICXX>mpic++</MPICXX>
+	<SFC>pgfortran</SFC>
+	<SCC>pgcc</SCC>
+	<SCXX>pgc++</SCXX>
+	<ADD_SLIBS>$(shell $(NETCDF_PATH)/bin/nf-config --flibs) -llapack -lblas</ADD_SLIBS>
+</compiler>
+
+<compiler MACH="wolf" COMPILER="intel">
+	<MPICC>mpicc</MPICC>
+	<MPIFC>mpif90</MPIFC>
+	<MPICXX>mpic++</MPICXX>
+	<SFC>ifort</SFC>
+	<SCC>icc</SCC>
+	<SCXX>icpc</SCXX>
+	<ADD_SLIBS>$(shell $(NETCDF_PATH)/bin/nf-config --flibs) -llapack -lblas</ADD_SLIBS>
+</compiler>
+
+<compiler MACH="wolf" COMPILER="gnu">
+	<MPICC>mpicc</MPICC>
+	<MPIFC>mpif90</MPIFC>
+	<MPICXX>mpic++</MPICXX>
+	<SFC>gfortran</SFC>
+	<SCC>gcc</SCC>
+	<SCXX>g++</SCXX>
+	<ADD_SLIBS>$(shell $(NETCDF_PATH)/bin/nf-config --flibs) -llapack -lblas</ADD_SLIBS>
 </compiler>
 
 </config_compilers>

@@ -33,7 +33,7 @@ use filenames,       only: ncdata, bnd_topo, &
                            caseid, &
                            brnch_retain_casename
 use dycore,          only: dycore_is
-use abortutils,      only: endrun
+use cam_abortutils,      only: endrun
 use rayleigh_friction, only: rayk0, raykrange, raytau0
 
 !-----------------------------------------------------------------------
@@ -193,6 +193,15 @@ character(len=256) :: cam_branch_file = ' '
 ! 
 ! pertlim = n.n        Max size of perturbation to apply to initial
 !                      temperature field.
+!
+! new_random           logical: if .true., use RNG in dynamics/se/random_xgc.F90
+!                      instead of the fortran intrinsic.
+!
+! seed_custom          integer: if > 0, use new seeding mechanism that uses a
+!                      custom seed rather than a custom limit. Default 0
+!
+! seed_clock           logical: if .true., XOR the system_clock with the seed,
+!                      wheter it includes a custom seed or not. Default .false.
 !
 ! phys_alltoall        Dynamics/physics transpose option. See phys_grid module.
 !
@@ -364,6 +373,7 @@ contains
    use vertical_diffusion,  only: vd_readnl
    use cam_history_support, only: fieldname_len, fieldname_lenp2
    use cam_diagnostics,     only: diag_readnl
+   use nudging,             only: nudging_readnl
    use radheat,             only: radheat_readnl
 #if ( defined OFFLINE_DYN )
    use metdata,             only: metdata_readnl
@@ -440,6 +450,9 @@ contains
                     dtime, &
                     nlvdry,  &
                     pertlim ,&
+                    new_random ,&
+                    seed_custom ,&
+                    seed_clock ,&
                     readtrace, rayk0, raykrange, raytau0, &
                     tracers_flag, &
                     inithist, indirect, &
@@ -757,6 +770,7 @@ contains
    call cospsimulator_intr_readnl(nlfilename)
    call sat_hist_readnl(nlfilename, hfilename_spec, mfilt, fincl, nhtfrq, avgflag_pertape)
    call diag_readnl(nlfilename)
+   call nudging_readnl(nlfilename)
    call radheat_readnl(nlfilename)
    call vd_readnl(nlfilename)
 #if ( defined OFFLINE_DYN )
@@ -902,7 +916,10 @@ subroutine distnl
    call mpibcast (use_64bit_nc,1,mpilog,0,mpicom)
    call mpibcast (print_step_cost,1,mpilog,0,mpicom)
    call mpibcast (inithist_all   ,1,mpilog,0,mpicom)
-   call mpibcast (pertlim     ,1, mpir8,  0, mpicom )
+   call mpibcast (pertlim     ,1, mpir8 , 0, mpicom )
+   call mpibcast (new_random  ,1, mpilog, 0, mpicom )
+   call mpibcast (seed_custom ,1, mpiint, 0, mpicom )
+   call mpibcast (seed_clock  ,1, mpilog, 0, mpicom )
 
    call mpibcast (caseid  ,len(caseid) ,mpichar,0,mpicom)
    call mpibcast (avgflag_pertape, ptapes, mpichar,0,mpicom)

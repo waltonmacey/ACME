@@ -306,7 +306,7 @@ end subroutine phys_register
   !======================================================================= 
 
 subroutine phys_inidat( cam_out, pbuf2d )
-    use abortutils, only : endrun
+    use cam_abortutils, only : endrun
 
     use physics_buffer, only : pbuf_get_index, pbuf_get_field, physics_buffer_desc, pbuf_set_field, dyn_time_lvls
 
@@ -681,6 +681,7 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
     use tropopause,         only: tropopause_init
     use solar_data,         only: solar_data_init
     use rad_solar_var,      only: rad_solar_var_init
+    use nudging,            only: Nudge_Model,nudging_init
 
     ! Input/output arguments
     type(physics_state), pointer       :: phys_state(:)
@@ -853,6 +854,10 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
 
     end if
 
+    ! Initialize Nudging Parameters
+    !--------------------------------
+    if(Nudge_Model) call nudging_init
+
 end subroutine phys_init
 
   !
@@ -875,7 +880,7 @@ subroutine phys_run1(phys_state, ztodt, phys_tend, pbuf2d,  cam_in, cam_out)
     use cam_history,    only: outfld
 #endif
     use comsrf,         only: fsns, fsnt, flns, sgh30, flnt, landm, fsds
-    use abortutils,     only: endrun
+    use cam_abortutils,     only: endrun
 #if ( defined OFFLINE_DYN )
      use metdata,       only: get_met_srf1
 #endif
@@ -962,7 +967,7 @@ subroutine phys_run1(phys_state, ztodt, phys_tend, pbuf2d,  cam_in, cam_out)
 
        call t_barrierf('sync_bc_physics', mpicom)
        call t_startf ('bc_physics')
-       call t_adj_detailf(+1)
+       !call t_adj_detailf(+1)
 
 !$OMP PARALLEL DO PRIVATE (C, phys_buffer_chunk)
        do c=begchunk, endchunk
@@ -981,7 +986,7 @@ subroutine phys_run1(phys_state, ztodt, phys_tend, pbuf2d,  cam_in, cam_out)
 
        end do
 
-       call t_adj_detailf(-1)
+       !call t_adj_detailf(-1)
        call t_stopf ('bc_physics')
 
        ! Don't call the rest in CRM mode
@@ -1145,7 +1150,7 @@ subroutine phys_run2(phys_state, ztodt, phys_tend, pbuf2d,  cam_out, &
 
     call t_barrierf('sync_ac_physics', mpicom)
     call t_startf ('ac_physics')
-    call t_adj_detailf(+1)
+    !call t_adj_detailf(+1)
 
 !$OMP PARALLEL DO PRIVATE (C, NCOL, phys_buffer_chunk)
 
@@ -1165,7 +1170,7 @@ subroutine phys_run2(phys_state, ztodt, phys_tend, pbuf2d,  cam_out, &
             fsds(1,c))
     end do                    ! Chunk loop
 
-    call t_adj_detailf(-1)
+    !call t_adj_detailf(-1)
     call t_stopf('ac_physics')
 
 #ifdef TRACER_CHECK
@@ -1260,7 +1265,7 @@ subroutine tphysac (ztodt,   cam_in,  &
     use check_energy,       only: check_energy_chng
     use check_energy,       only: check_tracers_data, check_tracers_init, check_tracers_chng
     use time_manager,       only: get_nstep
-    use abortutils,         only: endrun
+    use cam_abortutils,         only: endrun
     use dycore,             only: dycore_is
     use cam_control_mod,    only: aqua_planet 
     use mo_gas_phase_chemdr,only: map2chm
@@ -1272,6 +1277,7 @@ subroutine tphysac (ztodt,   cam_in,  &
     use perf_mod
     use phys_control,       only: phys_do_flux_avg, waccmx_is
     use flux_avg,           only: flux_avg_run
+    use nudging,            only: Nudge_Model,Nudge_ON,nudging_timestep_tend
 
     implicit none
 
@@ -1596,6 +1602,13 @@ subroutine tphysac (ztodt,   cam_in,  &
        endif
     endif
 
+    !===================================================
+    ! Update Nudging values, if needed
+    !===================================================
+    if((Nudge_Model).and.(Nudge_ON)) then
+      call nudging_timestep_tend(state,ptend)
+      call physics_update(state,ptend,ztodt,tend)
+    endif
 
     call diag_phys_tend_writeout (state, pbuf,  tend, ztodt, tmp_q, tmp_cldliq, tmp_cldice, &
          tmp_t, qini, cldliqini, cldiceini)
@@ -1667,7 +1680,7 @@ subroutine tphysbc (ztodt,               &
     use clubb_intr,      only: clubb_tend_cam
     use sslt_rebin,      only: sslt_rebin_adv
     use tropopause,      only: tropopause_output
-    use abortutils,      only: endrun
+    use cam_abortutils,      only: endrun
     use subcol,          only: subcol_gen, subcol_ptend_avg
     use subcol_utils,    only: subcol_ptend_copy, is_subcol_on
 
@@ -2307,6 +2320,7 @@ subroutine phys_timestep_init(phys_state, cam_out, pbuf2d)
   use aerodep_flx,         only: aerodep_flx_adv
   use aircraft_emit,       only: aircraft_emit_adv
   use prescribed_volcaero, only: prescribed_volcaero_adv
+  use nudging,             only: Nudge_Model,nudging_timestep_init
 
 
   implicit none
@@ -2371,6 +2385,10 @@ subroutine phys_timestep_init(phys_state, cam_out, pbuf2d)
 
   ! age of air tracers
   call aoa_tracers_timestep_init(phys_state)
+
+  ! Update Nudging values, if needed
+  !----------------------------------
+  if(Nudge_Model) call nudging_timestep_init(phys_state)
 
 end subroutine phys_timestep_init
 

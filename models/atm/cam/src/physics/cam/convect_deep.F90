@@ -126,7 +126,7 @@ subroutine convect_deep_init(pref_edge)
   use spmd_utils,    only: masterproc
   use zm_conv_intr,  only: zm_conv_init
   use cs_conv_intr,  only: cs_conv_init
-  use abortutils,    only: endrun
+  use cam_abortutils,    only: endrun
   
   use physics_buffer, only: physics_buffer_desc, pbuf_get_index
 

@@ -26,7 +26,7 @@ use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_mode_num, rad_cnst_g
                             rad_cnst_get_aer_props, rad_cnst_get_mode_props,                &
                             rad_cnst_get_mam_mmr_idx, rad_cnst_get_mode_num_idx
 use cam_history,      only: addfld, add_default, phys_decomp, fieldname_len, outfld
-use abortutils,       only: endrun
+use cam_abortutils,       only: endrun
 use cam_logfile,      only: iulog
 
 implicit none
@@ -88,6 +88,9 @@ end type ptr2d_t
 logical :: prog_modal_aero     ! true when modal aerosols are prognostic
 logical :: lq(pcnst) = .false. ! set flags true for constituents with non-zero tendencies
                                ! in the ptend object
+
+!BSINGH -  Bugfix flags (Must be removed once the bug fix is accepted for master merge)
+logical :: fix_g1_err_ndrop = .false. !BSINGH - default is false
 
 !===============================================================================
 contains
@@ -194,7 +197,8 @@ subroutine ndrop_init
 
    call phys_getopts(history_amwg_out = history_amwg, &
                      history_aerosol_out = history_aerosol, &
-                     prog_modal_aero_out=prog_modal_aero)
+                     prog_modal_aero_out=prog_modal_aero, & 
+                     fix_g1_err_ndrop_out = fix_g1_err_ndrop)!BSINGH - Flag to fix repeated g1 equation bug in maxsat subroutine
 
 
    do m = 1, ntot_amode
@@ -1569,7 +1573,12 @@ subroutine maxsat(zeta,eta,nmode,smc,smax)
       if(eta(m).gt.1.e-20_r8)then
          g1=zeta(m)/eta(m)
          g1sqrt=sqrt(g1)
-         g1=g1sqrt*g1
+         !BSINGH - repeated "g1=g1sqrt*g1" is a bug. Following code fixes this bug.
+         !BSINGH - This flag is added to maintain b4b result with the default code.
+         if(.not. fix_g1_err_ndrop) then
+            g1=g1sqrt*g1
+         endif
+         !BSINGH -ENDS
          g1=g1sqrt*g1
          g2=smc(m)/sqrt(eta(m)+3._r8*zeta(m))
          g2sqrt=sqrt(g2)
