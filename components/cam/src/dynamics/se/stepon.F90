@@ -131,6 +131,14 @@ subroutine stepon_init( gw, etamid, dyn_in, dyn_out )
   call addfld ('DIV      ','1/s     ',nlev, 'A','Divergence',dyn_decomp, &
        begdim1=1,enddim1=npsq,begdim3=1,enddim3=nelemd)
 
+!+++PMC
+  call addfld ('FT      ','K/s    ',nlev, 'A','Temperature forcing term',dyn_decomp, &
+       begdim1=1,enddim1=npsq,begdim3=1,enddim3=nelemd)
+  call addfld ('FQ      ','kg/kg/s  ',nlev, 'A','Water vapor forcing term',dyn_decomp, &
+       begdim1=1,enddim1=npsq,begdim3=1,enddim3=nelemd)
+!---PMC
+
+
   if (smooth_phis_numcycle>0) then
      call addfld ('PHIS_SM ','m2/s2      ',1,    'I','Surface geopotential (smoothed)',dyn_decomp,&
        begdim1=1,enddim1=npsq,begdim3=1,enddim3=nelemd)
@@ -486,7 +494,43 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
          call outfld('FV',ftmp(:,:,2),npsq,ie)
       end do
    endif
-   
+  
+!+++PMC
+   if (hist_fld_active('FT')) then
+      do ie=1,nelemd
+         do k=1,nlev
+            do j=1,np
+               do i=1,np
+                  ftmp(i+(j-1)*np,k,1) = dyn_in%elem(ie)%derived%FT(i,j,k,1)
+               end do
+            end do
+         end do
+         
+         call outfld('FT',ftmp(:,:,1),npsq,ie)
+      end do
+   endif
+
+   if (hist_fld_active('FQ')) then
+      do ie=1,nelemd
+         do k=1,nlev
+            do j=1,np
+               do i=1,np
+	       	  !FQ dims: FQ(np,np,nlev,constituent,time level)
+		  !I'm only outputting constituent1 = vapor. Only 1 time level
+		  !exists for CAM runs, so last dim = 1 (see share/element_mod.F90)
+                  ftmp(i+(j-1)*np,k,1) = dyn_in%elem(ie)%derived%FQ(i,j,k,1,1)
+               end do
+            end do
+         end do
+         
+         call outfld('FQ',ftmp(:,:,1),npsq,ie)
+      end do
+   endif
+
+
+!---PMC
+
+ 
    !ParPhysDyn = kludge to make model behave as if phys and dyn were computed in 
    !parallel on separate processors (without actually changing the cores used for 
    !running phys and dyn). The basic idea is that if physics was run in parallel, 

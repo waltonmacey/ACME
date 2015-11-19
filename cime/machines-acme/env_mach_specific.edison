@@ -41,7 +41,8 @@ if ( $COMPILER == "intel" ) then
     module load PrgEnv-intel 
     module switch intel intel/15.0.1.133
     module load mkl/13.0.3
-    module use /global/project/projectdirs/ccsm1/modulefiles/edison
+    #PMC 11/19/15 next line is dependency on NCAR and contents no longer needed
+    #module use /global/project/projectdirs/ccsm1/modulefiles/edison 
     if( $DEBUG == "TRUE" ) then
          module load esmf/6.2.0-defio-mpi-g
     else
@@ -94,7 +95,9 @@ limit stacksize unlimited
 setenv MPICH_ENV_DISPLAY 1
 setenv MPICH_VERSION_DISPLAY 1
 setenv MPICH_CPUMASK_DISPLAY 1
-setenv PERL5LIB /global/project/projectdirs/ccsm1/perl5lib/lib/perl5/5.10.0
+#PMC 11/19/15 next line causes NCAR dependency and default PERL5LIB works fine instead.
+#setenv PERL5LIB /global/project/projectdirs/ccsm1/perl5lib/lib/perl5/5.10.0
+setenv PERL5LIB $PERL_DIR
 
 # The environment variable below increase the stack size, which is necessary for
 # CICE to run threaded on this machine.  
