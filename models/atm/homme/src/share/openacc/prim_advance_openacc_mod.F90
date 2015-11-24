@@ -2797,8 +2797,8 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
 !update all data on the GPU (this will go away when we port the rest of dynamics to OpenACC)
    do ie = 1 , nelemd
      !$acc update device(elem(ie)%state%dp3d)
-      !$acc update device(elem(ie)%Dinv)
-      !$acc update device( state_v, state_T)
+     !$acc update device(elem(ie)%Dinv)
+     !$acc update device( state_v, state_T)
      !$acc update device (elem(ie)%derived%eta_dot_dpdn)
      !$acc update device (elem(ie)%derived%omega_p)
      !$acc update device (elem(ie)%derived%pecnd)
@@ -2981,7 +2981,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
               do i=1,np
                  ! Qt = elem(ie)%state%Q(i,j,k,1)
                  Qt = elem(ie)%state%Qdp(i,j,k,1,qn0)/dp_d(i,j,k,ie)
-                 T_v_d(i,j,k,ie) = state_T(i,j,k,n0)*(1_real_kind + (Rwater_vapor/Rgas - 1.0_real_kind)*Qt)
+                 T_v_d(i,j,k,ie) = state_T(i,j,k,n0,ie)*(1_real_kind + (Rwater_vapor/Rgas - 1.0_real_kind)*Qt)
                  if (use_cpstar==1) then
                     kappa_star_d(i,j,k,ie) =  Rgas/Cp*(1.0_real_kind + (Cpwater_vapor/Cp - 1.0_real_kind)*Qt)
                  else
@@ -3128,6 +3128,7 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
 
   !$acc update host (vtemp_d1)
 
+   !$acc parallel loop gang vector collapse(4) present (Ephi_d, elem(:),state_v, derived_phi) private (E, v1, v2)
    do ie=1,nelemd
      ! ==============================================
      ! Compute phi + kinetic energy term: 10*nv*nv Flops
@@ -3138,11 +3139,12 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
               v1     = state_v(i,j,1,k,n0,ie)
               v2     = state_v(i,j,2,k,n0,ie)
               E = 0.5D0*( v1*v1 + v2*v2 )
-              Ephi_d(i,j,k,ie)=E+ elem(ie)%derived%phi(i,j,k)+elem(ie)%derived%pecnd(i,j,k)
+              Ephi_d(i,j,k,ie)=E+ derived_phi(i,j,k,ie)+elem(ie)%derived%pecnd(i,j,k)
            end do
         end do
       enddo
      enddo
+     !$acc update host (Ephi_d)
         ! ================================================
         ! compute gradp term (ps/p)*(dp/dps)*T
         ! ================================================
@@ -3155,8 +3157,13 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
 !   enddo
    
 
+!Irina TOFIX
    call gradient_sphere_noacc(Ephi_d,deriv,elem(:),vtemp_d,nlev,1,nelemd,1,1)
+    !$acc update device (vtemp_d)
 
+    !$acc parallel loop gang vector collapse (2) present (elem(:), derived_phi, state_v, vtemp_d1, vtemp_d,T_v_d) &
+    !$acc present( p_d, grad_p_d, vtens1_d, vtens2_d, v_vadv_d, vort_d, ttens_d, T_vadv_d, kappa_star_d, omega_p_d) &
+    !$acc & private (v1, v2, vgrad_T, gpterm, glnps1, glnps2) 
     do ie=1,nelemd
       vertloop: do k=1,nlev
         do j=1,np
@@ -3248,7 +3255,8 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
 
      end do vertloop
     enddo!ie
-  
+    !$acc update host (ttens_d, vtens1_d, vtens2_d) 
+ 
     do ie=1,nelemd
      ! =========================================================
      ! local element timestep, store in np1.
