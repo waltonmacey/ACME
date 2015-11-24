@@ -4,7 +4,7 @@ do_cmake=1
 do_clean=1
 do_make=1
  
-HOMME_ROOT=/ccs/home/$USER/ACME/models/atm/homme
+HOMME_ROOT=/lustre/atlas/world-shared/cli101/ipdemes/ACME-github2/ACME/models/atm/homme
 NTRACERS=50
 NLEVELS=64
 
@@ -21,7 +21,7 @@ cmake                                                                          \
   -DCMAKE_Fortran_COMPILER=ftn                                                 \
   -DCMAKE_C_COMPILER=cc                                                        \
   -DCMAKE_CXX_COMPILER=CC                                                      \
-  -DOPT_FLAGS="-O2 -Kieee -Mvect=nosse"                                        \
+  -DOPT_FLAGS="-Mvect=nosse"                                        \
   -DDEBUG_FLAGS=" "                                                            \
   -DNETCDF_DIR=$NETCDF_DIR                                                     \
   -DWITH_PNETCDF=FALSE                                                         \
@@ -40,7 +40,7 @@ cmake                                                                          \
                                                                                \
                                                                                \
                                                                                \
-  -DPREQX_CUSTOM_FLAGS_FILE=${HOMME_ROOT}/compile_scripts/customFlags.cmake.cpu \
+  -DPREQX_CUSTOM_FLAGS_FILE=${HOMME_ROOT}/compile_scripts/titan/customFlags.cmake.cpu \
   $HOMME_ROOT                                               
 fi
 # -DOPT_FLAGS="-fastsse -Mvect"                                                \
