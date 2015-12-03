@@ -25,6 +25,9 @@ module stepon
                              edgeVpack, edgeVunpack
    use parallel_mod,   only : par
 
+   use cam_logfile, only : iulog !PMC for debugging only
+
+
    implicit none
    private
    save
@@ -97,6 +100,9 @@ subroutine stepon_init( gw, etamid, dyn_in, dyn_out )
   type (dyn_export_t), intent(inout) :: dyn_out ! Dynamics export container
 
   integer :: m
+  integer :: ierr !PMC debug
+
+
 ! !DESCRIPTION:
 !
 ! Allocate data, initialize values, setup grid locations and other
@@ -172,9 +178,16 @@ subroutine stepon_init( gw, etamid, dyn_in, dyn_out )
   end do
 
   !+++PMC
-  allocate(FT_lag(nelemd,np,np,nlev))
-  allocate(FM_lag(nelemd,np,np,2,nlev))
-  allocate(FQ_lag(nelemd,np,np,nlev,pcnst))
+  allocate(FT_lag(nelemd,np,np,nlev), stat=ierr)
+  if (ierr /= 0) then
+    write(iulog,*) 'allocate FT_lag failed. iam=',iam !PMC debug
+    write(iulog,*) 'nelemd,np,nlev=',nelemd,np,nlev !PMC debug
+    call endrun("stepon: Allocate FT_lag failed.")
+  end if
+  allocate(FM_lag(nelemd,np,np,2,nlev), stat=ierr)
+  if (ierr /= 0) call endrun("stepon: Allocate FM_lag failed.")
+  allocate(FQ_lag(nelemd,np,np,nlev,pcnst), stat=ierr)
+  if (ierr /= 0) call endrun("stepon: Allocate FQ_lag failed.")
   !---PMC
 
 end subroutine stepon_init
