@@ -49,6 +49,7 @@ module controlMod
   public :: control_setNL ! Set namelist filename
   public :: control_init  ! initial run control information
   public :: control_print ! print run control information
+
   !
   !
   ! !PRIVATE TYPES:
@@ -101,12 +102,12 @@ contains
     ! Initialize CLM run control information
     !
     ! !USES:
-    use clm_time_manager , only : set_timemgr_init, get_timemgr_defaults
-    use fileutils        , only : getavu, relavu
-    use shr_string_mod   , only : shr_string_getParentDir
-    ! pflotran
-    use clm_pflotran_interfaceMod, only : clm_pf_readnl
-
+    use clm_time_manager          , only : set_timemgr_init, get_timemgr_defaults
+    use fileutils                 , only : getavu, relavu
+    use shr_string_mod            , only : shr_string_getParentDir
+    use clm_pflotran_interfaceMod , only : clm_pf_readnl
+    use betr_initializeMod        , only : betr_readNL
+    !
     implicit none
     !
     ! !LOCAL VARIABLES:
@@ -202,7 +203,9 @@ contains
     namelist /clm_inparm / use_c13, use_c14
 
     namelist /clm_inparm / use_ed, use_ed_spit_fire
-
+    
+    namelist /clm_inparm / use_betr
+        
     namelist /clm_inparm / use_lai_streams
 
     namelist /clm_inparm/  &
@@ -222,6 +225,9 @@ contains
     namelist /clm_inparm/ use_bgc_interface, use_clm_bgc, use_pflotran
 
     namelist /clm_inparm/ use_dynroot
+
+    namelist /clm_inparm / &
+         use_vsfm, vsfm_satfunc_type
 
     ! ----------------------------------------------------------------------
     ! Default values
@@ -380,6 +386,11 @@ contains
     if (use_pflotran) then
        call clm_pf_readnl(NLFilename)
     end if
+
+    if (use_betr) then
+       call betr_readNL( NLFilename )
+    endif    
+
     ! ----------------------------------------------------------------------
     ! consistency checks
     ! ----------------------------------------------------------------------
@@ -433,6 +444,17 @@ contains
           call endrun(msg='ERROR:: anoxia is turned on, but this currently requires turning on the CH4 submodel'//&
             errMsg(__FILE__, __LINE__))
        end if
+    end if
+
+    ! Consistency settings for co2 type
+    if (vsfm_satfunc_type /= 'brooks_corey'             .and. &
+        vsfm_satfunc_type /= 'smooth_brooks_corey_bz2'  .and. &
+        vsfm_satfunc_type /= 'smooth_brooks_corey_bz3'  .and. &
+        vsfm_satfunc_type /= 'van_genuchten') then
+       write(iulog,*)'vsfm_satfunc_type = ',vsfm_satfunc_type,' is not supported'
+       call endrun(msg=' ERROR:: choices are brooks_corey, smooth_brooks_corey_bz2, '//&
+            'smooth_brooks_corey_bz3 or van_genuchten'//&
+            errMsg(__FILE__, __LINE__))
     end if
 
     if (masterproc) then
@@ -532,6 +554,8 @@ contains
     call mpi_bcast (use_ed, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_ed_spit_fire, 1, MPI_LOGICAL, 0, mpicom, ier)
 
+    call mpi_bcast (use_betr, 1, MPI_LOGICAL, 0, mpicom, ier)
+
     call mpi_bcast (use_lai_streams, 1, MPI_LOGICAL, 0, mpicom, ier)
 
     call mpi_bcast (use_dynroot, 1, MPI_LOGICAL, 0, mpicom, ier)
@@ -629,6 +653,11 @@ contains
     call mpi_bcast (use_bgc_interface, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_clm_bgc, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_pflotran, 1, MPI_LOGICAL, 0, mpicom, ier)
+
+    ! VSFM variable
+
+    call mpi_bcast (use_vsfm, 1, MPI_LOGICAL, 0, mpicom, ier)
+    call mpi_bcast (vsfm_satfunc_type, len(vsfm_satfunc_type), MPI_CHARACTER, 0, mpicom, ier)
 
   end subroutine control_spmd
 
@@ -834,6 +863,13 @@ contains
                       ' by a factor of ', deepmixing_mixfact, '.'
     write(iulog,*) 'Albedo over melting lakes will approach values (visible, NIR):', lake_melt_icealb, &
                    'as compared with 0.60, 0.40 for cold frozen lakes with no snow.'
+
+    ! VSFM
+    if (use_vsfm) then
+       write(iulog,*)
+       write(iulog,*) 'VSFM Namelists:'
+       write(iulog, *) '  vsfm_satfunc_type                                      : ', vsfm_satfunc_type
+    endif
 
   end subroutine control_print
 

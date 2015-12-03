@@ -11,9 +11,30 @@ _TEST_SUITES = {
                    [("ERS.f19_g16_rx1.A", None),
                     ("NCK.f19_g16_rx1.A", None)]
                    ),
-    "acme_developer" : (None,
+
+    "acme_test_only_pass" : (None,
+                   [("TESTRUNPASS_P1.f19_g16_rx1.A", None),
+                    ("TESTRUNPASS_P1.ne30_g16_rx1.A", None),
+                    ("TESTRUNPASS_P1.f45_g37_rx1.A", None)]
+                   ),
+
+    "acme_test_only" : (None,
+                   [("TESTBUILDFAIL.f19_g16_rx1.A", None),
+                    ("TESTRUNFAIL_P1.f19_g16_rx1.A", None),
+                    ("TESTRUNPASS_P1.f19_g16_rx1.A", None)]
+                   ),
+
+    "acme_land_developer" : (None,
+                             [("SMS.f19_f19.I1850CLM45CN", None),
+                              ("SMS.f09_g16.I1850CLM45CN", None),
+                              ("SMS.hcru_hcru.I1850CRUCLM45CN", None)]
+                             ),
+
+    "acme_developer" : ("acme_land_developer",
                         [("ERS.f19_g16_rx1.A", None),
                          ("ERS.f45_g37_rx1.DTEST", None),
+                         ("ERS.ne16_ne16.FC5PLMOD", None),
+                         ("ERS.ne16_ne16.FC5MAM4", None),
                          ("ERS.ne30_g16_rx1.A", None),
                          ("ERS_IOP.f19_g16_rx1.A", None),
                          ("ERS_IOP.f45_g37_rx1.DTEST", None),
@@ -25,17 +46,16 @@ _TEST_SUITES = {
                          ("NCK.f19_g16_rx1.A", None),
                          ("PEA_P1_M.f45_g37_rx1.A", None),
                          ("SMS.ne30_f19_g16_rx1.A", None),
-                         ("SMS.f19_f19.I1850CLM45CN", None),
-                         ("SMS.f09_g16.I1850CLM45CN", None),
-                         ("SMS.hcru_hcru.I1850CRUCLM45CN", None),
                          ("ERS_Ld5.T62_mpas120.C_MPAS_NORMAL_YEAR", None),
                          ("ERS.f09_g16_g.MPASLI_ONLY", None),
                          ("SMS.T62_mpas120_gis20.MPAS_LISIO_TEST", None),
                          ("SMS.f09_g16_a.IGCLM45_MLI", None)]
                         ),
+
     "acme_integration" : ("acme_developer",
                           [("ERS.ne30_g16.B1850C5", None),
                            ("ERS.f19_f19.FAMIPC5", None),
+                           ("ERS.ne16_ne16.FC5PM", None),
                            ("ERS.ne16_g37.B1850C5", None),
                            ("ERS.f45_g37.B1850C5", None),
                            ("ERS_D.f45_g37.B1850C5", None),
@@ -59,10 +79,12 @@ def get_test_suite(suite):
 ###############################################################################
     expect(suite in _TEST_SUITES, "Unknown test suite: '%s'" % suite)
     inherits_from, tests = _TEST_SUITES[suite]
+    tests = list(tests)
     if (inherits_from is not None):
         inherited_tests = get_test_suite(inherits_from)
+
         expect(len(set(tests) & set(inherited_tests)) == 0,
-               "Tests %s defined in multiple suites" % ", ".join(set(tests) & set(inherited_tests)))
+               "Tests %s defined in multiple suites" % ", ".join(set(item[0] for item in tests) & set(item[0] for item in inherited_tests)))
         tests.extend(inherited_tests)
     return tests
 
@@ -70,6 +92,55 @@ def get_test_suite(suite):
 def get_test_suites():
 ###############################################################################
     return _TEST_SUITES.keys()
+
+###############################################################################
+def get_full_test_names(testargs, machine, compiler):
+###############################################################################
+    """
+    Return full test names in the form:
+    TESTCASE.GRID.COMPSET.MACHINE_COMPILER.TESTMODS
+    Testmods are optional
+
+    Testargs can be categories or test names and support the NOT symbol '^'
+
+    >>> get_full_test_names(["acme_tiny"], "melvin", "gnu")
+    ['ERS.f19_g16_rx1.A.melvin_gnu', 'NCK.f19_g16_rx1.A.melvin_gnu']
+
+    >>> get_full_test_names(["acme_tiny", "PEA_P1_M.f45_g37_rx1.A"], "melvin", "gnu")
+    ['ERS.f19_g16_rx1.A.melvin_gnu', 'NCK.f19_g16_rx1.A.melvin_gnu', 'PEA_P1_M.f45_g37_rx1.A.melvin_gnu']
+
+    >>> get_full_test_names(['ERS.f19_g16_rx1.A', 'NCK.f19_g16_rx1.A', 'PEA_P1_M.f45_g37_rx1.A'], "melvin", "gnu")
+    ['ERS.f19_g16_rx1.A.melvin_gnu', 'NCK.f19_g16_rx1.A.melvin_gnu', 'PEA_P1_M.f45_g37_rx1.A.melvin_gnu']
+
+    >>> get_full_test_names(["acme_tiny", "^NCK.f19_g16_rx1.A"], "melvin", "gnu")
+    ['ERS.f19_g16_rx1.A.melvin_gnu']
+    """
+    acme_test_suites = get_test_suites()
+
+    tests_to_run = set()
+    negations = set()
+
+    for testarg in testargs:
+        if (testarg.startswith("^")):
+            negations.add(testarg[1:])
+        elif (testarg in acme_test_suites):
+            for test, testmod in get_test_suite(testarg):
+                tests_to_run.add(acme_util.get_full_test_name(test, machine, compiler, testmod))
+        else:
+            tests_to_run.add(acme_util.get_full_test_name(testarg, machine, compiler))
+
+    for negation in negations:
+        if (negation in acme_test_suites):
+            for test, testmod in get_test_suite(negation):
+                fullname = acme_util.get_full_test_name(test, machine, compiler, testmod)
+                if (fullname in tests_to_run):
+                    tests_to_run.remove(fullname)
+        else:
+            fullname = acme_util.get_full_test_name(negation, machine, compiler)
+            if (fullname in tests_to_run):
+                tests_to_run.remove(fullname)
+
+    return list(sorted(tests_to_run))
 
 ###############################################################################
 def find_all_supported_platforms():

@@ -252,6 +252,7 @@ module PhosphorusFluxType
      real(r8), pointer :: dwt_ploss_col                             (:)     ! col (gP/m2/s) total phosphorus loss from product pools and conversion
 
      ! wood product pool loss fluxes
+     real(r8), pointer :: prod1p_loss_col                           (:)     ! col (gP/m2/s) decomposition loss from 1-yr crop product pool
      real(r8), pointer :: prod10p_loss_col                          (:)     ! col (gP/m2/s) decomposition loss from 10-yr wood product pool
      real(r8), pointer :: prod100p_loss_col                         (:)     ! col (gP/m2/s) decomposition loss from 100-yr wood product pool
      real(r8), pointer :: product_ploss_col                         (:)     ! col (gP/m2/s) total wood product phosphorus loss
@@ -473,6 +474,7 @@ contains
     allocate(this%gross_pmin_col                (begc:endc))    ; this%gross_pmin_col                (:) = nan
     allocate(this%net_pmin_col                  (begc:endc))    ; this%net_pmin_col                  (:) = nan
     allocate(this%supplement_to_sminp_col       (begc:endc))    ; this%supplement_to_sminp_col       (:) = nan
+    allocate(this%prod1p_loss_col               (begc:endc))    ; this%prod1p_loss_col              (:) = nan
     allocate(this%prod10p_loss_col              (begc:endc))    ; this%prod10p_loss_col              (:) = nan
     allocate(this%prod100p_loss_col             (begc:endc))    ; this%prod100p_loss_col	     (:) = nan
     allocate(this%product_ploss_col             (begc:endc))    ; this%product_ploss_col	     (:) = nan
@@ -1374,6 +1376,11 @@ contains
          avgflag='A', long_name='loss from 100-yr wood product pool', &
          ptr_col=this%prod100p_loss_col)
 
+    this%prod1p_loss_col(begc:endc) = spval
+    call hist_addfld1d (fname='PROD1P_LOSS', units='gP/m^2/s', &
+         avgflag='A', long_name='loss from 1-yr crop product pool', &
+         ptr_col=this%prod100p_loss_col)
+
     this%product_ploss_col(begc:endc) = spval
     call hist_addfld1d (fname='PRODUCT_PLOSS', units='gP/m^2/s', &
          avgflag='A', long_name='total P loss from wood product pools', &
@@ -1887,6 +1894,7 @@ contains
        this%prod10p_loss_col(i)              = value_column
        this%prod100p_loss_col(i)             = value_column
        this%product_ploss_col(i)             = value_column
+       this%prod1p_loss_col(i)              = value_column
        this%potential_immob_p_col(i)           = value_column
        this%actual_immob_p_col(i)              = value_column
        this%sminp_to_plant_col(i)            = value_column
@@ -2053,7 +2061,7 @@ contains
     do fp = 1,num_soilp
        p = filter_soilp(fp)
 
-       ! total N deployment (from sminn and retranslocated N pool) (NDEPLOY)
+       ! total P deployment (from sminn and retranslocated P pool) (PDEPLOY)
        this%pdeploy_patch(p) = &
             this%sminp_to_ppool_patch(p) + &
             this%retransp_to_ppool_patch(p)
@@ -2063,7 +2071,7 @@ contains
             this%hrv_deadstemp_to_prod10p_patch(p) + &
             this%hrv_deadstemp_to_prod100p_patch(p)
 
-       ! total pft-level fire N losses
+       ! total pft-level fire P losses
        this%fire_ploss_patch(p) = &
             this%m_leafp_to_fire_patch(p)               + &
             this%m_leafp_storage_to_fire_patch(p)       + &
@@ -2215,10 +2223,12 @@ contains
        this%dwt_ploss_col(c) = &
             this%dwt_conv_pflux_col(c)
 
+
        ! total wood product P loss
        this%product_ploss_col(c) = &
             this%prod10p_loss_col(c) + &
-            this%prod100p_loss_col(c) 
+            this%prod100p_loss_col(c) + &
+            this%prod1p_loss_col(c) 
     end do
 
     ! add up all vertical transport tendency terms and calculate total som leaching loss as the sum of these

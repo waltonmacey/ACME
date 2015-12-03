@@ -72,6 +72,7 @@ module CNStateType
      real(r8) , pointer :: fpi_p_vr_col                (:,:)   ! col fraction of potential immobilization (no units) 
      real(r8) , pointer :: fpi_p_col                   (:)     ! col fraction of potential immobilization (no units) 
      real(r8),  pointer :: fpg_p_col                   (:)     ! col fraction of potential gpp (no units)
+     real(r8) , pointer :: pdep_prof_col               (:,:)   ! col (1/m) profile for P deposition additions 
 
      real(r8) , pointer :: rf_decomp_cascade_col       (:,:,:) ! col respired fraction in decomposition step (frac)
      real(r8) , pointer :: pathfrac_decomp_cascade_col (:,:,:) ! col what fraction of C leaving a given pool passes through a given transition (frac) 
@@ -135,9 +136,10 @@ module CNStateType
      real(r8), pointer :: tempmax_retransp_patch       (:)     ! patch temporary annual max of retranslocated P pool (gP/m2)
      real(r8), pointer :: annmax_retransp_patch        (:)     ! patch annual max of retranslocated P pool (gP/m2)
 
+     real(r8), pointer :: frootc_nfix_scalar_col       (:)     ! col scalar for nitrogen fixation
+     real(r8), pointer :: decomp_litpool_rcn_col       (:,:,:) ! cn ratios of the decomposition pools
 
-
-     integer           :: CropRestYear                        ! restart year from initial conditions file - increment as time elapses
+     integer           :: CropRestYear                         ! restart year from initial conditions file - increment as time elapses
 
    contains
 
@@ -229,6 +231,7 @@ contains
     allocate(this%fpi_p_vr_col          (begc:endc,1:nlevdecomp_full)) ; this%fpi_p_vr_col          (:,:) = nan
     allocate(this%fpi_p_col             (begc:endc))                   ; this%fpi_p_col             (:)   = nan
     allocate(this%fpg_p_col             (begc:endc))                   ; this%fpg_p_col             (:)   = nan
+    allocate(this%pdep_prof_col         (begc:endc,1:nlevdecomp_full)) ; this%pdep_prof_col       (:,:) = spval
 
     allocate(this%rf_decomp_cascade_col(begc:endc,1:nlevdecomp_full,1:ndecomp_cascade_transitions)); 
     this%rf_decomp_cascade_col(:,:,:) = nan
@@ -262,7 +265,8 @@ contains
     allocate(this%wtlf_col            (begc:endc))                   ; this%wtlf_col            (:)   = nan
     allocate(this%lfwt_col            (begc:endc))                   ; this%lfwt_col            (:)   = nan
     allocate(this%farea_burned_col    (begc:endc))                   ; this%farea_burned_col    (:)   = nan
-
+    allocate(this%decomp_litpool_rcn_col (begc:endc, 1:nlevdecomp_full, 4)); this%decomp_litpool_rcn_col (:,:,:) = nan
+    allocate(this%frootc_nfix_scalar_col (begc:endc))                ; this%frootc_nfix_scalar_col(:) = nan
     this%CropRestYear = 0
 
     allocate(this%dormant_flag_patch          (begp:endp)) ;    this%dormant_flag_patch          (:) = nan
@@ -289,7 +293,7 @@ contains
     allocate(this%tempmax_retransn_patch      (begp:endp)) ;    this%tempmax_retransn_patch      (:) = nan
     allocate(this%annmax_retransn_patch       (begp:endp)) ;    this%annmax_retransn_patch       (:) = nan
     allocate(this%downreg_patch               (begp:endp)) ;    this%downreg_patch               (:) = nan
-    allocate(this%rc14_atm_patch              (begp:endp)) ;    this%rc14_atm_patch              (:) = nan
+    allocate(this%rc14_atm_patch              (begp:endp)) ;    this%rc14_atm_patch              (:) = nan    
 
 
     !! add phosphorus -X.YANG
@@ -360,6 +364,11 @@ contains
     call hist_addfld_decomp (fname='NDEP_PROF', units='1/m',  type2d='levdcmp', &
          avgflag='A', long_name='profile for atmospheric N  deposition', &
          ptr_col=this%ndep_prof_col, default='inactive')
+
+    this%pdep_prof_col(begc:endc,:) = spval
+    call hist_addfld_decomp (fname='PDEP_PROF', units='1/m',  type2d='levdcmp', &
+         avgflag='A', long_name='profile for P  deposition', &
+         ptr_col=this%pdep_prof_col, default='inactive')
 
     this%som_adv_coef_col(begc:endc,:) = spval
     call hist_addfld_decomp (fname='SOM_ADV_COEF', units='m/s',  type2d='levdcmp', &
@@ -760,6 +769,7 @@ contains
           ! initialize the profiles for converting to vertically resolved carbon pools
           this%nfixation_prof_col(c,1:nlevdecomp_full)  = 0._r8 
           this%ndep_prof_col(c,1:nlevdecomp_full)       = 0._r8 
+          this%pdep_prof_col(c,1:nlevdecomp_full)       = 0._r8 
        end if
     end do
 
