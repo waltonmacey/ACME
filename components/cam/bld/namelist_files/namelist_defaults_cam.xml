@@ -1218,6 +1218,7 @@
 <se_ne hgrid="ne0np4_sooberingoa_x4x8v1_lowcon"  > 0 </se_ne>
 
 <se_ftype> 0 </se_ftype>
+<se_ParPhysDyn> .false. </se_ParPhysDyn>
 
 <se_phys_tscale> 0 </se_phys_tscale>
 <se_limiter_option> 8 </se_limiter_option>

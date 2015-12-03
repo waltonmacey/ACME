@@ -44,6 +44,7 @@ module namelist_mod
        TRACERADV_UGRADQ, &
        prescribed_wind, &
        ftype,        &
+       ParPhysDyn,   & !PMC 
        energy_fixer,        &
        limiter_option, &
        fine_ne,       &
@@ -197,6 +198,7 @@ module namelist_mod
     type (parallel_t), intent(in) ::  par
     character(len=MAX_FILE_LEN) :: mesh_file
     integer :: se_ftype, se_limiter_option
+    logical :: se_ParPhysDyn !PMC added
     integer :: se_phys_tscale, se_nsplit
     integer :: interp_nlat, interp_nlon, interp_gridtype, interp_type
     integer :: i, ii, j
@@ -255,6 +257,7 @@ module namelist_mod
                      LFTfreq,       &
                      prescribed_wind, &
                      se_ftype,        &       ! forcing type
+		     se_ParPhysDyn,   &        !PMC added, mimic parallel phys/dyn splitting.
                      energy_fixer,        &       ! forcing type
                      fine_ne,       &
                      max_hypervis_courant, &
@@ -397,6 +400,7 @@ module namelist_mod
     qsplit=4; rk_stage_user=3
     se_limiter_option=4
     se_ftype = 0           ! apply phys tend as constant each remap step
+    se_ParPhysDyn = .false. !PMC added. Default is do nothing.
     energy_fixer = -1      ! no fixer, non-staggered-in-time formulas
     se_partmethod = -1
     se_ne       = -1
@@ -408,7 +412,8 @@ module namelist_mod
     ndays         = 0
     nmax          = 12
     nthreads = 1
-    se_ftype = ftype   ! MNL: For non-CAM runs, ftype=0 in control_mod 
+    se_ftype = ftype   ! MNL: For non-CAM runs, ftype=0 in control_mod
+    se_ParPhysDyn = .false. !PMC added. Default is do nothing. 
     phys_tscale=0
     nsplit = 1 
 #endif
@@ -815,6 +820,9 @@ module namelist_mod
     call MPI_bcast(NSPLIT,1,MPIinteger_t,par%root,par%comm,ierr)
     call MPI_bcast(limiter_option  ,1,MPIinteger_t   ,par%root,par%comm,ierr) 
     call MPI_bcast(se_ftype     ,1,MPIinteger_t   ,par%root,par%comm,ierr) 
+
+    call MPI_bcast(se_ParPhysDyn  ,1,MPIlogical_t, par%root,par%comm,ierr) !PMC added.
+
     call MPI_bcast(energy_fixer,1,MPIinteger_t   ,par%root,par%comm,ierr) 
     call MPI_bcast(vert_remap_q_alg,1,MPIinteger_t   ,par%root,par%comm,ierr) 
 
@@ -985,6 +993,7 @@ module namelist_mod
 
 
     ftype = se_ftype    
+    ParPhysDyn = se_ParPhysDyn
 
 #ifdef _PRIM
     rk_stage_user=3  ! 3d PRIM code only supports 3 stage RK tracer advection
@@ -1129,6 +1138,7 @@ module namelist_mod
 #ifdef CAM
        write(iulog,*)"readnl: se_nsplit         = ", NSPLIT
        write(iulog,*)"readnl: se_ftype          = ",ftype
+       write(iulog,*)"readnl: se_ParPhysDyn          = ",ParPhysDyn
        write(iulog,*)"readnl: se_limiter_option = ",limiter_option
 #else
        write(iulog,*)"readnl: tstep          = ",tstep

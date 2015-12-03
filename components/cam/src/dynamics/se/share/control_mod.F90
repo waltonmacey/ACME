@@ -30,6 +30,7 @@ module control_mod
   integer, public  :: ftype = 0                                ! Forcing Type
                                                                ! ftype = 0  HOMME ApplyColumn() type forcing process split
                                                                ! ftype = -1   ignore forcing  (used for testing energy balance)
+  logical, public  :: ParPhysDyn = .false.     !PMC mimic effect of running physics and dynamics in parallel. 
   integer, public  :: use_cpstar=0                             ! use cp or cp* in T equation                               
   integer, public  :: energy_fixer = 0    !  -1: No fixer, use non-staggered formula
                                           !   0: No Fixer, use staggered in time formula

@@ -4773,6 +4773,13 @@ CAM physics forcing option:
 Default: Set by build-namelist.
 </entry>
 
+<entry id="se_ParPhysDyn" type="logical" category="se"
+       group="ctl_nl" valid_values=".true.,.false." >
+If true, mimic behavior if physics and dynamics were run in parallel.
+Default: Set by build-namelist.
+</entry>
+
+
 <entry id="integration" type="char*80" category="se"
        group="ctl_nl" valid_values="explicit,semi_implicit" >
 Time integration method.

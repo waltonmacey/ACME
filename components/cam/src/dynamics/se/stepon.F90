@@ -25,7 +25,8 @@ module stepon
                              edgeVpack, edgeVunpack
    use parallel_mod,   only : par
 
-   use cam_logfile, only : iulog !PMC for debugging only
+   
+   use cam_logfile,     only: iulog !PMC for debugging
 
 
    implicit none
@@ -68,7 +69,7 @@ module stepon
   real(r8), allocatable :: FT_lag(:,:,:,:)   !storage for T forcing from phys which persists over a timestep
   real(r8), allocatable :: FM_lag(:,:,:,:,:) !storage for M=U,V forcing from phys which persists over a timestep
   real(r8), allocatable :: FQ_lag(:,:,:,:,:) !storage for phys forcing of Q = tracers which persists over a timestep
-  logical, parameter :: ParPhysDyn = .true.
+  !!!logical, parameter :: ParPhysDyn = .false. NOW NAMELIST PARAM.
   !---PMC
 
 !-----------------------------------------------------------------------
@@ -250,7 +251,7 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
    
    use time_manager,    only: dtime,is_first_step, is_first_restart_step  ! namelist timestep (PMC added is_first_*step)
    use time_mod,        only: tstep, phys_tscale, TimeLevel_Qdp   !  dynamics typestep
-   use control_mod,     only: ftype, qsplit, smooth_phis_numcycle
+   use control_mod,     only: ftype, qsplit, smooth_phis_numcycle,ParPhysDyn !PMC added ParPhysDyn
    use hycoef,          only: hyam, hybm, hyai, hybi, ps0
    use cam_history,     only: outfld, hist_fld_active
    use nctopo_util_mod, only: phisdyn,sghdyn,sgh30dyn
