@@ -1,5 +1,5 @@
 module micro_mg_cam
-
+#define GPM_TWO_MOMENT
 !---------------------------------------------------------------------------------
 !
 !  CAM Interfaces for MG microphysics
@@ -177,7 +177,11 @@ integer :: &
      ls_mrprc_idx,    ls_mrsnw_idx,    &
      ls_reffrain_idx, ls_reffsnow_idx, &
      cv_reffliq_idx,  cv_reffice_idx
-
+#ifdef GPM_TWO_MOMENT
+! Fields needed as inputs to COSP with GPM support
+integer :: &
+     ls_icwnc_idx, ls_icinc_idx
+#endif
 ! Fields needed by Park macrophysics
 integer :: &
      cc_t_idx,  cc_qv_idx, &
@@ -432,6 +436,12 @@ subroutine micro_mg_cam_register
   call pbuf_add_field('CV_REFFLIQ', 'physpkg',dtype_r8,(/pcols,pver/), cv_reffliq_idx)
   call pbuf_add_field('CV_REFFICE', 'physpkg',dtype_r8,(/pcols,pver/), cv_reffice_idx)
 
+#ifdef GPM_TWO_MOMENT
+  ! call pbuf_add_field('GPM_LS_QI', 'physpkg',dtype_r8,(/pcols,pver/),  ls_gpmlsqi_idx)
+  call pbuf_add_field('LS_ICWNC',   'physpkg',dtype_r8,(/pcols,pver/), ls_icwnc_idx)
+  call pbuf_add_field('LS_ICiNC',   'physpkg',dtype_r8,(/pcols,pver/), ls_icinc_idx)
+#endif
+
   ! CC_* Fields needed by Park macrophysics
   call pbuf_add_field('CC_T',     'global',  dtype_r8, (/pcols,pver,dyn_time_lvls/), cc_t_idx)
   call pbuf_add_field('CC_qv',    'global',  dtype_r8, (/pcols,pver,dyn_time_lvls/), cc_qv_idx)
@@ -506,6 +516,11 @@ subroutine micro_mg_cam_register
     call pbuf_register_subcol('LS_REFFSNOW', 'micro_mg_cam_register', ls_reffsnow_idx)
     call pbuf_register_subcol('CV_REFFLIQ',  'micro_mg_cam_register', cv_reffliq_idx)
     call pbuf_register_subcol('CV_REFFICE',  'micro_mg_cam_register', cv_reffice_idx)
+#ifdef GPM_TWO_MOMENT
+! Fields needed as inputs to COSP with GPM support
+    call pbuf_register_subcol('LS_ICWNC',    'micro_mg_cam_register', ls_icwnc_idx)
+    call pbuf_register_subcol('LS_ICINC',    'micro_mg_cam_register', ls_icinc_idx)
+#endif
   end if
 
   ! Additional pbuf for CARMA interface
@@ -1344,9 +1359,15 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
 
    real(r8) :: icimrst(state%psetcols,pver) ! In stratus ice mixing ratio
    real(r8) :: icwmrst(state%psetcols,pver) ! In stratus water mixing ratio
+#ifdef GPM_TWO_MOMENT
+! If use COSP with GPM support, the icinc and icwnc should be in physics buffer,
+! and should be declared as pointers
+   real(r8), pointer :: icinc(:,:)   ! In cloud ice number conc
+   real(r8), pointer :: icwnc(:,:)   ! In cloud water number conc
+#else
    real(r8) :: icinc(state%psetcols,pver)   ! In cloud ice number conc
    real(r8) :: icwnc(state%psetcols,pver)   ! In cloud water number conc
-
+#endif
    real(r8) :: iclwpi(state%psetcols)       ! Vertically-integrated in-cloud Liquid WP before microphysics
    real(r8) :: iciwpi(state%psetcols)       ! Vertically-integrated in-cloud Ice WP before microphysics
 
@@ -1427,8 +1448,15 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
    real(r8) :: prco_grid(pcols,pver)
    real(r8) :: prao_grid(pcols,pver)
    real(r8) :: icecldf_grid(pcols,pver)
+#ifdef GPM_TWO_MOMENT
+   ! if GPM two moment scheme is used, the icwnc_grid and icinc_grid will be in
+   ! physics buffer and thus should be pointers
+   real(r8), pointer :: icwnc_grid(pcols,pver)
+   real(r8), pointer :: icinc_grid(pcols,pver)
+#else   
    real(r8) :: icwnc_grid(pcols,pver)
    real(r8) :: icinc_grid(pcols,pver)
+#end
    real(r8) :: qcreso_grid(pcols,pver)
    real(r8) :: melto_grid(pcols,pver)
    real(r8) :: mnuccco_grid(pcols,pver)
@@ -1576,6 +1604,13 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
    call pbuf_get_field(pbuf, ls_mrsnw_idx,    mgmrsnw,     col_type=col_type)
    call pbuf_get_field(pbuf, cv_reffliq_idx,  cvreffliq,   col_type=col_type)
    call pbuf_get_field(pbuf, cv_reffice_idx,  cvreffice,   col_type=col_type)
+#ifdef GPM_TWO_MOMENT
+! Fields needed by COSP with GPM support. Note that the naming convention is
+! slightly changed (without the ls_ suffix) because icwnc and icinc were present
+! in the previous code, and are used directly.
+   call pbuf_get_field(pbuf, ls_icwnc_idx,    icwnc,    col_type=col_type)
+   call pbuf_get_field(pbuf, ls_icinc_idx,    icinc,    col_type=col_type)
+#endif
    call pbuf_get_field(pbuf, iciwpst_idx,     iciwpst,     col_type=col_type)
    call pbuf_get_field(pbuf, iclwpst_idx,     iclwpst,     col_type=col_type)
    call pbuf_get_field(pbuf, icswp_idx,       icswp,       col_type=col_type)
@@ -1626,6 +1661,13 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
       call pbuf_get_field(pbuf, ls_mrsnw_idx,    mgmrsnw_grid)
       call pbuf_get_field(pbuf, cv_reffliq_idx,  cvreffliq_grid)
       call pbuf_get_field(pbuf, cv_reffice_idx,  cvreffice_grid)
+#ifdef GPM_TWO_MOMENT
+! Fields needed by COSP with GPM support. Note that the naming convention is
+! slightly changed (without the ls_ suffix) because icwnc_grid and icinc_grid were present
+! in the previous code, and are used directly.
+      call pbuf_get_field(pbuf, ls_icwnc_idx,    icwnc_grid)
+      call pbuf_get_field(pbuf, ls_icinc_idx,    icinc_grid)
+#endif
       call pbuf_get_field(pbuf, iciwpst_idx,     iciwpst_grid)
       call pbuf_get_field(pbuf, iclwpst_idx,     iclwpst_grid)
       call pbuf_get_field(pbuf, icswp_idx,       icswp_grid)

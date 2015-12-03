@@ -26,5 +26,5 @@
 
 !#define RTTOV rttov
 !#define SYS_SX sys_sx
-#define MMF_V3_SINGLE_MOMENT mmf_v3_single_moment
-!#define MMF_V3p5_TWO_MOMENT mmf_v3p5_two_moment
+!#define MMF_V3_SINGLE_MOMENT mmf_v3_single_moment
+#define MMF_V3p5_TWO_MOMENT mmf_v3p5_two_moment

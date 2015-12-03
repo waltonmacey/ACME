@@ -309,6 +309,26 @@ MODULE MOD_COSP_CONSTANTS
     data HCLASS_P2/     -1,     -1,     -1,     -1,    -1,    -1,   -1,     -1,   -1/
     data HCLASS_P3/     -2,      1,      1,      1,    -2,     1,    1,      1,    1/
     ! Note: value of "-2" for HCLASS_P3 uses martin 1994 parameteriztion of gamma function width with Number concentration
+    
+#ifdef GPM_DUMMY    
+    real,dimension(N_HYDRO) :: N_ax,N_bx,alpha_x,c_x,d_x,g_x,a_x,b_x,gamma_1,gamma_2,gamma_3,gamma_4
+
+    ! Microphysical settings for the precipitation flux to mixing ratio conversion
+    !                LSL    LSI       LSR       LSS   CVL    CVI       CVR       CVS      LSG
+    data N_ax/       -1.,   -1.,     8.e6,     3.e6,  -1.,   -1.,     8.e6,     3.e6,     4.e6/
+    data N_bx/       -1.,   -1.,      0.0,      0.0,  -1.,   -1.,      0.0,      0.0,      0.0/
+    data alpha_x/    -1.,   -1.,      0.0,      0.0,  -1.,   -1.,      0.0,      0.0,      0.0/
+    data c_x/        -1.,   -1.,    842.0,     4.84,  -1.,   -1.,    842.0,     4.84,     94.5/
+    data d_x/        -1.,   -1.,      0.8,     0.25,  -1.,   -1.,      0.8,     0.25,      0.5/
+    data g_x/        -1.,   -1.,      0.5,      0.5,  -1.,   -1.,      0.5,      0.5,      0.5/
+    data a_x/        -1.,   -1.,    524.0,    52.36,  -1.,   -1.,    524.0,    52.36,   209.44/
+    data b_x/        -1.,   -1.,      3.0,      3.0,  -1.,   -1.,      3.0,      3.0,      3.0/
+    data gamma_1/    -1.,   -1., 17.83725, 8.284701,  -1.,   -1., 17.83725, 8.284701, 11.63230/
+    data gamma_2/    -1.,   -1.,      6.0,      6.0,  -1.,   -1.,      6.0,      6.0,      6.0/
+    data gamma_3/    -1.,   -1.,      2.0,      2.0,  -1.,   -1.,      2.0,      2.0,      2.0/
+    data gamma_4/    -1.,   -1.,      6.0,      6.0,  -1.,   -1.,      6.0,      6.0,      6.0/
+#endif
+
 #endif
 
 END MODULE MOD_COSP_CONSTANTS

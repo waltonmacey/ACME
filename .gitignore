@@ -6,3 +6,4 @@
 
 # Ignore emacs backup files
 *~
+*.swp

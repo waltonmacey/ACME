@@ -636,10 +636,11 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
             end where
             column_prec_out => sgx%prec_frac(:,k,:)
             where ((column_prec_out == 1) .or. (column_prec_out == 3) )  !++++ LS precip ++++
+
                 sghydro%Reff(:,k,:,I_LSRAIN) = gbx%Reff(:,:,I_LSRAIN) 
                 sghydro%Reff(:,k,:,I_LSSNOW) = gbx%Reff(:,:,I_LSSNOW)
                 sghydro%Reff(:,k,:,I_LSGRPL) = gbx%Reff(:,:,I_LSGRPL)
-
+                
                 sghydro%Np(:,k,:,I_LSRAIN)     = gbx%Np(:,:,I_LSRAIN)
                 sghydro%Np(:,k,:,I_LSSNOW)     = gbx%Np(:,:,I_LSSNOW)
                 sghydro%Np(:,k,:,I_LSGRPL)     = gbx%Np(:,:,I_LSGRPL)
@@ -661,6 +662,16 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
                     sghydro%mr_hydro(:,k,:,I_CVSNOW) = gbx%mr_hydro(:,:,I_CVSNOW)
                 end where 
             endif
+
+! if use two moment scheme, the mixing ratio of large scale precipitation is needed
+#if defined(GPM_DUMMY) && defined(MMF_V3p5_TWO_MOMENT)
+!                where (column_frac_out == I_LSC)  !+++++++++++ LS Precipitation ++++++++
+!                    sghydro%mr_hydro(:,k,:,I_LSRAIN) = gbx%mr_hydro(:,:,I_LSRAIN)
+!                    sghydro%mr_hydro(:,k,:,I_LSSNOW) = gbx%mr_hydro(:,:,I_LSSNOW)
+!                    sghydro%mr_hydro(:,k,:,I_LSGRPL) = gbx%mr_hydro(:,:,I_LSGRPL)
+!                end where 
+#endif 
+
         enddo
         ! convert the mixing ratio and precipitation flux from gridbox mean to the fraction-based values
         do k=1,Nlevels
@@ -685,6 +696,15 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
                         gbx%rain_cv(j,k) = gbx%rain_cv(j,k)/prec_cv(j,k)
                         gbx%snow_cv(j,k) = gbx%snow_cv(j,k)/prec_cv(j,k)
                     endif
+! if use two moment scheme, need the input for mixing ratio and number
+! concentration
+#if defined(GPM_DUMMY) && defined(MMF_V3p5_TWO_MOMENT)
+!                    if (prec_ls(j,k) .ne. 0.) then
+!                        sghydro%mr_hydro(j,:,k,I_LSRAIN) = sghydro%mr_hydro(j,:,k,I_LSRAIN)/prec_ls(j,k)
+!                        sghydro%mr_hydro(j,:,k,I_LSSNOW) = sghydro%mr_hydro(j,:,k,I_LSSNOW)/prec_ls(j,k)
+!                        sghydro%mr_hydro(j,:,k,I_LSGRPL) = sghydro%mr_hydro(j,:,k,I_LSGRPL)/prec_ls(j,k)
+!                    endif
+#endif
                 else
                     if (prec_ls(j,k) .ne. 0.) then
                         sghydro%mr_hydro(j,:,k,I_LSRAIN) = sghydro%mr_hydro(j,:,k,I_LSRAIN)/prec_ls(j,k)
@@ -699,14 +719,69 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
             enddo !k
         enddo !j
         deallocate(frac_ls,prec_ls,frac_cv,prec_cv)
+#ifdef GPM_DUMMY
+        print *, 'Yes, GPM_DUMMY is set'
+        sghydro%Np(:,:,:,I_LSCLIQ) = 1
+        sghydro%Np(:,:,:,I_CVCLIQ) = 1
+#endif
         
         if (gbx%use_precipitation_fluxes) then
         
 #ifdef MMF_V3p5_TWO_MOMENT
 
+! if GPM simulator is used, convection precipitations are treated as is in
+! single moment scheme. Large scale precipitation is treated using number
+! concentration and mixing ratio provided by the microphysics scheme directly.
+#ifdef GPM_DUMMY
+            
+            ! copy code from below for convective precipitations -- YLu
+            allocate(rho(Npoints,Nlevels))
+            ! convective precipitation
+            I_HYDRO = I_CVRAIN
+            call cosp_precip_mxratio(Npoints,Nlevels,Ncolumns,gbx%p,gbx%T,sgx%prec_frac,2., &
+                    n_ax(I_HYDRO),n_bx(I_HYDRO),alpha_x(I_HYDRO),c_x(I_HYDRO),d_x(I_HYDRO), &
+                    g_x(I_HYDRO),a_x(I_HYDRO),b_x(I_HYDRO), &
+                    gamma_1(I_HYDRO),gamma_2(I_HYDRO),gamma_3(I_HYDRO),gamma_4(I_HYDRO), &
+                    gbx%rain_cv,sghydro%mr_hydro(:,:,:,I_HYDRO),sghydro%Reff(:,:,:,I_HYDRO))
+            I_HYDRO = I_CVSNOW
+            call cosp_precip_mxratio(Npoints,Nlevels,Ncolumns,gbx%p,gbx%T,sgx%prec_frac,2., &
+                    n_ax(I_HYDRO),n_bx(I_HYDRO),alpha_x(I_HYDRO),c_x(I_HYDRO),d_x(I_HYDRO), &
+                    g_x(I_HYDRO),a_x(I_HYDRO),b_x(I_HYDRO), &
+                    gamma_1(I_HYDRO),gamma_2(I_HYDRO),gamma_3(I_HYDRO),gamma_4(I_HYDRO), &
+                    gbx%snow_cv,sghydro%mr_hydro(:,:,:,I_HYDRO),sghydro%Reff(:,:,:,I_HYDRO))
+            I_HYDRO = I_LSGRPL
+            call cosp_precip_mxratio(Npoints,Nlevels,Ncolumns,gbx%p,gbx%T,sgx%prec_frac,1., &
+                    n_ax(I_HYDRO),n_bx(I_HYDRO),alpha_x(I_HYDRO),c_x(I_HYDRO),d_x(I_HYDRO), &
+                    g_x(I_HYDRO),a_x(I_HYDRO),b_x(I_HYDRO), &
+                    gamma_1(I_HYDRO),gamma_2(I_HYDRO),gamma_3(I_HYDRO),gamma_4(I_HYDRO), &
+                    gbx%grpl_ls,sghydro%mr_hydro(:,:,:,I_HYDRO),sghydro%Reff(:,:,:,I_HYDRO))
+            ! large scale precipitation, use number concentration and mixing
+            ! ratio from microphysics scheme directly.
+            
+            I_HYDRO = I_LSRAIN
+            call cosp_precip_mxratio(Npoints,Nlevels,Ncolumns,gbx%p,gbx%T,sgx%prec_frac,1., &
+                    n_ax(I_HYDRO),n_bx(I_HYDRO),alpha_x(I_HYDRO),c_x(I_HYDRO),d_x(I_HYDRO), &
+                    g_x(I_HYDRO),a_x(I_HYDRO),b_x(I_HYDRO), &
+                    gamma_1(I_HYDRO),gamma_2(I_HYDRO),gamma_3(I_HYDRO),gamma_4(I_HYDRO), &
+                    gbx%rain_ls,sghydro%mr_hydro(:,:,:,I_HYDRO),sghydro%Reff(:,:,:,I_HYDRO))
+            I_HYDRO = I_LSSNOW
+            call cosp_precip_mxratio(Npoints,Nlevels,Ncolumns,gbx%p,gbx%T,sgx%prec_frac,1., &
+                    n_ax(I_HYDRO),n_bx(I_HYDRO),alpha_x(I_HYDRO),c_x(I_HYDRO),d_x(I_HYDRO), &
+                    g_x(I_HYDRO),a_x(I_HYDRO),b_x(I_HYDRO), &
+                    gamma_1(I_HYDRO),gamma_2(I_HYDRO),gamma_3(I_HYDRO),gamma_4(I_HYDRO), &
+                    gbx%snow_ls,sghydro%mr_hydro(:,:,:,I_HYDRO),sghydro%Reff(:,:,:,I_HYDRO))
+                    
+                    
+                    
+                    
+                    
+            if(allocated(rho)) deallocate(rho)
+#else
+
         write(*,*) 'Precipitation Flux to Mixing Ratio conversion not (yet?) supported ', &
                'for MMF3.5 Two Moment Microphysics'
         stop
+#endif
 #else
             ! Density
             allocate(rho(Npoints,Nlevels))
@@ -742,7 +817,6 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
                     gbx%grpl_ls,sghydro%mr_hydro(:,:,:,I_HYDRO),sghydro%Reff(:,:,:,I_HYDRO))
             if(allocated(rho)) deallocate(rho)
 #endif
-
         endif
    !++++++++++ CRM mode ++++++++++
    else
