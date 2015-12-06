@@ -2209,10 +2209,18 @@ Default: set by build-namelist (depends on value set in configure).
 </entry>
 
 <entry id="macrop_scheme" type="char*16" category="conv"
-       group="phys_ctl_nl" valid_values="park,RK,CLUBB_SGS" >
+       group="phys_ctl_nl" valid_values="park,RK,CLUBB_SGS,pdf_macro" >
 Type of macrophysics scheme employed.  'park' for Park
-(1998); 'RK' for Rasch and Kristjansson (1998); 'CLUBB_SGS' clubb.
+(1998); 'RK' for Rasch and Kristjansson (1998); 'CLUBB_SGS' clubb.,'pdf_macro'
+for Peter Caldwell's truncated Gaussian PDF scheme.
 Default: 'park'
+</entry>
+
+<entry id="trunc_macro" type="real" catagory="conv"
+       group="phys_ctl_nl" valid_values="" >
+When macrop_scheme is 'pdf_macro', trunc_macro is how many standard deviations 
+from mean of PDF to truncate. If trunc<0 (default), don't truncate.
+Default: set by build-namelist (requires pdf_macro)
 </entry>
 
 <entry id="do_clubb_sgs" type="logical" category="conv"
@@ -2297,6 +2305,30 @@ Default: FALSE
 Logical switch to turn on implicit turbulent surface stress calculation in
 diffusion solver routine.
 Default: set by build-namelist
+</entry>
+
+<entry id="detrain_size_shal_liq" type="real" catagory="conv"
+       group="phys_ctl_nl" valid_values="" >
+Size of detrained liquid from shallow convection. Added by PMC.
+Default: set by build-namelist (requires MG microphysics)
+</entry>
+
+<entry id="detrain_size_shal_ice" type="real" catagory="conv"
+       group="phys_ctl_nl" valid_values="" >
+Size of detrained ice    from shallow convection. Added by PMC.
+Default: set by build-namelist (requires MG microphysics)
+</entry>
+
+<entry id="detrain_size_deep_liq" type="real" catagory="conv"
+       group="phys_ctl_nl" valid_values="" >
+Size of detrained liquid from deep    convection. Added by PMC.
+Default: set by build-namelist (requires MG microphysics)
+</entry>
+
+<entry id="detrain_size_deep_ice" type="real" catagory="conv"
+       group="phys_ctl_nl" valid_values="" >
+Size of detrained ice    from deep    convection. Added by PMC.
+Default: set by build-namelist (requires MG microphysics)
 </entry>
 
 <!-- Added flags for regeneration and liq cld fraction bug fixes-->

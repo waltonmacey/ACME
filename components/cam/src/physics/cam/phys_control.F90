@@ -78,6 +78,11 @@ integer           :: history_budget_histfile_num = 1   ! output history file num
 logical           :: history_waccm        = .true.     ! output variables of interest for WACCM runs
 logical           :: do_clubb_sgs
 logical           :: do_tms
+real(r8)          :: trunc_macro                       ! if >0, use truncated Gaussian w/ this sigma cutoff. Else untruncated (default)
+real(r8)          :: detrain_size_shal_liq             ! size of detrained liquid from shallow convection (default = 10e-6)
+real(r8)          :: detrain_size_shal_ice             ! size of detrained ice    from shallow convection (default = 50e-6)
+real(r8)          :: detrain_size_deep_liq             ! size of detrained liquid from deep    convection (default =  8e-6)
+real(r8)          :: detrain_size_deep_ice             ! size of detrained ice    from deep    convection (default = 25e-6)
 logical           :: state_debug_checks   = .false.    ! Extra checks for validity of physics_state objects
                                                        ! in physics_update.
 
@@ -144,7 +149,9 @@ subroutine phys_ctl_readnl(nlfile)
       ssalt_tuning, resus_fix, convproc_do_aer, convproc_do_gas, convproc_method_activate, &
       liqcf_fix, regen_fix, demott_ice_nuc, &
       l_tracer_aero, l_vdiff, l_rayleigh, l_gw_drag, l_ac_energy_chk, &
-      l_bc_energy_fix, l_dry_adj, l_st_mac, l_st_mic, l_rad
+      l_bc_energy_fix, l_dry_adj, l_st_mac, l_st_mic, l_rad, &
+	  trunc_macro, detrain_size_shal_liq, detrain_size_shal_ice, detrain_size_deep_liq, &
+	  detrain_size_deep_ice
    !-----------------------------------------------------------------------------
 
    if (masterproc) then
@@ -209,7 +216,12 @@ subroutine phys_ctl_readnl(nlfile)
    call mpibcast(l_st_mac,                        1 , mpilog,  0, mpicom)
    call mpibcast(l_st_mic,                        1 , mpilog,  0, mpicom)
    call mpibcast(l_rad,                           1 , mpilog,  0, mpicom)
-#endif
+   call mpibcast(trunc_macro,                     1,  mpir8,   0, mpicom)
+   call mpibcast(detrain_size_shal_liq,           1,  mpir8,   0, mpicom)
+   call mpibcast(detrain_size_shal_ice,           1,  mpir8,   0, mpicom)
+   call mpibcast(detrain_size_deep_liq,           1,  mpir8,   0, mpicom)
+   call mpibcast(detrain_size_deep_ice,           1,  mpir8,   0, mpicom)
+ #endif
 
    ! Error checking:
 
@@ -326,7 +338,8 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
                         liqcf_fix_out, regen_fix_out,demott_ice_nuc_out      &
                        ,l_tracer_aero_out, l_vdiff_out, l_rayleigh_out, l_gw_drag_out, l_ac_energy_chk_out  &
                        ,l_bc_energy_fix_out, l_dry_adj_out, l_st_mac_out, l_st_mic_out, l_rad_out  &
-                        )
+                        trunc_macro_out, detrain_size_shal_liq_out,detrain_size_shal_ice_out, &
+                        detrain_size_deep_liq_out,detrain_size_deep_ice_out)
 !-----------------------------------------------------------------------
 ! Purpose: Return runtime settings
 !          deep_scheme_out   : deep convection scheme
@@ -379,6 +392,11 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
    logical,           intent(out), optional :: l_st_mac_out
    logical,           intent(out), optional :: l_st_mic_out
    logical,           intent(out), optional :: l_rad_out
+   real(r8),          intent(out), optional :: trunc_macro_out
+   real(r8),          intent(out), optional :: detrain_size_shal_liq_out
+   real(r8),          intent(out), optional :: detrain_size_shal_ice_out
+   real(r8),          intent(out), optional :: detrain_size_deep_liq_out
+   real(r8),          intent(out), optional :: detrain_size_deep_ice_out
 
    if ( present(deep_scheme_out         ) ) deep_scheme_out          = deep_scheme
    if ( present(shallow_scheme_out      ) ) shallow_scheme_out       = shallow_scheme
@@ -422,6 +440,12 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
    if ( present(l_st_mac_out            ) ) l_st_mac_out          = l_st_mac
    if ( present(l_st_mic_out            ) ) l_st_mic_out          = l_st_mic
    if ( present(l_rad_out               ) ) l_rad_out             = l_rad
+   if ( present(trunc_macro_out         ) ) trunc_macro_out          = trunc_macro
+   if ( present(detrain_size_shal_liq_out)) detrain_size_shal_liq_out= detrain_size_shal_liq
+   if ( present(detrain_size_shal_ice_out)) detrain_size_shal_ice_out= detrain_size_shal_ice
+   if ( present(detrain_size_deep_liq_out)) detrain_size_deep_liq_out= detrain_size_deep_liq
+   if ( present(detrain_size_deep_ice_out)) detrain_size_deep_ice_out= detrain_size_deep_ice
+
 end subroutine phys_getopts
 
 !===============================================================================

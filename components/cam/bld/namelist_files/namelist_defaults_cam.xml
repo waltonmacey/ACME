@@ -870,6 +870,12 @@
 <cldfrc_ice            >.false.</cldfrc_ice>
 <cldfrc_ice phys="cam5" >.true.</cldfrc_ice>
 
+<trunc_macro             >-1.000D0</trunc_macro>
+<detrain_size_shal_liq > 10.0D-6  </detrain_size_shal_liq>
+<detrain_size_shal_ice > 50.0D-6  </detrain_size_shal_ice>
+<detrain_size_deep_liq >  8.0D-6  </detrain_size_deep_liq>
+<detrain_size_deep_ice > 25.0D-6  </detrain_size_deep_ice>
+
 <cldfrc_rhminl                                                        > 0.900D0 </cldfrc_rhminl>
 <cldfrc_rhminl                   phys="cam5" carma="cirrus"           > 0.910D0 </cldfrc_rhminl>
 <cldfrc_rhminl                   phys="cam5"                          > 0.8975D0 </cldfrc_rhminl>

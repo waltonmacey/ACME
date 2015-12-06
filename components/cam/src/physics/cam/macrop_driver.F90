@@ -50,6 +50,14 @@
 
   logical            :: use_shfrc                       ! Local copy of flag from convect_shallow_use_shfrc
 
+!+++PMC
+  character(len=16)  :: macrop_scheme                   ! here just matters if == pdf_macro or not.
+  real(r8)           :: detrain_size_shal_liq           ! size of detrained liquid from shallow convection (default=10e-6)
+  real(r8)           :: detrain_size_shal_ice           ! size of detrained ice    from shallow convection (default=50e-6)
+  real(r8)           :: detrain_size_deep_liq           ! size of detrained liquid from deep    convection (default= 8e-6)
+  real(r8)           :: detrain_size_deep_ice           ! size of detrained ice    from deep    convection (default=25e-6)
+!---PMC
+
   integer :: &
     ixcldliq,     &! cloud liquid amount index
     ixcldice,     &! cloud ice amount index
@@ -80,6 +88,8 @@
     shfrc_idx       
     
   logical :: liqcf_fix
+
+  integer ::   rei_idx !PMC for pre-micro LWP
 
   contains
 
@@ -189,6 +199,7 @@ end subroutine macrop_driver_readnl
     use cam_history,     only: addfld, add_default, phys_decomp
     use convect_shallow, only: convect_shallow_use_shfrc
     
+    use cldwat2m_pdf_macro, only: ini_pdf_macro
 
 
     logical              :: history_aerosol      ! Output the MAM aerosol tendencies
@@ -202,9 +213,23 @@ end subroutine macrop_driver_readnl
     call phys_getopts( history_aerosol_out        = history_aerosol      , &
                        history_budget_out         = history_budget       , &
                        history_budget_histfile_num_out = history_budget_histfile_num, &
-                       liqcf_fix_out             = liqcf_fix )
+                       liqcf_fix_out             = liqcf_fix, &
+!+++PMC
+                       macrop_scheme_out          = macrop_scheme        , &
+                       detrain_size_shal_liq_out  = detrain_size_shal_liq, &
+                       detrain_size_shal_ice_out  = detrain_size_shal_ice, &
+                       detrain_size_deep_liq_out  = detrain_size_deep_liq, &
+                       detrain_size_deep_ice_out  = detrain_size_deep_ice )
 
   ! Initialization routine for cloud macrophysics
+
+    !PMC - ini_macro done in microp_driver (why?) but need to do pdf macro init here
+    !since within microp_driver we don't know status of pdf_macro. ini_macro is still needed
+    !because pdf_macro uses aist_vector, which needs to be initialized(?)
+
+    if (trim(macrop_scheme)=='pdf_macro') then
+       call ini_pdf_macro
+    end if
 
   ! Find out whether shfrc from convect_shallow will be used in cldfrc
 
@@ -214,6 +239,8 @@ end subroutine macrop_driver_readnl
     else 
         use_shfrc = .false.
     endif
+    !+++PMC 3/14/12 - for pre-micro LWP output.
+    rei_idx     = pbuf_get_index('REI')
 
 
     call addfld ('DPDLFLIQ ', 'kg/kg/s ', pver, 'A', 'Detrained liquid water from deep convection'             ,phys_decomp)
@@ -255,8 +282,21 @@ end subroutine macrop_driver_readnl
     call addfld ('CLDICECON   ', 'kg/kg', pver, 'A', 'Convective CLDICE'                                  ,phys_decomp)
 
     call addfld ('CLDSICE  ', 'kg/kg   ', pver, 'A', 'CloudSat equivalent ice mass mixing ratio'               ,phys_decomp)
+    call add_default ('CONCLD  ', 1, ' ')
 
     call addfld ('CMELIQ   ', 'kg/kg/s ', pver, 'A', 'Rate of cond-evap of liq within the cloud'               ,phys_decomp)
+!+++PMC 3/14/12 - add pre-micro LWP
+    call addfld ('TGCLDCWP_MAC', 'kg/m2', 1,    'A', 'TGCLDCWP before microphys'                          ,phys_decomp)
+    call addfld ('TGCLDLWP_MAC', 'kg/m2', 1,    'A', 'TGCLDLWP before microphys'                          ,phys_decomp)
+    call addfld ('TGCLDIWP_MAC', 'kg/m2', 1,    'A', 'TGCLDIWP before microphys'                          ,phys_decomp)
+    call add_default ('TGCLDCWP_MAC  ', 1, ' ')
+    call add_default ('TGCLDLWP_MAC  ', 1, ' ')
+    call add_default ('TGCLDIWP_MAC  ', 1, ' ')
+! PMC add mixed-phase cloud diagnostics
+   call addfld ('MIXEDCLDF', 'fraction', pver, 'A', 'Mixed phase cloud fraction = min(aist,alst)'               ,phys_decomp)
+   call addfld ('PUREICLDF', 'fraction', pver, 'A', 'Pure ice cloud fraction= max(0,aist-alst)'     ,phys_decomp)
+   call addfld ('PURELCLDF', 'fraction', pver, 'A', 'Pure liq cloud fraction= max(0,alst-aist)'     ,phys_decomp)
+!---PMC 
 
     if ( history_budget ) then
 
@@ -336,12 +376,20 @@ end subroutine macrop_driver_readnl
   use cam_history,      only: outfld
   use physics_buffer, only : physics_buffer_desc, pbuf_get_field, pbuf_old_tim_idx
   use constituents,     only: cnst_get_ind, pcnst
-  use cldwat2m_macro,   only: mmacro_pcond
+  use cldwat2m_macro,   only: mmacro_pcond,aist_vector !PMC added aist vector.
   use physconst,        only: cpair, tmelt, gravit
   use time_manager,     only: get_nstep, is_first_step 
 
   use ref_pres,         only: top_lev => trop_cloud_top_lev
 
+  !+++PMC for pdf_macro
+  use cldwat2m_pdf_macro, only: pdf_mmacro_pcond 
+  !---PMC
+
+  !+++PMC 3/14/12 - for pre-micro LWP outfld
+  use physconst,     only: gravit
+  use conv_water,    only: conv_water_4rad
+  !---
   implicit none
 
   !
@@ -510,6 +558,21 @@ end subroutine macrop_driver_readnl
   ! CloudSat equivalent ice mass mixing ratio (kg/kg)
   real(r8) :: cldsice(pcols,pver)
 
+!+++PMC 3/14/12 for pre-micro LWP output.
+  real(r8), pointer, dimension(:,:) :: rei        ! ice effective radius
+  real(r8)  allcld_liq(pcols,pver)
+  real(r8)  allcld_ice(pcols,pver)
+  real(r8)  gicewp(pcols,pver)
+  real(r8)  gliqwp(pcols,pver)
+  real(r8)  tgicewp(pcols)
+  real(r8)  tgliqwp(pcols)
+  real(r8)  tgwp(pcols)
+! PMC mixed-phase cld diagnostics
+  real(r8) :: mixedcldf(pcols,pver)
+  real(r8) :: pure_icecldf(pcols,pver)
+  real(r8) :: pure_liqcldf(pcols,pver)
+!---PMC
+
   ! ======================================================================
 
   lchnk = state%lchnk
@@ -621,14 +684,14 @@ end subroutine macrop_driver_readnl
       ptend_loc%q(i,k,ixcldice) = dlf(i,k) * dum1
     ! dum2                      = dlf(i,k) * ( 1._r8 - dum1 )
       ptend_loc%q(i,k,ixnumliq) = 3._r8 * ( max(0._r8, ( dlf(i,k) - dlf2(i,k) )) * ( 1._r8 - dum1 ) ) / &
-           (4._r8*3.14_r8* 8.e-6_r8**3*997._r8) + & ! Deep    Convection
-           3._r8 * (                         dlf2(i,k)    * ( 1._r8 - dum1 ) ) / &
-           (4._r8*3.14_r8*10.e-6_r8**3*997._r8)     ! Shallow Convection 
+           (4._r8*3.14_r8* detrain_size_deep_liq**3*997._r8) + & ! Deep    Convection
+                                  3._r8 * (                         dlf2(i,k)    * ( 1._r8 - dum1 ) ) / &
+           (4._r8*3.14_r8*detrain_size_shal_liq**3*997._r8)     ! Shallow Convection 
     ! dum2                      = dlf(i,k) * dum1
       ptend_loc%q(i,k,ixnumice) = 3._r8 * ( max(0._r8, ( dlf(i,k) - dlf2(i,k) )) *  dum1 ) / &
-           (4._r8*3.14_r8*25.e-6_r8**3*500._r8) + & ! Deep    Convection
-           3._r8 * (                         dlf2(i,k)    *  dum1 ) / &
-           (4._r8*3.14_r8*50.e-6_r8**3*500._r8)     ! Shallow Convection
+           (4._r8*3.14_r8*detrain_size_deep_ice**3*500._r8) + & ! Deep    Convection
+                                  3._r8 * (                         dlf2(i,k)    *  dum1 ) / &
+           (4._r8*3.14_r8*detrain_size_shal_ice**3*500._r8)     ! Shallow Convection
       ptend_loc%s(i,k)          = dlf(i,k) * dum1 * latice
      else 
         ptend_loc%q(i,k,ixcldliq) = 0._r8
@@ -827,6 +890,80 @@ end subroutine macrop_driver_readnl
       if(.not.is_first_step())alst_o(:ncol,:pver) = alst(:ncol,:pver)
       !HW
    endif
+!PMC - add pdf_macro option
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+if (trim(macrop_scheme)=='pdf_macro') then 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+   !PMC - non-pdf_macro sets _inout vars to values just after macro from previous
+   ! step (tcwat, qcwat, etc) using pointers. pdf_macro should act on most current
+   ! state, which is why I'm using state_loc% below.
+
+   ql_inout(:ncol,top_lev:pver) = state_loc%q(:ncol,top_lev:pver,ixcldliq)
+   t_inout(:ncol,top_lev:pver)  = state_loc%t(:ncol,top_lev:pver) 
+   qv_inout(:ncol,top_lev:pver) = state_loc%q(:ncol,top_lev:pver,1)
+   qi_inout(:ncol,top_lev:pver) = state_loc%q(:ncol,top_lev:pver,ixcldice)
+   nl_inout(:ncol,top_lev:pver) = state_loc%q(:ncol,top_lev:pver,ixnumliq) 
+
+   call pdf_mmacro_pcond(ncol    , dtime   , nl_inout, qv_inout   , & 
+        ql_inout, T_inout , state_loc%pmid          , &
+        concld  , landfrac, snowh   ,              & !inputs
+        tlat    , qvlat   , qcten   , ncten      , & !output rates
+        cmeliq  , alst    , qlst    ) !other output
+
+
+   !PDF MACRO CURRENTLY DOESN'T HANDLE ICE SO SET ICE MACROPHYS TENDS = 0.
+   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   qiten(:ncol,top_lev:pver) = 0._r8
+   niten(:ncol,top_lev:pver) = 0._r8
+
+   !ICE CLDFRAC IS A F(T), SO CHANGES DUE TO CONDENSATIONAL HEATING.
+   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   !use _inout as dummy variables for re-computing ice cldfrac.
+   qv_inout(:ncol,top_lev:pver) = qv_inout(:ncol,top_lev:pver) + qvlat(:ncol,top_lev:pver)*dtime
+   T_inout(:ncol,top_lev:pver)  = T_inout(:ncol,top_lev:pver)  + tlat(:ncol,top_lev:pver)/cpair*dtime
+ 
+   !aist_vector only takes in 1d vectors... have to loop over vertical dim.
+   do k = 1, pver
+      call aist_vector( qv_inout(:,k), T_inout(:,k), state_loc%pmid(:,k), &
+           qi_inout(:,k),landfrac(:),snowh(:),aist(:,k),ncol )
+   end do
+      
+   !THAT GAVE IN-STRATUS ICE CLD FRAC.  NEED CELL-AVE VAL:
+   aist(:ncol,top_lev:pver) = (1._r8-concld(:ncol,top_lev:pver))*aist(:ncol,top_lev:pver)
+     
+   !qist IS IN-CLD VALUE -> IS AFFECTED BY CHANGE IN aist EVEN THOUGH
+   !CELL-AVE QI STAYS CONSTANT
+   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   where (aist > 0._r8)
+      qist = qi_inout/aist
+   elsewhere
+      qist = 0._r8
+   end where
+ 
+   !SET OUTPUTS ONLY USED IN DEFAULT =-999 [not needed?].
+   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   qvadj(:ncol,:pver)   = -999._r8
+   qladj(:ncol,:pver)   = -999._r8
+   qiadj(:ncol,:pver)   = -999._r8
+   qllim(:ncol,:pver)   = -999._r8
+   qilim(:ncol,:pver)   = -999._r8
+
+   ! Compute net stratus fraction using maximum over-lapping assumption
+   ! *this needs to be done inside the pdf_macro conditional to calculate 
+   ! *cld() which is computed inside mmacro_pcond but not pdf_mmacro_pcond.
+   ! -------------------------
+   ast(:ncol,:top_lev-1) = 0._r8
+   ast(:ncol,top_lev:pver) = max( alst(:ncol,top_lev:pver), aist(:ncol,top_lev:pver) )
+
+   !total cloud fraction assuming no overlap (consistent w/ current treatment that cells 
+   !are partitioned into disjoint convective and stratiform parts). 
+   ! -------------------------     
+   cld(:ncol,:pver) = ast(:ncol,:pver) + concld(:ncol,:pver)   
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+else ! if NOT pdf_macro
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
    t_inout(:ncol,top_lev:pver)  =  tcwat(:ncol,top_lev:pver) 
    qv_inout(:ncol,top_lev:pver) =  qcwat(:ncol,top_lev:pver)
@@ -852,6 +989,14 @@ end subroutine macrop_driver_readnl
                       cmeliq, qvadj, qladj, qiadj, qllim, qilim,                 &
                       cld, alst, aist, qlst, qist, do_cldice ) 
 
+ ! Compute net stratus fraction using maximum over-lapping assumption
+ ! PMC note: moved this inside pdf_macro conditional b/c needed to be done above for pdf_macro=.true. 
+ ! and if we didn't move this case inside the conditional pdf_macro case would call this 2x. 
+   ast(:ncol,:top_lev-1) = 0._r8
+   ast(:ncol,top_lev:pver) = max( alst(:ncol,top_lev:pver), aist(:ncol,top_lev:pver) )
+
+end if !PMC pdf_macro or not
+
    if(liqcf_fix) then 
       if(is_first_step())alst_o(:ncol,:pver) = alst(:ncol,:pver)
    endif
@@ -862,11 +1007,6 @@ end subroutine macrop_driver_readnl
 
    fice_ql(:ncol,:top_lev-1)     = 0._r8
    fice_ql(:ncol,top_lev:pver)   = fice(:ncol,top_lev:pver)
-
-
- ! Compute net stratus fraction using maximum over-lapping assumption
-   ast(:ncol,:top_lev-1) = 0._r8
-   ast(:ncol,top_lev:pver) = max( alst(:ncol,top_lev:pver), aist(:ncol,top_lev:pver) )
 
    call t_stopf('mmacro_pcond')
 
@@ -955,6 +1095,27 @@ end subroutine macrop_driver_readnl
    call outfld( 'CLDLIQCON  ', mr_ccliq,    pcols, lchnk )
    call outfld( 'CLDICECON  ', mr_ccice,    pcols, lchnk )
 
+!+++PMC mixed-phase cloud diagnostics
+   do k = top_lev, pver
+      do i = 1, ncol
+        mixedcldf(i,k) = min(aist(i,k), alst(i,k))
+        if(aist(i,k) > alst(i,k)) then
+          pure_icecldf(i,k) = aist(i,k) - alst(i,k)
+          pure_liqcldf(i,k) = 0._r8
+        else
+          pure_liqcldf(i,k) = alst(i,k) - aist(i,k)
+          pure_icecldf(i,k) = 0._r8
+        endif
+      end do
+   end do
+
+   call outfld( 'MIXEDCLDF', mixedcldf,      pcols, lchnk )
+   call outfld( 'PUREICLDF', pure_icecldf,   pcols, lchnk )
+   call outfld( 'PURELCLDF', pure_liqcldf,   pcols, lchnk )
+!---PMC
+
+
+
    ! ------------------------------------------------- !
    ! Save equilibrium state variables for macrophysics !        
    ! at the next time step                             !
@@ -971,6 +1132,45 @@ end subroutine macrop_driver_readnl
    end do
 
    call outfld( 'CLDSICE'    , cldsice,   pcols, lchnk )
+
+   !+++PMC 3/14/12 - add lwp before micro in addition to after.
+   ! next lines requires some changes to the beginning of this code
+
+   if (conv_water_in_rad /= 0) then
+      call pbuf_get_field(pbuf, rei_idx, rei )                                      
+      call conv_water_4rad(lchnk,ncol,pbuf,conv_water_in_rad,rei,state_loc%pdel/gravit*1000.0_r8, & 
+           state_loc%q(:,:,ixcldliq),state_loc%q(:,:,ixcldice),allcld_liq,allcld_ice, .true.) !last .true. makes not overwrite pbuf stuff
+   else
+      allcld_liq = state_loc%q(:,:,ixcldliq)
+      allcld_ice = state_loc%q(:,:,ixcldice)
+   end if
+
+   gicewp(:,:) = 0._r8
+   gliqwp(:,:) = 0._r8
+   tgicewp(:) = 0._r8
+   tgliqwp(:) = 0._r8
+
+    do k=1,pver
+       do i = 1,ncol
+          gicewp(i,k) = allcld_ice(i,k)*state_loc%pdel(i,k)/gravit  ! Grid box ice water path.
+          gliqwp(i,k) = allcld_liq(i,k)*state_loc%pdel(i,k)/gravit  ! Grid box liquid water path.          
+          tgicewp(i)  = tgicewp(i) + gicewp(i,k)
+          tgliqwp(i)  = tgliqwp(i) + gliqwp(i,k)
+       end do
+    end do
+    tgwp(:ncol) = tgicewp(:ncol) + tgliqwp(:ncol)
+
+    call outfld('TGCLDCWP_MAC',tgwp   , pcols,lchnk)
+    call outfld('TGCLDLWP_MAC',tgliqwp, pcols,lchnk)
+    call outfld('TGCLDIWP_MAC',tgicewp, pcols,lchnk)
+
+!---PMC
+
+
+
+
+
+
 
    ! ptend_loc is deallocated in physics_update above
    call physics_state_dealloc(state_loc)
