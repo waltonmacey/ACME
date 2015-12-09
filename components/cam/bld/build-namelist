@@ -2596,6 +2596,14 @@ $eddy_scheme =~ s/['"]//g;                                           #"'
 add_default($nl, 'shallow_scheme', 'eddy_scheme'=>$eddy_scheme);
 add_default($nl, 'srf_flux_avg', 'eddy_scheme'=>$eddy_scheme);
 
+#+++PMC
+add_default($nl, 'trunc_macro');
+add_default($nl, 'detrain_size_shal_liq');
+add_default($nl, 'detrain_size_shal_ice');
+add_default($nl, 'detrain_size_deep_liq');
+add_default($nl, 'detrain_size_deep_ice');
+#---PMC
+
 #BSINGH - Flag splitting for code modifications by PNNL under polar project
 add_default($nl, 'resus_fix');
 add_default($nl, 'convproc_do_aer');

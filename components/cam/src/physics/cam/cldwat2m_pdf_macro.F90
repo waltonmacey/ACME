@@ -13,11 +13,12 @@ module cldwat2m_pdf_macro
 
 !STUFF USED BY ALL SUBROUTINES BELOW:
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-use shr_spfn_mod,     only: erf => shr_spfn_erf_nonintrinsic
+use shr_spfn_mod,     only: erf => shr_spfn_erf
+
 use shr_kind_mod,     only: r8=>shr_kind_r8
 use spmd_utils,       only: masterproc
 use ppgrid,           only: pcols, pver, pverp
-use abortutils,       only: endrun
+use cam_abortutils,       only: endrun
 use cam_logfile,      only: iulog
 use physconst,        only: pi
 use ref_pres,         only: top_lev => trop_cloud_top_lev
@@ -244,7 +245,6 @@ subroutine pdf_mmacro_pcond(ncol  , dtime, nl     , qv,ql,     &
   !TRUNCATED PDF VERSION:
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   else !if truncated pdf
-
      do k=1,pver
         do i=1,ncol    
            if (Q(i,k).le.-trunc_macro*stdS(i,k)) then

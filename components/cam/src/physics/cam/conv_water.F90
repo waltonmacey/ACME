@@ -101,7 +101,7 @@
 
    end subroutine conv_water_init
 
-   subroutine conv_water_4rad( state, pbuf,  conv_water_mode, totg_liq, totg_ice )
+   subroutine conv_water_4rad( state, pbuf,  conv_water_mode, totg_liq, totg_ice, chng_pbuf )
 
    ! --------------------------------------------------------------------- ! 
    ! Purpose:                                                              !
@@ -140,6 +140,9 @@
 
    real(r8), intent(out):: totg_ice(pcols,pver)   ! Total GBA in-cloud ice
    real(r8), intent(out):: totg_liq(pcols,pver)   ! Total GBA in-cloud liquid
+
+   logical, intent(in), optional :: chng_pbuf !PMC added chng_pbuf: if present, quit before altering pbuf.
+   	    			    	      !used for calling a second time to get LWP before microphys.
 
    ! --------------- !
    ! Local Workspace !
@@ -307,6 +310,8 @@
    end do
    end do
 
+   if ( .not. present(chng_pbuf) ) then
+
 !add pbuff calls for COSP
    call pbuf_get_field(pbuf, sh_cldliq1_idx, sh_cldliq  )
    call pbuf_get_field(pbuf, sh_cldice1_idx, sh_cldice  )
@@ -320,6 +325,8 @@
    call outfld( 'ICIMRCU ', conv_ice  , pcols, lchnk )
    call outfld( 'ICLMRTOT', tot_liq   , pcols, lchnk )
    call outfld( 'ICIMRTOT', tot_ice   , pcols, lchnk )
+
+   end if !chng_pbuf present
 
   end subroutine conv_water_4rad
 

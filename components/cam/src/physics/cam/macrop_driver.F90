@@ -89,8 +89,6 @@
     
   logical :: liqcf_fix
 
-  integer ::   rei_idx !PMC for pre-micro LWP
-
   contains
 
   ! ===============================================================================
@@ -221,6 +219,15 @@ end subroutine macrop_driver_readnl
                        detrain_size_deep_liq_out  = detrain_size_deep_liq, &
                        detrain_size_deep_ice_out  = detrain_size_deep_ice )
 
+    !+++PMC		       
+    if (masterproc) then
+      write(iulog,*) 'detrain_size_shal_liq = ', detrain_size_shal_liq
+      write(iulog,*) 'detrain_size_shal_ice = ', detrain_size_shal_ice
+      write(iulog,*) 'detrain_size_deep_liq = ', detrain_size_deep_liq
+      write(iulog,*) 'detrain_size_deep_ice = ', detrain_size_deep_ice
+    end if !masterproc
+    !---PMC
+
   ! Initialization routine for cloud macrophysics
 
     !PMC - ini_macro done in microp_driver (why?) but need to do pdf macro init here
@@ -239,9 +246,6 @@ end subroutine macrop_driver_readnl
     else 
         use_shfrc = .false.
     endif
-    !+++PMC 3/14/12 - for pre-micro LWP output.
-    rei_idx     = pbuf_get_index('REI')
-
 
     call addfld ('DPDLFLIQ ', 'kg/kg/s ', pver, 'A', 'Detrained liquid water from deep convection'             ,phys_decomp)
     call addfld ('DPDLFICE ', 'kg/kg/s ', pver, 'A', 'Detrained ice from deep convection'                      ,phys_decomp)
@@ -286,16 +290,16 @@ end subroutine macrop_driver_readnl
 
     call addfld ('CMELIQ   ', 'kg/kg/s ', pver, 'A', 'Rate of cond-evap of liq within the cloud'               ,phys_decomp)
 !+++PMC 3/14/12 - add pre-micro LWP
-    call addfld ('TGCLDCWP_MAC', 'kg/m2', 1,    'A', 'TGCLDCWP before microphys'                          ,phys_decomp)
-    call addfld ('TGCLDLWP_MAC', 'kg/m2', 1,    'A', 'TGCLDLWP before microphys'                          ,phys_decomp)
-    call addfld ('TGCLDIWP_MAC', 'kg/m2', 1,    'A', 'TGCLDIWP before microphys'                          ,phys_decomp)
-    call add_default ('TGCLDCWP_MAC  ', 1, ' ')
-    call add_default ('TGCLDLWP_MAC  ', 1, ' ')
-    call add_default ('TGCLDIWP_MAC  ', 1, ' ')
+!    call addfld ('TGCLDCWP_MAC', 'kg/m2', 1,    'A', 'TGCLDCWP before microphys'                          ,phys_decomp)
+!    call addfld ('TGCLDLWP_MAC', 'kg/m2', 1,    'A', 'TGCLDLWP before microphys'                          ,phys_decomp)
+!    call addfld ('TGCLDIWP_MAC', 'kg/m2', 1,    'A', 'TGCLDIWP before microphys'                          ,phys_decomp)
+!    call add_default ('TGCLDCWP_MAC  ', 1, ' ')
+!    call add_default ('TGCLDLWP_MAC  ', 1, ' ')
+!    call add_default ('TGCLDIWP_MAC  ', 1, ' ')
 ! PMC add mixed-phase cloud diagnostics
-   call addfld ('MIXEDCLDF', 'fraction', pver, 'A', 'Mixed phase cloud fraction = min(aist,alst)'               ,phys_decomp)
-   call addfld ('PUREICLDF', 'fraction', pver, 'A', 'Pure ice cloud fraction= max(0,aist-alst)'     ,phys_decomp)
-   call addfld ('PURELCLDF', 'fraction', pver, 'A', 'Pure liq cloud fraction= max(0,alst-aist)'     ,phys_decomp)
+!   call addfld ('MIXEDCLDF', 'fraction', pver, 'A', 'Mixed phase cloud fraction = min(aist,alst)'               ,phys_decomp)
+!   call addfld ('PUREICLDF', 'fraction', pver, 'A', 'Pure ice cloud fraction= max(0,aist-alst)'     ,phys_decomp)
+!   call addfld ('PURELCLDF', 'fraction', pver, 'A', 'Pure liq cloud fraction= max(0,alst-aist)'     ,phys_decomp)
 !---PMC 
 
     if ( history_budget ) then
@@ -387,9 +391,8 @@ end subroutine macrop_driver_readnl
   !---PMC
 
   !+++PMC 3/14/12 - for pre-micro LWP outfld
-  use physconst,     only: gravit
   use conv_water,    only: conv_water_4rad
-  !---
+  !---PMC
   implicit none
 
   !
@@ -559,18 +562,17 @@ end subroutine macrop_driver_readnl
   real(r8) :: cldsice(pcols,pver)
 
 !+++PMC 3/14/12 for pre-micro LWP output.
-  real(r8), pointer, dimension(:,:) :: rei        ! ice effective radius
-  real(r8)  allcld_liq(pcols,pver)
-  real(r8)  allcld_ice(pcols,pver)
-  real(r8)  gicewp(pcols,pver)
-  real(r8)  gliqwp(pcols,pver)
-  real(r8)  tgicewp(pcols)
-  real(r8)  tgliqwp(pcols)
-  real(r8)  tgwp(pcols)
+!  real(r8)  allcld_liq(pcols,pver)
+!  real(r8)  allcld_ice(pcols,pver)
+!  real(r8)  gicewp(pcols,pver)
+!  real(r8)  gliqwp(pcols,pver)
+!  real(r8)  tgicewp(pcols)
+!  real(r8)  tgliqwp(pcols)
+!  real(r8)  tgwp(pcols)
 ! PMC mixed-phase cld diagnostics
-  real(r8) :: mixedcldf(pcols,pver)
-  real(r8) :: pure_icecldf(pcols,pver)
-  real(r8) :: pure_liqcldf(pcols,pver)
+!  real(r8) :: mixedcldf(pcols,pver)
+!  real(r8) :: pure_icecldf(pcols,pver)
+!  real(r8) :: pure_liqcldf(pcols,pver)
 !---PMC
 
   ! ======================================================================
@@ -700,7 +702,7 @@ end subroutine macrop_driver_readnl
         ptend_loc%q(i,k,ixnumice) = 0._r8
         ptend_loc%s(i,k)          = 0._r8
      end if
-    
+   
 
     ! Only rliq is saved from deep convection, which is the reserved liquid.  We need to keep
     !   track of the integrals of ice and static energy that is effected from conversion to ice
@@ -1096,22 +1098,22 @@ end if !PMC pdf_macro or not
    call outfld( 'CLDICECON  ', mr_ccice,    pcols, lchnk )
 
 !+++PMC mixed-phase cloud diagnostics
-   do k = top_lev, pver
-      do i = 1, ncol
-        mixedcldf(i,k) = min(aist(i,k), alst(i,k))
-        if(aist(i,k) > alst(i,k)) then
-          pure_icecldf(i,k) = aist(i,k) - alst(i,k)
-          pure_liqcldf(i,k) = 0._r8
-        else
-          pure_liqcldf(i,k) = alst(i,k) - aist(i,k)
-          pure_icecldf(i,k) = 0._r8
-        endif
-      end do
-   end do
-
-   call outfld( 'MIXEDCLDF', mixedcldf,      pcols, lchnk )
-   call outfld( 'PUREICLDF', pure_icecldf,   pcols, lchnk )
-   call outfld( 'PURELCLDF', pure_liqcldf,   pcols, lchnk )
+!   do k = top_lev, pver
+!      do i = 1, ncol
+!        mixedcldf(i,k) = min(aist(i,k), alst(i,k))
+!        if(aist(i,k) > alst(i,k)) then
+!          pure_icecldf(i,k) = aist(i,k) - alst(i,k)
+!          pure_liqcldf(i,k) = 0._r8
+!        else
+!          pure_liqcldf(i,k) = alst(i,k) - aist(i,k)
+!          pure_icecldf(i,k) = 0._r8
+!        endif
+!      end do
+!   end do
+!
+!   call outfld( 'MIXEDCLDF', mixedcldf,      pcols, lchnk )
+!   call outfld( 'PUREICLDF', pure_icecldf,   pcols, lchnk )
+!   call outfld( 'PURELCLDF', pure_liqcldf,   pcols, lchnk )
 !---PMC
 
 
@@ -1135,35 +1137,40 @@ end if !PMC pdf_macro or not
 
    !+++PMC 3/14/12 - add lwp before micro in addition to after.
    ! next lines requires some changes to the beginning of this code
-
-   if (conv_water_in_rad /= 0) then
-      call pbuf_get_field(pbuf, rei_idx, rei )                                      
-      call conv_water_4rad(lchnk,ncol,pbuf,conv_water_in_rad,rei,state_loc%pdel/gravit*1000.0_r8, & 
-           state_loc%q(:,:,ixcldliq),state_loc%q(:,:,ixcldice),allcld_liq,allcld_ice, .true.) !last .true. makes not overwrite pbuf stuff
-   else
-      allcld_liq = state_loc%q(:,:,ixcldliq)
-      allcld_ice = state_loc%q(:,:,ixcldice)
-   end if
-
-   gicewp(:,:) = 0._r8
-   gliqwp(:,:) = 0._r8
-   tgicewp(:) = 0._r8
-   tgliqwp(:) = 0._r8
-
-    do k=1,pver
-       do i = 1,ncol
-          gicewp(i,k) = allcld_ice(i,k)*state_loc%pdel(i,k)/gravit  ! Grid box ice water path.
-          gliqwp(i,k) = allcld_liq(i,k)*state_loc%pdel(i,k)/gravit  ! Grid box liquid water path.          
-          tgicewp(i)  = tgicewp(i) + gicewp(i,k)
-          tgliqwp(i)  = tgliqwp(i) + gliqwp(i,k)
-       end do
-    end do
-    tgwp(:ncol) = tgicewp(:ncol) + tgliqwp(:ncol)
-
-    call outfld('TGCLDCWP_MAC',tgwp   , pcols,lchnk)
-    call outfld('TGCLDLWP_MAC',tgliqwp, pcols,lchnk)
-    call outfld('TGCLDIWP_MAC',tgicewp, pcols,lchnk)
-
+!
+!   if (conv_water_in_rad /= 0) then
+!
+!!cesm1.2 version:
+!!      call conv_water_4rad(lchnk,ncol,pbuf,conv_water_in_rad,rei,state_loc%pdel/gravit*1000.0_r8, & 
+!!           state_loc%q(:,:,ixcldliq),state_loc%q(:,:,ixcldice),allcld_liq,allcld_ice, .true.) !last .true. makes not overwrite pbuf stuff
+!!acme version:
+!       call conv_water_4rad( state, pbuf, conv_water_in_rad, allcld_liq, allcld_ice, .true.  ) !last .true. makes not overwrite pbuf stuff
+!
+!
+!   else
+!      allcld_liq = state_loc%q(:,:,ixcldliq)
+!      allcld_ice = state_loc%q(:,:,ixcldice)
+!   end if
+!
+!   gicewp(:,:) = 0._r8
+!   gliqwp(:,:) = 0._r8
+!   tgicewp(:) = 0._r8
+!   tgliqwp(:) = 0._r8
+!
+!    do k=1,pver
+!       do i = 1,ncol
+!          gicewp(i,k) = allcld_ice(i,k)*state_loc%pdel(i,k)/gravit  ! Grid box ice water path.
+!          gliqwp(i,k) = allcld_liq(i,k)*state_loc%pdel(i,k)/gravit  ! Grid box liquid water path.          
+!          tgicewp(i)  = tgicewp(i) + gicewp(i,k)
+!          tgliqwp(i)  = tgliqwp(i) + gliqwp(i,k)
+!       end do
+!    end do
+!    tgwp(:ncol) = tgicewp(:ncol) + tgliqwp(:ncol)
+!
+!    call outfld('TGCLDCWP_MAC',tgwp   , pcols,lchnk)
+!    call outfld('TGCLDLWP_MAC',tgliqwp, pcols,lchnk)
+!    call outfld('TGCLDIWP_MAC',tgicewp, pcols,lchnk)
+!
 !---PMC
 
 

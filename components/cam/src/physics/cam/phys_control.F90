@@ -221,7 +221,7 @@ subroutine phys_ctl_readnl(nlfile)
    call mpibcast(detrain_size_shal_ice,           1,  mpir8,   0, mpicom)
    call mpibcast(detrain_size_deep_liq,           1,  mpir8,   0, mpicom)
    call mpibcast(detrain_size_deep_ice,           1,  mpir8,   0, mpicom)
- #endif
+#endif
 
    ! Error checking:
 
@@ -335,9 +335,9 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
                         do_clubb_sgs_out, do_tms_out, state_debug_checks_out, fix_g1_err_ndrop_out,     &
                         ssalt_tuning_out,resus_fix_out,convproc_do_aer_out,  &
                         convproc_do_gas_out, convproc_method_activate_out,   &
-                        liqcf_fix_out, regen_fix_out,demott_ice_nuc_out      &
-                       ,l_tracer_aero_out, l_vdiff_out, l_rayleigh_out, l_gw_drag_out, l_ac_energy_chk_out  &
-                       ,l_bc_energy_fix_out, l_dry_adj_out, l_st_mac_out, l_st_mic_out, l_rad_out  &
+                        liqcf_fix_out, regen_fix_out,demott_ice_nuc_out,      &
+                        l_tracer_aero_out, l_vdiff_out, l_rayleigh_out, l_gw_drag_out, l_ac_energy_chk_out,  &
+                        l_bc_energy_fix_out, l_dry_adj_out, l_st_mac_out, l_st_mic_out, l_rad_out,  &
                         trunc_macro_out, detrain_size_shal_liq_out,detrain_size_shal_ice_out, &
                         detrain_size_deep_liq_out,detrain_size_deep_ice_out)
 !-----------------------------------------------------------------------

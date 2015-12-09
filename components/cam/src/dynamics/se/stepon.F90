@@ -358,19 +358,63 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
          end do
       end do
 
-      !UPDATE STATE TO INCLUDE PHYSICS TENDENCIES IF NECESSARY:
-      !=====================================
-      ! If physics and dynamics are split following namelist parameter ftype==0, 
-      ! FT, FM, and FQ are used as constant forcing terms in each remap step of dynamics.
-      ! Since these quantities are already tendencies, there's nothing more to do here. 
-      ! If ftype==1 ("apply physics as an adjustment"), entire physics forcing is applied at 
-      ! the beginning of the step. This requires updating the model state with the most 
-      ! recent physics tendency. Note that ftype<0 exists for debugging but doesn't require 
-      ! any work here and I'm removing ftype=2 per agreement with MT. (PMC 11/5/15)
-      !---------------------------------------------------
-      if (ftype==1) then
-         ! apply forcing to state tl_f
-         ! requires forward-in-time timestepping, checked in namelist_mod.F90
+   end do !ie
+
+   !KLUDGE DYNAMICS TO USE PHYSICS STATE FROM THE TIMESTEP BEFORE 
+   !==============================================================
+   !ParPhysDyn = kludge to make model behave as if phys and dyn were computed in 
+   !parallel on separate processors (without actually changing the cores used for 
+   !running phys and dyn). The basic idea is that if physics was run in parallel, 
+   !dynamics would have to use physics tendencies from 1 timestep earlier because 
+   !values for the current step wouldn't be available yet. Thus all we do below is
+   !to lag the physics info used by dynamics by 1 timestep. This could be accomplished
+   !by making derived%F{Q,T,M} have 2 time levels (in last dim) and using TimeLevel_Qdp
+   !to flip between levels. We don't do that because it would require making changes
+   !to many routines and this option is really just a kludgy test which shouldn't pollute
+   !the rest of the code. 
+
+   if (ParPhysDyn) then
+     if (is_first_step() .or. is_first_restart_step() ) then
+         do ie=1,nelemd
+      	    FT_lag(ie,:,:,:) = dyn_in%elem(ie)%derived%FT(:,:,:,1)
+	    FM_lag(ie,:,:,:,:) = dyn_in%elem(ie)%derived%FM(:,:,:,:,1)
+	    FQ_lag(ie,:,:,:,:) = dyn_in%elem(ie)%derived%FQ(:,:,:,:,1)
+	 end do !nelemd
+      else
+         do ie=1,nelemd
+	    !FIRST, SAVE NEW VALUES TO LOCAL, TMP VAR
+	    FT_tmp(ie,:,:,:) = dyn_in%elem(ie)%derived%FT(:,:,:,1)
+   	    FM_tmp(ie,:,:,:,:) = dyn_in%elem(ie)%derived%FM(:,:,:,:,1)
+	    FQ_tmp(ie,:,:,:,:) = dyn_in%elem(ie)%derived%FQ(:,:,:,:,1)
+   
+	    !NEXT, OVERWRITE CURRENT VALS WITH VALS SAVED FROM PREVIOUS STEP
+	    dyn_in%elem(ie)%derived%FT(:,:,:,1) = FT_lag(ie,:,:,:)
+   	    dyn_in%elem(ie)%derived%FM(:,:,:,:,1) = FM_lag(ie,:,:,:,:)
+	    dyn_in%elem(ie)%derived%FQ(:,:,:,:,1) = FQ_lag(ie,:,:,:,:)
+
+	    !FINALLY, OVERWRITE VALS FROM PREVIOUS STEP WITH MOST RECENT VALS
+	    FT_lag(ie,:,:,:) = FT_tmp(ie,:,:,:)
+   	    FM_lag(ie,:,:,:,:) = FM_tmp(ie,:,:,:,:)
+	    FQ_lag(ie,:,:,:,:) = FQ_tmp(ie,:,:,:,:)
+	 end do !nelemd
+      end if !is_first_step
+   end if !ParPhysDyn
+
+
+   !UPDATE STATE TO INCLUDE PHYSICS TENDENCIES IF NECESSARY:
+   !=====================================
+   ! If physics and dynamics are split following namelist parameter ftype==0, 
+   ! FT, FM, and FQ are used as constant forcing terms in each remap step of dynamics.
+   ! Since these quantities are already tendencies, there's nothing more to do here. 
+   ! If ftype==1 ("apply physics as an adjustment"), entire physics forcing is applied at 
+   ! the beginning of the step. This requires updating the model state with the most 
+   ! recent physics tendency. Note that ftype<0 exists for debugging but doesn't require 
+   ! any work here and I'm removing ftype=2 per agreement with MT. (PMC 11/5/15)
+   !---------------------------------------------------
+   ! apply forcing to state tl_f
+   ! requires forward-in-time timestepping, checked in namelist_mod.F90
+   if (ftype==1) then
+      do ie=1,nelemd
 
          !???????? Wouldn't a 'do private' flag be beneficial here? ??????
          do k=1,nlev
@@ -425,13 +469,13 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
             end do
          end do
 
-      endif
+      end do !ie
+   endif
 
-   end do
    call t_stopf('stepon_bndry_exch')
 
-
-
+   !WRITE OUTPUT FROM PHYSICS
+   !=================================
    ! Most output is done by physics.  We pass to the physics state variables
    ! at timelevel "tl_f".  
    ! we will output dycore variables here to ensure they are always at the same
@@ -543,46 +587,6 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
 
 
 !---PMC
-
- 
-   !ParPhysDyn = kludge to make model behave as if phys and dyn were computed in 
-   !parallel on separate processors (without actually changing the cores used for 
-   !running phys and dyn). The basic idea is that if physics was run in parallel, 
-   !dynamics would have to use physics tendencies from 1 timestep earlier because 
-   !values for the current step wouldn't be available yet. Thus all we do below is
-   !to lag the physics info used by dynamics by 1 timestep. This could be accomplished
-   !by making derived%F{Q,T,M} have 2 time levels (in last dim) and using TimeLevel_Qdp
-   !to flip between levels. We don't do that because it would require making changes
-   !to many routines and this option is really just a kludgy test which shouldn't pollute
-   !the rest of the code. 
-
-   if (ParPhysDyn) then
-      if (is_first_step() .or. is_first_restart_step() ) then
-         do ie=1,nelemd
-      	    FT_lag(ie,:,:,:) = dyn_in%elem(ie)%derived%FT(:,:,:,1)
-	    FM_lag(ie,:,:,:,:) = dyn_in%elem(ie)%derived%FM(:,:,:,:,1)
-	    FQ_lag(ie,:,:,:,:) = dyn_in%elem(ie)%derived%FQ(:,:,:,:,1)
-	 end do !nelemd
-      else
-         do ie=1,nelemd
-	    !FIRST, SAVE NEW VALUES TO LOCAL, TMP VAR
-	    FT_tmp(ie,:,:,:) = dyn_in%elem(ie)%derived%FT(:,:,:,1)
-   	    FM_tmp(ie,:,:,:,:) = dyn_in%elem(ie)%derived%FM(:,:,:,:,1)
-	    FQ_tmp(ie,:,:,:,:) = dyn_in%elem(ie)%derived%FQ(:,:,:,:,1)
-   
-	    !NEXT, OVERWRITE CURRENT VALS WITH VALS SAVED FROM PREVIOUS STEP
-	    dyn_in%elem(ie)%derived%FT(:,:,:,1) = FT_lag(ie,:,:,:)
-   	    dyn_in%elem(ie)%derived%FM(:,:,:,:,1) = FM_lag(ie,:,:,:,:)
-	    dyn_in%elem(ie)%derived%FQ(:,:,:,:,1) = FQ_lag(ie,:,:,:,:)
-
-	    !FINALLY, OVERWRITE VALS FROM PREVIOUS STEP WITH MOST RECENT VALS
-	    FT_lag(ie,:,:,:) = FT_tmp(ie,:,:,:)
-   	    FM_lag(ie,:,:,:,:) = FM_tmp(ie,:,:,:,:)
-	    FQ_lag(ie,:,:,:,:) = FQ_tmp(ie,:,:,:,:)
-	 end do !nelemd
-      end if !is_first_step
-   end if !ParPhysDyn
-
 
    end subroutine stepon_run2
    
