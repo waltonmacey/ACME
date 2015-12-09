@@ -55,7 +55,8 @@ logical :: microp_uniform
 logical, public :: do_cldliq ! Prognose cldliq flag
 logical, public :: do_cldice ! Prognose cldice flag
 real(r8) :: dcs !autoconversion size threshold for cloud ice to snow (m)
-
+real(r8) :: fixed_nc
+real(r8) :: fixed_ni
 integer, parameter :: ncnst = 4       ! Number of constituents
 character(len=8), parameter :: &      ! Constituent names
      cnst_names(ncnst) = (/'CLDLIQ', 'CLDICE','NUMLIQ','NUMICE'/)
@@ -510,6 +511,11 @@ subroutine micro_mg_cam_init(pbuf2d)
      endif
   end do
 
+   !+++PMC
+   call phys_getopts(ncfix_out = & 
+                     fixed_nc_out           = fixed_nc, &
+                     fixed_ni_out           = fixed_ni)  
+   !---PMC
   call addfld(apcnst(ixcldliq), 'kg/kg   ', pver, 'A', trim(cnst_name(ixcldliq))//' after physics'  , phys_decomp)
   call addfld(apcnst(ixcldice), 'kg/kg   ', pver, 'A', trim(cnst_name(ixcldice))//' after physics'  , phys_decomp)
   call addfld(bpcnst(ixcldliq), 'kg/kg   ', pver, 'A', trim(cnst_name(ixcldliq))//' before physics' , phys_decomp)
@@ -1353,7 +1359,7 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
              ncai, ncal, qrout2, qsout2, nrout2,              &
              nsout2, drout2, dsout2, freqs, freqr,            &
              nfice, do_cldice, tnd_qsnow,                     &
-             tnd_nsnow, re_ice, errstring)
+             tnd_nsnow, re_ice, errstring,fixed_nc,fixed_ni)
 
 
      case (5)

@@ -85,6 +85,8 @@ real(r8)          :: detrain_size_deep_liq             ! size of detrained liqui
 real(r8)          :: detrain_size_deep_ice             ! size of detrained ice    from deep    convection (default = 25e-6)
 logical           :: state_debug_checks   = .false.    ! Extra checks for validity of physics_state objects
                                                        ! in physics_update.
+real(r8)          :: fixed_nc                      ! if >0 and single-column mode, =drop conc (in #/cm3) used by MG1.0
+real(r8)          :: fixed_ni                      ! if >0 and single-column mode, =qi conc (in #/cm3) used by MG1.0
 
 logical :: prog_modal_aero ! determines whether prognostic modal aerosols are present in the run.
 
@@ -151,7 +153,7 @@ subroutine phys_ctl_readnl(nlfile)
       l_tracer_aero, l_vdiff, l_rayleigh, l_gw_drag, l_ac_energy_chk, &
       l_bc_energy_fix, l_dry_adj, l_st_mac, l_st_mic, l_rad, &
 	  trunc_macro, detrain_size_shal_liq, detrain_size_shal_ice, detrain_size_deep_liq, &
-	  detrain_size_deep_ice
+	  detrain_size_deep_ice, fixed_nc,fixed_ni
    !-----------------------------------------------------------------------------
 
    if (masterproc) then
@@ -221,6 +223,8 @@ subroutine phys_ctl_readnl(nlfile)
    call mpibcast(detrain_size_shal_ice,           1,  mpir8,   0, mpicom)
    call mpibcast(detrain_size_deep_liq,           1,  mpir8,   0, mpicom)
    call mpibcast(detrain_size_deep_ice,           1,  mpir8,   0, mpicom)
+   call mpibcast(fixed_nc,                    1,  mpir8,   0, mpicom) 
+   call mpibcast(fixed_ni,                    1,  mpir8,   0, mpicom) 
 #endif
 
    ! Error checking:
@@ -339,7 +343,7 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
                         l_tracer_aero_out, l_vdiff_out, l_rayleigh_out, l_gw_drag_out, l_ac_energy_chk_out,  &
                         l_bc_energy_fix_out, l_dry_adj_out, l_st_mac_out, l_st_mic_out, l_rad_out,  &
                         trunc_macro_out, detrain_size_shal_liq_out,detrain_size_shal_ice_out, &
-                        detrain_size_deep_liq_out,detrain_size_deep_ice_out)
+                        detrain_size_deep_liq_out,detrain_size_deep_ice_out,fixed_nc_out,fixed_ni_out)
 !-----------------------------------------------------------------------
 ! Purpose: Return runtime settings
 !          deep_scheme_out   : deep convection scheme
@@ -397,6 +401,9 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
    real(r8),          intent(out), optional :: detrain_size_shal_ice_out
    real(r8),          intent(out), optional :: detrain_size_deep_liq_out
    real(r8),          intent(out), optional :: detrain_size_deep_ice_out
+   real(r8),          intent(out), optional :: fixed_nc_out
+   real(r8),          intent(out), optional :: fixed_ni_out
+
 
    if ( present(deep_scheme_out         ) ) deep_scheme_out          = deep_scheme
    if ( present(shallow_scheme_out      ) ) shallow_scheme_out       = shallow_scheme
@@ -445,6 +452,9 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
    if ( present(detrain_size_shal_ice_out)) detrain_size_shal_ice_out= detrain_size_shal_ice
    if ( present(detrain_size_deep_liq_out)) detrain_size_deep_liq_out= detrain_size_deep_liq
    if ( present(detrain_size_deep_ice_out)) detrain_size_deep_ice_out= detrain_size_deep_ice
+   if ( present(fixed_nc_out        ) ) fixed_nc_out         = fixed_nc
+   if ( present(fixed_ni_out        ) ) fixed_ni_out         = fixed_ni
+
 
 end subroutine phys_getopts
 

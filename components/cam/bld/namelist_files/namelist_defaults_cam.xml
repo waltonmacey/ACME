@@ -753,6 +753,10 @@
 <micro_mg_dcs     phys="cam5" microphys="mg1"     > 400.0D-6 </micro_mg_dcs>
 <micro_mg_dcs     phys="cam5" microphys="mg1.5"   > 250.0D-6 </micro_mg_dcs>
 
+<fixed_nc> -999.D0  </fixed_nc>
+<fixed_ni> -999.D0  </fixed_ni>
+<
+
 <!-- Macrophysics scheme -->
 <macrop_scheme                       >none</macrop_scheme>
 <macrop_scheme macrophys="rk"        >rk</macrop_scheme>

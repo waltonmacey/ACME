@@ -2346,6 +2346,21 @@ liq cloud fraction bug in macro and micro physics
 Default: .false.
 </entry>
 
+
+<entry id="fixed_nc" type="real" catagory="conv"
+       group="phys_ctl_nl" valid_values="" >
+If <0 (default) has no effect. If > 0 and CAM is run in SCM mode, 
+microphysics is forced to use this value (in #/cm^3) as the cloud 
+liquid water droplet concentration 
+</entry>
+
+<entry id="fixed_ni" type="real" catagory="conv"
+       group="phys_ctl_nl" valid_values="" >
+If <0 (default) has no effect. If > 0 and CAM is run in SCM mode, 
+microphysics is forced to use this value (in #/cm^3) as the cloud 
+ice crystal concentration 
+</entry>
+
 <!-- CARMA Sectional Microphysics -->
 
 <entry id="carma_model" type="char*32" category="carma"

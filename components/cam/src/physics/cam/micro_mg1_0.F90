@@ -354,7 +354,8 @@ subroutine micro_mg_tend ( &
      ncai, ncal, qrout2, qsout2, nrout2,              &
      nsout2, drout2, dsout2, freqs, freqr,            &
      nfice, do_cldice, tnd_qsnow,                     &
-     tnd_nsnow, re_ice, errstring)
+     tnd_nsnow, re_ice, errstring, &
+	 fixed_nc,fixed_ni) !PMC for fixed drop concentration
 
 ! input arguments
 logical,  intent(in) :: microp_uniform  ! True = configure uniform for sub-columns  False = use w/o sub-columns (standard)
@@ -472,6 +473,12 @@ real(r8), intent(out) :: freqr(pcols,pver)
 real(r8), intent(out) :: nfice(pcols,pver)
 
 character(128),   intent(out) :: errstring       ! Output status (non-blank for error return)
+
+!+++PMC
+!if <0, don't fix nc. If >0, assume this is in-cld val in #/cc (will be converted below).
+real(r8), intent(out) :: fixed_nc
+real(r8), intent(out) :: fixed_ni
+!---PMC
 
 ! local workspace
 ! all units mks unless otherwise stated
@@ -747,6 +754,12 @@ integer ii,kk, m
 ! loop variables for sub-step solution
 integer iter,it,ltrue(pcols)
 
+!+++PMC
+! For ncfix:
+real(r8) :: ncold(pcols,pver)
+!---PMC
+
+
 ! used in contact freezing via dust particles
 real(r8)  tcnt, viscosity, mfp
 real(r8)  slip1, slip2, slip3, slip4
@@ -879,6 +892,29 @@ do k=1,pver
    end do
 end do
 
+    !+++PMC for fixed drop conc.
+    if (fixed_nc>0._r8) then
+       do k=1,pver
+          do i=1,ncol
+             !1e6cm3 per m3. div by rho=>#/kg air. Mult by lcld to make cell-ave val.
+             nc(i,k)=fixed_nc*1e6/rho(i,k)*lcldm(i,k)
+             dum2l(i,k)=nc(i,k)
+             ncold(i,k)=nc(i,k)
+          end do
+       end do
+    end if
+    !---PMC
+
+    if (fixed_ni>0._r8) then
+       do k=1,pver
+          do i=1,ncol
+             !1e6cm3 per m3. div by rho=>#/kg air. Mult by icld to make cell-ave val.
+             ni(i,k)=fixed_ni*1e6/rho(i,k)*icldm(i,k)
+          end do
+       end do
+    end if
+
+    !PMC note: 1:top_lev-1 is all the levs we WON'T do micro on. Levs we will do micro on are NOT zeroed!!!
 ! initialization
 qc(1:ncol,1:top_lev-1) = 0._r8
 qi(1:ncol,1:top_lev-1) = 0._r8
@@ -1013,6 +1049,10 @@ do k=top_lev,pver
          ninew=ni(i,k)+dumnnuc*deltat
          qinew=qi(i,k)+dumnnuc*deltat*mi0
 
+             if (fixed_ni>0._r8) then
+                ninew=ni(i,k)
+                dumnnuc=ni(i,k)
+             end if
          !T>268
       else
          ninew=ni(i,k)
@@ -1230,6 +1270,10 @@ do k=top_lev,pver
       else
          dum2i(i,k)=0._r8
       end if
+
+          if (fixed_ni>0._r8) then
+             dum2i(i,k)=ni(i,k)
+          end if
 
    end do ! i loop
 end do ! k loop
@@ -1493,6 +1537,9 @@ do i=1,ncol
             npccn(k) = max(0._r8,npccnin(i,k))  
             dum2l(i,k)=(nc(i,k)+npccn(k)*deltat)/lcldm(i,k)
             dum2l(i,k)=max(dum2l(i,k),cdnl/rho(i,k)) ! sghan minimum in #/cm3  
+                   if (fixed_nc>0._r8) then
+                      dum2l(i,k)=nc(i,k)
+                   end if
             ncmax = dum2l(i,k)*lcldm(i,k)
          else
             npccn(k)=0._r8
@@ -2207,10 +2254,19 @@ do i=1,ncol
 
          ! include mixing timescale  (mtime)
 
+         if (ncfix) then
+            nce=nc(i,k)
+         else
+            nce=(nc(i,k)+npccn(k)*deltat*mtime)
+         end if
+
          qce=(qc(i,k) - berg(i,k)*deltat)
-         nce=(nc(i,k)+npccn(k)*deltat*mtime)
          qie=(qi(i,k)+(cmei(i,k)+berg(i,k))*deltat)
          nie=(ni(i,k)+nnuccd(k)*deltat*mtime)
+
+                if (fixed_ni>0._r8) then 
+                   nie = ni(i,k)
+                end if
 
          ! conservation of qc
 
@@ -2447,6 +2503,15 @@ do i=1,ncol
          if (do_cldice .and. nitend(i,k).gt.0._r8.and.ni(i,k)+nitend(i,k)*deltat.gt.nimax) then
             nitend(i,k)=max(0._r8,(nimax-ni(i,k))/deltat)
          end if
+
+         if (fixed_nc>0._r8) then
+            nctend(i,k)=0._r8
+         end if
+
+         if (fixed_ni>0._r8) then
+            nitend(i,k)=0._r8
+         end if
+
 
          ! get final values for precipitation q and N, based on
          ! flux of precip from above, source/sink term, and terminal fallspeed
@@ -2980,6 +3045,13 @@ do i=1,ncol
       qctend(i,k) = qctend(i,k)-faltndc/nstep
       nctend(i,k) = nctend(i,k)-faltndnc/nstep
 
+          if (fixed_nc>0._r8) then
+             nctend(i,k)=0._r8
+          end if
+
+          if (fixed_ni>0._r8) then
+             nitend(i,k)=0._r8
+          end if
       ! sedimentation tendencies for output
       qcsedten(i,k)=qcsedten(i,k)-faltndc/nstep
       qisedten(i,k)=qisedten(i,k)-faltndi/nstep
@@ -3014,6 +3086,13 @@ do i=1,ncol
          nitend(i,k) = nitend(i,k)-faltndni/nstep
          qctend(i,k) = qctend(i,k)-faltndc/nstep
          nctend(i,k) = nctend(i,k)-faltndnc/nstep
+             if (fixed_nc>0._r8) then
+                nctend(i,k)=0._r8
+             end if
+
+             if (fixed_ni>0._r8) then
+                nitend(i,k)=0._r8
+             end if
 
          ! sedimentation tendencies for output
          qcsedten(i,k)=qcsedten(i,k)-faltndc/nstep
@@ -3097,9 +3176,15 @@ do i=1,ncol
                nctend(i,k)=nctend(i,k)+3._r8*dum*dumi(i,k)/deltat/ &
                     (4._r8*pi*5.12e-16_r8*rhow)
 
+                   if (fixed_nc>0._r8) then
+                      nctend(i,k)=0._r8
+                   end if
                qitend(i,k)=((1._r8-dum)*dumi(i,k)-qi(i,k))/deltat
                nitend(i,k)=((1._r8-dum)*dumni(i,k)-ni(i,k))/deltat
                tlat(i,k)=tlat(i,k)-xlf*dum*dumi(i,k)/deltat
+                   if (fixed_ni>0._r8) then
+                      nitend(i,k)=0._r8
+                   end if
             end if
          end if
 
@@ -3130,6 +3215,13 @@ do i=1,ncol
                qctend(i,k)=((1._r8-dum)*dumc(i,k)-qc(i,k))/deltat
                nctend(i,k)=((1._r8-dum)*dumnc(i,k)-nc(i,k))/deltat
                tlat(i,k)=tlat(i,k)+xlf*dum*dumc(i,k)/deltat
+                   if (fixed_nc>0._r8) then
+                      nctend(i,k)=0._r8
+                   end if
+
+                   if (fixed_ni>0._r8) then
+                      nitend(i,k)=0._r8
+                   end if
             end if
          end if
 
@@ -3224,6 +3316,9 @@ do i=1,ncol
          effi(i,k) = re_ice(i,k) * 1e6_r8      ! m -> um
       end if
 
+          if(fixed_ni>0._r8) then
+             nitend(i,k) = 0._r8
+          endif
       !...................
       ! cloud droplet effective radius
 
@@ -3238,6 +3333,10 @@ do i=1,ncol
          ! size or if there is no cloud water
          if (dumnc(i,k).lt.cdnl/rho(i,k)) then   
             nctend(i,k)=(cdnl/rho(i,k)*lcldm(i,k)-nc(i,k))/deltat   
+
+                if (fixed_nc>0._r8) then
+                   nctend(i,k)=0._r8
+                end if
          end if
          dumnc(i,k)=max(dumnc(i,k),cdnl/rho(i,k)) ! sghan minimum in #/cm3 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -3259,6 +3358,9 @@ do i=1,ncol
             ! adjust number conc if needed to keep mean size in reasonable range
             nctend(i,k)=(ncic(i,k)*lcldm(i,k)-nc(i,k))/deltat
 
+                if (fixed_nc>0._r8) then
+                   nctend(i,k)=0._r8
+                end if
          else if (lamc(k).gt.lammax) then
             lamc(k) = lammax
             ncic(i,k) = 6._r8*lamc(k)**3*dumc(i,k)* &
@@ -3266,6 +3368,9 @@ do i=1,ncol
                  (pi*rhow*gamma(pgam(k)+4._r8))
             ! adjust number conc if needed to keep mean size in reasonable range
             nctend(i,k)=(ncic(i,k)*lcldm(i,k)-nc(i,k))/deltat
+                if (fixed_nc>0._r8) then
+                   nctend(i,k)=0._r8
+                end if
          end if
 
          effc(i,k) = &
@@ -3330,6 +3435,13 @@ do i=1,ncol
 
       if (qc(i,k)+qctend(i,k)*deltat.lt.qsmall) nctend(i,k)=-nc(i,k)/deltat
       if (do_cldice .and. qi(i,k)+qitend(i,k)*deltat.lt.qsmall) nitend(i,k)=-ni(i,k)/deltat
+          if (fixed_nc>0._r8) then
+             nctend(i,k)=0._r8
+          end if
+
+          if (fixed_ni>0._r8) then
+             nitend(i,k)=0._r8
+          end if
    end do
 
 end do ! i loop

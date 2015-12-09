@@ -2602,6 +2602,8 @@ add_default($nl, 'detrain_size_shal_liq');
 add_default($nl, 'detrain_size_shal_ice');
 add_default($nl, 'detrain_size_deep_liq');
 add_default($nl, 'detrain_size_deep_ice');
+add_default($nl, 'scm_fixed_nc');
+add_default($nl, 'scm_fixed_ni');
 #---PMC
 
 #BSINGH - Flag splitting for code modifications by PNNL under polar project
