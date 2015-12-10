@@ -1,3 +1,7 @@
+# AGS: CMake logic already existed -- preserving that functionalituy
+#       within !ACME_BUILD.
+if (NOT ACME_BUILD)
+
 cmake_minimum_required(VERSION 2.8)
 project(clm45_tests Fortran C)
 
@@ -59,3 +63,37 @@ link_directories(${CMAKE_CURRENT_BINARY_DIR})
 add_subdirectory(${CLM_ROOT}/src/biogeophys/test clm_biogeophys_test)
 add_subdirectory(${CLM_ROOT}/src/dyn_subgrid/test clm_dyn_subgrid_test)
 add_subdirectory(${CLM_ROOT}/src/main/test clm_main_test)
+
+ELSE() #ACME_BUILD
+  MESSAGE("   + CLM:")
+
+  #AGS: Globbing all clm files in one library. There appear to
+  #     be to many inter-directory dependencies to tease out
+  #     separate libraries with one-way dependencies.
+  FILE(GLOB CLM_MAIN_SOURCE         main/*F90 ED/main/*F90)
+  FILE(GLOB CLM_UTILS_SOURCE        utils/*F90)
+  FILE(GLOB CLM_EDFIRE_SOURCE       ED/fire/*F90)
+  FILE(GLOB CLM_BIOGEOPHYS_SOURCE   biogeophys/*F90 ED/biogeophys/*F90)
+  FILE(GLOB CLM_BIOGEOCHEM_SOURCE   biogeochem/*F90 ED/biogeochem/*F90)
+  FILE(GLOB CLM_DYN_SUBGRID_SOURCE  dyn_subgrid/*F90)
+
+  INCLUDE_DIRECTORIES (
+          ${SHR_BINARY_DIR}
+          ${GPTL_BINARY_DIR}  #perf_mod
+          ${ESMF_BINARY_DIR} # esmf.mod
+          ${ACME_SHR_DIR}  #shr_assert.h
+          ${SEQ_BINARY_DIR}
+  )
+
+  #  ${MPI_Fortran_INCLUDE_PATH}
+  ADD_LIBRARY (clm
+               ${CLM_MAIN_SOURCE} ${CLM_UTILS_SOURCE}
+               ${CLM_BIOGEOPHYS_SOURCE} ${CLM_BIOGEOCHEM_SOURCE}
+               ${CLM_EDFIRE_SOURCE} ${CLM_DYN_SUBGRID_SOURCE}
+              )
+  ADD_DEPENDENCIES(clm shrsys seq shr gptl)
+
+
+
+ENDIF()
+

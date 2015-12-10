@@ -1,0 +1,27 @@
+
+rm CMakeCache.txt
+rm -rf CMakeFiles
+
+ACMEDIR=/home/agsalin/ACME
+NETCDFDIR=/home/agsalin/install/acme/install
+PIODIR=/home/agsalin/install/pio
+
+
+cmake \
+  -D CMAKE_VERBOSE_MAKEFILE=ON \
+  -D CMAKE_Fortran_COMPILER=mpif90 \
+  -D CMAKE_C_COMPILER=mpicc \
+  -D CMAKE_Fortran_FLAGS=-ffree-line-length-none \
+\
+  -D ACME_NETCDF_DIR=$NETCDFDIR \
+  -D ACME_PIO_DIR=$PIODIR \
+\
+  $ACMEDIR
+
+#Add these back in when doing CAM
+#  -D ACME_CAM_PLEV=24 \
+#  -D ACME_CAM_SE_NP=4 \
+#  -D ACME_CAM_PHYSICS_CAM_PCOLS=4 \
+#  -D ACME_CAM_PHYSICS_CAM_PSUBCOLS=1 \
+#  -D ACME_CAM_PHYSICS_CAM_PCNST=25 \
+#\
