@@ -310,7 +310,45 @@ MODULE MOD_COSP_CONSTANTS
     data HCLASS_P3/     -2,      1,      1,      1,    -2,     1,    1,      1,    1/
     ! Note: value of "-2" for HCLASS_P3 uses martin 1994 parameteriztion of gamma function width with Number concentration
     
-#ifdef GPM_DUMMY    
+#endif
+
+#ifdef GPM_TWO_MOMENT
+! PSD parameters when GPM_TWO_MOMENT is defined.
+! Currently, the implementation is based on CLUBB in ACME, where the stratus
+! clouds uses MG microphysics and the deep convection uses the ZM macrophysics.
+! In this implementation, the stratus cloud (LS) uses mixing ratio and number
+! concentration provided by the MG microphysics directly, while the deep
+! convections (CV) follow the origional COSP treatment for one moment schemes.
+! As such, the parameters for convective precipitation and cloud water/ice (CVL,
+! CVI, CVR, CVS) below are borrowed from those for one-moment schemes.
+
+    integer :: GPM_HCLASS_TYPE(N_HYDRO),GPM_HCLASS_PHASE(N_HYDRO)
+
+    real :: GPM_HCLASS_DMIN(N_HYDRO),GPM_HCLASS_DMAX(N_HYDRO), &
+            GPM_HCLASS_APM(N_HYDRO),GPM_HCLASS_BPM(N_HYDRO),GPM_HCLASS_RHO(N_HYDRO), &
+            GPM_HCLASS_P1(N_HYDRO),GPM_HCLASS_P2(N_HYDRO),GPM_HCLASS_P3(N_HYDRO)
+
+    ! HCLASS_CP is not used in the version of Quickbeam included in COSP
+    !                        LSL    LSI      LSR     LSS   CVL    CVI   CVR     CVS   LSG
+
+    data GPM_HCLASS_TYPE/    1,      1,      1,      1,     5,     1,    2,      2,    1/
+    data GPM_HCLASS_PHASE/   0,      1,      0,      1,     0,     1,    0,      1,    1/
+    data GPM_HCLASS_DMIN/   -1,     -1,     -1,     -1,    -1,    -1,   -1,     -1,   -1/
+    data GPM_HCLASS_DMAX/   -1,     -1,     -1,     -1,    -1,    -1,   -1,     -1,   -1/
+    data GPM_HCLASS_APM/   524,     -1,    524,     -1,   524, 110.8,  524,     -1,   -1/
+    data GPM_HCLASS_BPM/     3,     -1,      3,     -1,     3,  2.91,    3,     -1,   -1/
+    data GPM_HCLASS_RHO/    -1,    500,     -1,    100,    -1,    -1,   -1,    100,  900/
+    data GPM_HCLASS_P1/     -1,     -1,     -1,     -1,    -1,    -1, 8.e6,   3.e6,   -1/
+    data GPM_HCLASS_P2/     -1,     -1,     -1,     -1,     6,    40,   -1,     -1,   -1/
+    data GPM_HCLASS_P3/     -2,      1,      1,      1,   0.3,     2,   -1,     -1,    1/
+    ! Note: value of "-2" for HCLASS_P3 uses martin 1994 parameteriztion of gamma function width with Number concentration
+
+#ifndef MMF_V3_SINGLE_MOMENT
+! if MMF_V3_SINGLE_MOMENT is not defined, need to define parameters for
+! precipitation flux to mixing ratio conversion. The parameters are copied from
+! MMF_V3_SINGLE_MOMENT section. Although only parameters for convection
+! precipitaton/cloud are needed, all values are copied.
+    
     real,dimension(N_HYDRO) :: N_ax,N_bx,alpha_x,c_x,d_x,g_x,a_x,b_x,gamma_1,gamma_2,gamma_3,gamma_4
 
     ! Microphysical settings for the precipitation flux to mixing ratio conversion
@@ -327,8 +365,13 @@ MODULE MOD_COSP_CONSTANTS
     data gamma_2/    -1.,   -1.,      6.0,      6.0,  -1.,   -1.,      6.0,      6.0,      6.0/
     data gamma_3/    -1.,   -1.,      2.0,      2.0,  -1.,   -1.,      2.0,      2.0,      2.0/
     data gamma_4/    -1.,   -1.,      6.0,      6.0,  -1.,   -1.,      6.0,      6.0,      6.0/
+    
+    
 #endif
+! end for MMF_V3_SINGLE_MOMENT
+ 
+
 
 #endif
-
+! end for GPM_TWO_MOMENT
 END MODULE MOD_COSP_CONSTANTS

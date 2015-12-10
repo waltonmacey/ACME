@@ -284,6 +284,11 @@ MODULE MOD_COSP_TYPES
                                                 ! (Npoints,Ncolumns,Nlevels,Nhydro) [#/kg]
                                                 ! Np = Ntot / rho_a  = [#/m^3] / [kg/m^3) 
                                                 ! added by Roj with Quickbeam V3
+#ifdef GPM_TWO_MOMENT
+    real,dimension(:,:,:,:),pointer :: mr_hydro_gpm ! Mixing ratio of each hydrometeor used for GPM simulator
+                                                    ! (Npoints,Ncolumns,Nlevels,Nhydro) [kg/kg]
+    real,dimension(:,:,:,:),pointer :: Np_gpm
+#endif
   END TYPE COSP_SGHYDRO
   
   ! Input data for simulator. Gridbox scale.
@@ -408,7 +413,10 @@ MODULE MOD_COSP_TYPES
     real,dimension(:,:,:),pointer :: Reff
 
     ! Total Number Concentration [#/kg]. (Npoints,Nlevels,Nhydro) -- OPTIONAL, value of 0 mean use fixed default
-    real,dimension(:,:,:),pointer :: Np ! added by Roj with Quickbeam V3
+#ifdef GPM_TWO_MOMENT
+    real,dimension(:,:,:),pointer :: mr_hydro_gpm ! Mixing ratio of each hydrometeor for GPM simulator (Npoints,Nlevels,Nhydro) [kg/kg]
+    real,dimension(:,:,:),pointer :: Np_gpm ! added by Roj with Quickbeam V3
+#endif
  
     ! Aerosols concentration and distribution parameters
     real,dimension(:,:,:),pointer :: conc_aero ! Aerosol concentration for each species (Npoints,Nlevels,Naero)
@@ -1097,7 +1105,12 @@ CONTAINS
     y%mr_hydro = 0.0
     y%Reff     = 0.0
     y%Np       = 0.0                    ! added by roj with Quickbeam V3
-
+#ifdef GPM_TWO_MOMENT
+    allocate(y%mr_hydro_gpm(Npoints,Ncolumns,Nlevels,Nhydro),&
+             y%Np_gpm(Npoints,Ncolumns,Nlevels,Nhydro) )
+    y%mr_hydro_gpm = 0.0
+    y%Np_gpm       = 0.0
+#endif
   END SUBROUTINE CONSTRUCT_COSP_SGHYDRO
 
  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1108,7 +1121,9 @@ CONTAINS
     
     ! --- Deallocate arrays ---
     deallocate(y%mr_hydro, y%Reff, y%Np)        ! added by Roj with Quickbeam V3
-        
+#ifdef GPM_TWO_MOMENT
+    deallocate(y%mr_hydro_gpm, y%Np_gpm)
+#endif    
   END SUBROUTINE FREE_COSP_SGHYDRO
  
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1284,7 +1299,10 @@ CONTAINS
     
     ! RTTOV channels and sfc. emissivity
     allocate(y%ichan(Nchan),y%surfem(Nchan))
-    
+#ifdef GPM_TWO_MOMENT
+    allocate(y%mr_hydro_gpm(Npoints,Nlevels,Nhydro), &
+             y%Np(Npoints,Nlevels,Nhydro) )
+#endif    
     ! RTTOV parameters
     y%ichan   =  ichan
     y%surfem  =  surfem
@@ -1329,6 +1347,12 @@ CONTAINS
     ! (Npoints,Nlevels,Nhydro)
 !     y%fr_hydro = 0.0
     y%mr_hydro = 0.0
+#ifdef GPM_TWO_MOMENT
+    y%mr_hydro_gpm = 0.0
+    y%Np_gpm = 0.0
+#endif
+
+
     ! Others
     y%dist_prmts_hydro = 0.0 ! (Nprmts_max_hydro,Nhydro)
     y%conc_aero        = 0.0 ! (Npoints,Nlevels,Naero)
@@ -1361,7 +1385,6 @@ CONTAINS
 
     LUT_file_name = trim(RADAR_SIM_LUT_DIRECTORY) // &
                 trim(RADAR_SIM_MICROPHYSICS_SCHEME_NAME)
-
     call radar_simulator_init(radar_freq,k2, &
                       use_gas_abs,do_ray,R_UNDEF, &
                       y%Nhydro, &
@@ -1373,7 +1396,39 @@ CONTAINS
                       .false., &
                       LUT_file_name, &
                       y%hp)
+#ifdef GPM_TWO_MOMENT
 
+#ifdef GPM_KU
+    call radar_simulator_init(gpmku_radar_freq,gpmku_k2, &
+                      gpmku_use_gas_abs,gpmku_do_ray,R_UNDEF, &
+                      y%Nhydro, &
+                      GPM_HCLASS_TYPE,GPM_HCLASS_PHASE, &
+                      GPM_HCLASS_DMIN,GPM_HCLASS_DMAX, &
+                      GPM_HCLASS_APM,GPM_HCLASS_BPM,GPM_HCLASS_RHO, &
+                      GPM_HCLASS_P1,GPM_HCLASS_P2,GPM_HCLASS_P3, &
+                      local_load_LUT,    &
+                      .false., &
+                      LUT_file_name, &
+                      y%hp_gpmku)
+
+#endif
+#ifdef GPM_KA
+    call radar_simulator_init(gpmka_radar_freq,gpmka_k2, &
+                      gpmka_use_gas_abs,gpmka_do_ray,R_UNDEF, &
+                      y%Nhydro, &
+                      GPM_HCLASS_TYPE,GPM_HCLASS_PHASE, &
+                      GPM_HCLASS_DMIN,GPM_HCLASS_DMAX, &
+                      GPM_HCLASS_APM,GPM_HCLASS_BPM,GPM_HCLASS_RHO, &
+                      GPM_HCLASS_P1,GPM_HCLASS_P2,GPM_HCLASS_P3, &
+                      local_load_LUT,    &
+                      .false., &
+                      LUT_file_name, &
+                      y%hp_gpmka)
+
+#endif
+
+#else 
+! else, when GPM_TWO_MOMENT is not defined
 #ifdef GPM_KU
     call radar_simulator_init(gpmku_radar_freq,gpmku_k2, &
                       gpmku_use_gas_abs,gpmku_do_ray,R_UNDEF, &
@@ -1402,6 +1457,10 @@ CONTAINS
                       y%hp_gpmka)
 
 #endif
+
+
+#endif
+
 END SUBROUTINE CONSTRUCT_COSP_GRIDBOX
 
 
@@ -1437,7 +1496,9 @@ END SUBROUTINE CONSTRUCT_COSP_GRIDBOX
                y%sunlit, y%skt, y%Reff,y%Np, &
                y%ichan,y%surfem, &
                y%mr_ozone,y%u_wind,y%v_wind) !+JEK
-
+#ifdef GPM_TWO_MOMENT
+    deallocate(y%mr_hydro_gpm, y%Np_gpm)
+#endif
   END SUBROUTINE FREE_COSP_GRIDBOX
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1537,6 +1598,10 @@ SUBROUTINE COSP_GRIDBOX_CPSECTION(ix,iy,x,y)
     y%Np(iy(1):iy(2),:,:)      = x%Np(ix(1):ix(2),:,:)   ! added by Roj with Quickbeam V3
     y%conc_aero(iy(1):iy(2),:,:) = x%conc_aero(ix(1):ix(2),:,:)
     y%mr_hydro(iy(1):iy(2),:,:)  = x%mr_hydro(ix(1):ix(2),:,:)
+#ifdef GPM_TWO_MOMENT
+    y%mr_hydro_gpm(iy(1):iy(2),:,:)  = x%mr_hydro_gpm(ix(1):ix(2),:,:)
+    y%Np_gpm(iy(1):iy(2),:,:)        = x%Np_gpm(ix(1):ix(2),:,:)   ! added by Roj with Quickbeam V3
+#endif
     ! 4D
     y%dist_prmts_aero(iy(1):iy(2),:,:,:) = x%dist_prmts_aero(ix(1):ix(2),:,:,:)
 
@@ -1782,6 +1847,10 @@ SUBROUTINE COSP_GRIDBOX_PRINT(x)
     print *,  'shape(x%grpl_ls): ',shape(x%grpl_ls)
     ! Hydrometeors concentration and distribution parameters
     print *,  'shape(x%mr_hydro): ',shape(x%mr_hydro)
+#ifdef GPM_TWO_MOMENT 
+    print *,  'shape(x%mr_hydro_gpm): ',shape(x%mr_hydro_gpm)
+    print *,  'shape(x%Np_gpm): ',shape(x%Np_gpm)       ! added by roj with Quickbeam V3
+#endif
     print *,  'shape(x%dist_prmts_hydro): ',shape(x%dist_prmts_hydro)
     ! Effective radius [m]. (Npoints,Nlevels,Nhydro)
     print *,  'shape(x%Reff): ',shape(x%Reff)
@@ -2011,6 +2080,11 @@ SUBROUTINE COSP_SGHYDRO_PRINT(x)
     print *, x%Nhydro
     
     print *, 'shape(x%mr_hydro): ',shape(x%mr_hydro)
+#ifdef GPM_TWO_MOMENT
+    print *, 'shape(x%mr_hydro_gpm): ',shape(x%mr_hydro_gpm)
+    print *, 'shape(x%Np_gpm): ',shape(x%Np_gpm)         ! added by roj with Quickbeam V3
+#endif
+
     print *, 'shape(x%Reff): ',shape(x%Reff)
     print *, 'shape(x%Np): ',shape(x%Np)         ! added by roj with Quickbeam V3
 END SUBROUTINE COSP_SGHYDRO_PRINT

@@ -162,6 +162,9 @@ SUBROUTINE COSP_GPMDPR(gbx,sgx,sghydro,idx,z)
 
          do i=1,gbx%Nhydro
             hm_matrix(i,:,:) = sghydro%mr_hydro(:,pr,:,i)*1000.0 ! Units from kg/kg to g/kg
+#ifdef GPM_TWO_MOMENT
+            hm_matrix(i,:,:) = sghydro%mr_hydro_gpm(:,pr,:,i)*1000.0 ! Units from kg/kg to g/kg
+#endif
             if (gbx%use_reff) then
               re_matrix(i,:,:) = sghydro%Reff(:,pr,:,i)*1.e6       ! Units from m to micron
               Np_matrix(i,:,:) = sghydro%Np(:,pr,:,i)              ! Units [#/kg]

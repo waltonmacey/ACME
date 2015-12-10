@@ -2621,11 +2621,7 @@ end if
 
    if( cam_physpkg_is('cam5') ) then
 
-!#ifdef GPM_DUMMY
-!      use_precipitation_fluxes = .false.      !!! want to use Np and q directly for MG2
-!#else
       use_precipitation_fluxes = .true.      !!! consistent with cam4 implementation.
-!#endif
       ! add together deep and shallow convection precipitation fluxes, recall *_flxprc variables are rain+snow
       rain_cv(1:ncol,1:pverp) = (sh_flxprc(1:ncol,1:pverp)-sh_flxsnw(1:ncol,1:pverp)) + &
                                 (dp_flxprc(1:ncol,1:pverp)-dp_flxsnw(1:ncol,1:pverp))

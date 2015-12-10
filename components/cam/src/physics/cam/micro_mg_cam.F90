@@ -1,5 +1,5 @@
 module micro_mg_cam
-#define GPM_TWO_MOMENT
+#include "../cosp/cosp_gpm_debugflag.F90"
 !---------------------------------------------------------------------------------
 !
 !  CAM Interfaces for MG microphysics
@@ -1377,12 +1377,11 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
 #ifdef GPM_TWO_MOMENT
 ! If use COSP with GPM support, the icinc and icwnc should be in physics buffer,
 ! and should be declared as pointers
-   real(r8), pointer :: icinc(:,:)   ! In cloud ice number conc
-   real(r8), pointer :: icwnc(:,:)   ! In cloud water number conc
-#else
+   real(r8), pointer :: ls_icinc(:,:)   ! In cloud ice number conc
+   real(r8), pointer :: ls_icwnc(:,:)   ! In cloud water number conc
+#endif
    real(r8) :: icinc(state%psetcols,pver)   ! In cloud ice number conc
    real(r8) :: icwnc(state%psetcols,pver)   ! In cloud water number conc
-#endif
    real(r8) :: iclwpi(state%psetcols)       ! Vertically-integrated in-cloud Liquid WP before microphysics
    real(r8) :: iciwpi(state%psetcols)       ! Vertically-integrated in-cloud Ice WP before microphysics
 
@@ -1466,12 +1465,11 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
 #ifdef GPM_TWO_MOMENT
    ! if GPM two moment scheme is used, the icwnc_grid and icinc_grid will be in
    ! physics buffer and thus should be pointers
-   real(r8), pointer :: icwnc_grid(pcols,pver)
-   real(r8), pointer :: icinc_grid(pcols,pver)
-#else   
+   real(r8), pointer :: ls_icwnc_grid(:,:)
+   real(r8), pointer :: ls_icinc_grid(:,:)
+#endif
    real(r8) :: icwnc_grid(pcols,pver)
    real(r8) :: icinc_grid(pcols,pver)
-#end
    real(r8) :: qcreso_grid(pcols,pver)
    real(r8) :: melto_grid(pcols,pver)
    real(r8) :: mnuccco_grid(pcols,pver)
@@ -1623,8 +1621,8 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
 ! Fields needed by COSP with GPM support. Note that the naming convention is
 ! slightly changed (without the ls_ suffix) because icwnc and icinc were present
 ! in the previous code, and are used directly.
-   call pbuf_get_field(pbuf, ls_icwnc_idx,    icwnc,    col_type=col_type)
-   call pbuf_get_field(pbuf, ls_icinc_idx,    icinc,    col_type=col_type)
+   call pbuf_get_field(pbuf, ls_icwnc_idx,    ls_icwnc,    col_type=col_type)
+   call pbuf_get_field(pbuf, ls_icinc_idx,    ls_icinc,    col_type=col_type)
 #endif
    call pbuf_get_field(pbuf, iciwpst_idx,     iciwpst,     col_type=col_type)
    call pbuf_get_field(pbuf, iclwpst_idx,     iclwpst,     col_type=col_type)
@@ -1680,8 +1678,8 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
 ! Fields needed by COSP with GPM support. Note that the naming convention is
 ! slightly changed (without the ls_ suffix) because icwnc_grid and icinc_grid were present
 ! in the previous code, and are used directly.
-      call pbuf_get_field(pbuf, ls_icwnc_idx,    icwnc_grid)
-      call pbuf_get_field(pbuf, ls_icinc_idx,    icinc_grid)
+      call pbuf_get_field(pbuf, ls_icwnc_idx,    ls_icwnc_grid)
+      call pbuf_get_field(pbuf, ls_icinc_idx,    ls_icinc_grid)
 #endif
       call pbuf_get_field(pbuf, iciwpst_idx,     iciwpst_grid)
       call pbuf_get_field(pbuf, iclwpst_idx,     iclwpst_grid)
@@ -2380,7 +2378,11 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
          end where
       end do
    end if
-
+#ifdef GPM_TWO_MOMENT
+   ! copy number concentration fields for COSP GPM use
+   ls_icwnc = icwnc
+   ls_icinc = icinc
+#endif
    ! ------------------------------------------------------ !
    ! ------------------------------------------------------ !
    ! All code from here to the end is on grid columns only  !
@@ -2435,7 +2437,11 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
 
       call subcol_field_avg(state_loc%q(:,:,ixnumliq), ngrdcol, lchnk, nc_grid)
       call subcol_field_avg(state_loc%q(:,:,ixnumice), ngrdcol, lchnk, ni_grid)
-
+#ifdef GPM_TWO_MOMENT
+! if sub-column is used, copy the grid mean fields 
+      ls_icwnc_grid = icwnc_grid
+      ls_icinc_grid = icinc_grid
+#endif
       if (micro_mg_version > 1) then
          call subcol_field_avg(cldmax,    ngrdcol, lchnk, cldmax_grid)
 
