@@ -379,7 +379,6 @@
       enddo
       enddo
 
-      if (icells > 0) then
          allocate (atrcr(icells,ntrcr))
          
          !-----------------------------------------------------------------
