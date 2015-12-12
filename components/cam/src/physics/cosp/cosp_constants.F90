@@ -54,6 +54,7 @@ MODULE MOD_COSP_CONSTANTS
 
     ! Number of possible output variables
     integer,parameter :: N_OUT_LIST = 65 !+JEK 1.3 CESM mods changed from 45 to 47, I'll change this from 63 to 65
+                                         ! +YLU this number may need to increase if GPM is used. Consider later.
     integer,parameter :: N3D = 8
     integer,parameter :: N2D = 14
     integer,parameter :: N1D = 40

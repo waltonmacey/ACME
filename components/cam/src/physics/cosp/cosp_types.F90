@@ -57,7 +57,7 @@ MODULE MOD_COSP_TYPES
                 Lcltmodis,Lclwmodis,Lclimodis,Lclhmodis,Lclmmodis,Lcllmodis,Ltautmodis,Ltauwmodis,Ltauimodis,Ltautlogmodis, &
                 Ltauwlogmodis,Ltauilogmodis,Lreffclwmodis,Lreffclimodis,Lpctmodis,Llwpmodis, &
                 Liwpmodis,Lclmodis
-     character(len=32) :: out_list(N_OUT_LIST)  ! YLu: here may need to be changed for GPM
+     character(len=32) :: out_list(N_OUT_LIST)
   END TYPE COSP_CONFIG
   
   ! Outputs from RTTOV
@@ -413,6 +413,7 @@ MODULE MOD_COSP_TYPES
     real,dimension(:,:,:),pointer :: Reff
 
     ! Total Number Concentration [#/kg]. (Npoints,Nlevels,Nhydro) -- OPTIONAL, value of 0 mean use fixed default
+    real,dimension(:,:,:),pointer :: Np ! added by Roj with Quickbeam V3
 #ifdef GPM_TWO_MOMENT
     real,dimension(:,:,:),pointer :: mr_hydro_gpm ! Mixing ratio of each hydrometeor for GPM simulator (Npoints,Nlevels,Nhydro) [kg/kg]
     real,dimension(:,:,:),pointer :: Np_gpm ! added by Roj with Quickbeam V3

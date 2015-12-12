@@ -380,7 +380,7 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
             if (cfg%Lgpmka_sim) call cosp_gpmdprstats_cpsection(ix,iy,stgpmka,stgpmka_it)
 #endif
 #ifdef RTTOV
-               call cosp_iter(overlap,seed(ix(1):ix(2)),cfg,vgrid_it,gbx_it,sgx_it,sgradar_it, &
+            call cosp_iter(overlap,seed(ix(1):ix(2)),cfg,vgrid_it,gbx_it,sgx_it,sgradar_it, &
                            sglidar_it,isccp_it,misr_it,modis_it,rttov_it,stradar_it,stlidar_it &
 #ifdef GPM_KU
                            ,sggpmku_it, stgpmku_it&

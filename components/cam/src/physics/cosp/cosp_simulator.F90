@@ -57,7 +57,7 @@ CONTAINS
 !--------------------- SUBROUTINE COSP_SIMULATOR ------------------
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 #ifdef RTTOV
-SUBROUTINE COSP_SIMULATOR(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,modis,rttov,stradar,stlidari &
+SUBROUTINE COSP_SIMULATOR(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,modis,rttov,stradar,stlidar &
 #ifdef GPM_KU
                            ,sggpmku, stgpmku &
 #endif

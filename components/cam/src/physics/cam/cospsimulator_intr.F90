@@ -1930,7 +1930,7 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    ! 5) !! Note: after running COSP, it looks like height_mlev is actually the model levels after all!!
 
    real(r8) :: clisccp2(pcols,ntau_cosp,nprs_cosp)      ! clisccp2 (time,tau,plev,profile)
-   real(r8) :: cfad_dbze94(pcols,ndbze_cosp,nht_cosp)   ! cfad_dbze94 (time,height,dbze,profile)  
+   real(r8) :: cfad_dbze94(pcols,ndbze_cosp,nht_cosp)   ! cfad_dbze94 (time,height,dbze,profile)
 #ifdef GPM_KU
    real(r8) :: cfad_dbzegpmku(pcols,ndbze_cosp,nht_cosp)!cfad_dbzegpmku (time,height,dbze,profile) ! +YLu
 #endif
@@ -2620,7 +2620,6 @@ end if
    end if  !!if cam4/cam3
 
    if( cam_physpkg_is('cam5') ) then
-
       use_precipitation_fluxes = .true.      !!! consistent with cam4 implementation.
       ! add together deep and shallow convection precipitation fluxes, recall *_flxprc variables are rain+snow
       rain_cv(1:ncol,1:pverp) = (sh_flxprc(1:ncol,1:pverp)-sh_flxsnw(1:ncol,1:pverp)) + &
@@ -4415,7 +4414,7 @@ if (lradar_sim) then
         end do
         end do
 #endif
-! CAM cfad_dbze94 (time,height,dbze,profile) 
+        ! CAM cfad_dbze94 (time,height,dbze,profile) 
         do ih=1,nht_cosp
         do id=1,ndbze_cosp
            ihd=(ih-1)*ndbze_cosp+id                     
