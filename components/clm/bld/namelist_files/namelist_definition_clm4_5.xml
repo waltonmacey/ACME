@@ -96,6 +96,27 @@ over-productive.
     ALL            = Supplemental Phosphorus is active for all vegetation types
 </entry>
 
+
+<entry id="nu_com" type="char*15" category="clm_physics"
+       group="clm_inparm" valid_values="RD,ECA,MIC" >
+Nutrient competition mode. In each specific mode, plants/soil microbes have the different
+priority to access soil nitrogen and phosphorus.
+    RD           = competition scaled by relative nutrient demand
+    ECA          = competition scaled by equilibrium chemical approximation theory
+    MIC          = always assume that soil microbes out-compete plants
+</entry>
+
+<entry id="nu_com_phosphatase" type="logical" category="clm_physics"
+       group="clm_inparm" valid_values="" >
+If TRUE, use new phosphatase activity algorithm that comes with nu_com module
+</entry>
+
+<entry id="nu_com_nfix" type="logical" category="clm_physics"
+       group="clm_inparm" valid_values="" >
+If TRUE, use new N2 fixation algorithm that comes with nu_com module
+</entry>
+
+
 <entry id="create_crop_landunit" type="logical" category="clm_physics"
        group="clm_inparm" valid_values="" >
 If TRUE, separate the vegetated landunit into a crop landunit and a natural vegetation landunit
@@ -358,6 +379,26 @@ Per tape series history write frequency.
     negative means hours
 (i.e. 5 means every 24 time-steps and -24 means every day
 <default>Default: 0,-24,-24,-24,-24,-24</default>
+</entry>
+
+<entry id="metdata_type" type="char*400" category="datasets"
+       group="clm_inparm" valid_values="">
+</entry>
+
+<entry id="metdata_bypass" type="char*400" category="datasets"
+       group="clm_inparm" valid_values="">
+</entry>
+
+<entry id="metdata_biases" type="char*400" category="datasets"
+       group="clm_inparm" valid_values="">
+</entry>
+
+<entry id="co2_file" type="char*400" category="datasets"
+       group="clm_inparm" valid_values="">
+</entry>
+
+<entry id="aero_file" type="char*400" category="datasets"
+       group="clm_inparm" valid_values="">
 </entry>
 
 <entry id="nsegspc" type="integer" category="clm_performance"
@@ -854,6 +895,42 @@ Mapping method from Nitrogen deposition input file to the model resolution
 </entry>
 
 <!-- ========================================================================================  -->
+<!-- pdepdyn streams Namelist (only used when bgc=cn/cndv)                                     -->
+<!-- ========================================================================================  -->
+
+<entry id="stream_year_first_pdep" type="integer" category="datasets"
+       group="pdepdyn_nml" valid_values="" >
+First year to loop over for Phosphorus Deposition data
+</entry>
+
+<entry id="stream_year_last_pdep" type="integer" category="datasets"
+       group="pdepdyn_nml" valid_values="" >
+Last year to loop over for Phosphorus Deposition data
+</entry>
+
+<entry id="model_year_align_pdep" type="integer" category="datasets"
+       group="pdepdyn_nml" valid_values="" >
+Simulation year that aligns with stream_year_first_pdep value
+</entry>
+
+<entry id="stream_fldfilename_pdep" type="char*256" category="datasets"
+       input_pathname="abs" group="pdepdyn_nml" valid_values="" >
+Filename of input stream data for Phosphorus Deposition
+</entry>
+
+<entry id="pdepmapalgo" type="char*256" category="datasets"
+       group="pdepdyn_nml" valid_values="bilinear,nn,nnoni,nnonj,spval,copy" >
+Mapping method from Phosphorus deposition input file to the model resolution
+    bilinear = bilinear interpolation
+    nn       = nearest neighbor
+    nnoni    = nearest neighbor on the "i" (longitude) axis
+    nnonj    = nearest neighbor on the "j" (latitude) axis
+    spval    = set to special value
+    copy     = copy using the same indices
+</entry>
+
+
+<!-- ========================================================================================  -->
 <!-- lai_streams streams Namelist (when phys = CLM4_5)                              -->
 <!-- ========================================================================================  -->
 
@@ -1142,6 +1219,14 @@ Flag for setting the state of the Accelerated decomposition spinup state for the
 Entering and exiting spinup mode occurs automatically by comparing the namelist and restart file values for this variable.
 </entry>
 
+<entry id="nyears_ad_carbon_only" type="integer" category="clm_vertcn"
+       group="clm_inparm" valid_values="" >
+</entry>
+
+<entry id="spinup_mortality_factor" type="real" category="clm_vertcn"
+       group="clm_inparm" valid_values="" >
+</entry>
+
 <!-- vertical mixing switches    -->
 <entry id="som_adv_flux" type="real" category="clm_vertcn"
        group="clm_inparm" valid_values="" >
@@ -1405,6 +1490,36 @@ If TRUE then use mapped MEGAN emissions factors for isoprene.
 List of possible MEGAN compounds to use
   (the list used by the simulation is on the megan_factors_file as the Comp_Name)
 </entry> 
+
+<!-- ========================================================================================  -->
+<!-- Namelist options controlling prescribed subgrid dynamics                                  -->
+<!-- ========================================================================================  -->
+
+<entry id="flanduse_timeseries" type="char*256" category="datasets"
+       input_pathname="abs" group="dynamic_subgrid" valid_values="" >
+Full pathname of time varying landuse data file. This causes the land-use types of
+the initial surface dataset to vary over time.
+</entry>
+
+<entry id="do_transient_pfts" type="logical" category="physics"
+       group="dynamic_subgrid" valid_values="" >
+If TRUE, apply transient natural PFTs from flanduse_timeseries file.
+(Only valid for transient runs, where there is a flanduse_timeseries file.)
+</entry>
+
+<entry id="do_transient_crops" type="logical" category="physics"
+       group="dynamic_subgrid" valid_values="" >
+If TRUE, apply transient crops from flanduse_timeseries file.
+(Only valid for transient runs, where there is a flanduse_timeseries file.)
+(Also, only valid for use_crop = true.)
+</entry>
+
+<entry id="do_harvest" type="logical" category="physics"
+       group="dynamic_subgrid" valid_values="" >
+If TRUE, apply harvest from flanduse_timeseries file.
+(Only valid for transient runs, where there is a flanduse_timeseries file.)
+(Also, only valid for use_cn = true.)
+</entry>
 
 <!-- ========================================================================================  -->
 <!-- Namelist options related to finidat consistency checks                                    -->

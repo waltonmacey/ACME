@@ -60,6 +60,7 @@ module clm_driver
   use CNDVDriverMod          , only : CNDVDriver, CNDVHIST
   use SatellitePhenologyMod  , only : SatellitePhenology, interpMonthlyVeg
   use ndepStreamMod          , only : ndep_interp
+  use pdepStreamMod          , only : pdep_interp
   use ActiveLayerMod         , only : alt_calc
   use ch4Mod                 , only : ch4
   use DUSTMod                , only : DustDryDep, DustEmission
@@ -382,6 +383,7 @@ contains
     ! re-written to go inside.
     ! ============================================================================
 
+#ifndef CPL_BYPASS
     if (use_cn) then
        call t_startf('ndep_interp')
        ! PET: switching CN timestep
@@ -389,6 +391,21 @@ contains
        call CNFireInterp(bounds_proc)
        call t_stopf('ndep_interp')
     end if
+
+    ! ============================================================================
+    ! Update dynamic P deposition field, on albedo timestep
+    ! currently being done outside clumps loop, but no reason why it couldn't be
+    ! re-written to go inside.
+    ! ============================================================================
+
+    if (use_cn) then
+       call t_startf('pdnep_interp')
+       ! PET: switching CN timestep
+       call pdep_interp(bounds_proc, atm2lnd_vars)
+       call t_stopf('pdep_interp')
+    end if
+
+#endif
 
     ! ============================================================================
     ! Initialize variables from previous time step, downscale atm forcings, and
@@ -501,7 +518,7 @@ contains
             atm2lnd_vars, canopystate_vars, cnstate_vars, energyflux_vars,               &
             frictionvel_vars, soilstate_vars, solarabs_vars, surfalb_vars,               &
             temperature_vars, waterflux_vars, waterstate_vars, ch4_vars, photosyns_vars, &
-            EDbio_vars, soil_water_retention_curve) 
+            EDbio_vars, soil_water_retention_curve, nitrogenstate_vars,phosphorusstate_vars) 
        call t_stopf('canflux')
 
        ! Fluxes for all urban landunits
@@ -1649,10 +1666,12 @@ contains
 
     else
 
+#ifndef CPL_BYPASS
        if (masterproc) then
           write(iulog,*)'clm: completed timestep ',nstep
           call shr_sys_flush(iulog)
        end if
+#endif
 
     endif
 

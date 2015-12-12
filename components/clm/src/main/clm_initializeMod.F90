@@ -397,6 +397,7 @@ contains
     use ndepStreamMod         , only : ndep_init, ndep_interp
     use CNEcosystemDynMod     , only : CNEcosystemDynInit
     use CNEcosystemDynBetrMod , only : CNEcosystemDynBetrInit    
+    use pdepStreamMod         , only : pdep_init, pdep_interp
     use CNDecompCascadeBGCMod , only : init_decompcascade_bgc
     use CNDecompCascadeCNMod  , only : init_decompcascade_cn
     use CNDecompCascadeContype, only : init_decomp_cascade_constants
@@ -754,6 +755,8 @@ contains
        call nitrogenstate_vars%Init(bounds_proc,                      &
             carbonstate_vars%leafc_patch(begp:endp),                  &
             carbonstate_vars%leafc_storage_patch(begp:endp),          &
+            carbonstate_vars%frootc_patch(begp:endp),                 &
+            carbonstate_vars%frootc_storage_patch(begp:endp),         &
             carbonstate_vars%deadstemc_patch(begp:endp),              &
             carbonstate_vars%decomp_cpools_vr_col(begc:endc, 1:, 1:), &
             carbonstate_vars%decomp_cpools_col(begc:endc, 1:),        &
@@ -765,6 +768,8 @@ contains
        call phosphorusstate_vars%Init(bounds_proc,                    &
             carbonstate_vars%leafc_patch(begp:endp),                  &
             carbonstate_vars%leafc_storage_patch(begp:endp),          &
+            carbonstate_vars%frootc_patch(begp:endp),                 &
+            carbonstate_vars%frootc_storage_patch(begp:endp),         &
             carbonstate_vars%deadstemc_patch(begp:endp),              &
             carbonstate_vars%decomp_cpools_vr_col(begc:endc, 1:, 1:), &
             carbonstate_vars%decomp_cpools_col(begc:endc, 1:),        &
@@ -989,6 +994,18 @@ contains
        call ndep_interp(bounds_proc, atm2lnd_vars)
        call t_stopf('init_ndep')
     end if
+    
+    ! ------------------------------------------------------------------------
+    ! Initialize phosphorus deposition
+    ! ------------------------------------------------------------------------
+
+    if (use_cn) then
+       call t_startf('init_pdep')
+       call pdep_init(bounds_proc)
+       call pdep_interp(bounds_proc, atm2lnd_vars)
+       call t_stopf('init_pdep')
+    end if
+ 
 
     ! ------------------------------------------------------------------------
     ! Initialize active history fields. 
