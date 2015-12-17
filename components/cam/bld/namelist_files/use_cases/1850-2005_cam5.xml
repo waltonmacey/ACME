@@ -24,6 +24,16 @@
 <num_a1_emis_file  chem="trop_mam3">atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_num_a1_surf_1850-2005_c090804.nc </num_a1_emis_file>
 <num_a2_emis_file  chem="trop_mam3">atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_num_a2_surf_1850-2005_c090804.nc </num_a2_emis_file>
 
+<dms_emis_file	   chem="linoz_mam3">atm/cam/chem/trop_mozart_aero/emis/aerocom_mam3_dms_surf_1849-2006_c090804.nc</dms_emis_file>
+<so2_emis_file	   chem="linoz_mam3">atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_so2_surf_1850-2005_c090804.nc    </so2_emis_file>
+<soag_emis_file	   chem="linoz_mam3">atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_soag_1.5_surf_1850-2005_c130424.nc</soag_emis_file>
+<bc_a1_emis_file   chem="linoz_mam3">atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_bc_surf_1850-2005_c090804.nc     </bc_a1_emis_file>
+<pom_a1_emis_file  chem="linoz_mam3">atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_pom_surf_1850-2005_c130424.nc    </pom_a1_emis_file>
+<so4_a1_emis_file  chem="linoz_mam3">atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_so4_a1_surf_1850-2005_c090804.nc </so4_a1_emis_file>
+<so4_a2_emis_file  chem="linoz_mam3">atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_so4_a2_surf_1850-2005_c090804.nc </so4_a2_emis_file>
+<num_a1_emis_file  chem="linoz_mam3">atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_num_a1_surf_1850-2005_c090804.nc </num_a1_emis_file>
+<num_a2_emis_file  chem="linoz_mam3">atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_num_a2_surf_1850-2005_c090804.nc </num_a2_emis_file>
+
 <!-- External forcing for MAM -->
 <ext_frc_type>INTERP_MISSING_MONTHS</ext_frc_type>
 <so2_ext_file      chem="trop_mam3">atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_so2_elev_1850-2005_c090804.nc    </so2_ext_file>
@@ -33,6 +43,14 @@
 <num_a2_ext_file   chem="trop_mam3">atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_num_a2_elev_1850-2005_c090804.nc </num_a2_ext_file>
 <pom_a1_ext_file   chem="trop_mam3">atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_pom_elev_1850-2005_c130424.nc    </pom_a1_ext_file>
 <bc_a1_ext_file    chem="trop_mam3">atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_bc_elev_1850-2005_c090804.nc     </bc_a1_ext_file>
+
+<so2_ext_file      chem="linoz_mam3">atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_so2_elev_1850-2005_c090804.nc    </so2_ext_file>
+<so4_a1_ext_file   chem="linoz_mam3">atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_so4_a1_elev_1850-2005_c090804.nc </so4_a1_ext_file>
+<so4_a2_ext_file   chem="linoz_mam3">atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_so4_a2_elev_1850-2005_c090804.nc </so4_a2_ext_file>
+<num_a1_ext_file   chem="linoz_mam3">atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_num_a1_elev_1850-2005_c090804.nc </num_a1_ext_file>
+<num_a2_ext_file   chem="linoz_mam3">atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_num_a2_elev_1850-2005_c090804.nc </num_a2_ext_file>
+<pom_a1_ext_file   chem="linoz_mam3">atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_pom_elev_1850-2005_c130424.nc    </pom_a1_ext_file>
+<bc_a1_ext_file    chem="linoz_mam3">atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_bc_elev_1850-2005_c090804.nc     </bc_a1_ext_file>
 
 <!-- Volcanic aerosol from eruptions is from Caspar Ammann -->
 <prescribed_volcaero_datapath>atm/cam/volc</prescribed_volcaero_datapath>
