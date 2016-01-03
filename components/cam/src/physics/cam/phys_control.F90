@@ -39,6 +39,7 @@ character(len=16) :: cam_physpkg          = unset_str  ! CAM physics package [ca
 character(len=32) :: cam_chempkg          = unset_str  ! CAM chemistry package [waccm_mozart | 
                                                        !  waccm_ghg | trop_mozart | trop_ghg | 
                                                        !  trop_bam | trop_mam3 | trop_mam7 | 
+                                                       !  linoz_mam3 | linoz_mam4_resus | 
                                                        !  super_fast_llnl | super_fast_llnl_mam3 | 
                                                        !  waccm_mozart_mam3 | none
 character(len=16) :: waccmx_opt           = unset_str  ! WACCMX run option [ionosphere | neutral | off
@@ -298,6 +299,8 @@ subroutine phys_ctl_readnl(nlfile)
                       .or. cam_chempkg_is('trop_mam4') &
                       .or. cam_chempkg_is('trop_mam4_resus') &
                       .or. cam_chempkg_is('trop_mam7') &
+                      .or. cam_chempkg_is('linoz_mam3') &
+                      .or. cam_chempkg_is('linoz_mam4_resus') &
                       .or. cam_chempkg_is('super_fast_llnl_mam3') &
                       .or. cam_chempkg_is('trop_mozart_mam3') &
                       .or. cam_chempkg_is('trop_strat_mam3') &
