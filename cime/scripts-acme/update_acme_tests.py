@@ -21,6 +21,12 @@ _TEST_SUITES = {
                     "TESTRUNPASS_P1.f45_g37_rx1.A")
                    ),
 
+    "acme_test_only_slow_pass" : (None,
+                   ("TESTRUNSLOWPASS_P1.f19_g16_rx1.A",
+                    "TESTRUNSLOWPASS_P1.ne30_g16_rx1.A",
+                    "TESTRUNSLOWPASS_P1.f45_g37_rx1.A")
+                   ),
+
     "acme_test_only" : (None,
                    ("TESTBUILDFAIL.f19_g16_rx1.A",
                     "TESTRUNFAIL_P1.f19_g16_rx1.A",
@@ -33,6 +39,17 @@ _TEST_SUITES = {
                               "SMS.hcru_hcru.I1850CRUCLM45CN")
                              ),
 
+    "acme_atm_developer" : (None,
+                            ("ERS.ne16_ne16.FC5MAM4",
+                             "ERS.ne16_ne16.FC5PLMOD",
+                             "ERS.ne16_ne16.FC5CLBMG2",
+                             "ERS.ne16_ne16.FC5CLBMG2MAM4",
+                             "ERS.ne16_ne16.FC5CLBMG2MAM4RESUS",
+                             "ERS.ne16_ne16.FC5CLBMG2MAM4RESUSCOSP",
+                             "ERS.ne16_ne16.FC5CLBMG2MAM4RESUSCOSPBC",
+                             "ERS.ne16_ne16.FC5ATMMOD")
+                            ),
+
     "acme_developer" : ("acme_land_developer",
                         ("ERS.f19_g16_rx1.A",
                          "ERS.f45_g37_rx1.DTEST",
@@ -44,6 +61,7 @@ _TEST_SUITES = {
                          "ERS_IOP4c.ne30_g16_rx1.A",
                          "ERS_IOP4p.f19_g16_rx1.A",
                          "ERS_IOP4p.ne30_g16_rx1.A",
+                         ("ERP_Ln9.ne30_ne30.FC5", "cam-outfrq9s"),
                          "NCK.f19_g16_rx1.A",
                          "PEA_P1_M.f45_g37_rx1.A",
                          "SMS.ne30_f19_g16_rx1.A",
@@ -66,14 +84,17 @@ _TEST_SUITES = {
                            "ERS_Ld3.ne16_g37.FC5",
                            "ERS_Ld3.ne30_ne30.FC5",
                            "ERT.ne16_g37.B1850C5",
+                           ("PET_PT_Ln9.ne30_ne30.FC5", "cam-outfrq9s"),
                            "PET_PT.f19_g16.X",
                            "PET_PT.f45_g37_rx1.A",
                            "PFS.ne30_ne30.FC5",
                            "SEQ_IOP_PFC.f19_g16.X",
                            "SEQ_PFC.f45_g37.B1850C5",
+                           "SMS.ne30_m120.A_B1850CN",
                            "SMS.ne16_ne16.FC5AQUAP",
                            "SMS_D.f19_g16.B20TRC5",
-                           "SMS_D_Ld3.ne16_ne16.FC5")
+                           "SMS_D_Ld3.ne16_ne16.FC5",
+                           "SMS.f09_g16_a.MPASLIALB_ONLY")
                           ),
 }
 
@@ -112,7 +133,7 @@ def get_test_suite(suite, machine=None, compiler=None):
         tests.append(acme_util.get_full_test_name(test_name, machine, compiler, testmod=test_mod))
 
     if (inherits_from is not None):
-        inherited_tests = get_test_suite(inherits_from)
+        inherited_tests = get_test_suite(inherits_from, machine, compiler)
 
         expect(len(set(tests) & set(inherited_tests)) == 0,
                "Tests %s defined in multiple suites" % ", ".join(set(tests) & set(inherited_tests)))
@@ -138,6 +159,9 @@ def get_full_test_names(testargs, machine, compiler):
     >>> get_full_test_names(["acme_tiny"], "melvin", "gnu")
     ['ERS.f19_g16_rx1.A.melvin_gnu', 'NCK.f19_g16_rx1.A.melvin_gnu']
 
+    >>> get_full_test_names(["acme_tiny"], "melvin", "intel")
+    ['ERS.f19_g16_rx1.A.melvin_intel', 'NCK.f19_g16_rx1.A.melvin_intel']
+
     >>> get_full_test_names(["acme_tiny", "PEA_P1_M.f45_g37_rx1.A"], "melvin", "gnu")
     ['ERS.f19_g16_rx1.A.melvin_gnu', 'NCK.f19_g16_rx1.A.melvin_gnu', 'PEA_P1_M.f45_g37_rx1.A.melvin_gnu']
 
@@ -156,13 +180,13 @@ def get_full_test_names(testargs, machine, compiler):
         if (testarg.startswith("^")):
             negations.add(testarg[1:])
         elif (testarg in acme_test_suites):
-            tests_to_run.update(get_test_suite(testarg))
+            tests_to_run.update(get_test_suite(testarg, machine, compiler))
         else:
             tests_to_run.add(acme_util.get_full_test_name(testarg, machine, compiler))
 
     for negation in negations:
         if (negation in acme_test_suites):
-            for test, testmod in get_test_suite(negation):
+            for test, testmod in get_test_suite(negation, machine, compiler):
                 fullname = acme_util.get_full_test_name(test, machine, compiler, testmod)
                 if (fullname in tests_to_run):
                     tests_to_run.remove(fullname)

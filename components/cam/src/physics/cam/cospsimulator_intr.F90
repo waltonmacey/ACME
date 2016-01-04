@@ -904,6 +904,7 @@ subroutine cospsimulator_intr_init
    integer ncid,latid,lonid,did,hrid,minid,secid, istat
    !------------------------------------------------------------------------------
 
+#ifdef COSP_ATRAIN
 if (cosp_sample_atrain) then
 
 !!!! READ IN ATRAIN ORBIT DATA FROM INPUT FILE FOR SUB-SAMPLING
@@ -951,6 +952,8 @@ if (cosp_sample_atrain) then
 #endif
 
 endif
+
+#endif
 
 ! ADDFLD ADD_DEFAULT CALLS FOR COSP OUTPUTS
 ! notes on addfld/add_default/outfld calls:  
@@ -3953,6 +3956,7 @@ cfg%Lclmodis= .false.
 ! Subsetting using an orbital curtain for radar and lidar simulators
 ! Note: This is a very basic implementation and should be checked with other groups.
 
+#ifdef COSP_ATRAIN
 if (cosp_sample_atrain) then
 
 ! Subsetting using the orbit data file.
@@ -4144,6 +4148,21 @@ else  !! not atrain sampling,
     end do
 
 end if ! if atrain sampling
+#else
+    !!! assign indices for compression (note: code for day/nite from radsw.F90)
+    Natrain = 0
+    Nno = 0
+    do i = 1, ncol
+       !! figure out if columns meets run_cosp criterion 
+        if (run_cosp(i,lchnk)) then
+          Natrain = Natrain + 1
+          IdxAtrain(Natrain) = i
+       else
+          Nno = Nno + 1
+          IdxNo(Nno) = i
+       end if
+    end do
+#endif
 
 Npoints = Natrain
 
