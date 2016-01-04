@@ -395,7 +395,18 @@ module cospsimulator_intr
     integer :: shcldliq_idx, shcldice_idx, shcldliq1_idx, shcldice1_idx, dpflxprc_idx
     integer :: dpflxsnw_idx, shflxprc_idx, shflxsnw_idx, lsflxprc_idx, lsflxsnw_idx
     integer:: rei_idx, rel_idx
+#ifdef GPM_TWO_MOMENT
+    integer :: &
+        gpm_ls_ncwat_idx,& ! cloud water number concentration
+        gpm_ls_ncice_idx,& ! cloud ice number concentration
+        gpm_ls_nrain_idx,& ! rain number concentration
+        gpm_ls_nsnow_idx,& ! snow number concentration
 
+        gpm_ls_qcwat_idx,& ! cloud water mixing ratio
+        gpm_ls_qcice_idx,& ! cloud ice mixing ratio
+        gpm_ls_qrain_idx,& ! rain mixing ratio
+        gpm_ls_qsnow_idx   ! snow mixing ratio
+#endif
 
 
 CONTAINS
@@ -1524,6 +1535,12 @@ endif
       lsreffsnow_idx = pbuf_get_index('LS_REFFSNOW')
       cvreffliq_idx  = pbuf_get_index('CV_REFFLIQ')
       cvreffice_idx  = pbuf_get_index('CV_REFFICE')
+#ifdef GPM_TWO_MOMENT
+      gpm_ls_qcwat_idx = pbuf_get_index('GPM_LS_QCWAT')
+      gpm_ls_qcice_idx = pbuf_get_index('GPM_LS_QCICE')
+      gpm_ls_qrain_idx = pbuf_get_index('GPM_LS_QRAIN')
+      gpm_ls_qsnow_idx = pbuf_get_index('GPM_LS_QSNOW')
+#endif
    end if
 
    dpcldliq_idx  = pbuf_get_index('DP_CLDLIQ')
@@ -1538,7 +1555,12 @@ endif
    shflxsnw_idx  = pbuf_get_index('SH_FLXSNW')
    lsflxprc_idx  = pbuf_get_index('LS_FLXPRC')
    lsflxsnw_idx  = pbuf_get_index('LS_FLXSNW')
-
+#ifdef GPM_TWO_MOMENT
+   gpm_ls_ncwat_idx = pbuf_get_index('GPM_LS_NCWAT')
+   gpm_ls_ncice_idx = pbuf_get_index('GPM_LS_NCICE')
+   gpm_ls_nrain_idx = pbuf_get_index('GPM_LS_NRAIN')
+   gpm_ls_nsnow_idx = pbuf_get_index('GPM_LS_NSNOW')
+#endif
     allocate(first_run_cosp(begchunk:endchunk))
     first_run_cosp(begchunk:endchunk)=.true.
     allocate(run_cosp(1:pcols,begchunk:endchunk))
@@ -1567,7 +1589,12 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
 
 #ifdef USE_COSP
    ! cosp simulator package, COSP code was copied into CAM source tree and is compiled as a separate library
+#ifdef GPM_TWO_MOMENT
+   use mod_cosp_constants, only : R_UNDEF, i_cvcice, parasol_nrefl, i_cvcliq, i_lscliq, i_lscice, &
+                                  I_LSRAIN, I_LSSNOW
+#else
    use mod_cosp_constants, only : R_UNDEF, i_cvcice, parasol_nrefl, i_cvcliq, i_lscliq, i_lscice
+#endif
    use mod_cosp_types,   only: construct_cosp_gridbox,construct_cosp_vgrid,construct_cosp_subgrid, &
                                 construct_cosp_sgradar,construct_cosp_radarstats,construct_cosp_sglidar, &
                                 construct_cosp_lidarstats,construct_cosp_isccp,construct_cosp_misr, &
@@ -1881,6 +1908,18 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    real(r8), pointer, dimension(:,:) :: ls_reffsnow    ! snow effective drop size (microns)
    real(r8), pointer, dimension(:,:) :: cv_reffliq     ! convective cld liq effective drop radius (microns)
    real(r8), pointer, dimension(:,:) :: cv_reffice     ! convective cld ice effective drop size (microns)
+
+#ifdef GPM_TWO_MOMENT
+   real(r8), pointer, dimension(:,:) :: gpm_ls_ncwat   ! GPM large scale cloud water number concentration
+   real(r8), pointer, dimension(:,:) :: gpm_ls_ncice   ! GPM large scale cloud ice number concentration
+   real(r8), pointer, dimension(:,:) :: gpm_ls_nrain   ! GPM large scale rain number concentration
+   real(r8), pointer, dimension(:,:) :: gpm_ls_nsnow   ! GPM large scale snow number concentration
+
+   real(r8), pointer, dimension(:,:) :: gpm_ls_qcwat   ! GPM large scale cloud water mixing ratio
+   real(r8), pointer, dimension(:,:) :: gpm_ls_qcice   ! GPM large scale cloud ice mixing ratio
+   real(r8), pointer, dimension(:,:) :: gpm_ls_qrain   ! GPM large scale rain mixing ratio
+   real(r8), pointer, dimension(:,:) :: gpm_ls_qsnow   ! GPM large scale snow mixing ratio
+#endif
 
    !! precip flux pointers (use for cam4 or cam5)
    ! Added pointers;  pbuff in zm_conv_intr.F90, calc in zm_conv.F90 
@@ -2385,13 +2424,26 @@ end if
    call pbuf_get_field(pbuf, rel_idx, rel  )
 
    call pbuf_get_field(pbuf, rei_idx, rei)
-
+#ifdef GPM_TWO_MOMENT
+   call pbuf_get_field(pbuf, gpm_ls_ncwat_idx, gpm_ls_ncwat)
+   call pbuf_get_field(pbuf, gpm_ls_qcwat_idx, gpm_ls_qcwat)
+   call pbuf_get_field(pbuf, gpm_ls_ncice_idx, gpm_ls_ncice)
+   call pbuf_get_field(pbuf, gpm_ls_qcice_idx, gpm_ls_qcice)
+#endif
+ 
 !added some more sizes to physics buffer in stratiform.F90 for COSP inputs
    if( cam_physpkg_is('cam5') ) then
      call pbuf_get_field(pbuf, lsreffrain_idx, ls_reffrain  )
      call pbuf_get_field(pbuf, lsreffsnow_idx, ls_reffsnow  )
      call pbuf_get_field(pbuf, cvreffliq_idx,  cv_reffliq   )
      call pbuf_get_field(pbuf, cvreffice_idx,  cv_reffice   )
+     
+#ifdef GPM_TWO_MOMENT
+     call pbuf_get_field(pbuf, gpm_ls_nrain_idx, gpm_ls_nrain)
+     call pbuf_get_field(pbuf, gpm_ls_qrain_idx, gpm_ls_qrain)
+     call pbuf_get_field(pbuf, gpm_ls_nsnow_idx, gpm_ls_nsnow)
+     call pbuf_get_field(pbuf, gpm_ls_qsnow_idx, gpm_ls_qsnow)
+#endif
    end if
 
    ! Variables I added to physics buffer in other interfaces (not radiation.F90)
@@ -2878,6 +2930,9 @@ if (cosp_runall) then
    gbx%latitude = lat_cosp(1:ncol)                              ! lat (degrees_north)
 ! look at cosp_types.F90 in v1.3 for information on how these should be defined.
    gbx%p = state%pmid(1:ncol,pver:1:-1)                         ! Pressure at full model levels [Pa] (at model levels per yuying)
+#ifdef GPM_GMI
+   gbx%pint = state%pint(1:ncol,pverp:1:-1)
+#endif
    gbx%ph = pbot(1:ncol,1:pver)                                 ! Pressure at half model levels [Pa] (Bottom of model layer,flipped above)
    gbx%zlev = zmid(1:ncol,pver:1:-1)                            ! Height of model midpoint levels asl [m] (at model levels)
    gbx%zlev_half = zbot(1:ncol,1:pver)                          ! Height at half model levels asl [m] (Bottom of model layer, flipped above)
@@ -2899,6 +2954,19 @@ if (cosp_runall) then
    gbx%mr_hydro(:,:,I_LSCICE) = mr_lsice(1:ncol,pver:1:-1)      ! mr_lsice - mixing_ratio_large_scale_cloud_ice (kg/kg)
    gbx%mr_hydro(:,:,I_CVCLIQ) = mr_ccliq(1:ncol,pver:1:-1)      ! mr_ccliq - mixing_ratio_convective_cloud_liquid (kg/kg)
    gbx%mr_hydro(:,:,I_CVCICE) = mr_ccice(1:ncol,pver:1:-1)      ! mr_ccice - mixing_ratio_convective_cloud_ice (kg/kg)
+#ifdef GPM_TWO_MOMENT
+! use mixing ratio and number concentration for hydrometers for large scale
+! precipitation directly from MG2 microphysics
+   gbx%mr_hydro_gpm(:,:,I_LSCLIQ) = gpm_ls_qcwat
+   gbx%mr_hydro_gpm(:,:,I_LSCICE) = gpm_ls_qcice
+   gbx%mr_hydro_gpm(:,:,I_LSRAIN) = gpm_ls_qrain
+   gbx%mr_hydro_gpm(:,:,I_LSSNOW) = gpm_ls_qsnow
+
+   gbx%NP_gpm(:,:,I_LSCLIQ) = gpm_ls_ncwat
+   gbx%Np_gpm(:,:,I_LSCICE) = gpm_ls_ncice
+   gbx%Np_gpm(:,:,I_LSRAIN) = gpm_ls_nrain
+   gbx%Np_gpm(:,:,I_LSSNOW) = gpm_ls_nsnow
+#endif
    gbx%rain_ls = rain_ls_interp(1:ncol,pver:1:-1)               ! midpoint gbm ls rain flux  (kg m^-2 s^-1)
    gbx%snow_ls = snow_ls_interp(1:ncol,pver:1:-1)               ! midpoint gbm ls snow flux (kg m^-2 s^-1)      
    gbx%grpl_ls = grpl_ls_interp(1:ncol,pver:1:-1)               ! midpoint gbm ls graupel flux (kg m^-2 s^-1)

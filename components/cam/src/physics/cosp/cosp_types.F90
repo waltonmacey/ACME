@@ -368,6 +368,9 @@ MODULE MOD_COSP_TYPES
     real,dimension(:,:),pointer :: dlev ! Depth of model levels  [m]
     real,dimension(:,:),pointer :: p  ! Pressure at full model levels [Pa]
     real,dimension(:,:),pointer :: ph ! Pressure at half model levels [Pa]
+#ifdef GPM_GMI
+    real,dimension(:,:),pointer :: pint ! pressure level at model interface
+#endif
     real,dimension(:,:),pointer :: T ! Temperature at model levels [K]
     real,dimension(:,:),pointer :: q  ! Relative humidity to water (%)
     real,dimension(:,:),pointer :: sh ! Specific humidity to water [kg/kg]
@@ -1302,8 +1305,13 @@ CONTAINS
     allocate(y%ichan(Nchan),y%surfem(Nchan))
 #ifdef GPM_TWO_MOMENT
     allocate(y%mr_hydro_gpm(Npoints,Nlevels,Nhydro), &
-             y%Np(Npoints,Nlevels,Nhydro) )
-#endif    
+             y%Np_gpm(Npoints,Nlevels,Nhydro) )
+#endif 
+#ifdef GPM_GMI
+    ! second dimension of pint should be Nlevels +1, because pint is the
+    ! pressure at model interface, and Nlevels is the number of model levels.
+    allocate(y%pint(Npoints,Nlevels+1))
+#endif
     ! RTTOV parameters
     y%ichan   =  ichan
     y%surfem  =  surfem
@@ -1314,6 +1322,9 @@ CONTAINS
     y%dlev      = 0.0
     y%p         = 0.0
     y%ph        = 0.0
+#ifdef GPM_GMI
+    y%pint      = 0.0
+#endif
     y%T         = 0.0
     y%q         = 0.0
     y%sh        = 0.0
@@ -1500,6 +1511,9 @@ END SUBROUTINE CONSTRUCT_COSP_GRIDBOX
 #ifdef GPM_TWO_MOMENT
     deallocate(y%mr_hydro_gpm, y%Np_gpm)
 #endif
+#ifdef GPM_GMI
+    deallocate(y%pint)
+#endif
   END SUBROUTINE FREE_COSP_GRIDBOX
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1618,6 +1632,7 @@ SUBROUTINE COSP_SUBGRID_CPSECTION(ix,iy,x,y)
     
     y%prec_frac(iy(1):iy(2),:,:)  = x%prec_frac(ix(1):ix(2),:,:)
     y%frac_out(iy(1):iy(2),:,:)   = x%frac_out(ix(1):ix(2),:,:)
+    
 END SUBROUTINE COSP_SUBGRID_CPSECTION
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

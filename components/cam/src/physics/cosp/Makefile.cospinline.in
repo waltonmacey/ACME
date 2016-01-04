@@ -34,7 +34,8 @@ F90             := $(FC)
 F90FLAGS        := $(FREEFLAGS) $(FC_FLAGS) $(FC_AUTO_R8)
 F90FLAGS_noauto := $(FREEFLAGS) $(FC_FLAGS)
 F90FLAGS_fixed  := $(FIXEDFLAGS) $(FC_FLAGS) $(FC_AUTO_R8)
-
+CRTMFLAGS       := -I$(HOME)/local/CRTM/include
+GPM_PATH        := $(COSP_PATH)/gpm
 VPATH := $(COSP_PATH)
 
 ## +JEK - added - new in COSP1.4:calc_Re.o scale_LUTs_io.o radar_simulator_init.o 
@@ -51,7 +52,7 @@ OBJS =  cosp_radar.o cosp_types.o cosp_constants.o cosp_simulator.o \
         cosp_isccp_simulator.o icarus.o \
         cosp_misr_simulator.o MISR_simulator.o \
         cosp_modis_simulator.o modis_simulator.o \
-		  cosp_gpmdpr.o
+		  cosp_gpmdpr.o # gpm_gmi.o
 
 libcosp.a: $(OBJS)
 	ar cr libcosp.a $(OBJS)
@@ -68,6 +69,7 @@ cosp_radar.o    : cosp_constants.o cosp_types.o radar_simulator_types.o \
 	              array_lib.o atmos_lib.o format_input.o math_lib.o optics_lib.o
 cosp_gpmdpr.o   : cosp_constants.o cosp_types.o radar_simulator_types.o \
 	              array_lib.o atmos_lib.o format_input.o math_lib.o optics_lib.o
+#gpm_gmi.o       : cosp_types.o
 cosp_simulator.o: cosp_types.o cosp_radar.o cosp_lidar.o \
                   cosp_isccp_simulator.o cosp_misr_simulator.o \
                   cosp_modis_simulator.o cosp_stats.o \
@@ -168,6 +170,9 @@ cosp_radar.o : $(LLNL_PATH)/cosp_radar.F90
 cosp_gpmdpr.o : $(LLNL_PATH)/cosp_gpmdpr.F90
 	$(F90) $(F90FLAGS) -c $<
 
+#gpm_gmi.o : $(GPM_PATH)/gpm_gmi.F90
+#	$(F90) $(F90FLAGS) $(CRTMFLAGS)  -c $<
+#
 MISR_simulator.o : $(MISR_PATH)/MISR_simulator.f90
 	$(F90) $(F90FLAGS_fixed) -c $<
 

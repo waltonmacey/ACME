@@ -184,9 +184,18 @@ integer :: &
      ls_reffrain_idx, ls_reffsnow_idx, &
      cv_reffliq_idx,  cv_reffice_idx
 #ifdef GPM_TWO_MOMENT
-! Fields needed as inputs to COSP with GPM support
+! Fields needed as inputs to COSP with GPM support, assuming MG2 microphysics is
+! used
 integer :: &
-     ls_icwnc_idx, ls_icinc_idx
+     gpm_ls_ncwat_idx,& ! cloud water number concentration
+     gpm_ls_ncice_idx,& ! cloud ice number concentration
+     gpm_ls_nrain_idx,& ! rain number concentration
+     gpm_ls_nsnow_idx,& ! snow number concentration
+
+     gpm_ls_qcwat_idx,& ! cloud water mixing ratio
+     gpm_ls_qcice_idx,& ! cloud ice mixing ratio
+     gpm_ls_qrain_idx,& ! rain mixing ratio
+     gpm_ls_qsnow_idx   ! snow mixing ratio
 #endif
 ! Fields needed by Park macrophysics
 integer :: &
@@ -448,8 +457,15 @@ subroutine micro_mg_cam_register
 
 #ifdef GPM_TWO_MOMENT
   ! call pbuf_add_field('GPM_LS_QI', 'physpkg',dtype_r8,(/pcols,pver/),  ls_gpmlsqi_idx)
-  call pbuf_add_field('LS_ICWNC',   'physpkg',dtype_r8,(/pcols,pver/), ls_icwnc_idx)
-  call pbuf_add_field('LS_ICiNC',   'physpkg',dtype_r8,(/pcols,pver/), ls_icinc_idx)
+  call pbuf_add_field('GPM_LS_NCWAT',   'physpkg',dtype_r8,(/pcols,pver/), gpm_ls_ncwat_idx)
+  call pbuf_add_field('GPM_LS_NCICE',   'physpkg',dtype_r8,(/pcols,pver/), gpm_ls_ncice_idx)
+  call pbuf_add_field('GPM_LS_NRAIN',   'physpkg',dtype_r8,(/pcols,pver/), gpm_ls_nrain_idx)
+  call pbuf_add_field('GPM_LS_NSNOW',   'physpkg',dtype_r8,(/pcols,pver/), gpm_ls_nsnow_idx)
+  
+  call pbuf_add_field('GPM_LS_QCWAT',   'physpkg',dtype_r8,(/pcols,pver/), gpm_ls_qcwat_idx)
+  call pbuf_add_field('GPM_LS_QCICE',   'physpkg',dtype_r8,(/pcols,pver/), gpm_ls_qcice_idx)
+  call pbuf_add_field('GPM_LS_QRAIN',   'physpkg',dtype_r8,(/pcols,pver/), gpm_ls_qrain_idx)
+  call pbuf_add_field('GPM_LS_QSNOW',   'physpkg',dtype_r8,(/pcols,pver/), gpm_ls_qsnow_idx)
 #endif
 
   ! CC_* Fields needed by Park macrophysics
@@ -528,8 +544,15 @@ subroutine micro_mg_cam_register
     call pbuf_register_subcol('CV_REFFICE',  'micro_mg_cam_register', cv_reffice_idx)
 #ifdef GPM_TWO_MOMENT
 ! Fields needed as inputs to COSP with GPM support
-    call pbuf_register_subcol('LS_ICWNC',    'micro_mg_cam_register', ls_icwnc_idx)
-    call pbuf_register_subcol('LS_ICINC',    'micro_mg_cam_register', ls_icinc_idx)
+    call pbuf_register_subcol('GPM_LS_NCWAT',    'micro_mg_cam_register', gpm_ls_ncwat_idx)
+    call pbuf_register_subcol('GPM_LS_NCICE',    'micro_mg_cam_register', gpm_ls_ncice_idx)
+    call pbuf_register_subcol('GPM_LS_NRAIN',    'micro_mg_cam_register', gpm_ls_nrain_idx)
+    call pbuf_register_subcol('GPM_LS_NSNOW',    'micro_mg_cam_register', gpm_ls_nsnow_idx)
+    
+    call pbuf_register_subcol('GPM_LS_QCWAT',    'micro_mg_cam_register', gpm_ls_qcwat_idx)
+    call pbuf_register_subcol('GPM_LS_QCICE',    'micro_mg_cam_register', gpm_ls_qcice_idx)
+    call pbuf_register_subcol('GPM_LS_QRAIN',    'micro_mg_cam_register', gpm_ls_qrain_idx)
+    call pbuf_register_subcol('GPM_LS_QSNOW',    'micro_mg_cam_register', gpm_ls_qsnow_idx)
 #endif
   end if
 
@@ -1377,8 +1400,15 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
 #ifdef GPM_TWO_MOMENT
 ! If use COSP with GPM support, the icinc and icwnc should be in physics buffer,
 ! and should be declared as pointers
-   real(r8), pointer :: ls_icinc(:,:)   ! In cloud ice number conc
-   real(r8), pointer :: ls_icwnc(:,:)   ! In cloud water number conc
+   real(r8), pointer ::  gpm_ls_ncwat(:,:)  ! cloud water number concentration
+   real(r8), pointer ::  gpm_ls_ncice(:,:)  ! cloud ice number concentration
+   real(r8), pointer ::  gpm_ls_nrain(:,:)  ! rain number concentration
+   real(r8), pointer ::  gpm_ls_nsnow(:,:)  ! snow number concentration
+
+   real(r8), pointer ::  gpm_ls_qcwat(:,:)  ! cloud water mixing ratio
+   real(r8), pointer ::  gpm_ls_qcice(:,:)  ! cloud ice mixing ratio
+   real(r8), pointer ::  gpm_ls_qrain(:,:)  ! rain mixing ratio
+   real(r8), pointer ::  gpm_ls_qsnow(:,:)  ! snow mixing ratio
 #endif
    real(r8) :: icinc(state%psetcols,pver)   ! In cloud ice number conc
    real(r8) :: icwnc(state%psetcols,pver)   ! In cloud water number conc
@@ -1465,8 +1495,15 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
 #ifdef GPM_TWO_MOMENT
    ! if GPM two moment scheme is used, the icwnc_grid and icinc_grid will be in
    ! physics buffer and thus should be pointers
-   real(r8), pointer :: ls_icwnc_grid(:,:)
-   real(r8), pointer :: ls_icinc_grid(:,:)
+   real(r8), pointer ::  gpm_ls_ncwat_grid(:,:) ! cloud water number concentration
+   real(r8), pointer ::  gpm_ls_ncice_grid(:,:) ! cloud ice number concentration
+   real(r8), pointer ::  gpm_ls_nrain_grid(:,:) ! rain number concentration
+   real(r8), pointer ::  gpm_ls_nsnow_grid(:,:) ! snow number concentration
+
+   real(r8), pointer ::  gpm_ls_qcwat_grid(:,:) ! cloud water mixing ratio
+   real(r8), pointer ::  gpm_ls_qcice_grid(:,:) ! cloud ice mixing ratio
+   real(r8), pointer ::  gpm_ls_qrain_grid(:,:) ! rain mixing ratio
+   real(r8), pointer ::  gpm_ls_qsnow_grid(:,:) ! snow mixing ratio
 #endif
    real(r8) :: icwnc_grid(pcols,pver)
    real(r8) :: icinc_grid(pcols,pver)
@@ -1621,8 +1658,15 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
 ! Fields needed by COSP with GPM support. Note that the naming convention is
 ! slightly changed (without the ls_ suffix) because icwnc and icinc were present
 ! in the previous code, and are used directly.
-   call pbuf_get_field(pbuf, ls_icwnc_idx,    ls_icwnc,    col_type=col_type)
-   call pbuf_get_field(pbuf, ls_icinc_idx,    ls_icinc,    col_type=col_type)
+   call pbuf_get_field(pbuf, gpm_ls_ncwat_idx, gpm_ls_ncwat, col_type=col_type)
+   call pbuf_get_field(pbuf, gpm_ls_ncice_idx, gpm_ls_ncice, col_type=col_type)
+   call pbuf_get_field(pbuf, gpm_ls_nrain_idx, gpm_ls_nrain, col_type=col_type)
+   call pbuf_get_field(pbuf, gpm_ls_nsnow_idx, gpm_ls_nsnow, col_type=col_type)
+   
+   call pbuf_get_field(pbuf, gpm_ls_qcwat_idx, gpm_ls_qcwat, col_type=col_type)
+   call pbuf_get_field(pbuf, gpm_ls_qcice_idx, gpm_ls_qcice, col_type=col_type)
+   call pbuf_get_field(pbuf, gpm_ls_qrain_idx, gpm_ls_qrain, col_type=col_type)
+   call pbuf_get_field(pbuf, gpm_ls_qsnow_idx, gpm_ls_qsnow, col_type=col_type)
 #endif
    call pbuf_get_field(pbuf, iciwpst_idx,     iciwpst,     col_type=col_type)
    call pbuf_get_field(pbuf, iclwpst_idx,     iclwpst,     col_type=col_type)
@@ -1675,11 +1719,17 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
       call pbuf_get_field(pbuf, cv_reffliq_idx,  cvreffliq_grid)
       call pbuf_get_field(pbuf, cv_reffice_idx,  cvreffice_grid)
 #ifdef GPM_TWO_MOMENT
-! Fields needed by COSP with GPM support. Note that the naming convention is
-! slightly changed (without the ls_ suffix) because icwnc_grid and icinc_grid were present
-! in the previous code, and are used directly.
-      call pbuf_get_field(pbuf, ls_icwnc_idx,    ls_icwnc_grid)
-      call pbuf_get_field(pbuf, ls_icinc_idx,    ls_icinc_grid)
+! Fields needed by COSP with GPM support.
+! when sub-columns are used, use grid-mean value
+      call pbuf_get_field(pbuf, gpm_ls_ncwat_idx,    gpm_ls_ncwat_grid)
+      call pbuf_get_field(pbuf, gpm_ls_ncice_idx,    gpm_ls_ncice_grid)
+      call pbuf_get_field(pbuf, gpm_ls_nrain_idx,    gpm_ls_nrain_grid)
+      call pbuf_get_field(pbuf, gpm_ls_nsnow_idx,    gpm_ls_nsnow_grid)
+
+      call pbuf_get_field(pbuf, gpm_ls_qcwat_idx,    gpm_ls_qcwat_grid)
+      call pbuf_get_field(pbuf, gpm_ls_qcice_idx,    gpm_ls_qcice_grid)
+      call pbuf_get_field(pbuf, gpm_ls_qrain_idx,    gpm_ls_qrain_grid)
+      call pbuf_get_field(pbuf, gpm_ls_qsnow_idx,    gpm_ls_qsnow_grid)
 #endif
       call pbuf_get_field(pbuf, iciwpst_idx,     iciwpst_grid)
       call pbuf_get_field(pbuf, iclwpst_idx,     iclwpst_grid)
@@ -2380,8 +2430,12 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
    end if
 #ifdef GPM_TWO_MOMENT
    ! copy number concentration fields for COSP GPM use
-   ls_icwnc = icwnc
-   ls_icinc = icinc
+!   ls_icwnc = icwnc
+!   ls_icinc = icinc
+      gpm_ls_ncwat = icwnc
+      gpm_ls_qcwat = icwmrst
+      gpm_ls_ncice = icinc
+      gpm_ls_qcice = icimrst
 #endif
    ! ------------------------------------------------------ !
    ! ------------------------------------------------------ !
@@ -2439,8 +2493,10 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
       call subcol_field_avg(state_loc%q(:,:,ixnumice), ngrdcol, lchnk, ni_grid)
 #ifdef GPM_TWO_MOMENT
 ! if sub-column is used, copy the grid mean fields 
-      ls_icwnc_grid = icwnc_grid
-      ls_icinc_grid = icinc_grid
+      gpm_ls_ncwat_grid = icwnc_grid
+      gpm_ls_qcwat_grid = icwmrst_grid
+      gpm_ls_ncice_grid = icinc_grid
+      gpm_ls_qcice_grid = icimrst_grid
 #endif
       if (micro_mg_version > 1) then
          call subcol_field_avg(cldmax,    ngrdcol, lchnk, cldmax_grid)
@@ -2449,6 +2505,19 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
          call subcol_field_avg(state_loc%q(:,:,ixnumrain), ngrdcol, lchnk, nr_grid)
          call subcol_field_avg(state_loc%q(:,:,ixsnow),    ngrdcol, lchnk, qs_grid)
          call subcol_field_avg(state_loc%q(:,:,ixnumsnow), ngrdcol, lchnk, ns_grid)
+      
+#ifdef GPM_TWO_MOMENT
+         gpm_ls_qrain = state_loc%q(:,:,ixrain)
+         gpm_ls_nrain = state_loc%q(:,:,ixnumrain)
+         gpm_ls_qsnow = state_loc%q(:,:,ixsnow)
+         gpm_ls_nsnow = state_loc%q(:,:,ixnumsnow)
+
+         gpm_ls_nrain_grid = nr_grid
+         gpm_ls_qrain_grid = qr_grid
+         gpm_ls_nsnow_grid = ns_grid
+         gpm_ls_qsnow_grid = qs_grid
+#endif
+      
       end if
 
    else
@@ -2515,6 +2584,12 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
          nr_grid = state_loc%q(:,:,ixnumrain)
          qs_grid = state_loc%q(:,:,ixsnow)
          ns_grid = state_loc%q(:,:,ixnumsnow)
+#ifdef GPM_TWO_MOMENT
+         gpm_ls_nrain = nr_grid
+         gpm_ls_qrain = qr_grid
+         gpm_ls_nsnow = ns_grid
+         gpm_ls_qsnow = qs_grid
+#endif
       end if
 
    end if
