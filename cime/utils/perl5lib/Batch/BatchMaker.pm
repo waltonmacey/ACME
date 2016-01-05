@@ -136,6 +136,12 @@ sub getBatchConfigParser()
 		my $batchparser = XML::LibXML->new(no_blanks => 1);
 		my $batchconfig = $batchparser->parse_file($self->{'configbatch'});
 		$self->{'batchparser'} = $batchconfig->getDocumentElement();
+        my $customConfigBatch = $self->{'caseroot'} . "/config_batch.xml";
+        if(-f $customConfigBatch)
+        {
+            my $batchconfig = $batchparser->parse_file($customConfigBatch);
+            $self->{'batchparser'} = $batchconfig->getDocumentElement();
+        }
 	}
 	return $self->{'batchparser'};
 }
@@ -154,6 +160,12 @@ sub getConfigMachinesParser()
 		my $configmachinesparser = XML::LibXML->new(no_blanks => 1);
 		my $configmachines = $configmachinesparser->parse_file($self->{'configmachines'});
 		$self->{'configmachinesparser'} = $configmachines->getDocumentElement();
+        my $customConfigMachines = $self->{'caseroot'} . "/config_machines.xml";
+        if(-f $customConfigMachines)
+        {
+            my $configmachines = $configmachinesparser->parse_file($customConfigMachines);
+            $self->{'configmachinesparser'} = $configmachines->getDocumentElement();
+        }
 	}
 }
 

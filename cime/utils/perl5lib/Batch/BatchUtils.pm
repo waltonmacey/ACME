@@ -68,6 +68,7 @@ sub _check()
 #==============================================================================
 sub getBatchSystemType()
 {
+    die;
 	my $self = shift;
 	my $configmachines = $self->{'machroot'} . "/config_batch.xml";
 	my $casetoolsdir = $self->{'caseroot'} . "/Tools";
@@ -499,8 +500,19 @@ sub getBatchSystemType()
     my $machine = shift;
     my $machroot = shift;
     my $caseroot = shift;
-    my $configbatch = "$machroot/config_batch.xml";
+
+    my $customConfigMachines = $caseroot . "/config_machines.xml";
     my $configmachines = "$machroot/config_machines.xml";
+    if(-f $customConfigMachines) {
+        $configmachines=$customConfigMachines;
+        print "Reading custom config machines: " . $configmachines . "\n";
+    }
+    my $customConfigBatch = $caseroot . "/config_batch.xml";
+    my $configbatch = "$machroot/config_batch.xml";
+    if(-f $customConfigBatch) {
+        $configbatch=$customConfigBatch;
+        print "Reading custom batch: " . $configbatch. "\n";
+    }
     my $casetoolsdir = "$caseroot/Tools";
     push(@INC, $casetoolsdir);
     my $xml = XML::LibXML->new(no_blanks => 1);
@@ -513,6 +525,8 @@ sub getBatchSystemType()
         die "Could not determine batch system type for machine $machine";
     }
     my $batchtype = $batchsystems[0]->getAttribute('type');
+    print "Machine: " . $machine . "\n";
+    print "Batch system: " . $batchtype . "\n";
     return $batchtype;
 }
 
