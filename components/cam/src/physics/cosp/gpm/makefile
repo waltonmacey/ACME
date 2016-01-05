@@ -3,13 +3,13 @@ CRTMLINKS       := -L$(HOME)/local/CRTM/lib -lCRTM -L/global/cscratch1/sd/yxl232
 
 
 gpm.exe : gpm.o gpm_gmi.o
-	ifort gpm_gmi.o  gpm.o -o gpm.exe $(CRTMFLAGS) $(CRTMLINKS) 
+	ftn gpm_gmi.o  gpm.o -o gpm.exe $(CRTMFLAGS) $(CRTMLINKS)  
 
 gpm.o : gpm.F90 gpm_gmi.o
-	ifort $(CRTMFLAGS) -c gpm.F90
+	ftn $(CRTMFLAGS) -c gpm.F90
 
 gpm_gmi.o: gpm_gmi.F90
-	ifort $(CRTMFLAGS) -c gpm_gmi.F90
+	ftn $(CRTMFLAGS) -c gpm_gmi.F90
 
 
 

@@ -7,3 +7,9 @@
 # Ignore emacs backup files
 *~
 *.swp
+
+# Ignore compiled files
+*.mod
+*.o 
+*.a
+*.exe

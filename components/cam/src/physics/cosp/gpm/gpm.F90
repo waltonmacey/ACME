@@ -6,6 +6,7 @@ program gpmtest
    use gpm_gmi_mod, only: gpm_gmi_init, gpm_gmi_run
    use mod_cosp_types, only: cosp_gridbox, construct_cosp_gridbox, free_cosp_gridbox
    use shr_kind_mod, only: r8 =>shr_kind_r8
+  ! use netcdf
    implicit none
    
    type(cosp_gridbox) :: gbx
@@ -113,6 +114,26 @@ program gpmtest
    real(r8), parameter :: ZenAng = 50._r8               ! Satellite Zenith Angle (50)
    real(r8), parameter :: co =  2.098e-07_r8            ! Mixing ratio CO (2.098e-07), not used in cospv1.1
    real(r8), dimension(1,1) :: co2, ch4, n2o
+
+   character (len = *), parameter :: file_name =   "/project/projectdirs/acme/ylu/CRTM_Test/ERA_Interim/20150701-20150702.nc"
+   integer, parameter :: nlat = 241
+   integer, parameter :: nlon = 480
+   integer, parameter :: nlev = 37
+   integer, parameter :: ntime = 2
+
+   integer q_in(nlon, nlat, nlev, ntime)
+   integer :: ncid, varid
+   
+  ! call check( nf90_open(file_name, NF90_NOWRITE, ncid) )
+  ! call check( nf90_inq_varid(ncid, "q", varid) )
+  ! call check( nf90_get_var(ncid, varid, q_in) )
+
+  ! call check ( nf90_close(ncid))
+
+
+
+
+
    
    co2(1,1) = 1e-07_r8;
    ch4(1,1) = 1e-07_r8;
@@ -189,6 +210,8 @@ program gpmtest
 
 
    call free_cosp_gridbox(gbx)
+
+   
    print *, 'hello'
 end program gpmtest
 
