@@ -203,11 +203,11 @@ contains
     use MathfuncMod   , only : safe_div
     implicit none
     ! !ARGUMENTS:
+    integer,  intent(in)  :: neq      ! number of equations
     real(r8), intent(in)  :: y0(neq)  ! state variable at previous time step
     real(r8), intent(in)  :: f(neq)   ! derivative
     real(r8), intent(in)  :: dt       ! time stepping
     integer,  intent(in)  :: nprimeq  !
-    integer,  intent(in)  :: neq      ! number of equations
     real(r8), intent(out) :: y(neq)   ! updated state variable
     real(r8), intent(out) :: pscal
 
@@ -274,11 +274,11 @@ contains
     ! this code should only be used for mass positive ODE integration
     implicit none
     ! !ARGUMENTS:
+    integer,  intent(in)  :: neq      ! number of equations
     real(r8), intent(in)  :: y0(neq)  ! state variable at previous time step
     real(r8), intent(in)  :: t        ! time stamp
     real(r8), intent(in)  :: dt       ! time stepping
     integer,  intent(in)  :: nprimeq  !
-    integer,  intent(in)  :: neq      ! number of equations
     real(r8), intent(out) :: y(neq)   ! updated state variable
     external :: odefun
 
@@ -348,9 +348,9 @@ contains
     ! obtain the relative error
     implicit none
     ! !ARGUMENTS:
+    integer, intent(in)  :: neq     !number of equations
     real(r8), intent(in) :: yc(neq) !coarse solution
     real(r8), intent(in) :: yf(neq) !fine solution
-    integer, intent(in)  :: neq     !number of equations
 
     ! !LOCAL VARIABLES:
     real(r8) :: rerr
@@ -390,9 +390,9 @@ contains
     use FindRootMod, only : brent
     implicit none
     ! !ARGUMENTS:
+    integer,  intent(in) :: nJ
     real(r8), intent(in) :: aj(nJ)
     real(r8), intent(in) :: pmax
-    integer,  intent(in) :: nJ
     ! !LOCAL VARIABLES:
     real(r8) :: iJ
     real(r8) :: f1, f2
@@ -438,11 +438,11 @@ contains
     !ebbks update
     implicit none
     ! !ARGUMENTS:
+    integer,  intent(in) :: neq
     real(r8), intent(in) :: y0(neq)
     real(r8), intent(in) :: f(neq)
     real(r8), intent(in) :: dt
     integer,  intent(in) :: nprimeq
-    integer,  intent(in) :: neq
     real(r8), intent(out):: y(neq)
     real(r8), optional, intent(out):: ps
     ! !LOCAL VARIABLES:
@@ -462,7 +462,7 @@ contains
              jsmin=min(jsmin,js)
           endif
           if(ldebug_ode)then
-             write(*,'(A,X,I3,3(X,E20.10))')'debbkb',n,f(n),js,y0(n)
+             !write(*,'(A,X,I3,3(X,E20.10))')'debbkb',n,f(n),js,y0(n)
           endif
        endif
     enddo

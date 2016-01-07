@@ -324,23 +324,32 @@ contains
              y0(:, c, j ) = 0._r8
 
              !set up nonzero variables
-             y0(1:centurybgc_vars%nom_pools*centurybgc_vars%nelms, c, j)    = tracerstate_vars%tracer_conc_solid_passive_col(c, j, :)
+             y0(1:centurybgc_vars%nom_pools*centurybgc_vars%nelms, c, j) = &
+                tracerstate_vars%tracer_conc_solid_passive_col(c, j, :)
 
-             y0(centurybgc_vars%lid_n2,  c, j)        = max(tracerstate_vars%tracer_conc_mobile_col(c, j, betrtracer_vars%id_trc_n2)  ,0._r8)
+             y0(centurybgc_vars%lid_n2,  c, j) =  &
+                max(tracerstate_vars%tracer_conc_mobile_col(c, j, betrtracer_vars%id_trc_n2)  ,0._r8)
 
-             y0(centurybgc_vars%lid_o2,  c, j)        = max(tracerstate_vars%tracer_conc_mobile_col(c, j, betrtracer_vars%id_trc_o2)  ,0._r8)
+             y0(centurybgc_vars%lid_o2,  c, j) = &
+                max(tracerstate_vars%tracer_conc_mobile_col(c, j, betrtracer_vars%id_trc_o2)  ,0._r8)
 
-             y0(centurybgc_vars%lid_ar,  c, j)        = max(tracerstate_vars%tracer_conc_mobile_col(c, j, betrtracer_vars%id_trc_ar)  ,0._r8)
+             y0(centurybgc_vars%lid_ar,  c, j) = &
+                max(tracerstate_vars%tracer_conc_mobile_col(c, j, betrtracer_vars%id_trc_ar)  ,0._r8)
 
-             y0(centurybgc_vars%lid_co2, c, j)        = max(tracerstate_vars%tracer_conc_mobile_col(c, j, betrtracer_vars%id_trc_co2x),0._r8)
+             y0(centurybgc_vars%lid_co2, c, j) = &
+                max(tracerstate_vars%tracer_conc_mobile_col(c, j, betrtracer_vars%id_trc_co2x),0._r8)
 
-             y0(centurybgc_vars%lid_ch4, c, j)        = max(tracerstate_vars%tracer_conc_mobile_col(c, j, betrtracer_vars%id_trc_ch4) ,0._r8)
+             y0(centurybgc_vars%lid_ch4, c, j) = &
+                max(tracerstate_vars%tracer_conc_mobile_col(c, j, betrtracer_vars%id_trc_ch4) ,0._r8)
 
-             y0(centurybgc_vars%lid_nh4, c, j)        = max(tracerstate_vars%tracer_conc_mobile_col(c, j, betrtracer_vars%id_trc_nh3x),0._r8)
+             y0(centurybgc_vars%lid_nh4, c, j) = &
+                max(tracerstate_vars%tracer_conc_mobile_col(c, j, betrtracer_vars%id_trc_nh3x),0._r8)
 
-             y0(centurybgc_vars%lid_no3, c, j)        = max(tracerstate_vars%tracer_conc_mobile_col(c, j, betrtracer_vars%id_trc_no3x),0._r8)
+             y0(centurybgc_vars%lid_no3, c, j) = &
+                max(tracerstate_vars%tracer_conc_mobile_col(c, j, betrtracer_vars%id_trc_no3x),0._r8)
 
-             y0(centurybgc_vars%lid_n2o, c, j)        = max(tracerstate_vars%tracer_conc_mobile_col(c, j, betrtracer_vars%id_trc_n2o), 0._r8)
+             y0(centurybgc_vars%lid_n2o, c, j) = &
+                max(tracerstate_vars%tracer_conc_mobile_col(c, j, betrtracer_vars%id_trc_n2o), 0._r8)
           endif
        enddo
     enddo
@@ -535,7 +544,8 @@ contains
          do j = lbj, ubj
             do fc = 1, numf
                c = filter(fc)
-               supplement_to_sminn_vr(c,j) = (y0(centurybgc_vars%lid_nh4_supp, c, j) - yf(centurybgc_vars%lid_nh4_supp, c, j))*natomw/dtime
+               supplement_to_sminn_vr(c,j) = (y0(centurybgc_vars%lid_nh4_supp, c, j) - &
+                  yf(centurybgc_vars%lid_nh4_supp, c, j))*natomw/dtime
             enddo
          enddo
       endif
@@ -545,29 +555,45 @@ contains
             c = filter(fc)
 
             if(j>=jtops(c))then
-               plantsoilnutrientflux_vars%plant_minn_active_yield_flx_vr_col(c,j) = (yf(centurybgc_vars%lid_plant_minn, c, j) - y0(centurybgc_vars%lid_plant_minn, c, j))*natomw
+               plantsoilnutrientflux_vars%plant_minn_active_yield_flx_vr_col(c,j) = &
+                  (yf(centurybgc_vars%lid_plant_minn, c, j) - y0(centurybgc_vars%lid_plant_minn, c, j))*natomw
 
-               smin_no3_to_plant_vr(c,j) = (yf(centurybgc_vars%lid_minn_no3_plant, c, j) - y0(centurybgc_vars%lid_minn_no3_plant, c, j))*natomw/dtime
-               smin_nh4_to_plant_vr(c,j) = (yf(centurybgc_vars%lid_minn_nh4_plant, c, j) - y0(centurybgc_vars%lid_minn_nh4_plant, c, j))*natomw/dtime
+               smin_no3_to_plant_vr(c,j) = (yf(centurybgc_vars%lid_minn_no3_plant, c, j) - &
+                                            y0(centurybgc_vars%lid_minn_no3_plant, c, j))*natomw/dtime
+               smin_nh4_to_plant_vr(c,j) = (yf(centurybgc_vars%lid_minn_nh4_plant, c, j) - &
+                                            y0(centurybgc_vars%lid_minn_nh4_plant, c, j))*natomw/dtime
 
-               hr_vr       (c,j)  = (yf(centurybgc_vars%lid_co2_hr, c, j) - y0(centurybgc_vars%lid_co2_hr, c, j))*catomw/dtime
-               f_nit_vr    (c,j)  = (yf(centurybgc_vars%lid_nh4_nit,c, j) - y0(centurybgc_vars%lid_nh4_nit,c, j))*natomw/dtime
-               f_n2o_nit_vr(c,j)  = (yf(centurybgc_vars%lid_n2o_nit,c, j) - y0(centurybgc_vars%lid_n2o_nit,c, j))*natomw/dtime
-               f_denit_vr  (c,j)  = (yf(centurybgc_vars%lid_no3_den,c, j) - y0(centurybgc_vars%lid_no3_den,c, j))*natomw/dtime
+               hr_vr       (c,j)  = (yf(centurybgc_vars%lid_co2_hr, c, j) - &
+                                     y0(centurybgc_vars%lid_co2_hr, c, j))*catomw/dtime
+               f_nit_vr    (c,j)  = (yf(centurybgc_vars%lid_nh4_nit,c, j) - &
+                                     y0(centurybgc_vars%lid_nh4_nit,c, j))*natomw/dtime
+               f_n2o_nit_vr(c,j)  = (yf(centurybgc_vars%lid_n2o_nit,c, j) - &
+                                     y0(centurybgc_vars%lid_n2o_nit,c, j))*natomw/dtime
+               f_denit_vr  (c,j)  = (yf(centurybgc_vars%lid_no3_den,c, j) - &
+                                     y0(centurybgc_vars%lid_no3_den,c, j))*natomw/dtime
 
-               actual_immob_no3_vr(c,j) = (yf(centurybgc_vars%lid_minn_no3_immob,c, j) - y0(centurybgc_vars%lid_minn_no3_immob,c, j))*natomw/dtime
-               actual_immob_nh4_vr(c,j) = (yf(centurybgc_vars%lid_minn_nh4_immob,c, j) - y0(centurybgc_vars%lid_minn_nh4_immob,c, j))*natomw/dtime
+               actual_immob_no3_vr(c,j) = (yf(centurybgc_vars%lid_minn_no3_immob,c, j) - &
+                                           y0(centurybgc_vars%lid_minn_no3_immob,c, j))*natomw/dtime
+               actual_immob_nh4_vr(c,j) = (yf(centurybgc_vars%lid_minn_nh4_immob,c, j) - &
+                                           y0(centurybgc_vars%lid_minn_nh4_immob,c, j))*natomw/dtime
 
                !the temporal averaging for fluxes below will be done later
 
-               tracer_flx_parchm_vr(c,j,volatileid(betrtracer_vars%id_trc_o2)  ) = yf(centurybgc_vars%lid_o2_paere  ,c, j)  - y0(centurybgc_vars%lid_o2_paere , c, j)
+               tracer_flx_parchm_vr(c,j,volatileid(betrtracer_vars%id_trc_o2)  ) = &
+                  yf(centurybgc_vars%lid_o2_paere  ,c, j)  - &
+                  y0(centurybgc_vars%lid_o2_paere , c, j)
 
                if ( spinup_state /= 1 ) then
-                  tracer_flx_parchm_vr(c,j,volatileid(betrtracer_vars%id_trc_n2)  ) = yf(centurybgc_vars%lid_n2_paere  ,c, j)  - y0(centurybgc_vars%lid_n2_paere , c, j)
-                  tracer_flx_parchm_vr(c,j,volatileid(betrtracer_vars%id_trc_ar)  ) = yf(centurybgc_vars%lid_ar_paere  ,c, j)  - y0(centurybgc_vars%lid_ar_paere , c, j)
-                  tracer_flx_parchm_vr(c,j,volatileid(betrtracer_vars%id_trc_co2x)) = yf(centurybgc_vars%lid_co2_paere ,c, j)  - y0(centurybgc_vars%lid_co2_paere, c, j)
-                  tracer_flx_parchm_vr(c,j,volatileid(betrtracer_vars%id_trc_ch4) ) = yf(centurybgc_vars%lid_ch4_paere ,c, j)  - y0(centurybgc_vars%lid_ch4_paere, c, j)
-                  tracer_flx_parchm_vr(c,j,volatileid(betrtracer_vars%id_trc_n2o) ) = yf(centurybgc_vars%lid_n2o_paere ,c, j)  - y0(centurybgc_vars%lid_n2o_paere, c, j)
+                  tracer_flx_parchm_vr(c,j,volatileid(betrtracer_vars%id_trc_n2)  ) = &
+                     yf(centurybgc_vars%lid_n2_paere  ,c, j)  - y0(centurybgc_vars%lid_n2_paere , c, j)
+                  tracer_flx_parchm_vr(c,j,volatileid(betrtracer_vars%id_trc_ar)  ) = &
+                     yf(centurybgc_vars%lid_ar_paere  ,c, j)  - y0(centurybgc_vars%lid_ar_paere , c, j)
+                  tracer_flx_parchm_vr(c,j,volatileid(betrtracer_vars%id_trc_co2x)) = &
+                     yf(centurybgc_vars%lid_co2_paere ,c, j)  - y0(centurybgc_vars%lid_co2_paere, c, j)
+                  tracer_flx_parchm_vr(c,j,volatileid(betrtracer_vars%id_trc_ch4) ) = &
+                     yf(centurybgc_vars%lid_ch4_paere ,c, j)  - y0(centurybgc_vars%lid_ch4_paere, c, j)
+                  tracer_flx_parchm_vr(c,j,volatileid(betrtracer_vars%id_trc_n2o) ) = &
+                     yf(centurybgc_vars%lid_n2o_paere ,c, j)  - y0(centurybgc_vars%lid_n2o_paere, c, j)
                endif
 
                tracer_flx_netpro_vr(c,j,betrtracer_vars%id_trc_nh3x) =      &
@@ -665,21 +691,29 @@ contains
       enddo
 
       k1 = betrtracer_vars%id_trc_o2   ; k2 = centurybgc_vars%lid_o2  ;
-      call assign_A2B(bounds, lbj, ubj, neq, ngwtracers, numf, filter, jtops, k1, k2, yf(:,bounds%begc:bounds%endc, lbj:ubj), tracer_conc_mobile_col(bounds%begc:bounds%endc,lbj:ubj,:))
+      call assign_A2B(bounds, lbj, ubj, neq, ngwtracers, numf, filter, jtops, k1, k2, &
+              yf(:,bounds%begc:bounds%endc, lbj:ubj), tracer_conc_mobile_col(bounds%begc:bounds%endc,lbj:ubj,:))
       k1 = betrtracer_vars%id_trc_co2x ; k2 = centurybgc_vars%lid_co2 ;
-      call assign_A2B(bounds, lbj, ubj, neq, ngwtracers, numf, filter, jtops, k1, k2, yf(:,bounds%begc:bounds%endc, lbj:ubj), tracer_conc_mobile_col(bounds%begc:bounds%endc,lbj:ubj,:))
+      call assign_A2B(bounds, lbj, ubj, neq, ngwtracers, numf, filter, jtops, k1, k2, &
+               yf(:,bounds%begc:bounds%endc, lbj:ubj), tracer_conc_mobile_col(bounds%begc:bounds%endc,lbj:ubj,:))
       k1 = betrtracer_vars%id_trc_nh3x ; k2 = centurybgc_vars%lid_nh4 ;
-      call assign_A2B(bounds, lbj, ubj, neq, ngwtracers, numf, filter, jtops, k1, k2, yf(:,bounds%begc:bounds%endc, lbj:ubj), tracer_conc_mobile_col(bounds%begc:bounds%endc,lbj:ubj,:))
+      call assign_A2B(bounds, lbj, ubj, neq, ngwtracers, numf, filter, jtops, k1, k2, &
+               yf(:,bounds%begc:bounds%endc, lbj:ubj), tracer_conc_mobile_col(bounds%begc:bounds%endc,lbj:ubj,:))
       k1 = betrtracer_vars%id_trc_no3x ; k2 = centurybgc_vars%lid_no3 ;
-      call assign_A2B(bounds, lbj, ubj, neq, ngwtracers, numf, filter, jtops, k1, k2, yf(:,bounds%begc:bounds%endc, lbj:ubj), tracer_conc_mobile_col(bounds%begc:bounds%endc,lbj:ubj,:))
+      call assign_A2B(bounds, lbj, ubj, neq, ngwtracers, numf, filter, jtops, k1, k2, &
+               yf(:,bounds%begc:bounds%endc, lbj:ubj), tracer_conc_mobile_col(bounds%begc:bounds%endc,lbj:ubj,:))
       k1 = betrtracer_vars%id_trc_n2   ; k2 = centurybgc_vars%lid_n2  ;
-      call assign_A2B(bounds, lbj, ubj, neq, ngwtracers, numf, filter, jtops, k1, k2, yf(:,bounds%begc:bounds%endc, lbj:ubj), tracer_conc_mobile_col(bounds%begc:bounds%endc,lbj:ubj,:))
+      call assign_A2B(bounds, lbj, ubj, neq, ngwtracers, numf, filter, jtops, k1, k2, &
+               yf(:,bounds%begc:bounds%endc, lbj:ubj), tracer_conc_mobile_col(bounds%begc:bounds%endc,lbj:ubj,:))
       k1 = betrtracer_vars%id_trc_ar   ; k2 = centurybgc_vars%lid_ar  ;
-      call assign_A2B(bounds, lbj, ubj, neq, ngwtracers, numf, filter, jtops, k1, k2, yf(:,bounds%begc:bounds%endc, lbj:ubj), tracer_conc_mobile_col(bounds%begc:bounds%endc,lbj:ubj,:))
+      call assign_A2B(bounds, lbj, ubj, neq, ngwtracers, numf, filter, jtops, k1, k2, &
+               yf(:,bounds%begc:bounds%endc, lbj:ubj), tracer_conc_mobile_col(bounds%begc:bounds%endc,lbj:ubj,:))
       k1 = betrtracer_vars%id_trc_ch4  ; k2 = centurybgc_vars%lid_ch4 ;
-      call assign_A2B(bounds, lbj, ubj, neq, ngwtracers, numf, filter, jtops, k1, k2, yf(:,bounds%begc:bounds%endc, lbj:ubj), tracer_conc_mobile_col(bounds%begc:bounds%endc,lbj:ubj,:))
+      call assign_A2B(bounds, lbj, ubj, neq, ngwtracers, numf, filter, jtops, k1, k2, &
+               yf(:,bounds%begc:bounds%endc, lbj:ubj), tracer_conc_mobile_col(bounds%begc:bounds%endc,lbj:ubj,:))
       k1 =  betrtracer_vars%id_trc_n2o ; k2 = centurybgc_vars%lid_n2o ;
-      call assign_A2B(bounds, lbj, ubj, neq, ngwtracers, numf, filter, jtops, k1, k2, yf(:,bounds%begc:bounds%endc, lbj:ubj), tracer_conc_mobile_col(bounds%begc:bounds%endc,lbj:ubj,:))
+      call assign_A2B(bounds, lbj, ubj, neq, ngwtracers, numf, filter, jtops, k1, k2, &
+               yf(:,bounds%begc:bounds%endc, lbj:ubj), tracer_conc_mobile_col(bounds%begc:bounds%endc,lbj:ubj,:))
 
     end associate
   end subroutine retrieve_state_vars
@@ -1084,14 +1118,16 @@ contains
             !lit1 + 0.55*o2 -> 0.45 som1 + 0.55co2 + (1/cn_ratios(lit1) - 0.45/cn_ratios(som1))+ (1/cp_ratios(lit1)-0.45/cp_ratios(som1))
             reac=lit1_dek_reac
             cascade_matrix_hr(reac)  =  CNDecompBgcParamsInst%rf_l1s1_bgc
-            cascade_matrix_nh3(reac) =  safe_div(1._r8,cn_ratios(lit1,c,j)) - safe_div(1._r8-CNDecompBgcParamsInst%rf_l1s1_bgc,cn_ratios(som1,c,j))
+            cascade_matrix_nh3(reac) =  safe_div(1._r8,cn_ratios(lit1,c,j)) - &
+               safe_div(1._r8-CNDecompBgcParamsInst%rf_l1s1_bgc,cn_ratios(som1,c,j))
 
             cascade_matrix_nh3(reac) = min(cascade_matrix_nh3(reac) , 0._r8)
             !reaction 2, lit2 -> som1
             !lit2 + 0.5 o2  -> 0.5 som1 + 0.5 co2 + (1/cn_ratios(lit2)-0.5/cn_ratios(som1)) +(1/cp_ratios(lit2)-0.5/cp_ratios(som1))
             reac = lit2_dek_reac
             cascade_matrix_hr(reac)  =  CNDecompBgcParamsInst%rf_l2s1_bgc
-            cascade_matrix_nh3(reac) = safe_div(1._r8,cn_ratios(lit2,c,j)) - safe_div(1._r8-CNDecompBgcParamsInst%rf_l2s1_bgc,cn_ratios(som1,c,j))
+            cascade_matrix_nh3(reac) = safe_div(1._r8,cn_ratios(lit2,c,j)) - &
+               safe_div(1._r8-CNDecompBgcParamsInst%rf_l2s1_bgc,cn_ratios(som1,c,j))
 
             cascade_matrix_nh3(reac) = min(cascade_matrix_nh3(reac) , 0._r8)
 
@@ -1099,7 +1135,8 @@ contains
             !lit3 + 0.5 o2 -> 0.5 som2 + 0.5 co2
             reac = lit3_dek_reac
             cascade_matrix_hr(reac)  =  CNDecompBgcParamsInst%rf_l3s2_bgc
-            cascade_matrix_nh3(reac) = safe_div(1._r8,cn_ratios(lit3,c,j)) - safe_div(1._r8-CNDecompBgcParamsInst%rf_l3s2_bgc,cn_ratios(som2,c,j))
+            cascade_matrix_nh3(reac) = safe_div(1._r8,cn_ratios(lit3,c,j)) - &
+               safe_div(1._r8-CNDecompBgcParamsInst%rf_l3s2_bgc,cn_ratios(som2,c,j))
 
             cascade_matrix_nh3(reac) = min(cascade_matrix_nh3(reac) , 0._r8)
 
@@ -1113,7 +1150,8 @@ contains
             f2 = 0.004*(1._r8-ftxt)
 
             cascade_matrix_hr(reac)  = ftxt
-            cascade_matrix_nh3(reac) = safe_div(1._r8,cn_ratios(som1,c,j))-safe_div(f1,cn_ratios(som2,c,j))-safe_div(f2,cn_ratios(som3,c,j))
+            cascade_matrix_nh3(reac) = safe_div(1._r8,cn_ratios(som1,c,j)) - &
+               safe_div(f1,cn_ratios(som2,c,j))-safe_div(f2,cn_ratios(som3,c,j))
 
             cascade_matrix_nh3(reac) = min(cascade_matrix_nh3(reac) , 0._r8)
 
@@ -1121,7 +1159,8 @@ contains
             !som2 + 0.55 o2 -> 0.42 som1 + 0.03som3 + 0.55co2 + (1/cn_ratios(som2)-0.42/cn_ratios(som1)-0.03/cn_ratios(som3)) + (1/cp_raitos(som2)-0.42/cp_ratios(som1)-0.03/cp_ratios(som3))
             reac = som2_dek_reac
             cascade_matrix_hr(reac)   =  CNDecompBgcParamsInst%rf_s2s1_bgc
-            cascade_matrix_nh3(reac)  = safe_div(1._r8,cn_ratios(som2,c,j))-0.93_r8*safe_div(1._r8-CNDecompBgcParamsInst%rf_s2s1_bgc,cn_ratios(som1,c,j)) &
+            cascade_matrix_nh3(reac)  = safe_div(1._r8,cn_ratios(som2,c,j))- &
+                 0.93_r8*safe_div(1._r8-CNDecompBgcParamsInst%rf_s2s1_bgc,cn_ratios(som1,c,j)) &
                  -0.07_r8*safe_div(1._r8-CNDecompBgcParamsInst%rf_s2s1_bgc,cn_ratios(som3,c,j))
             cascade_matrix_nh3(reac) = min(cascade_matrix_nh3(reac) , 0._r8)
 
@@ -1129,13 +1168,15 @@ contains
             !som3 + 0.55 o2 -> 0.45*som1 + 0.55co2 + (1/cn_ratios(som3)-0.45/cn_ratios(som1)) + (1/cp_ratios(som3)-0.45/cp_ratios(som1))
             reac = som3_dek_reac
             cascade_matrix_hr(reac) = CNDecompBgcParamsInst%rf_s3s1_bgc
-            cascade_matrix_nh3(reac)= safe_div(1._r8,cn_ratios(som3,c,j)) - safe_div(1._r8-CNDecompBgcParamsInst%rf_s3s1_bgc,cn_ratios(som1,c,j))
+            cascade_matrix_nh3(reac)= safe_div(1._r8,cn_ratios(som3,c,j)) - &
+                safe_div(1._r8-CNDecompBgcParamsInst%rf_s3s1_bgc,cn_ratios(som1,c,j))
 
             cascade_matrix_nh3(reac) = min(cascade_matrix_nh3(reac) , 0._r8)
 
             !cwd -> lit1, lit2
             reac = cwd_dek_reac
-            cascade_matrix_nh3(reac) = safe_div(1._r8,cn_ratios(cwd,c,j)) - safe_div(CNDecompBgcParamsInst%cwd_fcel_bgc,cn_ratios(lit2,c,j)) - &
+            cascade_matrix_nh3(reac) = safe_div(1._r8,cn_ratios(cwd,c,j)) - &
+                 safe_div(CNDecompBgcParamsInst%cwd_fcel_bgc,cn_ratios(lit2,c,j)) - &
                  safe_div(CNDecompBgcParamsInst%cwd_flig_bgc,cn_ratios(lit3,c,j))
 
             cascade_matrix_nh3(reac) = min(cascade_matrix_nh3(reac) , 0._r8)

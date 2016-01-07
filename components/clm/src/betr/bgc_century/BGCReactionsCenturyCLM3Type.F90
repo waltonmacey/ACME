@@ -581,7 +581,8 @@ contains
     cp_ratios(:,:,:) = nan
 
     !initialize the state vector
-    call init_state_vector(bounds, lbj, ubj, num_soilc, filter_soilc, jtops, centurybgc_vars%nstvars, tracerstate_vars, betrtracer_vars, centurybgc_vars, y0)
+    call init_state_vector(bounds, lbj, ubj, num_soilc, filter_soilc, jtops, &
+            centurybgc_vars%nstvars, tracerstate_vars, betrtracer_vars, centurybgc_vars, y0)
 
     !update the initial vector from external input
     !calculate elemental stoichiometry for different om pools and add mineral nutrient input from other than decaying process
@@ -610,26 +611,32 @@ contains
          soilstate_vars, centurybgc_vars, carbonflux_vars)
 
     !calculate decay coefficients
-    call calc_som_deacyK(bounds, lbj, ubj, num_soilc, filter_soilc, jtops, centurybgc_vars%nom_pools, tracercoeff_vars, tracerstate_vars, &
-         betrtracer_vars, centurybgc_vars, carbonflux_vars,dtime, k_decay(1:centurybgc_vars%nom_pools, bounds%begc:bounds%endc, lbj:ubj))
+    call calc_som_deacyK(bounds, lbj, ubj, num_soilc, filter_soilc, jtops, &
+         centurybgc_vars%nom_pools, tracercoeff_vars, tracerstate_vars, &
+         betrtracer_vars, centurybgc_vars, carbonflux_vars,dtime, &
+         k_decay(1:centurybgc_vars%nom_pools, bounds%begc:bounds%endc, lbj:ubj))
 
     !calculate potential decay rates, without nutrient constraint
     call calc_sompool_decay(bounds, lbj, ubj, num_soilc, filter_soilc, jtops, centurybgc_vars, &
-         k_decay(1:centurybgc_vars%nom_pools,  bounds%begc:bounds%endc, lbj:ubj), y0(1:centurybgc_vars%nom_totelms, bounds%begc:bounds%endc, lbj:ubj),&
+         k_decay(1:centurybgc_vars%nom_pools,  bounds%begc:bounds%endc, lbj:ubj), &
+         y0(1:centurybgc_vars%nom_totelms, bounds%begc:bounds%endc, lbj:ubj),&
          pot_decay_rates)
 
     !calculate potential respiration rates by summarizing all om decomposition pathways
-    call calc_potential_aerobic_hr(bounds, lbj, ubj, num_soilc, filter_soilc, jtops, cn_ratios, cp_ratios, centurybgc_vars, pot_decay_rates, &
+    call calc_potential_aerobic_hr(bounds, lbj, ubj, num_soilc, filter_soilc, jtops, cn_ratios, cp_ratios, &
+         centurybgc_vars, pot_decay_rates, &
          soilstate_vars%cellsand_col(bounds%begc:bounds%endc,lbj:ubj), pot_co2_hr, pot_nh3_immob)
 
     !calculate fraction of anerobic environment
-    call calc_anaerobic_frac(bounds, lbj, ubj, num_soilc, filter_soilc, jtops, temperature_vars%t_soisno_col(bounds%begc:bounds%endc,lbj:ubj),&
+    call calc_anaerobic_frac(bounds, lbj, ubj, num_soilc, filter_soilc, jtops, &
+         temperature_vars%t_soisno_col(bounds%begc:bounds%endc,lbj:ubj),&
          soilstate_vars, waterstate_vars%h2osoi_vol_col(bounds%begc:bounds%endc,lbj:ubj), pot_co2_hr, &
          tracerstate_vars%tracer_conc_mobile_col(bounds%begc:bounds%endc, lbj:ubj, betrtracer_vars%id_trc_o2), &
          anaerobic_frac(bounds%begc:bounds%endc, lbj:ubj))
 
     !calculate normalized rate for nitrification and denitrification
-    call calc_nitrif_denitrif_rate(bounds, lbj, ubj, num_soilc, filter_soilc, jtops, col%dz(bounds%begc:bounds%endc, lbj:ubj), &
+    call calc_nitrif_denitrif_rate(bounds, lbj, ubj, num_soilc, filter_soilc, jtops, &
+         col%dz(bounds%begc:bounds%endc, lbj:ubj), &
          temperature_vars%t_soisno_col(bounds%begc:bounds%endc, lbj:ubj), &
          chemstate_vars%soil_pH(bounds%begc:bounds%endc, lbj:ubj),  pot_co2_hr, anaerobic_frac, &
          tracerstate_vars%tracer_conc_mobile_col(bounds%begc:bounds%endc, lbj:ubj, betrtracer_vars%id_trc_nh3x), &
@@ -664,7 +671,8 @@ contains
 
           yf(:,c,j)=y0(:,c,j) !this will allow to turn off the bgc reaction for debugging purpose
 
-          call ode_ebbks1(one_box_century_bgc, y0(:,c,j), centurybgc_vars%nprimvars,centurybgc_vars%nstvars, time, dtime, yf(:,c,j), pscal)
+          call ode_ebbks1(one_box_century_bgc, y0(:,c,j), &
+                  centurybgc_vars%nprimvars,centurybgc_vars%nstvars, time, dtime, yf(:,c,j), pscal)
           if(pscal<0.5_r8)then
              write(iulog,*)'lat, lon=',grc%latdeg(col%gridcell(c)),grc%londeg(col%gridcell(c))
              write(iulog,*)'col, lev, pscal=',c, j, pscal
@@ -683,7 +691,8 @@ contains
 
 
     !retrieve the state variable, state variable will be updated later
-    call retrieve_state_vars(bounds, lbj, ubj, num_soilc, filter_soilc, jtops, centurybgc_vars%nstvars,  yf, centurybgc_vars, betrtracer_vars, tracerstate_vars)
+    call retrieve_state_vars(bounds, lbj, ubj, num_soilc, filter_soilc, jtops, &
+            centurybgc_vars%nstvars,  yf, centurybgc_vars, betrtracer_vars, tracerstate_vars)
 
 
     call Extra_inst%DDeallocate()
@@ -694,7 +703,8 @@ contains
 
 
   !-------------------------------------------------------------------------------
-  subroutine do_tracer_equilibration(this, bounds, lbj, ubj, jtops, num_soilc, filter_soilc, betrtracer_vars, tracercoeff_vars, tracerstate_vars)
+  subroutine do_tracer_equilibration(this, bounds, lbj, ubj, jtops, num_soilc, filter_soilc, &
+                betrtracer_vars, tracercoeff_vars, tracerstate_vars)
     !
     ! !DESCRIPTION:
     ! equilibrate tracers that has solid and mobile phases
@@ -870,7 +880,8 @@ contains
 
     call assign_nitrogen_hydroloss(bounds, num_soilc, filter_soilc, tracerflux_vars, nitrogenflux_vars, betrtracer_vars)
 
-    call assign_OM_CNpools(bounds, num_soilc, filter_soilc,  carbonstate_vars, nitrogenstate_vars, tracerstate_vars, betrtracer_vars, centurybgc_vars)
+    call assign_OM_CNpools(bounds, num_soilc, filter_soilc,  carbonstate_vars, &
+           nitrogenstate_vars, tracerstate_vars, betrtracer_vars, centurybgc_vars)
 
   end subroutine betr_alm_flux_statevar_feedback
 
@@ -1056,17 +1067,20 @@ contains
        enddo
     endif
 
-    call apply_nutrient_down_regulation(nstvars, Extra_inst%nr, nitrogen_limit_flag, ystate(centurybgc_vars%lid_nh4), ystate(centurybgc_vars%lid_no3), &
+    call apply_nutrient_down_regulation(nstvars, Extra_inst%nr, nitrogen_limit_flag, &
+         ystate(centurybgc_vars%lid_nh4), ystate(centurybgc_vars%lid_no3), &
          dtime, cascade_matrix, reaction_rates)
 
-    call calc_dtrend_som_bgc(nstvars, Extra_inst%nr, cascade_matrix(1:nstvars, 1:Extra_inst%nr), reaction_rates(1:Extra_inst%nr), dydt)
+    call calc_dtrend_som_bgc(nstvars, Extra_inst%nr, cascade_matrix(1:nstvars, 1:Extra_inst%nr), &
+            reaction_rates(1:Extra_inst%nr), dydt)
 
 
   end subroutine one_box_century_bgc
   !-------------------------------------------------------------------------------
   
   
-  subroutine apply_nutrient_down_regulation(nstvars, nreactions, nitrogen_limit_flag, smin_nh4, smin_no3, dtime, cascade_matrix, reaction_rates)
+  subroutine apply_nutrient_down_regulation(nstvars, nreactions, nitrogen_limit_flag, &
+               smin_nh4, smin_no3, dtime, cascade_matrix, reaction_rates)
     !
     ! !DESCRIPTION:
     !
@@ -1151,35 +1165,9 @@ contains
             if(reaction_rates(reac)<1.e-40_r8)then
                alpha = 0._r8
             else
-               alpha = -(smin_nh4+gross_min_nh4_flx*dtime)/(reaction_rates(lid_nh4_nit_reac)*cascade_matrix(lid_nh4,lid_nh4_nit_reac)*dtime)
+               alpha = -(smin_nh4+gross_min_nh4_flx*dtime)/ &
+                  (reaction_rates(lid_nh4_nit_reac)*cascade_matrix(lid_nh4,lid_nh4_nit_reac)*dtime)
             endif
-            reaction_rates(lid_nh4_nit_reac) = reaction_rates(lid_nh4_nit_reac) * min(alpha, 1._r8)
-
-            tot_nh4_to_decomp_plant_flx = smin_nh4/dtime+gross_min_nh4_flx+reaction_rates(lid_nh4_nit_reac)* cascade_matrix(lid_nh4 ,lid_nh4_nit_reac)
-
-         else
-            !nitrifiers, decomposers and plants are nh4 limited
-            alpha = (smin_nh4+gross_min_nh4_flx*dtime)/(tot_nh4_demand_flx*dtime)  !the last term is used to avoid roundoff error
-            !downregulate nitrification
-            reaction_rates(lid_nh4_nit_reac) = reaction_rates(lid_nh4_nit_reac)*alpha
-
-            tot_nh4_to_decomp_plant_flx = smin_nh4/dtime+gross_min_nh4_flx+reaction_rates(lid_nh4_nit_reac)* cascade_matrix(lid_nh4 ,lid_nh4_nit_reac)
-
-         endif
-      else
-         tot_nh4_to_decomp_plant_flx = decomp_plant_minn_demand_flx
-      endif
-      tot_nh4_to_decomp_plant_flx = max(tot_nh4_to_decomp_plant_flx-1.e-21_r8,0._r8)
-
-      decomp_plant_residual_minn_demand_flx = decomp_plant_minn_demand_flx - tot_nh4_to_decomp_plant_flx
-
-      reac = lid_no3_den_reac
-      tot_no3_demand_flx = decomp_plant_residual_minn_demand_flx - reaction_rates(reac) * cascade_matrix(lid_no3 ,reac)
-
-      !then no3 is competed between denitrification and residual request from decomposer immobilization and plant demand
-      if(tot_no3_demand_flx * dtime>smin_no3)then
-
-         if(CNAllocate_Carbon_only())then
             !denitrifiers is given what is available
             if(abs(reaction_rates(reac))<1.e-40_r8)then
                alpha = 0._r8
@@ -1187,7 +1175,8 @@ contains
                alpha = -smin_no3/(dtime*reaction_rates(lid_no3_den_reac)*cascade_matrix(lid_no3,reac))
             endif
             reaction_rates(lid_no3_den_reac ) = reaction_rates(lid_no3_den_reac )*min(alpha,1._r8)
-            smin_no3_to_decomp_plant_flx = smin_no3/dtime + reaction_rates(lid_no3_den_reac ) * cascade_matrix(lid_no3,lid_no3_den_reac)
+            smin_no3_to_decomp_plant_flx = &
+               smin_no3/dtime + reaction_rates(lid_no3_den_reac ) * cascade_matrix(lid_no3,lid_no3_den_reac)
          else
             !denitrifiers, decomposers and plants are no3 limited
             alpha = smin_no3/(tot_no3_demand_flx*dtime)
@@ -1237,7 +1226,8 @@ contains
             cascade_matrix(lid_no3, reac) = cascade_matrix(lid_nh4, reac) * frac_no3_to_decomp_plant
             if(lid_nh4_supp>0)then
                cascade_matrix(lid_nh4_supp, reac) = cascade_matrix(lid_nh4, reac) * frac_supp_nh4_to_decomp_plant
-               cascade_matrix(lid_nh4,reac) = cascade_matrix(lid_nh4, reac) - cascade_matrix(lid_no3, reac) - cascade_matrix(lid_nh4_supp, reac)
+               cascade_matrix(lid_nh4,reac) = &
+                  cascade_matrix(lid_nh4, reac) - cascade_matrix(lid_no3, reac) - cascade_matrix(lid_nh4_supp, reac)
                cascade_matrix(lid_minn_nh4_immob, reac) = -cascade_matrix(lid_nh4, reac)-cascade_matrix(lid_nh4_supp, reac)
             else
                cascade_matrix(lid_nh4,reac) = cascade_matrix(lid_nh4, reac) - cascade_matrix(lid_no3, reac)
@@ -1262,7 +1252,8 @@ contains
       endif
       cascade_matrix(lid_minn_no3_plant, reac) = -cascade_matrix(lid_no3, reac)
 
-
     end associate
+
   end subroutine apply_nutrient_down_regulation
+
 end  module BGCReactionsCenturyCLM3Type

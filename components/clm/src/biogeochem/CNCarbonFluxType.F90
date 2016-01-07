@@ -692,8 +692,10 @@ contains
      allocate(this%prod100c_loss_col                 (begc:endc))                  ; this%prod100c_loss_col         (:)  =nan
      allocate(this%product_closs_col                 (begc:endc))                  ; this%product_closs_col         (:)  =nan
 
-     allocate(this%bgc_cpool_ext_inputs_vr_col       (begc:endc, 1:nlevdecomp_full,ndecomp_pools));this%bgc_cpool_ext_inputs_vr_col (:,:,:) = nan
-     allocate(this%bgc_cpool_ext_loss_vr_col         (begc:endc, 1:nlevdecomp_full,ndecomp_pools));this%bgc_cpool_ext_loss_vr_col   (:,:,:) = nan
+     allocate(this%bgc_cpool_ext_inputs_vr_col       (begc:endc, 1:nlevdecomp_full,ndecomp_pools));
+     this%bgc_cpool_ext_inputs_vr_col (:,:,:) = nan
+     allocate(this%bgc_cpool_ext_loss_vr_col         (begc:endc, 1:nlevdecomp_full,ndecomp_pools));
+     this%bgc_cpool_ext_loss_vr_col   (:,:,:) = nan
      
      allocate(this%lf_conv_cflux_col                 (begc:endc))                  ; this%lf_conv_cflux_col         (:)  =nan
      allocate(this%lithr_col                         (begc:endc))                  ; this%lithr_col                 (:)  =nan
@@ -775,10 +777,14 @@ contains
 
      ! clm_bgc_interface & pflotran
      !------------------------------------------------------------------------
-     allocate(this%externalc_to_decomp_cpools_col(begc:endc,1:nlevdecomp_full,1:ndecomp_pools)); this%externalc_to_decomp_cpools_col(:,:,:) = spval
-     allocate(this%externalc_to_decomp_delta_col (begc:endc));                                   this%externalc_to_decomp_delta_col (:)     = spval
-     allocate(this%f_co2_soil_vr_col             (begc:endc,1:nlevdecomp_full));                 this%f_co2_soil_vr_col             (:,:)   = nan
-     allocate(this%f_co2_soil_col                (begc:endc))                  ;                 this%f_co2_soil_col                (:)     = nan
+     allocate(this%externalc_to_decomp_cpools_col(begc:endc,1:nlevdecomp_full,1:ndecomp_pools)); 
+     this%externalc_to_decomp_cpools_col(:,:,:) = spval
+     allocate(this%externalc_to_decomp_delta_col (begc:endc));                                   
+     this%externalc_to_decomp_delta_col (:)     = spval
+     allocate(this%f_co2_soil_vr_col             (begc:endc,1:nlevdecomp_full));                 
+     this%f_co2_soil_vr_col             (:,:)   = nan
+     allocate(this%f_co2_soil_col                (begc:endc))                  ;                 
+     this%f_co2_soil_col                (:)     = nan
      !------------------------------------------------------------------------
    end subroutine InitAllocate; 
 
