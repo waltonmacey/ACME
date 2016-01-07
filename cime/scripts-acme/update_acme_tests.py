@@ -36,6 +36,8 @@ _TEST_SUITES = {
     "acme_land_developer" : (None,
                              ("SMS.f19_f19.I1850CLM45CN",
                               "SMS.f09_g16.I1850CLM45CN",
+                              ("ERS.f19_f19.I1850CLM45CN","clm-eca"),
+                              ("ERS.f19_f19.I1850CLM45BGC","clm-mic"),
                               "SMS.hcru_hcru.I1850CRUCLM45CN")
                              ),
 

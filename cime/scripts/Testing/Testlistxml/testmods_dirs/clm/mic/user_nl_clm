@@ -1,0 +1,4 @@
+use_nitrif_denitrif = .true. 
+use_century_decomp  = .true.
+nu_com              = 'MIC'
+
