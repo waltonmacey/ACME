@@ -1,7 +1,6 @@
-#ifdef USE_PETSC_LIB
-
-
 module GoveqnRichardsODEPressureType
+
+#ifdef USE_PETSC_LIB
 
   !-----------------------------------------------------------------------
   ! !DESCRIPTION:
@@ -1672,5 +1671,6 @@ contains
 
   !------------------------------------------------------------------------
 
-end module GoveqnRichardsODEPressureType
 #endif
+
+end module GoveqnRichardsODEPressureType
