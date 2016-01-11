@@ -150,6 +150,7 @@ contains
     ! !LOCAL VARIABLES:
     integer :: n
     integer :: j
+
     SHR_ASSERT_ALL((size(x)   == size(y)),        errMsg(__FILE__,__LINE__))
 
     n = size(x)
@@ -214,6 +215,7 @@ contains
     integer :: j
 
     SHR_ASSERT_ALL((size(x)   == size(y)),        errMsg(__FILE__,__LINE__))
+
     n = size(x)
     call diff(x,y(2:n))
     y(1)=x(1)
@@ -233,6 +235,7 @@ contains
 
     integer :: n
     integer :: j
+
     SHR_ASSERT_ALL((size(x)   == size(y)+1),        errMsg(__FILE__,__LINE__))
 
     n = size(x)
@@ -283,6 +286,7 @@ contains
     ! !LOCAL VARIABLES:
     integer  :: n, j
     real(r8) :: ans
+
     SHR_ASSERT_ALL((size(x)           == size(y)), errMsg(__FILE__,__LINE__))
 
     n = size(x)
@@ -412,7 +416,7 @@ contains
     endwhere
   end subroutine pd_decomp
   !--------------------------------------------------------------------------------
-  
+
   function num2str(a,fmt)result(ans)
     !
     ! !DESCRIPTION:

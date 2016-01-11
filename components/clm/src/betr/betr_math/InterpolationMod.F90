@@ -173,6 +173,7 @@ contains
 
     SHR_ASSERT_ALL((size(x) == size(fx)), errMsg(__FILE__,__LINE__))
     SHR_ASSERT_ALL((size(x) == size(di)), errMsg(__FILE__,__LINE__))
+
     region_loc=2
     if(present(region))region_loc=region
 

@@ -58,7 +58,7 @@ contains
 
   end subroutine InitAllocate
   !-------------------------------------------------------------------------------
-  
+
   subroutine DDeallocate(this)
     !
     ! !DESCRIPTION:
@@ -73,7 +73,7 @@ contains
   end subroutine DDeallocate
 
   !-------------------------------------------------------------------------------
-  
+
   subroutine AAssign(this, zi_t,us_t)
     !
     ! !DESCRIPTION:
@@ -90,7 +90,9 @@ contains
 
     n1 = size(zi_t)
     n2 = size(us_t)
+
     SHR_ASSERT_ALL((n1              == n2),        errMsg(__FILE__,__LINE__))
+
     this%zi(1:n1) = zi_t
     this%us(1:n2) = us_t
     this%nlen = n1
@@ -129,7 +131,7 @@ contains
 
   end subroutine init_transportmod
   !-------------------------------------------------------------------------------
-  
+
   subroutine calc_interface_conductance(bounds, lbj, ubj, jtop, numfl, filter, bulkdiffus, dz, hmconductance)
     !
     ! !DESCRIPTION:
@@ -218,6 +220,7 @@ contains
     real(r8) ::Fl, Fr
     character(len=255) :: subname='DiffusTransp_gw'
 
+
     SHR_ASSERT_ALL((ubound(jtop)            == (/bounds%endc/)),        errMsg(__FILE__,__LINE__))
     SHR_ASSERT_ALL((ubound(Rfactor)         == (/bounds%endc, ubj/)),   errMsg(__FILE__,__LINE__))
     SHR_ASSERT_ALL((ubound(hmconductance)   == (/bounds%endc, ubj-1/)), errMsg(__FILE__,__LINE__))
@@ -238,11 +241,14 @@ contains
        SHR_ASSERT_ALL((ubound(bt)            == (/bounds%endc, ubj/)),   errMsg(__FILE__,__LINE__))
        SHR_ASSERT_ALL((ubound(ct)            == (/bounds%endc, ubj/)),   errMsg(__FILE__,__LINE__))
     endif
+
     !unless specified explicitly, the bottom boundary condition is given as flux
     if(present(botbc_type))then
        botbc_ltype = botbc_type
        if(botbc_type==bndcond_as_conc)then
+
           SHR_ASSERT_ALL((ubound(condc_botlay)    == (/bounds%endc/)),        errMsg(__FILE__,__LINE__))
+
        endif
     else
        botbc_ltype = bndcond_as_flux
@@ -382,6 +388,7 @@ contains
 
    !assemble the tridiagonal maxtrix
    if(present(botbc_type))then
+
      SHR_ASSERT_ALL((ubound(condc_botlay)    == (/bounds%endc/)),        errMsg(__FILE__,__LINE__))
 
      call DiffusTransp_gw_tridiag(bounds, lbj, ubj, jtop, numfl, filter, ntrcs, trcin_mobile, &
@@ -497,7 +504,7 @@ contains
 
    end subroutine DiffusTransp_solid_tridiag
    !-------------------------------------------------------------------------------
-   
+
    subroutine DiffusTransp_solid(bounds, lbj, ubj, lbn, numfl, filter, ntrcs, trcin,&
         hmconductance,  dtime_col, dz, source, update_col, dtracer)
      !
@@ -531,6 +538,7 @@ contains
      real(r8) :: ct(bounds%begc:bounds%endc, lbj:ubj)             !returning tridiagonal c matrix
      real(r8) :: rt(bounds%begc:bounds%endc, lbj:ubj, 1:ntrcs)             !returning tridiagonal r matrix
      character(len=255) :: subname = 'DiffusTransp_solid'
+
 
      SHR_ASSERT_ALL((ubound(lbn)           == (/bounds%endc/)),        errMsg(__FILE__,__LINE__))
      SHR_ASSERT_ALL((ubound(hmconductance) == (/bounds%endc, ubj-1/)), errMsg(__FILE__,__LINE__))
@@ -634,7 +642,7 @@ contains
      integer  :: length, lengthp2
      real(r8) :: mass_curve(0:ubj-lbj+5 , ntrcs) !total number of nodes + two ghost cells at each boundary
      real(r8) :: cmass_curve(0:ubj-lbj+5, ntrcs)
-     real(r8) :: mass_new(1:ubj-lbj+1   , ntrcs)
+     real(r8) :: mass_new(0:ubj-lbj+1   , ntrcs)
      real(r8) :: cmass_new(0:ubj-lbj+1  , ntrcs)
      real(r8) :: zold(0:ubj-lbj+1)
      real(r8) :: di(0:ubj-lbj+5)
@@ -647,6 +655,7 @@ contains
      real(r8) :: utmp
      real(r8) :: dinfl_mass
      character(len=32) :: subname='semi_lagrange_adv_backward'
+
 
      SHR_ASSERT_ALL((ubound(lbn)        == (/bounds%endc/)),         errMsg(__FILE__,__LINE__))
      SHR_ASSERT_ALL((ubound(dtime)      == (/bounds%endc/)),         errMsg(__FILE__,__LINE__))
@@ -723,7 +732,7 @@ contains
            endif
         enddo
         !compute cumulative mass curve
-        call cumsum(mass_curve(0:lengthp2,1:ntr), cmass_curve(0:lengthp2, 1:ntr),idim=1)
+        call cumsum(mass_curve(0:lengthp2,1:ntrcs), cmass_curve(0:lengthp2, 1:ntrcs),idim=1)
 
         !do mass interpolation
         do ntr = 1, ntrcs
@@ -787,7 +796,7 @@ contains
      enddo
    end subroutine cmass_mono_smoother
    !-------------------------------------------------------------------------------
-   
+
    function is_ascending_vec(zcor)result(ans)
      !
      ! DESCRIPTION:
@@ -863,9 +872,9 @@ contains
      call ode_rk2(trajectory, zi(3:neq+2), neq, time, dtime, zold)
 
    end subroutine backward_advection
-   
+
    !-------------------------------------------------------------------------------
-   
+
    subroutine trajectory(y0, dt, ti, neq, dxdt)
      !
      ! !DESCRIPTION:

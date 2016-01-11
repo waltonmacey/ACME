@@ -34,8 +34,8 @@ module BGCReactionsMockRunType
      procedure :: do_tracer_equilibration               ! do equilibrium tracer chemistry
      procedure :: InitCold                              ! do cold initialization
      procedure :: readParams                            ! read in parameters
-     procedure :: betr_alm_flux_statevar_feedback       !
-     procedure :: init_betr_alm_bgc_coupler
+     procedure :: betr_lsm_flux_statevar_feedback       !
+     procedure :: init_betr_lsm_bgc_coupler
   end type bgc_reaction_mock_run_type
 
   interface bgc_reaction_mock_run_type
@@ -77,7 +77,7 @@ contains
 
   end subroutine init_boundary_condition_type
 
-  !-------------------------------------------------------------------------------  
+  !-------------------------------------------------------------------------------
   subroutine Init_betrbgc(this, bounds, lbj, ubj, betrtracer_vars)
     !
     ! DESCRIPTION:
@@ -211,8 +211,7 @@ contains
   !-------------------------------------------------------------------------------
   subroutine calc_bgc_reaction(this, bounds, lbj, ubj, num_soilc, filter_soilc, num_soilp, filter_soilp, jtops,     &
        dtime, betrtracer_vars, tracercoeff_vars, waterstate_vars, temperature_vars, soilstate_vars, chemstate_vars, &
-       cnstate_vars, carbonstate_vars, carbonflux_vars,nitrogenstate_vars, nitrogenflux_vars, tracerstate_vars,     &
-       tracerflux_vars, plantsoilnutrientflux_vars)
+       cnstate_vars, tracerstate_vars, tracerflux_vars, plantsoilnutrientflux_vars)
     !
     ! !DESCRIPTION:
     ! do bgc reaction
@@ -247,17 +246,12 @@ contains
     type(temperature_type)              , intent(in)    :: temperature_vars           ! energy state variable
     type(soilstate_type)                , intent(in)    :: soilstate_vars             !
     type(cnstate_type)                  , intent(inout) :: cnstate_vars               !
-    type(carbonstate_type)              , intent(in)    :: carbonstate_vars           !
-    type(carbonflux_type)               , intent(inout) :: carbonflux_vars            !
-    type(nitrogenstate_type)            , intent(inout) :: nitrogenstate_vars         !
-    type(nitrogenflux_type)             , intent(inout) :: nitrogenflux_vars          ! 
     type(chemstate_type)                , intent(in)    :: chemstate_vars             !
     type(betrtracer_type)               , intent(in)    :: betrtracer_vars            ! betr configuration information
     type(tracercoeff_type)              , intent(in)    :: tracercoeff_vars           !
     type(tracerstate_type)              , intent(inout) :: tracerstate_vars           !
     type(tracerflux_type)               , intent(inout) :: tracerflux_vars            !
     type(plantsoilnutrientflux_type)    , intent(inout) :: plantsoilnutrientflux_vars !
-
     character(len=*)                    , parameter     :: subname ='calc_bgc_reaction'
 
   end subroutine calc_bgc_reaction
@@ -301,7 +295,7 @@ contains
 
 
   end subroutine do_tracer_equilibration
-  
+
   !-----------------------------------------------------------------------
   subroutine InitCold(this, bounds, betrtracer_vars, waterstate_vars, tracerstate_vars)
     !
@@ -397,12 +391,12 @@ contains
   end subroutine readParams
 
   !-------------------------------------------------------------------------------
-  subroutine betr_alm_flux_statevar_feedback(this, bounds, num_soilc, filter_soilc, &
-       carbonstate_vars, nitrogenstate_vars, nitrogenflux_vars, tracerstate_vars,   &
-       tracerflux_vars,  betrtracer_vars)
+  subroutine betr_lsm_flux_statevar_feedback(this, bounds, num_soilc, filter_soilc, &
+       carbonstate_vars, nitrogenstate_vars, nitrogenflux_vars, phosphorusstate_vars,&
+       phosphorusflux_vars, tracerstate_vars, tracerflux_vars,  betrtracer_vars)
     !
     ! !DESCRIPTION:
-    ! do flux and state variable change between betr and alm.
+    ! do flux and state variable change between betr and lsm.
     !
     ! !USES:
     use shr_kind_mod             , only : r8 => shr_kind_r8
@@ -413,6 +407,8 @@ contains
     use CNCarbonStateType        , only : carbonstate_type
     use CNNitrogenStateType      , only : nitrogenstate_type
     use CNNitrogenFluxType       , only : nitrogenflux_type
+    use PhosphorusFluxType       , only : phosphorusflux_type
+    use PhosphorusStateType      , only : phosphorusstate_type
 
     ! !ARGUMENTS:
     class(bgc_reaction_mock_run_type) , intent(in)    :: this               !
@@ -425,36 +421,52 @@ contains
     type(carbonstate_type)            , intent(inout) :: carbonstate_vars   !
     type(nitrogenflux_type)           , intent(inout) :: nitrogenflux_vars  !
     type(nitrogenstate_type)          , intent(inout) :: nitrogenstate_vars !
-
-  end subroutine betr_alm_flux_statevar_feedback
+    type(phosphorusstate_type)        , intent(inout) :: phosphorusstate_vars
+    type(phosphorusflux_type)         , intent(inout) :: phosphorusflux_vars
+  end subroutine betr_lsm_flux_statevar_feedback
 
   !-------------------------------------------------------------------------------
 
 
-  subroutine init_betr_alm_bgc_coupler(this, bounds, carbonstate_vars, &
-       nitrogenstate_vars, betrtracer_vars, tracerstate_vars)
+  subroutine init_betr_lsm_bgc_coupler(this, bounds, num_soilc, filter_soilc, carbonstate_vars, &
+       nitrogenstate_vars, phosphorusstate_vars, plantsoilnutrientflux_vars, &
+       betrtracer_vars, tracerstate_vars, cnstate_vars, soilstate_vars, waterflux_vars, ecophyscon_vars)
 
     ! !DESCRIPTION:
-    ! initialize the bgc coupling between betr and alm
+    ! initialize the bgc coupling between betr and lsm
     !
     ! !USES:
     use clm_varcon               , only : natomw, catomw
     use clm_varpar               , only : i_cwd, i_met_lit, i_cel_lit, i_lig_lit
     use CNCarbonStateType        , only : carbonstate_type
     use CNNitrogenStateType      , only : nitrogenstate_type
+    use PhosphorusStateType      , only : phosphorusstate_type
     use tracerstatetype          , only : tracerstate_type
     use BetrTracerType           , only : betrtracer_type
     use clm_varpar               , only : nlevtrc_soil
     use landunit_varcon          , only : istsoil, istcrop
+    use PlantSoilnutrientFluxType, only : plantsoilnutrientflux_type
+    use EcophysConType           , only : ecophyscon_type
+    use CNStateType              , only : cnstate_type
+    use WaterfluxType            , only : waterflux_type
+    use SoilStateType            , only : soilstate_type
 
     ! !ARGUMENTS:
     class(bgc_reaction_mock_run_type)  , intent(in)    :: this               !
     type(bounds_type)                  , intent(in)    :: bounds             !
+    integer                            , intent(in)    :: num_soilc
+    integer                            , intent(in)    :: filter_soilc(:)
     type(tracerstate_type)             , intent(inout) :: tracerstate_vars   !
     type(betrtracer_type)              , intent(in)    :: betrtracer_vars    ! betr configuration information
-    type(carbonstate_type)             , intent(in)    :: carbonstate_vars   ! 
+    type(carbonstate_type)             , intent(in)    :: carbonstate_vars   !
     type(nitrogenstate_type)           , intent(in)    :: nitrogenstate_vars !
+    type(phosphorusstate_type)         , intent(in)    :: phosphorusstate_vars
+    type(plantsoilnutrientflux_type)   , intent(inout) :: plantsoilnutrientflux_vars !
+    type(ecophyscon_type)              , intent(in)    :: ecophyscon_vars
+    type(cnstate_type)                 , intent(in)    :: cnstate_vars
+    type(waterflux_type)               , intent(in)    :: waterflux_vars
+    type(soilstate_type)               , intent(in)    :: soilstate_vars
 
-  end subroutine init_betr_alm_bgc_coupler
+  end subroutine init_betr_lsm_bgc_coupler
 
 end module BGCReactionsMockRunType

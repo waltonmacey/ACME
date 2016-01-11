@@ -47,9 +47,8 @@ contains
   !-------------------------------------------------------------------------------
   subroutine run_betr_one_step_without_drainage(bounds, lbj, ubj, num_soilc, filter_soilc, num_soilp, filter_soilp, col ,   &
        atm2lnd_vars, soilhydrology_vars, soilstate_vars, waterstate_vars, temperature_vars, waterflux_vars, chemstate_vars, &
-       cnstate_vars, canopystate_vars, carbonstate_vars, carbonflux_vars,nitrogenstate_vars, nitrogenflux_vars,             &
-       betrtracer_vars, bgc_reaction, tracerboundarycond_vars, tracercoeff_vars, tracerstate_vars, tracerflux_vars,         &
-       plantsoilnutrientflux_vars)
+       cnstate_vars, canopystate_vars,  carbonflux_vars, betrtracer_vars, bgc_reaction,                   &
+       tracerboundarycond_vars, tracercoeff_vars, tracerstate_vars, tracerflux_vars, plantsoilnutrientflux_vars)
     !
     ! !DESCRIPTION:
     ! run betr code one time step forward, without drainage calculation
@@ -78,10 +77,7 @@ contains
     use CNStateType                  , only          : cnstate_type
     use CNCarbonFluxType             , only          : carbonflux_type
     use tracer_varcon                , only          : is_active_betr_bgc
-    use CNNitrogenStateType          , only          : nitrogenstate_type
-    use CNNitrogenFluxType           , only          : nitrogenflux_type
     use CanopyStateType              , only          : canopystate_type
-    use CNCarbonStateType            , only          : carbonstate_type
     !
     ! !ARGUMENTS :
     type(bounds_type)                , intent(in)    :: bounds                     ! bounds
@@ -102,10 +98,7 @@ contains
     type(soilhydrology_type)         , intent(in)    :: soilhydrology_vars
     type(cnstate_type)               , intent(inout) :: cnstate_vars
     type(canopystate_type)           , intent(in)    :: canopystate_vars
-    type(carbonflux_type)            , intent(inout) :: carbonflux_vars
-    type(carbonstate_type)           , intent(in)    :: carbonstate_vars
-    type(nitrogenstate_type)         , intent(inout) :: nitrogenstate_vars
-    type(nitrogenflux_type)          , intent(inout) :: nitrogenflux_vars
+    type(carbonflux_type)            , intent(in)    :: carbonflux_vars
     type(waterflux_type)             , intent(inout) :: waterflux_vars
     type(tracerboundarycond_type)    , intent(inout) :: tracerboundarycond_vars
     type(tracercoeff_type)           , intent(inout) :: tracercoeff_vars
@@ -131,7 +124,7 @@ contains
     if(use_cn)then
        !update npp for aerenchyma calculation
        call betr_annualupdate(bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, &
-            carbonflux_vars, tracercoeff_vars)
+            carbonflux_vars, plantsoilnutrientflux_vars, tracercoeff_vars)
     endif
 
     !obtain water table depth
@@ -150,7 +143,7 @@ contains
          temperature_vars,                                            &
          betrtracer_vars,                                             &
          canopystate_vars,                                            &
-         carbonstate_vars,                                            &
+         plantsoilnutrientflux_vars,                                  &
          carbonflux_vars,                                             &
          tracercoeff_vars)
 
@@ -240,10 +233,6 @@ contains
          soilstate_vars,                                  &
          chemstate_vars,                                  &
          cnstate_vars,                                    &
-         carbonstate_vars,                                &
-         carbonflux_vars,                                 &
-         nitrogenstate_vars,                              &
-         nitrogenflux_vars,                               &
          tracerstate_vars,                                &
          tracerflux_vars,                                 &
          plantsoilnutrientflux_vars)
@@ -296,11 +285,12 @@ contains
     if (is_active_betr_bgc) then
 
        !update nitrogen storage pool
-       call plantsoilnutrientflux_vars%summary(bounds, ubj, num_soilc,                                  &
+       call plantsoilnutrientflux_vars%nutrient_flx_summary(bounds, ubj, num_soilc,                                  &
             filter_soilc,                                                                               &
             col%dz(bounds%begc:bounds%endc,1:ubj),                                                      &
-            tracerflux_vars%tracer_flx_vtrans_col(bounds%begc:bounds%endc,betrtracer_vars%id_trc_nh3x), &
-            tracerflux_vars%tracer_flx_vtrans_col(bounds%begc:bounds%endc,betrtracer_vars%id_trc_no3x))
+            tracerflux_vars%tracer_flx_vtrans_vr_col(bounds%begc:bounds%endc,1:ubj,betrtracer_vars%id_trc_nh3x), &
+            tracerflux_vars%tracer_flx_vtrans_vr_col(bounds%begc:bounds%endc,1:ubj,betrtracer_vars%id_trc_no3x), &
+            tracerflux_vars%tracer_flx_vtrans_vr_col(bounds%begc:bounds%endc,1:ubj,betrtracer_vars%id_trc_p_sol))
     endif
   end subroutine run_betr_one_step_without_drainage
 
@@ -581,7 +571,7 @@ contains
     enddo
 
   end subroutine tracer_gw_transport
-  
+
   !-------------------------------------------------------------------------------
   subroutine do_tracer_advection(bounds, lbj, ubj, jtops, num_soilc, filter_soilc, &
        betrtracer_vars, dz, zi, dtime,  h2osoi_liqvol, waterflux_vars,             &
@@ -627,7 +617,8 @@ contains
     real(r8)             :: qflx_rootsoi_local(bounds%begc:bounds%endc,lbj:ubj) !
     integer, allocatable :: adv_trc_group( : )
     real(r8), pointer    :: err_tracer( : , : )
-    real(r8), pointer    :: transp_mass( : , : )
+    real(r8), pointer    :: transp_mass_vr( : , : , : )
+    real(r8), pointer    :: transp_mass(:, :)
     real(r8), pointer    :: leaching_mass( : , : )
     real(r8), pointer    :: inflx_top( : , : )
     real(r8), pointer    :: inflx_bot( : , : )
@@ -669,11 +660,13 @@ contains
          aqu2bulkcef_mobile_col   => tracercoeff_vars%aqu2bulkcef_mobile_col        , & !
          tracer_flx_leaching      => tracerflux_vars%tracer_flx_leaching_col        , & !
          tracer_flx_vtrans        => tracerflux_vars%tracer_flx_vtrans_col          , & !
+         tracer_flx_vtrans_vr     => tracerflux_vars%tracer_flx_vtrans_vr_col       , & !
          tracer_flx_infl          => tracerflux_vars%tracer_flx_infl_col              & !
          )
       !allocate memories
       allocate (adv_trc_group (nmem_max                                    ))
       allocate (err_tracer    (bounds%begc:bounds%endc ,nmem_max           ))
+      allocate (transp_mass_vr(bounds%begc:bounds%endc, lbj:ubj, nmem_max  ))
       allocate (transp_mass   (bounds%begc:bounds%endc, nmem_max           ))
       allocate (leaching_mass (bounds%begc:bounds%endc, nmem_max           ))
       allocate (inflx_top     (bounds%begc:bounds%endc, nmem_max           ))
@@ -776,7 +769,8 @@ contains
                      endif
                   enddo
                enddo
-               transp_mass(:,k) = 0._r8
+               transp_mass_vr(:,:, k) = 0._r8
+               transp_mass(:, k) = 0._r8
                if(vtrans_scal(trcid)>0._r8)then
                   call calc_root_uptake_as_perfect_sink(bounds, lbj, ubj, num_soilc,   &
                        filter_soilc,                                                   &
@@ -786,6 +780,7 @@ contains
                        update_col,                                                     &
                        halfdt_col,                                                     &
                        tracer_conc_mobile_col(bounds%begc:bounds%endc, lbj:ubj,trcid), &
+                       transp_mass_vr(bounds%begc:bounds%endc, lbj:ubj, k)           , &
                        transp_mass(bounds%begc:bounds%endc, k))
                endif
             enddo
@@ -817,7 +812,7 @@ contains
 
                      tracer_flx_vtrans(c, trcid)  = tracer_flx_vtrans(c,trcid) + transp_mass(c,k)
                      tracer_flx_leaching(c,trcid) = tracer_flx_leaching(c, trcid) + leaching_mass(c,k)
-
+                     tracer_flx_vtrans_vr(c, lbj:ubj, trcid) = transp_mass_vr(c,lbj:ubj,k)
                   endif
                enddo
             enddo
@@ -846,6 +841,7 @@ contains
       deallocate(adv_trc_group)
       deallocate(err_tracer   )
       deallocate(transp_mass  )
+      deallocate(transp_mass_vr)
       deallocate(leaching_mass)
       deallocate(inflx_top    )
       deallocate(inflx_bot    )
@@ -1003,8 +999,8 @@ contains
 
                            if(tracer_conc_mobile_col(c,l,trcid)<0._r8)then
                               !write error message and stop
-                              write(iulog,*)tracernames(trcid),c,l
-                              write(iulog,*)tracer_conc_mobile_col(c,l,trcid),dtracer(c,l,k),dtime_loc(c)
+                              write(iulog,*),tracernames(trcid),c,l
+                              write(iulog,*),tracer_conc_mobile_col(c,l,trcid),dtracer(c,l,k),dtime_loc(c)
                               call endrun('stopped '//trim(subname)//errMsg(__FILE__, __LINE__))
                            endif
 
@@ -1078,7 +1074,7 @@ contains
                            tracer_flx_dif(c,volatileid(trcid)) = tracer_flx_dif(c,volatileid(trcid)) - diff_surf(c,k) * dtime_loc(c)
                         endif
                      else
-                        write(iulog,*)'mass bal error dif '//tracernames(trcid), mass1,'col=',c,get_cntheta()
+                        write(iulog,*),'mass bal error dif '//tracernames(trcid), mass1,'col=',c,get_cntheta()
                         write(iulog,*)'err=',err_tracer(c,k),dmass(c,k), ' dif=',diff_surf(c,k)*dtime_loc(c), ' prod=',dot_sum(x=local_source(c,jtops(c):ubj,k),y=dz(c,jtops(c):ubj))*dtime_loc(c)
                         call endrun('mass balance error for tracer '//tracernames(trcid)//' in ' &
                            //trim(subname)//errMsg(__FILE__, __LINE__))
@@ -1361,8 +1357,8 @@ contains
 
   !-------------------------------------------------------------------------------
   subroutine calc_root_uptake_as_perfect_sink(bounds, lbj, ubj,  num_soilc, filter_soilc, &
-       dtime_loc, dz, qflx_rootsoi,                                                       &
-       update_col, halfdt_col, tracer_conc, transp_mass)
+       dtime_loc, dz, qflx_rootsoi, update_col, halfdt_col, tracer_conc, transp_mass_vr , &
+       transp_mass)
     !
     ! !DESCRIPTION:
     ! calculate plant aqueous tracer uptake through transpiration into xylem
@@ -1378,6 +1374,7 @@ contains
     logical,                intent(in)    :: update_col(bounds%begc:bounds%endc) ! logical switch for active col update
     logical,                intent(in)    :: halfdt_col(bounds%begc:bounds%endc)
     real(r8),               intent(inout) :: tracer_conc(bounds%begc: , lbj: )   ! incoming tracer concentration
+    real(r8),               intent(out)   :: transp_mass_vr(bounds%begc: , lbj: )!
     real(r8),               intent(out)   :: transp_mass(bounds%begc: )
 
     ! !LOCAL VARIABLES:
@@ -1389,7 +1386,9 @@ contains
     SHR_ASSERT_ALL((ubound(dtime_loc)    == (/bounds%endc/))      , errMsg(__FILE__,__LINE__))
     SHR_ASSERT_ALL((ubound(tracer_conc)  == (/bounds%endc, ubj/)) , errMsg(__FILE__,__LINE__))
     SHR_ASSERT_ALL((ubound(qflx_rootsoi) == (/bounds%endc, ubj/)) , errMsg(__FILE__,__LINE__))
+    SHR_ASSERT_ALL((ubound(transp_mass_vr)  == (/bounds%endc,ubj/))      , errMsg(__FILE__,__LINE__))
     SHR_ASSERT_ALL((ubound(transp_mass)  == (/bounds%endc/))      , errMsg(__FILE__,__LINE__))
+
 
     transp_mass(:) = 0._r8
     do fc = 1, num_soilc
@@ -1397,8 +1396,9 @@ contains
        if(update_col(c) .and. (.not. halfdt_col(c)))then
 
           do j = 1, ubj
-             tracer_conc_new = tracer_conc(c,j) * exp(-max(qflx_rootsoi(c,j),0._r8)*dtime_loc(c))
-             transp_mass(c) = transp_mass(c) + (tracer_conc(c,j)-tracer_conc_new)*dz(c,j)
+             tracer_conc_new  = tracer_conc(c,j) * exp(-max(qflx_rootsoi(c,j),0._r8)*dtime_loc(c))
+             transp_mass_vr(c,j)   = (tracer_conc(c,j)-tracer_conc_new)*dz(c,j)
+             transp_mass(c) = transp_mass(c) + transp_mass_vr(c,j)
              tracer_conc(c,j) = tracer_conc_new
           enddo
        endif
@@ -1537,7 +1537,7 @@ contains
          tracer_conc_mobile    => tracerstate_vars%tracer_conc_mobile_col     , & !
          aqu2bulkcef_mobile    => tracercoeff_vars%aqu2bulkcef_mobile_col     , & !
          tracer_flx_surfrun    => tracerflux_vars%tracer_flx_surfrun_col        & !Output[real(r8) (:,:)] tracer loss through surface runoff
-         
+
          )
 
       dtime = get_step_size()
@@ -1773,7 +1773,7 @@ contains
          is_volatile              => betrtracer_vars%is_volatile            , &
          is_isotope               => betrtracer_vars%is_isotope             , &
          is_h2o                   => betrtracer_vars%is_h2o                   &
-         
+
          )
 
       do fc = 1, num_soilc

@@ -21,7 +21,7 @@ module BeTRTracerType
    integer :: ngwmobile_tracers                                  ! total number of tracers potentially undergoing gas/aqueous movement
    integer :: nvolatile_tracers                                  ! number of volatile_tracers
    integer :: nsolid_equil_tracers                               ! number of tracers that undergo equilibrium adsorption in soil could include adsorbed doc, nh4(+)
-   integer :: nsolid_passive_tracers                             ! number of tracers that undergo active mineral protection
+   integer :: nsolid_passive_tracers                             ! number of tracers that undergo active mineral interaction
 
    integer :: ntracer_groups                                     !
    integer :: ngwmobile_tracer_groups                            ! total number of groups for mobile tracers
@@ -47,7 +47,7 @@ module BeTRTracerType
    integer :: id_trc_no2x                                        ! tag for no2 and its related species, no2x(HNO2,NO2(-))
    integer :: id_trc_dom                                         ! tag for generic dissolved organic matter
    integer :: id_trc_doc                                         ! tag for generic dissolved organic carbon, used for testing single carbon pool model
-
+   integer :: id_trc_p_sol                                       ! tag for soluble inorganic P, this includes P in equilibrium adsorption
 
    integer :: id_trc_o18_h2o                                     ! tag for H2O(18)
    integer :: id_trc_o17_h2o                                     ! tag for H2O(17)
@@ -200,12 +200,17 @@ module BeTRTracerType
   allocate(this%tracernames        (this%ntracers));             this%tracernames(:)     = ''
   allocate(this%vtrans_scal        (this%ngwmobile_tracers));    this%vtrans_scal(:)     = 0._r8   !no transport through xylem transpiration
 
-  allocate(this%tracer_solid_passive_diffus_scal_group(this%nsolid_passive_tracer_groups)); this%tracer_solid_passive_diffus_scal_group(:) = 1._r8
-  allocate(this%tracer_solid_passive_diffus_thc_group (this%nsolid_passive_tracer_groups)); this%tracer_solid_passive_diffus_thc_group(:) = 1e-4_r8 / (86400._r8 * 365._r8) * 1.e-36_r8
+  allocate(this%tracer_solid_passive_diffus_scal_group(this%nsolid_passive_tracer_groups));
+  this%tracer_solid_passive_diffus_scal_group(:) = 1._r8
 
-  allocate(this%tracer_group_memid(this%ntracer_groups, this%nmem_max)); this%tracer_group_memid(:,:) = nanid
+  allocate(this%tracer_solid_passive_diffus_thc_group (this%nsolid_passive_tracer_groups));
+  this%tracer_solid_passive_diffus_thc_group(:) = 1e-4_r8 / (86400._r8 * 365._r8) * 1.e-36_r8
 
-  allocate(this%solid_passive_tracer_groupid(this%nsolid_passive_tracer_groups, 1:this%nmem_max)); this%solid_passive_tracer_groupid(:,:) = nanid
+  allocate(this%tracer_group_memid(this%ntracer_groups, this%nmem_max));
+  this%tracer_group_memid(:,:) = nanid
+
+  allocate(this%solid_passive_tracer_groupid(this%nsolid_passive_tracer_groups, 1:this%nmem_max));
+  this%solid_passive_tracer_groupid(:,:) = nanid
 
   allocate(this%groupid(this%ntracers)); this%groupid(:) = nanid
 

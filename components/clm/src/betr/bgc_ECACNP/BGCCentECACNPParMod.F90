@@ -1,4 +1,4 @@
-module BGCCenturyParMod
+module BGCCentECACNPParMod
   !
   ! !DESCRIPTION:
   !  parameterization module for century bgc
@@ -7,6 +7,8 @@ module BGCCenturyParMod
   use shr_kind_mod , only : r8 => shr_kind_r8
   use abortutils   , only : endrun
   use shr_log_mod  , only : errMsg => shr_log_errMsg
+  use ColumnType            , only : col
+  use PatchType             , only : pft
   implicit none
 
   public :: readCentDecompBgcParams
@@ -26,15 +28,40 @@ module BGCCenturyParMod
   type(CNNitrifDenitrifParamsType), protected ::  CNNitrifDenitrifParamsInst
 
 
-  type :: NutrientCompetitionParamsType
+  !the following type is defined for nutrient competition. some of its variables
+  !are constant, and some depend on dynamic status of the plants and microbes
+
+  type, public :: NutrientCompetitionParamsType
 
      real(r8) :: dayscrecover      ! number of days to recover negative cpool
-     real(r8) :: compet_plant_no3  ! (unitless) relative compettiveness of plants for NO3
-     real(r8) :: compet_plant_nh4  ! (unitless) relative compettiveness of plants for NH4
-     real(r8) :: compet_decomp_no3 ! (unitless) relative competitiveness of immobilizers for NO3
-     real(r8) :: compet_decomp_nh4 ! (unitless) relative competitiveness of immobilizers for NH4
-     real(r8) :: compet_denit      ! (unitless) relative competitiveness of denitrifiers for NO3
-     real(r8) :: compet_nit        ! (unitless) relative competitiveness of nitrifiers for NH4
+
+     real(r8) :: vmax_plant_nh4b                         !bulk vmax for nh4
+     real(r8) :: vmax_plant_no3b                         !bulk vmax for no3
+     real(r8) :: vmax_plant_minpb                        !bulk vmax for mineral p
+     real(r8) :: vmax_minsurf_pb
+
+
+     !the following two are dynamic parameters
+     integer               :: lid_msurf_compet
+     integer               :: lid_decomp_compet
+     integer               :: lid_plant_compet
+     integer               :: lid_nitri_compet
+     integer               :: lid_denit_compet
+     integer               :: lid_minsrf_compet
+     integer               :: ncompets
+
+
+     real(r8), pointer :: k_mat_minn(:,:)
+     real(r8), pointer :: k_mat_minp(:)
+
+     real(r8), pointer :: vcompet_minn(:)
+     real(r8), pointer :: vcompet_minp(:)
+     real(r8)          :: vcompet_minp_cap         !potential surface area for mineral P adsorption
+     real(r8)          :: vcompet_min_nh4_cap      !potential surface area for NH4 adsorption
+     contains
+       procedure, public  :: Init
+       procedure, private :: InitAllocate
+       procedure, public  :: set_nutrientcompet_paras
   end type NutrientCompetitionParamsType
 
   ! NutrientCompetitionParamsInst is populated in readCNAllocParams which is called in
@@ -45,6 +72,24 @@ module BGCCenturyParMod
      real(r8)             :: cn_s1_bgc        !C:N for SOM 1
      real(r8)             :: cn_s2_bgc        !C:N for SOM 2
      real(r8)             :: cn_s3_bgc        !C:N for SOM 3
+     real(r8)             :: cp_s1_bgc        !C:N for SOM 1
+     real(r8)             :: cp_s2_bgc        !C:N for SOM 2
+     real(r8)             :: cp_s3_bgc        !C:N for SOM 3
+
+     real(r8)             :: cn_s1_bgc_tgt
+     real(r8)             :: cn_s2_bgc_tgt
+     real(r8)             :: cn_s3_bgc_tgt
+     real(r8)             :: cn_l1_bgc_tgt
+     real(r8)             :: cn_l2_bgc_tgt
+     real(r8)             :: cn_l3_bgc_tgt
+
+     real(r8)             :: cp_s1_bgc_tgt
+     real(r8)             :: cp_s2_bgc_tgt
+     real(r8)             :: cp_s3_bgc_tgt
+     real(r8)             :: cp_l1_bgc_tgt
+     real(r8)             :: cp_l2_bgc_tgt
+     real(r8)             :: cp_l3_bgc_tgt
+
 
      real(r8)             :: rf_l1s1_bgc      !respiration fraction litter 1 -> SOM 1
      real(r8)             :: rf_l2s1_bgc
@@ -82,12 +127,133 @@ module BGCCenturyParMod
 
      real(r8),allocatable :: spinup_vector(:) ! multipliers for soil decomp during accelerated spinup
 
+     real(r8)    , pointer :: cn_ratios_tgt(:)
+     real(r8)    , pointer :: cp_ratios_tgt(:)
   end type CNDecompBgcParamsType
 
   type(CNDecompBgcParamsType),protected ::  CNDecompBgcParamsInst
 
 
 contains
+
+  !-------------------------------------------------------------------------------
+
+  subroutine Init(this)
+
+  use MathfuncMod, only : addone
+  ! !ARGUMENTS:
+  class(NutrientCompetitionParamsType) :: this
+
+
+  integer  :: itemp
+  itemp = 0
+  this%lid_plant_compet = addone(itemp)
+  this%lid_msurf_compet = addone(itemp)
+  this%lid_decomp_compet= addone(itemp)
+  this%lid_plant_compet = addone(itemp)
+  this%lid_nitri_compet = addone(itemp)
+  this%lid_denit_compet = addone(itemp)
+  this%lid_minsrf_compet= addone(itemp)
+  this%ncompets = itemp
+
+
+
+  end subroutine Init
+
+  !-------------------------------------------------------------------------------
+  subroutine set_nutrientcompet_paras(this, plantsoilnutrientflux_vars, c, lev)
+
+
+  use PlantSoilnutrientFluxType, only : plantsoilnutrientflux_type
+  use clm_varpar               , only : maxpatch_pft
+
+  ! !ARGUMENTS:
+  class(NutrientCompetitionParamsType) :: this
+
+  type(plantsoilnutrientflux_type)     , intent(in) :: plantsoilnutrientflux_vars !
+  integer,  intent(in) :: c      !column indices
+  integer,  intent(in) :: lev    !vertical level indices
+
+  integer  :: pi, p
+
+
+  associate(                                                                                              &
+   plant_compet_minn_vr_col             => plantsoilnutrientflux_vars%plant_compet_minn_vr_col          , &
+   plant_compet_minp_vr_col             => plantsoilnutrientflux_vars%plant_compet_minp_vr_col          , &
+   vmax_plant_nh4b_vr_col               => plantsoilnutrientflux_vars%vmax_plant_nh4b_vr_col            , &
+   vmax_plant_no3b_vr_col               => plantsoilnutrientflux_vars%vmax_plant_no3b_vr_col            , &
+   vmax_plant_minpb_vr_col              => plantsoilnutrientflux_vars%vmax_plant_minpb_vr_col           , &
+   plant_minn_nh4_uptake_km_vr_col      => plantsoilnutrientflux_vars%plant_minn_nh4_uptake_km_vr_col   , &
+   plant_minn_no3_uptake_km_vr_col      => plantsoilnutrientflux_vars%plant_minn_no3_uptake_km_vr_col   , &
+   plant_minp_uptake_km_vr_col          => plantsoilnutrientflux_vars%plant_minp_uptake_km_vr_col       , &
+   decomp_compet_minn_vr_col            => plantsoilnutrientflux_vars%decomp_compet_minn_vr_col         , &
+   decomp_compet_minp_vr_col            => plantsoilnutrientflux_vars%decomp_compet_minp_vr_col         , &
+   decomp_minn_nh4_uptake_km_vr_col     => plantsoilnutrientflux_vars%decomp_minn_nh4_uptake_km_vr_col  , &
+   decomp_minn_no3_uptake_km_vr_col     => plantsoilnutrientflux_vars%decomp_minn_no3_uptake_km_vr_col  , &
+   decomp_minp_uptake_km_vr_col         => plantsoilnutrientflux_vars%decomp_minp_uptake_km_vr_col      , &
+   vmax_minsurf_minp_vr_col             => plantsoilnutrientflux_vars%vmax_minsurf_minp_vr_col          , &
+   vmax_minsurf_minnh4_vr_col           => plantsoilnutrientflux_vars%vmax_minsurf_minnh4_vr_col        , &
+   km_minsurf_minp_vr_col               => plantsoilnutrientflux_vars%km_minsurf_minp_vr_col            , &
+   km_minsurf_minnh4_vr_col             => plantsoilnutrientflux_vars%km_minsurf_minnh4_vr_col          , &
+   r_adsorp_minp_cap_vr_col             => plantsoilnutrientflux_vars%r_adsorp_minp_cap_vr_col          , &
+   r_adsorp_nh4_cap_vr_col              => plantsoilnutrientflux_vars%r_adsorp_nh4_cap_vr_col             &
+  )
+
+  !set Vmax and Km upscaling for plants
+
+  this%vcompet_minn(this%lid_plant_compet) = plant_compet_minn_vr_col(c,lev)
+  this%vcompet_minp(this%lid_plant_compet) = plant_compet_minp_vr_col(c,lev)
+
+
+  this%vmax_plant_nh4b = vmax_plant_nh4b_vr_col(c,lev)
+  this%vmax_plant_no3b = vmax_plant_no3b_vr_col(c,lev)
+  this%vmax_plant_minpb= vmax_plant_minpb_vr_col(c,lev)
+
+  this%k_mat_minn(1,this%lid_plant_compet) = plant_minn_nh4_uptake_km_vr_col(c,lev)
+  this%k_mat_minn(2,this%lid_plant_compet) = plant_minn_no3_uptake_km_vr_col(c,lev)
+  this%k_mat_minp(this%lid_plant_compet)   = plant_minp_uptake_km_vr_col(c,lev)
+
+  !obtain actual microbial biomass involved in competition
+  !in the CNP implementation, each pft is assumed to have its own microbial
+  !community information, therefore, an upscaling is done as analogus to the
+  !pfts
+  this%vcompet_minn(this%lid_decomp_compet) = decomp_compet_minn_vr_col(c,lev)
+  this%vcompet_minp(this%lid_decomp_compet) = decomp_compet_minp_vr_col(c,lev)
+
+  this%k_mat_minn(1,this%lid_decomp_compet) = decomp_minn_nh4_uptake_km_vr_col(c,lev)
+  this%k_mat_minn(2,this%lid_decomp_compet) = decomp_minn_no3_uptake_km_vr_col(c,lev)
+  this%k_mat_minp(this%lid_decomp_compet)   = decomp_minp_uptake_km_vr_col(c,lev)
+
+  !no ammonia adsorption is considered at the moment
+  this%vmax_minsurf_pb                      = vmax_minsurf_minp_vr_col(c,lev)
+
+  !get soil mineral surface parameters
+  this%k_mat_minp(this%lid_minsrf_compet) = km_minsurf_minp_vr_col(c,lev)
+  this%vcompet_minp_cap = r_adsorp_minp_cap_vr_col(c,lev)
+
+  this%k_mat_minn(1,this%lid_minsrf_compet) = km_minsurf_minnh4_vr_col(c,lev)
+  this%vcompet_min_nh4_cap = r_adsorp_nh4_cap_vr_col(c,lev)
+
+
+  end associate
+  end subroutine set_nutrientcompet_paras
+
+  !-------------------------------------------------------------------------------
+  subroutine InitAllocate(this)
+
+
+
+  integer :: maxcomp
+  class(NutrientCompetitionParamsType) :: this
+
+
+  allocate(this%k_mat_minn(2,this%ncompets))
+  allocate(this%k_mat_minp(this%ncompets))
+  allocate(this%vcompet_minn(this%ncompets))
+  allocate(this%vcompet_minp(this%ncompets))
+
+
+  end subroutine InitAllocate
 
   !-------------------------------------------------------------------------------
   subroutine readCentNitrifDenitrifParams ( ncid )
@@ -115,37 +281,44 @@ contains
     !
     tString='k_nitr_max'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNNitrifDenitrifParamsInst%k_nitr_max=tempr
 
     tString='surface_tension_water'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNNitrifDenitrifParamsInst%surface_tension_water=tempr
 
     tString='rij_kro_a'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNNitrifDenitrifParamsInst%rij_kro_a=tempr
 
     tString='rij_kro_alpha'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNNitrifDenitrifParamsInst%rij_kro_alpha=tempr
 
     tString='rij_kro_beta'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNNitrifDenitrifParamsInst%rij_kro_beta=tempr
 
     tString='rij_kro_gamma'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNNitrifDenitrifParamsInst%rij_kro_gamma=tempr
 
     tString='rij_kro_delta'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNNitrifDenitrifParamsInst%rij_kro_delta=tempr
 
   end subroutine readCentNitrifDenitrifParams
@@ -160,7 +333,7 @@ contains
     use ncdio_pio              , only: file_desc_t,ncd_io
     use clm_varcon             , only : secspday
     use clm_varctl             , only : spinup_state
-    use clm_varpar             , only : i_met_lit, i_cel_lit, i_lig_lit, i_cwd
+    use clm_varpar             , only : i_met_lit, i_cel_lit, i_lig_lit, i_cwd, ndecomp_pools
     use clm_time_manager       , only : get_days_per_year
     use BeTRTracerType         , only : BeTRTracer_Type
     use CNDecompCascadeConType , only : decomp_cascade_con
@@ -215,112 +388,135 @@ contains
     allocate(CNDecompBgcParamsInst%spinup_vector(CNDecompBgcParamsInst%nsompools))
     CNDecompBgcParamsInst%spinup_vector(:) = (/ 1.0_r8, 15.0_r8, 675.0_r8 /)
 
+    allocate(CNDecompBgcParamsInst%cn_ratios_tgt(ndecomp_pools));
+    allocate(CNDecompBgcParamsInst%cp_ratios_tgt(ndecomp_pools));
 
 
     ! Read off of netcdf file
     tString='tau_l1'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNDecompBgcParamsInst%tau_l1_bgc=tempr
 
     tString='tau_l2_l3'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNDecompBgcParamsInst%tau_l2_l3_bgc=tempr
 
     tString='tau_s1'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNDecompBgcParamsInst%tau_s1_bgc=tempr
 
     tString='tau_s2'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNDecompBgcParamsInst%tau_s2_bgc=tempr
 
     tString='tau_s3'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNDecompBgcParamsInst%tau_s3_bgc=tempr
 
     tString='tau_cwd'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNDecompBgcParamsInst%tau_cwd_bgc=tempr
 
     tString='cn_s1_bgc'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNDecompBgcParamsInst%cn_s1_bgc=tempr
 
     tString='cn_s2_bgc'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNDecompBgcParamsInst%cn_s2_bgc=tempr
 
     tString='cn_s3_bgc'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNDecompBgcParamsInst%cn_s3_bgc=tempr
 
     tString='rf_l1s1_bgc'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNDecompBgcParamsInst%rf_l1s1_bgc=tempr
 
     tString='rf_l2s1_bgc'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNDecompBgcParamsInst%rf_l2s1_bgc=tempr
 
     tString='rf_l3s2_bgc'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNDecompBgcParamsInst%rf_l3s2_bgc=tempr
 
     tString='rf_s2s1_bgc'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNDecompBgcParamsInst%rf_s2s1_bgc=tempr
 
     tString='rf_s2s3_bgc'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNDecompBgcParamsInst%rf_s2s3_bgc=tempr
 
     tString='rf_s3s1_bgc'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNDecompBgcParamsInst%rf_s3s1_bgc=tempr
 
     tString='rf_cwdl2_bgc'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNDecompBgcParamsInst%rf_cwdl2_bgc=tempr
 
     tString='rf_cwdl3_bgc'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNDecompBgcParamsInst%rf_cwdl3_bgc=tempr
 
     tString='cwd_fcel'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNDecompBgcParamsInst%cwd_fcel_bgc=tempr
 
     tString='k_frag'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNDecompBgcParamsInst%k_frag_bgc=tempr
 
     tString='minpsi_hr'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNDecompBgcParamsInst%minpsi_bgc=tempr
 
     tString='cwd_flig'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString) &
+      //errMsg(__FILE__, __LINE__))
     CNDecompBgcParamsInst%cwd_flig_bgc=tempr
 
     !------- time-constant coefficients ---------- !
@@ -520,38 +716,10 @@ subroutine readCentCNAllocParams ( ncid )
 
   ! read in parameters
 
-  tString='compet_plant_no3'
-  call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
-  if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-  NutrientCompetitionParamsInst%compet_plant_no3=tempr
 
-  tString='compet_plant_nh4'
-  call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
-  if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-  NutrientCompetitionParamsInst%compet_plant_nh4=tempr
-
-  tString='compet_decomp_no3'
-  call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
-  if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-  NutrientCompetitionParamsInst%compet_decomp_no3=tempr
-
-  tString='compet_decomp_nh4'
-  call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
-  if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-  NutrientCompetitionParamsInst%compet_decomp_nh4=tempr
-
-  tString='compet_denit'
-  call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
-  if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-  NutrientCompetitionParamsInst%compet_denit=tempr
-
-  tString='compet_nit'
-  call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
-  if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-  NutrientCompetitionParamsInst%compet_nit=tempr
 
 
 end subroutine readCentCNAllocParams
 
 
-end module BGCCenturyParMod
+end module BGCCentECACNPParMod
