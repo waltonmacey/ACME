@@ -44,7 +44,7 @@ implicit none
     use pftvarcon        , only: arooti, fleafi, allconsl, allconss, grperc, grpnow, nsoybean
     use clm_varpar       , only: nlevdecomp
     use clm_varcon       , only: nitrif_n2o_loss_frac, secspday
-    use clm_varctl       , only: cnallocate_carbon_only_set
+    use clm_varctl       , only: cnallocate_carbon_only_set,spinup_state
 !    use landunit_varcon  , only: istsoil, istcrop
     use clm_time_manager , only: get_step_size, get_curr_date
     !
@@ -164,6 +164,7 @@ implicit none
    real(r8), pointer :: biochem_pmin_vr_col(:,:)
    real(r8), pointer :: secondp_to_labilep_vr_col(:,:)
    real(r8), pointer :: labilep_to_secondp_vr_col(:,:)
+   real(r8) :: dt
 
     !-----------------------------------------------------------------------
 
@@ -368,7 +369,7 @@ implicit none
          froot_prof                   => cnstate_vars%froot_prof_patch                         , & ! fine root vertical profile Zeng, X. 2001. Global vegetation root distribution for land modeling. J. Hydrometeor. 2:525-530
          cn_scalar                    => cnstate_vars%cn_scalar                                , &
          cp_scalar                    => cnstate_vars%cp_scalar                                , &
-         arepr                        => cnstate_vars%arepr                                    , &
+         arepr                        => cnstate_vars%arepr_patch                              , &
 
          isoilorder                   => cnstate_vars%isoilorder                               , &
          vmax_plant_nh4               => ecophyscon%vmax_plant_nh4                             , &
