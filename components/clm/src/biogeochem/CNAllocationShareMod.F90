@@ -1,5 +1,20 @@
+module CNAllocationSharedMod
+
+  !
+  ! DESCRIPTION
+  ! module contains subroutines for big-leaf veg CN allocation shared
+  ! among different nutrient competition strategies
+
+implicit none
+
+
+  public :: CNAllocation_PlantNPDemand
+  public :: CNAllocation_PlantCNPAlloc
+  public :: update_plant_stoichiometry
+
+  contains
 !!-------------------------------------------------------------------------------------------------
-  subroutine CNAllocation1_PlantNPDemand (bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, &
+  subroutine CNAllocation_PlantNPDemand (bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, &
        photosyns_vars, crop_vars, canopystate_vars, cnstate_vars,             &
        carbonstate_vars, carbonflux_vars, c13_carbonflux_vars, c14_carbonflux_vars,  &
        nitrogenstate_vars, nitrogenflux_vars,&
@@ -66,17 +81,14 @@
     integer :: fp                                                    !lake filter pft index
     integer :: fc                                                    !lake filter column index
     real(r8):: mr                                                    !maintenance respiration (gC/m2/s)
-    real(r8):: f1,f2,f3,f4,g1,g2                                     !allocation parameters
+    real(r8):: f4,g1,g2                                     !allocation parameters
     real(r8):: cnl,cnfr,cnlw,cndw                                    !C:N ratios for leaf, fine root, and wood
 
     real(r8):: curmr, curmr_ratio                                    !xsmrpool temporary variables
-!    real(r8):: sum_ndemand_vr(bounds%begc:bounds%endc, 1:nlevdecomp) !total column N demand (gN/m3/s) at a given level
-!    real(r8):: sminn_tot(bounds%begc:bounds%endc)
-    real(r8):: nuptake_prof(bounds%begc:bounds%endc, 1:nlevdecomp)
 
-    real(r8) f5                                                      !grain allocation parameter
-    real(r8) cng                                                     !C:N ratio for grain (= cnlw for now; slevis)
-    real(r8) fleaf                                                   !fraction allocated to leaf
+    real(r8) :: f5                                                      !grain allocation parameter
+    real(r8) :: cng                                                     !C:N ratio for grain (= cnlw for now; slevis)
+    real(r8) :: fleaf                                                   !fraction allocated to leaf
     real(r8) t1                                                      !temporary variable
     integer :: yr, mon, day, sec
 
@@ -201,6 +213,7 @@
          grain_flag                   => cnstate_vars%grain_flag_patch                         , & ! Output: [real(r8) (:)   ]  1: grain fill stage; 0: not
          c_allometry                  => cnstate_vars%c_allometry_patch                        , & ! Output: [real(r8) (:)   ]  C allocation index (DIM)
          n_allometry                  => cnstate_vars%n_allometry_patch                        , & ! Output: [real(r8) (:)   ]  N allocation index (DIM)
+         aroot                        => cnstate_vars%aroot                                    , & !
          tempsum_potential_gpp        => cnstate_vars%tempsum_potential_gpp_patch              , & ! Output: [real(r8) (:)   ]  temporary annual sum of potential GPP
          tempmax_retransn             => cnstate_vars%tempmax_retransn_patch                   , & ! Output: [real(r8) (:)   ]  temporary annual max of retranslocated N pool (gN/m2)
          annsum_potential_gpp         => cnstate_vars%annsum_potential_gpp_patch               , & ! Output: [real(r8) (:)   ]  annual sum of potential GPP
@@ -339,6 +352,8 @@
          froot_prof                   => cnstate_vars%froot_prof_patch                         , & ! fine root vertical profile Zeng, X. 2001. Global vegetation root distribution for land modeling. J. Hydrometeor. 2:525-530
          cn_scalar                    => cnstate_vars%cn_scalar                                , &
          cp_scalar                    => cnstate_vars%cp_scalar                                , &
+         arepr                        => cnstate_vars%arepr                                    , &
+
          isoilorder                   => cnstate_vars%isoilorder                               , &
          vmax_plant_nh4               => ecophyscon%vmax_plant_nh4                             , &
          vmax_plant_no3               => ecophyscon%vmax_plant_no3                             , &
@@ -742,10 +757,10 @@
 
     end associate
 
- end subroutine CNAllocation1_PlantNPDemand
+ end subroutine CNAllocation_PlantNPDemand
 
  !!-------------------------------------------------------------------------------------------------
-   subroutine CNAllocation3_PlantCNPAlloc (bounds            , &
+   subroutine CNAllocation_PlantCNPAlloc (bounds            , &
          num_soilc, filter_soilc, num_soilp, filter_soilp    , &
          canopystate_vars                                    , &
          cnstate_vars, carbonstate_vars, carbonflux_vars     , &
@@ -794,13 +809,11 @@
      integer :: fp                                                    !lake filter pft index
      integer :: fc                                                    !lake filter column index
  !    real(r8):: mr                                                    !maintenance respiration (gC/m2/s)
-     real(r8):: f1,f2,f3,f4,f5,g1,g2                                     !allocation parameters
+     real(r8):: f4,f5,g1,g2                                     !allocation parameters
      real(r8):: cnl,cnfr,cnlw,cndw                                    !C:N ratios for leaf, fine root, and wood
      real(r8):: fcur                                                  !fraction of current psn displayed as growth
      real(r8):: gresp_storage                                         !temporary variable for growth resp to storage
-     real(r8):: nlc                                                   !temporary variable for total new leaf carbon allocation
-     real(r8):: nuptake_prof(bounds%begc:bounds%endc, 1:nlevdecomp)
-     real(r8) cng                                                     !C:N ratio for grain (= cnlw for now; slevis)
+     real(r8):: cng                                                     !C:N ratio for grain (= cnlw for now; slevis)
 
      !! Local P variables
      real(r8):: cpl,cpfr,cplw,cpdw,cpg                                    !C:N ratios for leaf, fine root, and wood
@@ -1281,3 +1294,4 @@
 
    end subroutine update_plant_stoichiometry
  !-----------------------------------------------------------------------
+end module CNAllocationSharedMod

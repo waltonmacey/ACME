@@ -33,21 +33,9 @@ module CNAllocationBetrMod
   private
   !
   ! !PUBLIC MEMBER FUNCTIONS:
-  public :: readCNAllocBetrParams
   public :: CNAllocationBetrInit         ! Initialization
-  public :: calc_plant_nutrient_demand
-  public :: plantCNAlloc
-  type :: CNAllocParamsType
-     real(r8) :: bdnr              ! bulk denitrification rate (1/s)
-     real(r8) :: dayscrecover      ! number of days to recover negative cpool
-     real(r8) :: compet_plant_no3  ! (unitless) relative compettiveness of plants for NO3
-     real(r8) :: compet_plant_nh4  ! (unitless) relative compettiveness of plants for NH4
-     real(r8) :: compet_decomp_no3 ! (unitless) relative competitiveness of immobilizers for NO3
-     real(r8) :: compet_decomp_nh4 ! (unitless) relative competitiveness of immobilizers for NH4
-     real(r8) :: compet_denit      ! (unitless) relative competitiveness of denitrifiers for NO3
-     real(r8) :: compet_nit        ! (unitless) relative competitiveness of nitrifiers for NH4
-  end type CNAllocParamsType
-  !
+  public :: calc_plant_allometry_force
+
   ! CNAllocParamsInst is populated in readCNAllocParams which is called in
   type(CNAllocParamsType),protected ::  CNAllocParamsInst
   !
@@ -56,77 +44,13 @@ module CNAllocationBetrMod
   character(len=*), parameter, public :: suplnNon='NONE'      ! No supplemental Nitrogen
   character(len=15)          , public :: suplnitro = suplnNon ! Supplemental Nitrogen mode
   !
-  ! !PRIVATE DATA MEMBERS:
-  real(r8)              :: dt                   !decomp timestep (seconds)
-  real(r8)              :: bdnr                 !bulk denitrification rate (1/s)
-  real(r8)              :: dayscrecover         !number of days to recover negative cpool
-  real(r8), allocatable :: arepr(:)             !reproduction allocation coefficient
-  real(r8), allocatable :: aroot(:)             !root allocation coefficient
+
+
   !-----------------------------------------------------------------------
 
 contains
 
-  !-----------------------------------------------------------------------
-  subroutine readCNAllocBetrParams ( ncid )
-    !
-    ! !USES:
-    use ncdio_pio , only : file_desc_t,ncd_io
 
-    ! !ARGUMENTS:
-    implicit none
-    type(file_desc_t),intent(inout) :: ncid   ! pio netCDF file id
-    !
-    ! !LOCAL VARIABLES:
-    character(len=32)  :: subname = 'CNAllocParamsType'                  !
-    character(len=100) :: errCode = '-Error reading in parameters file:' !
-    logical            :: readv                                          ! has variable been read in or not
-    real(r8)           :: tempr                                          ! temporary to read in parameter
-    character(len=100) :: tString                                        ! temp. var for reading
-    !-----------------------------------------------------------------------
-
-    ! read in parameters
-
-    tString='bdnr'
-    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-    CNAllocParamsInst%bdnr=tempr
-
-    tString='dayscrecover'
-    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-    CNAllocParamsInst%dayscrecover=tempr
-
-    tString='compet_plant_no3'
-    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-    CNAllocParamsInst%compet_plant_no3=tempr
-
-    tString='compet_plant_nh4'
-    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-    CNAllocParamsInst%compet_plant_nh4=tempr
-
-    tString='compet_decomp_no3'
-    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-    CNAllocParamsInst%compet_decomp_no3=tempr
-
-    tString='compet_decomp_nh4'
-    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-    CNAllocParamsInst%compet_decomp_nh4=tempr
-
-    tString='compet_denit'
-    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-    CNAllocParamsInst%compet_denit=tempr
-
-    tString='compet_nit'
-    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-    CNAllocParamsInst%compet_nit=tempr
-
-  end subroutine readCNAllocBetrParams
 
   !-----------------------------------------------------------------------
   subroutine CNAllocationBetrInit ( bounds)
@@ -149,39 +73,71 @@ contains
     logical           :: carbon_only
     !-----------------------------------------------------------------------
 
-    if ( crop_prog )then
-       allocate(arepr(bounds%begp:bounds%endp)); arepr(bounds%begp : bounds%endp) = nan
-       allocate(aroot(bounds%begp:bounds%endp)); aroot(bounds%begp : bounds%endp) = nan
-    end if
-
-
-    ! set time steps
-    dt = real( get_step_size(), r8 )
-
-    ! set space-and-time parameters from parameter file
-    bdnr         = CNAllocParamsInst%bdnr * (dt/secspday)
-    dayscrecover = CNAllocParamsInst%dayscrecover
-
-    ! Change namelist settings into private logical variables
-    select case(suplnitro)
-    case(suplnNon)
-       Carbon_only = .false.
-    case(suplnAll)
-       Carbon_only = .true.
-    case default
-       write(iulog,*) 'Supplemental Nitrogen flag (suplnitro) can only be: ', &
-            suplnNon, ' or ', suplnAll
-       call endrun(msg='ERROR: supplemental Nitrogen flag is not correct'//&
-            errMsg(__FILE__, __LINE__))
-    end select
 
   end subroutine CNAllocationBetrInit
 
 
 !-----------------------------------------------------------------------
 
-  subroutine calc_plant_allometry_force
+  subroutine calc_plant_allometry_force(bounds, num_soilp, filter_soilp, canopystate_vars,carbonflux_vars, cnstate_vars)
 
+  !
+  ! !DESCRIPTION
+  ! calculate the plant allometry driving force
+  !
+  ! USES
+  use clm_varctl       , only: iulog,cnallocate_carbon_only,cnallocate_carbonnitrogen_only,&
+                               cnallocate_carbonphosphorus_only
+  use pftvarcon        , only: grperc, grpnow
+  !ARGUMENTS
+  implicit none
+  type(bounds_type)        , intent(in) :: bounds
+  integer                  , intent(in)    :: num_soilp        ! number of soil patches in filter
+  integer                  , intent(in)    :: filter_soilp(:)  ! filter for soil patches
+  type(cnstate_type)       , intent(inout) :: cnstate_vars
+  type(canopystate_type)   , intent(in)    :: canopystate_vars
+  type(carbonflux_type)    , intent(inout) :: carbonflux_vars
+  real(r8) :: allocation_leaf(bounds%begp : bounds%endp)              ! fraction of NPP allocated into leaf
+  real(r8) :: allocation_stem(bounds%begp : bounds%endp)              ! fraction of NPP allocated into stem
+  real(r8) :: allocation_froot(bounds%begp : bounds%endp)              ! fraction of NPP allocated into froot
+  real(r8) :: g1, g2
+  real(r8) :: f4, f5
+  real(r8):: cnl,cnfr,cnlw,cndw
+  
+ associate(                                                                 &
+   ivt                          => pft%itype                              , & ! Input:  [integer  (:) ]  pft vegetation type
+
+   f1                           => cnstate_vars%f1_patch                  , &
+   f2                           => cnstate_vars%f2_patch                  , &
+   f3                           => cnstate_vars%f3_patch                  , &
+   c_allometry                  => cnstate_vars%c_allometry_patch         , & ! Output: [real(r8) (:)   ]  C allocation index (DIM)
+   n_allometry                  => cnstate_vars%n_allometry_patch         , & ! Output: [real(r8) (:)   ]  N allocation index (DIM)
+   p_allometry                  => cnstate_vars%p_allometry_patch         , & ! Output: [real(r8) (:)   ]  N allocation index (DIM)
+   nlc_c                        => cnstate_vars%nlc_c_patch               , & !
+   nlc_n                        => cnstate_vars%nlc_n_patch               , & !
+   nlc_p                        => cnstate_vars%nlc_p_patch               , & !
+   cn_scalar                    => cnstate_vars%cn_scalar                 , &
+   cp_scalar                    => cnstate_vars%cp_scalar                 , &
+   aroot                        => cnstate_vars%aroot_patch               , &
+   arepr                        => cnstate_vars%arepr                     , &
+
+   croot_stem                   => ecophyscon%croot_stem                  , & ! Input:  [real(r8) (:)   ]  allocation parameter: new coarse root C per new stem C (gC/gC)
+   flivewd                      => ecophyscon%flivewd                     , & ! Input:  [real(r8) (:)   ]  allocation parameter: fraction of new wood that is live (phloem and ray parenchyma) (no units)
+   leafcn                       => ecophyscon%leafcn                      , & ! Input:  [real(r8) (:)   ]  leaf C:N (gC/gN)
+   frootcn                      => ecophyscon%frootcn                     , & ! Input:  [real(r8) (:)   ]  fine root C:N (gC/gN)
+   livewdcn                     => ecophyscon%livewdcn                    , & ! Input:  [real(r8) (:)   ]  live wood (phloem and ray parenchyma) C:N (gC/gN)
+   deadwdcn                     => ecophyscon%deadwdcn                    , & ! Input:  [real(r8) (:)   ]  dead wood (xylem and heartwood) C:N (gC/gN)
+   livewdcp                     => ecophyscon%livewdcp                                   , & ! Input:  [real(r8) (:)   ]  live wood (phloem and ray parenchyma) C:P (gC/gP)
+   deadwdcp                     => ecophyscon%deadwdcp                                   , & ! Input:  [real(r8) (:)   ]  dead wood (xylem and heartwood) C:P (gC/gP)
+
+   leafcp                       => ecophyscon%leafcp                      , & ! Input:  [real(r8) (:)   ]  leaf C:P (gC/gP)
+   frootcp                      => ecophyscon%frootcp                     , & ! Input:  [real(r8) (:)   ]  fine root C:P (gC/gP)
+
+   laisun                       => canopystate_vars%laisun_patch          , & ! Input:  [real(r8) (:)   ]  sunlit projected leaf area index
+   laisha                       => canopystate_vars%laisha_patch          , & ! Input:  [real(r8) (:)   ]  shaded projected leaf area index
+   availc                       => carbonflux_vars%availc_patch           , & ! Output: [real(r8) (:)   ]  C flux available for allocation (gC/m2/s)
+
+ )
 
   do fp=1,num_soilp
     p = filter_soilp(fp)
@@ -244,11 +200,8 @@ contains
             end if
         end if
 
-        sminn_to_npool(p) = sminn_to_plant_patch(p)
-        sminp_to_ppool(p) = sminp_to_plant_patch(p)
-
-        plant_nalloc(p) = sminn_to_npool(p) + avail_retransn(p)
-        plant_palloc(p) = sminp_to_ppool(p) + avail_retransp(p)
+        plant_nalloc(p) = sminn_to_plant_patch(p) + avail_retransn(p)
+        plant_palloc(p) = sminp_to_plant_patch(p) + avail_retransp(p)
         plant_calloc(p) = availc(p)
 
         ! here no down-regulation on allocatable C here, NP limitation is implemented in leaf-level NP control on GPP
