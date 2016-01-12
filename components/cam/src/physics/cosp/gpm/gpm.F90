@@ -3,7 +3,7 @@
 
 
 program gpmtest
-   use gpm_gmi_mod, only: gpm_gmi_init, gpm_gmi_run
+   use gpm_gmi_mod, only:gpm_gmi_addsensor, gpm_gmi_adddefaultsensor, gpm_gmi_init, gpm_gmi_run, gpm_gmi_clean, gpm_gmi_toabt
    use mod_cosp_types, only: cosp_gridbox, construct_cosp_gridbox, free_cosp_gridbox
    use shr_kind_mod, only: r8 =>shr_kind_r8
   ! use netcdf
@@ -87,7 +87,7 @@ program gpmtest
 !! Other variables
     integer,parameter :: nhydro = 9                     ! number of COSP hydrometeor classes
 
-   integer :: Npoints = 1
+   integer :: Npoints = 2
    integer :: Nlevels = 5
    integer :: ncolumns = 1
 
@@ -123,7 +123,9 @@ program gpmtest
 
    integer q_in(nlon, nlat, nlev, ntime)
    integer :: ncid, varid
-   
+  
+   type(gpm_gmi_toabt), allocatable :: toabt(:)
+
   ! call check( nf90_open(file_name, NF90_NOWRITE, ncid) )
   ! call check( nf90_inq_varid(ncid, "q", varid) )
   ! call check( nf90_get_var(ncid, varid, q_in) )
@@ -201,17 +203,47 @@ program gpmtest
    ! assign some dummy values to gbx fields
    gbx%p(1,:) = (/900, 700, 500, 300, 100/)
    gbx%pint(1,:) = (/1000, 800, 600, 400, 200, 50/)
-   gbx%T(1,:) = (/280, 260, 240, 220, 200/)
-   gbx%q(1,:) = (/0.005, 0.005, 0.005, 0.005, 0.005/)
+   gbx%T(1,:) = (/270, 250, 230, 210, 200/)
+   gbx%q(1,:) = (/0.003, 0.003, 0.003, 0.003, 0.003/)
 
-   ! call gpm_gmi subroutines   
-   call gpm_gmi_init(2, 1, 1, gbx)   
-   call gpm_gmi_run()
+   gbx%p(2,:) = (/900, 700, 500, 300, 100/)
+   gbx%pint(2,:) = (/1000, 800, 600, 400, 200, 50/)
+   gbx%T(2,:) = (/280, 260, 240, 220, 200/)
+   gbx%q(2,:) = (/0.005, 0.005, 0.005, 0.005, 0.005/)
 
+   gbx%mr_hydro(1,:,1) = (/0.001, 0.000, 0.000, 0.000, 0.000/)
+   gbx%mr_hydro(1,:,2) = (/0.000, 0.001, 0.000, 0.000, 0.000/)
+   gbx%mr_hydro(1,:,3) = (/0.000, 0.000, 0.001, 0.000, 0.000/)
+   gbx%mr_hydro(1,:,4) = (/0.000, 0.000, 0.000, 0.001, 0.000/)
+   gbx%mr_hydro(1,:,5) = (/0.000, 0.000, 0.000, 0.000, 0.001/)
+   gbx%mr_hydro(1,:,6) = (/0.002, 0.000, 0.000, 0.000, 0.000/)
+   gbx%mr_hydro(1,:,7) = (/0.000, 0.002, 0.000, 0.000, 0.000/)
+   gbx%mr_hydro(1,:,8) = (/0.000, 0.000, 0.002, 0.000, 0.000/)
+   gbx%mr_hydro(1,:,9) = (/0.000, 0.000, 0.000, 0.002, 0.000/)
 
+   gbx%mr_hydro(2,:,:) = gbx%mr_hydro(1,:,:)*100 
+
+   gbx%Reff = 20 
+
+   ! call gpm_gmi subroutines  
+  print *, "debug   1" 
+   call gpm_gmi_addsensor('gmi_gpm','GPM_GMI_TB', 52.8, 48.5)
+   call gpm_gmi_addsensor('gmi_gpm','GPM_GMI_TB', 0.0, 0.0, channel_subset = (/1/))
+!   call gpm_gmi_addsensor('atms_npp', 'ATMS_NPP_TB', 0.0, 0.0)
+   call gpm_gmi_adddefaultsensor('gpm-gmi-lowfreq')
+   call gpm_gmi_adddefaultsensor('gpm-gmi-highfreq')
+   print *, "debug    2"
+   call gpm_gmi_init(gbx)   
+   call gpm_gmi_run(gbx, toabt)
+
+   print *, "clean starts here"
+   call gpm_gmi_clean()
+print *, "clean gbx"
    call free_cosp_gridbox(gbx)
 
    
-   print *, 'hello'
+   print *, 'Run successful'
+
+
 end program gpmtest
 
