@@ -4,7 +4,23 @@ module CNAllocationSharedMod
   ! DESCRIPTION
   ! module contains subroutines for big-leaf veg CN allocation shared
   ! among different nutrient competition strategies
-
+  use shr_kind_mod        , only : r8 => shr_kind_r8
+  use shr_log_mod         , only : errMsg => shr_log_errMsg
+  use decompMod           , only : bounds_type
+  use PhotosynthesisType  , only : photosyns_type
+  use CropType            , only : crop_type
+  use EcophysConType      , only : ecophyscon
+  use CanopyStateType     , only : canopystate_type
+  use CNStateType         , only : cnstate_type
+  use CNCarbonStateType   , only : carbonstate_type
+  use CNCarbonFluxType    , only : carbonflux_type
+  use CNNitrogenStateType , only : nitrogenstate_type
+  use CNNitrogenFluxType  , only : nitrogenflux_type
+  use PhosphorusFluxType  , only : phosphorusflux_type
+  use PhosphorusStateType , only : phosphorusstate_type
+  use LandunitType        , only : lun
+  use ColumnType          , only : col
+  use PatchType           , only : pft
 implicit none
 
 

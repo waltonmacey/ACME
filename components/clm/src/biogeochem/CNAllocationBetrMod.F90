@@ -103,7 +103,7 @@ contains
   real(r8) :: g1, g2
   real(r8) :: f4, f5
   real(r8):: cnl,cnfr,cnlw,cndw
-  
+
  associate(                                                                 &
    ivt                          => pft%itype                              , & ! Input:  [integer  (:) ]  pft vegetation type
 
@@ -119,7 +119,7 @@ contains
    cn_scalar                    => cnstate_vars%cn_scalar                 , &
    cp_scalar                    => cnstate_vars%cp_scalar                 , &
    aroot                        => cnstate_vars%aroot_patch               , &
-   arepr                        => cnstate_vars%arepr                     , &
+   arepr                        => cnstate_vars%arepr_patch               , &
 
    croot_stem                   => ecophyscon%croot_stem                  , & ! Input:  [real(r8) (:)   ]  allocation parameter: new coarse root C per new stem C (gC/gC)
    flivewd                      => ecophyscon%flivewd                     , & ! Input:  [real(r8) (:)   ]  allocation parameter: fraction of new wood that is live (phloem and ray parenchyma) (no units)
