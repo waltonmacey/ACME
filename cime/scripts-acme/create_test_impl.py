@@ -2,7 +2,7 @@
 Implementation of create_test functionality from CIME
 """
 
-import sys, os, shutil, traceback, stat, glob, threading, time
+import sys, os, shutil, traceback, stat, glob, threading, time, thread
 
 import acme_util, compare_namelists, wait_for_tests
 
@@ -41,16 +41,13 @@ class CreateTest(object):
         self._test_id        = test_id       if test_id is not None else acme_util.get_utc_timestamp()
         self._project        = project       if project is not None else acme_util.get_machine_project()
         self._baseline_root  = baseline_root if baseline_root is not None else acme_util.get_machine_info("CCSM_BASELINE", project=self._project)
+        self._baseline_name  = None
         self._compiler       = compiler      if compiler is not None else acme_util.get_machine_info("COMPILERS")[0]
-        self._baseline_name  = baseline_name if baseline_name is not None else os.path.join(self._compiler, acme_util.get_current_branch(repo=self._cime_root))
         self._clean          = clean
         self._compare        = compare
         self._generate       = generate
         self._namelists_only = namelists_only
         self._parallel_jobs  = parallel_jobs if parallel_jobs is not None else min(len(self._test_names), int(acme_util.get_machine_info("MAX_TASKS_PER_NODE")))
-
-        if (not self._baseline_name.startswith("%s/" % self._compiler)):
-            self._baseline_name = os.path.join(self._compiler, self._baseline_name)
 
         # Oversubscribe by 1/4
         pes = int(acme_util.get_machine_info("MAX_TASKS_PER_NODE"))
@@ -72,8 +69,18 @@ class CreateTest(object):
             self._phases.remove(BUILD_PHASE)
         if (no_run):
             self._phases.remove(RUN_PHASE)
+
         if (not self._compare and not self._generate):
             self._phases.remove(NAMELIST_PHASE)
+        else:
+            if (baseline_name is None):
+                branch_name = acme_util.get_current_branch(repo=self._cime_root)
+                expect(branch_name is not None, "Could not determine baseline name from branch, please use -b option")
+                self._baseline_name = os.path.join(self._compiler, branch_name)
+            else:
+                self._baseline_name  = baseline_name
+                if (not self._baseline_name.startswith("%s/" % self._compiler)):
+                    self._baseline_name = os.path.join(self._compiler, self._baseline_name)
 
         # Validate any assumptions that were not caught by the arg parser
 
@@ -366,12 +373,9 @@ class CreateTest(object):
             # about to run test
             str_to_write += "%s %s %s\n" % (TEST_PENDING_STATUS, test_name, RUN_PHASE)
 
-        try:
-            test_status_file = os.path.join(self._get_test_dir(test_name), TEST_STATUS_FILENAME)
-            with open(test_status_file, "w") as fd:
-                fd.write(str_to_write)
-        except Exception as e:
-            self._log_output(test_name, "VERY BAD! Could not make TestStatus file '%s': '%s'" % (test_status_file, str(e)))
+        test_status_file = os.path.join(self._get_test_dir(test_name), TEST_STATUS_FILENAME)
+        with open(test_status_file, "w") as fd:
+            fd.write(str_to_write)
 
     ###########################################################################
     def _run_catch_exceptions(self, test_name, phase, run):
@@ -391,8 +395,8 @@ class CreateTest(object):
     ###########################################################################
         if (phase == RUN_PHASE and self._no_batch):
             test_dir = self._get_test_dir(test_name)
-            out = run_cmd("./xmlquery TOTALPES", from_dir=test_dir)
-            return int(out.split()[-1])
+            out = run_cmd("./xmlquery TOTALPES -value", from_dir=test_dir)
+            return int(out)
         else:
             return 1
 
@@ -403,25 +407,27 @@ class CreateTest(object):
         # This complexity is due to sharing of TestStatus responsibilities
         #
 
-        if (test_phase != RUN_PHASE and
-            (not success or test_phase == BUILD_PHASE or test_phase == self._phases[-1])):
-            self._update_test_status_file(test_name)
+        try:
+            if (test_phase != RUN_PHASE and
+                (not success or test_phase == BUILD_PHASE or test_phase == self._phases[-1])):
+                self._update_test_status_file(test_name)
 
-        # If we failed VERY early on in the run phase, it's possible that
-        # the CIME scripts never got a chance to set the state.
-        elif (test_phase == RUN_PHASE and not success):
-            test_status_file = os.path.join(self._get_test_dir(test_name), TEST_STATUS_FILENAME)
+            # If we failed VERY early on in the run phase, it's possible that
+            # the CIME scripts never got a chance to set the state.
+            elif (test_phase == RUN_PHASE and not success):
+                test_status_file = os.path.join(self._get_test_dir(test_name), TEST_STATUS_FILENAME)
 
-            try:
                 statuses = wait_for_tests.parse_test_status_file(test_status_file)[0]
-                if (RUN_PHASE not in statuses):
+                if ( RUN_PHASE not in statuses or
+                     statuses[RUN_PHASE] in [TEST_PASS_STATUS, TEST_PENDING_STATUS] ):
                     self._update_test_status_file(test_name)
-                elif (statuses[RUN_PHASE] in [TEST_PASS_STATUS, TEST_PENDING_STATUS]):
-                    self._log_output(test_name,
-                                     "VERY BAD! How was infrastructure able to log a TestState but not change it to FAIL?")
 
-            except Exception as e:
-                self._log_output(test_name, "VERY BAD! Could not read TestStatus file '%s': '%s'" % (test_status_file, str(e)))
+        except Exception as e:
+            # TODO: What to do here? This failure is very severe because the
+            # only way for test results to be communicated is by the TestStatus
+            # file.
+            warning("VERY BAD! Could not handle TestStatus file '%s': '%s'" % (test_status_file, str(e)))
+            thread.interrupt_main()
 
     ###########################################################################
     def _wait_for_something_to_finish(self, threads_in_flight):
@@ -557,12 +563,23 @@ class CreateTest(object):
         rv = True
         for idx, test_name in enumerate(self._test_names):
             phase, status = self._test_states[idx]
+
+            if (status == TEST_PASS_STATUS and phase == RUN_PHASE):
+                # Be cautious about telling the user that the test passed. This
+                # status should match what they would see on the dashboard. Our
+                # self._test_states does not include comparison fail information,
+                # so we need to parse test status.
+                test_status_file = os.path.join(self._get_test_dir(test_name), TEST_STATUS_FILENAME)
+                status = wait_for_tests.interpret_status_file(test_status_file)[1]
+
             if (status not in [TEST_PASS_STATUS, TEST_PENDING_STATUS]):
                 print "%s %s (phase %s)" % (status, test_name, phase)
                 rv = False
+
             elif (test_name in self._tests_with_nl_problems):
                 print "%s %s (but otherwise OK)" % (NAMELIST_FAIL_STATUS, test_name)
                 rv = False
+
             else:
                 print status, test_name, phase
 
