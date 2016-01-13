@@ -109,15 +109,17 @@ ENDIF ()
 OPTION(HOMME_FIND_BLASLAPACK "Whether to use system blas/lapack" FALSE)
 MESSAGE(STATUS "HOMME_FIND_BLASLAPACK=${HOMME_FIND_BLASLAPACK}")
 
-IF(${HOMME_FIND_BLASLAPACK})
-  FIND_PACKAGE(BLAS REQUIRED)
-  FIND_PACKAGE(LAPACK REQUIRED)
-ELSE()
-  SET(HOMME_FIND_BLASLAPACK FALSE)
-  # Build the blas and lapack provided with homme
-  ADD_SUBDIRECTORY(libs/blas)
-  ADD_SUBDIRECTORY(libs/lapack)
-ENDIF()
+MESSAGE(STATUS "NDK, commenting out adding subdirectory for blas as Intel compilers include MKL")
+
+#IF(${HOMME_FIND_BLASLAPACK})
+#  FIND_PACKAGE(BLAS REQUIRED)
+#  FIND_PACKAGE(LAPACK REQUIRED)
+#ELSE()
+#  SET(HOMME_FIND_BLASLAPACK FALSE)
+#  # Build the blas and lapack provided with homme
+#  ADD_SUBDIRECTORY(libs/blas)
+#  ADD_SUBDIRECTORY(libs/lapack)
+#ENDIF()
 
 IF (${HOMME_USE_TRILINOS})
   MESSAGE(STATUS "This configuration of requires Trilinos")
@@ -153,6 +155,8 @@ ENDIF ()
 
 # Use ccsm_utils FindNETCDF path
 SET (CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../cime/externals/CMake" ${CMAKE_MODULE_PATH})
+MESSAGE(STATUS "CMAKE_MODULE_PATH=${CMAKE_MODULE_PATH}")
+
 FIND_PACKAGE(NETCDF)
 # For pio - allow the user to set HDF5_DIR to find libhdf5 etc.
 IF (HDF5_DIR)
