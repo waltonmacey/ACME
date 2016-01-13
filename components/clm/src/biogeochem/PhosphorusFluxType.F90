@@ -237,7 +237,7 @@ module PhosphorusFluxType
      ! leaching fluxes
      real(r8), pointer :: sminp_leached_vr_col                      (:,:)   ! col vertically-resolved soil mineral P pool loss to leaching (gP/m3/s)
      real(r8), pointer :: sminp_leached_col                         (:)     ! col soil mineral P pool loss to leaching (gP/m2/s)
-
+     real(r8), pointer :: sminp_runoff_col                          (:)     ! col soil mineral P loos to runoff
      ! dynamic landcover fluxes
      real(r8), pointer :: dwt_seedp_to_leaf_col                     (:)     ! col (gP/m2/s) seed source to PFT-level
      real(r8), pointer :: dwt_seedp_to_deadstem_col                 (:)     ! col (gP/m2/s) seed source to PFT-level
@@ -599,11 +599,12 @@ contains
     allocate(this%sminp_leached_col                    (begc:endc                                                 ))
     allocate(this%decomp_ppools_leached_col            (begc:endc,1:ndecomp_pools                                 ))
     allocate(this%decomp_ppools_transport_tendency_col (begc:endc,1:nlevdecomp_full,1:ndecomp_pools               ))
-
     this%sminp_leached_vr_col                 (:,:)   = nan
     this%sminp_leached_col                    (:)     = nan
     this%decomp_ppools_leached_col            (:,:)   = nan
     this%decomp_ppools_transport_tendency_col (:,:,:) = nan  
+ 
+    allocate(this%sminp_runoff_col           (begc:endc              ))      ;this%sminp_runoff_col                (:)    = nan
 
     allocate(this%decomp_ppools_sourcesink_col (begc:endc,1:nlevdecomp_full,1:ndecomp_pools))
     this%decomp_ppools_sourcesink_col (:,:,:) = nan

@@ -6,7 +6,7 @@ module CNAllocationSharedMod
   ! among different nutrient competition strategies
   use shr_kind_mod        , only : r8 => shr_kind_r8
   use shr_log_mod         , only : errMsg => shr_log_errMsg
-  use clm_varctl          , only : use_c13, use_c14
+  use clm_varctl          , only : use_c13, use_c14, nyears_ad_carbon_only
   use decompMod           , only : bounds_type
   use PhotosynthesisType  , only : photosyns_type
   use CropType            , only : crop_type
@@ -29,6 +29,11 @@ implicit none
   public :: CNAllocation_PlantCNPAlloc
   public :: update_plant_stoichiometry
   public :: dynamic_plant_alloc
+
+  !the following two parameters are for compiling test only, I suppose they will be
+  !set from namelist somewhere else.
+  logical,          private :: nu_com_phosphatase = .false.
+  logical,          private :: nu_com_nfix = .false.
   contains
 !!-------------------------------------------------------------------------------------------------
   subroutine CNAllocation_PlantNPDemand (bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, &
@@ -319,72 +324,38 @@ implicit none
          cp_scalar                    => cnstate_vars%cp_scalar                                , &
          arepr                        => cnstate_vars%arepr_patch                              , &
 
-         isoilorder                   => cnstate_vars%isoilorder                               , &
          f1                           => cnstate_vars%f1_patch                                 , &
          f2                           => cnstate_vars%f2_patch                                 , &
          f3                           => cnstate_vars%f3_patch                                 , &
-         vmax_plant_nh4               => ecophyscon%vmax_plant_nh4                             , &
-         vmax_plant_no3               => ecophyscon%vmax_plant_no3                             , &
-         vmax_plant_p                 => ecophyscon%vmax_plant_p                               , &
-         vmax_minsurf_p_vr            => ecophyscon%vmax_minsurf_p_vr                          , &
-         km_plant_nh4                 => ecophyscon%km_plant_nh4                               , &
-         km_plant_no3                 => ecophyscon%km_plant_no3                               , &
-         km_plant_p                   => ecophyscon%km_plant_p                                 , &
-         km_minsurf_p_vr              => ecophyscon%km_minsurf_p_vr                            , &
-         km_decomp_nh4                => ecophyscon%km_decomp_nh4                              , &
-         km_decomp_no3                => ecophyscon%km_decomp_no3                              , &
-         km_decomp_p                  => ecophyscon%km_decomp_p                                , &
-         km_nit                       => ecophyscon%km_nit                                     , &
-         km_den                       => ecophyscon%km_den                                     , &
-         decompmicc_patch_vr          => ecophyscon%decompmicc_patch_vr                        , &
-         t_scalar                     => carbonflux_vars%t_scalar_col                          , &
-         w_scalar                     => carbonflux_vars%w_scalar_col                            &
-         )
+         
 
+         leafc_storage                => carbonstate_vars%leafc_storage_patch            , &
+         leafc_xfer                   => carbonstate_vars%leafc_xfer_patch               , &
+  
+         plant_ndemand_vr_patch       => nitrogenflux_vars%plant_ndemand_vr_patch        , &
+         smin_nh4_to_plant_patch      => nitrogenflux_vars%smin_nh4_to_plant_patch       , &
+         smin_no3_to_plant_patch      => nitrogenflux_vars%smin_no3_to_plant_patch       , &
+         sminn_to_plant_patch         => nitrogenflux_vars%sminn_to_plant_patch          , &
+         pnup_pfrootc                 => nitrogenflux_vars%pnup_pfrootc_patch            , &
+         pgpp_pleafc                  => nitrogenflux_vars%pgpp_pleafc_patch             , &
+         pgpp_pleafn                  => nitrogenflux_vars%pgpp_pleafn_patch             , &
+         pgpp_pleafp                  => nitrogenflux_vars%pgpp_pleafp_patch             , &
+         plant_n_uptake_flux          => nitrogenflux_vars%plant_n_uptake_flux           , &
 
-         leafc_storage                => carbonstate_vars%leafc_storage_patch
-         leafc_xfer                   => carbonstate_vars%leafc_xfer_patch
+         leafn                        => nitrogenstate_vars%leafn_patch                  , &
+         leafn_storage                => nitrogenstate_vars%leafn_storage_patch          , &
+         leafn_xfer                   => nitrogenstate_vars%leafn_xfer_patch             , &
 
-         col_plant_ndemand_vr         => nitrogenflux_vars%col_plant_ndemand_vr
-         col_plant_nh4demand_vr       => nitrogenflux_vars%col_plant_nh4demand_vr
-         col_plant_no3demand_vr       => nitrogenflux_vars%col_plant_no3demand_vr
-         col_plant_pdemand_vr         => nitrogenflux_vars%col_plant_pdemand_vr
-         plant_nh4demand_vr_patch     => nitrogenflux_vars%plant_nh4demand_vr_patch
-         plant_no3demand_vr_patch     => nitrogenflux_vars%plant_no3demand_vr_patch
-         plant_ndemand_vr_patch       => nitrogenflux_vars%plant_ndemand_vr_patch
-         actual_immob_no3             => nitrogenflux_vars%actual_immob_no3_col
-         actual_immob_nh4             => nitrogenflux_vars%actual_immob_nh4_col
-         smin_nh4_to_plant_patch      => nitrogenflux_vars%smin_nh4_to_plant_patch
-         smin_no3_to_plant_patch      => nitrogenflux_vars%smin_no3_to_plant_patch
-         sminn_to_plant_patch         => nitrogenflux_vars%sminn_to_plant_patch
-         pnup_pfrootc                 => nitrogenflux_vars%pnup_pfrootc_patch
-         pgpp_pleafc                  => nitrogenflux_vars%pgpp_pleafc_patch
-         pgpp_pleafn                  => nitrogenflux_vars%pgpp_pleafn_patch
-         pgpp_pleafp                  => nitrogenflux_vars%pgpp_pleafp_patch
-         plant_n_uptake_flux          => nitrogenflux_vars%plant_n_uptake_flux
+         actual_leafcp                => phosphorusstate_vars%actual_leafcp              , &
+         actual_frootcp               => phosphorusstate_vars%actual_frootcp             , &
+         actual_livewdcp              => phosphorusstate_vars%actual_livewdcp            , &
+         actual_deadwdcp              => phosphorusstate_vars%actual_deadwdcp            , &
+         leafp                        => phosphorusstate_vars%leafp_patch                , &
 
-         leafn                        => nitrogenstate_vars%leafn_patch
-         leafn_storage                => nitrogenstate_vars%leafn_storage_patch
-         leafn_xfer                   => nitrogenstate_vars%leafn_xfer_patch
-
-         labilep_vr                   => phosphorusstate_vars%labilep_vr_col
-         secondp_vr                   => phosphorusstate_vars%secondp_vr_col
-         actual_leafcp                => phosphorusstate_vars%actual_leafcp
-         actual_frootcp               => phosphorusstate_vars%actual_frootcp
-         actual_livewdcp              => phosphorusstate_vars%actual_livewdcp
-         actual_deadwdcp              => phosphorusstate_vars%actual_deadwdcp
-         leafp                        => phosphorusstate_vars%leafp_patch
-
-         plant_pdemand_vr_patch       => phosphorusflux_vars%plant_pdemand_vr_patch
-         plant_p_uptake_flux          => phosphorusflux_vars%plant_p_uptake_flux
-         sminp_to_plant_patch         => phosphorusflux_vars%sminp_to_plant_patch
-         adsorb_to_labilep_vr         => phosphorusflux_vars%adsorb_to_labilep_vr
-         desorb_to_solutionp_vr       => phosphorusflux_vars%desorb_to_solutionp_vr
-         primp_to_labilep_vr_col      => phosphorusflux_vars%primp_to_labilep_vr_col
-         biochem_pmin_vr_col          => phosphorusflux_vars%biochem_pmin_vr_col
-         secondp_to_labilep_vr_col    => phosphorusflux_vars%secondp_to_labilep_vr_col
-         labilep_to_secondp_vr_col    => phosphorusflux_vars%labilep_to_secondp_vr_col
-
+         plant_pdemand_vr_patch       => phosphorusflux_vars%plant_pdemand_vr_patch      , &
+         plant_p_uptake_flux          => phosphorusflux_vars%plant_p_uptake_flux         , &
+         sminp_to_plant_patch         => phosphorusflux_vars%sminp_to_plant_patch          &
+      )
 
       ! set time steps
       dt = real( get_step_size(), r8 )
@@ -651,7 +622,7 @@ implicit none
          ! determine P requirements   -X. YANG
 
          if (woody(ivt(p)) == 1.0_r8) then
-            c_allometry(p) = (1._r8+g1)*(1._r8+f1(p)+f3(p)*(1._r8+f2))
+            c_allometry(p) = (1._r8+g1)*(1._r8+f1(p)+f3(p)*(1._r8+f2(p)))
             n_allometry(p) = 1._r8/cnl + f1(p)/cnfr + (f3(p)*f4*(1._r8+f2(p)))/cnlw + &
                  (f3(p)*(1._r8-f4)*(1._r8+f2(p)))/cndw
             p_allometry(p) = 1._r8/cpl + f1(p)/cpfr + (f3(p)*f4*(1._r8+f2(p)))/cplw + &
@@ -826,7 +797,7 @@ implicit none
           livewdcp                     => ecophyscon%livewdcp                                 , & ! Input:  [real(r8) (:)   ]  live wood (phloem and ray parenchyma) C:P (gC/gP)
           deadwdcp                     => ecophyscon%deadwdcp                                 , & ! Input:  [real(r8) (:)   ]  dead wood (xylem and heartwood) C:P (gC/gP)
           graincp                      => ecophyscon%graincp                                  , & ! Input:  [real(r8) (:)   ]  grain C:P (gC/gP)
-
+          arepr                        => cnstate_vars%arepr_patch                            , &
           c_allometry                  => cnstate_vars%c_allometry_patch                      , & ! Output: [real(r8) (:)   ]  C allocation index (DIM)
           n_allometry                  => cnstate_vars%n_allometry_patch                      , & ! Output: [real(r8) (:)   ]  N allocation index (DIM)
           downreg                      => cnstate_vars%downreg_patch                          , & ! Output: [real(r8) (:)   ]  fractional reduction in GPP due to N limitation (DIM)
@@ -947,7 +918,6 @@ implicit none
               if (ivt(p) >= npcropmin) then ! skip generic crops
                 cng = graincn(ivt(p))
               end if
-          end if
 
           ! calculate the amount of new leaf C dictated by these allocation
           ! decisions, and calculate the daily fluxes of C and N to current
@@ -1074,7 +1044,7 @@ implicit none
 
      end associate
 
-  end subroutine CNAllocation3_PlantCNPAlloc
+  end subroutine CNAllocation_PlantCNPAlloc
 
 
  !-----------------------------------------------------------------------

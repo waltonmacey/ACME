@@ -23,6 +23,7 @@ module CNAllocationBetrMod
   use CNStateType         , only : cnstate_type
   use PhotosynthesisType  , only : photosyns_type
   use CropType            , only : crop_type
+  use PhosphorusFluxType  , only : phosphorusflux_type
   use EcophysConType      , only : ecophyscon
   use LandunitType        , only : lun
   use ColumnType          , only : col
@@ -37,7 +38,6 @@ module CNAllocationBetrMod
   public :: calc_plant_allometry_force
 
   ! CNAllocParamsInst is populated in readCNAllocParams which is called in
-  type(CNAllocParamsType),protected ::  CNAllocParamsInst
   !
   ! !PUBLIC DATA MEMBERS:
   character(len=*), parameter, public :: suplnAll='ALL'       ! Supplemental Nitrogen for all PFT's
@@ -79,7 +79,8 @@ contains
 
 !-----------------------------------------------------------------------
 
-  subroutine calc_plant_allometry_force(bounds, num_soilp, filter_soilp, canopystate_vars,carbonflux_vars, cnstate_vars)
+  subroutine calc_plant_allometry_force(bounds, num_soilp, filter_soilp, canopystate_vars,carbonflux_vars, &
+           nitrogenflux_vars, phosphorusflux_vars, cnstate_vars)
 
   !
   ! !DESCRIPTION
@@ -88,7 +89,7 @@ contains
   ! USES
   use clm_varctl       , only: iulog,cnallocate_carbon_only,cnallocate_carbonnitrogen_only,&
                                cnallocate_carbonphosphorus_only
-  use pftvarcon        , only: grperc, grpnow
+  use pftvarcon        , only: grperc, grpnow, npcropmin
   !ARGUMENTS
   implicit none
   type(bounds_type)        , intent(in) :: bounds
@@ -97,16 +98,24 @@ contains
   type(cnstate_type)       , intent(inout) :: cnstate_vars
   type(canopystate_type)   , intent(in)    :: canopystate_vars
   type(carbonflux_type)    , intent(inout) :: carbonflux_vars
+  type(nitrogenflux_type)  , intent(inout) :: nitrogenflux_vars
+  type(phosphorusflux_type)  , intent(inout) :: phosphorusflux_vars
   real(r8) :: allocation_leaf(bounds%begp : bounds%endp)              ! fraction of NPP allocated into leaf
   real(r8) :: allocation_stem(bounds%begp : bounds%endp)              ! fraction of NPP allocated into stem
   real(r8) :: allocation_froot(bounds%begp : bounds%endp)              ! fraction of NPP allocated into froot
   real(r8) :: g1, g2
   real(r8) :: f4, f5
-  real(r8):: cnl,cnfr,cnlw,cndw
+  real(r8) :: cnl,cnfr,cnlw,cndw
+  real(r8) :: cpl, cplw, cpfr, cpdw
+  real(r8) :: cng   
+  integer :: p, fp, c
 
  associate(                                                                 &
    ivt                          => pft%itype                              , & ! Input:  [integer  (:) ]  pft vegetation type
-
+   woody                        => ecophyscon%woody                       , & ! Input:  [real(r8) (:)   ]  binary flag for woody lifeform (1=woody, 0=not woody)
+  
+   croplive                     => cnstate_vars%croplive_patch            , &
+   graincn                      => ecophyscon%graincn                     , & ! Input:  [real(r8) (:)   ]  grain C:N (gC/gN)
    f1                           => cnstate_vars%f1_patch                  , &
    f2                           => cnstate_vars%f2_patch                  , &
    f3                           => cnstate_vars%f3_patch                  , &
@@ -120,22 +129,32 @@ contains
    cp_scalar                    => cnstate_vars%cp_scalar                 , &
    aroot                        => cnstate_vars%aroot_patch               , &
    arepr                        => cnstate_vars%arepr_patch               , &
-
+   aleaf                        => cnstate_vars%aleaf_patch               , & ! Output: [real(r8) (:)   ]  leaf allocation coefficient
+   astem                        => cnstate_vars%astem_patch               , & ! Output: [real(r8) (:)   ]  stem allocation coefficient
+ 
    croot_stem                   => ecophyscon%croot_stem                  , & ! Input:  [real(r8) (:)   ]  allocation parameter: new coarse root C per new stem C (gC/gC)
    flivewd                      => ecophyscon%flivewd                     , & ! Input:  [real(r8) (:)   ]  allocation parameter: fraction of new wood that is live (phloem and ray parenchyma) (no units)
    leafcn                       => ecophyscon%leafcn                      , & ! Input:  [real(r8) (:)   ]  leaf C:N (gC/gN)
    frootcn                      => ecophyscon%frootcn                     , & ! Input:  [real(r8) (:)   ]  fine root C:N (gC/gN)
    livewdcn                     => ecophyscon%livewdcn                    , & ! Input:  [real(r8) (:)   ]  live wood (phloem and ray parenchyma) C:N (gC/gN)
    deadwdcn                     => ecophyscon%deadwdcn                    , & ! Input:  [real(r8) (:)   ]  dead wood (xylem and heartwood) C:N (gC/gN)
-   livewdcp                     => ecophyscon%livewdcp                                   , & ! Input:  [real(r8) (:)   ]  live wood (phloem and ray parenchyma) C:P (gC/gP)
-   deadwdcp                     => ecophyscon%deadwdcp                                   , & ! Input:  [real(r8) (:)   ]  dead wood (xylem and heartwood) C:P (gC/gP)
+   livewdcp                     => ecophyscon%livewdcp                    , & ! Input:  [real(r8) (:)   ]  live wood (phloem and ray parenchyma) C:P (gC/gP)
+   deadwdcp                     => ecophyscon%deadwdcp                    , & ! Input:  [real(r8) (:)   ]  dead wood (xylem and heartwood) C:P (gC/gP)
 
    leafcp                       => ecophyscon%leafcp                      , & ! Input:  [real(r8) (:)   ]  leaf C:P (gC/gP)
    frootcp                      => ecophyscon%frootcp                     , & ! Input:  [real(r8) (:)   ]  fine root C:P (gC/gP)
 
+   plant_nalloc                 => nitrogenflux_vars%plant_nalloc_patch   , & ! Output: [real(r8) (:)   ]  total allocated N flux (gN/m2/s)
+   avail_retransn               => nitrogenflux_vars%avail_retransn_patch , & ! Output: [real(r8) (:)   ]  N flux available from retranslocation pool (gN/m2/s)
+   sminn_to_plant_patch         => nitrogenflux_vars%sminn_to_plant_patch , &
+   plant_palloc                 => phosphorusflux_vars%plant_palloc_patch , & ! Output: [real(r8) (:)   ]  total allocated P flux (gP/m2/s)
+   avail_retransp               => phosphorusflux_vars%avail_retransp_patch , & ! Output: [real(r8) (:)   ]  P flux available from retranslocation pool (gP/m2/s)
+   sminp_to_plant_patch         => phosphorusflux_vars%sminp_to_plant_patch , &
    laisun                       => canopystate_vars%laisun_patch          , & ! Input:  [real(r8) (:)   ]  sunlit projected leaf area index
    laisha                       => canopystate_vars%laisha_patch          , & ! Input:  [real(r8) (:)   ]  shaded projected leaf area index
-   availc                       => carbonflux_vars%availc_patch           , & ! Output: [real(r8) (:)   ]  C flux available for allocation (gC/m2/s)
+   plant_calloc                 => carbonflux_vars%plant_calloc_patch     , & ! Output: [real(r8) (:)   ]  total allocated C flux (gC/m2/s)
+  
+   availc                       => carbonflux_vars%availc_patch             & ! Output: [real(r8) (:)   ]  C flux available for allocation (gC/m2/s)
 
  )
 
@@ -209,12 +228,12 @@ contains
             c_allometry(p) = (1._r8+g1)*(1._r8+f1(p)+f3(p)*(1._r8+f2(p)))
             n_allometry(p) = 1._r8/cnl + f1(p)/cnfr + (f3(p)*f4*(1._r8+f2(p)))/cnlw + &
                 (f3(p)*(1._r8-f4)*(1._r8+f2(p)))/cndw
-            p_allometry(p) = 1._r8/cpl + f1(p)/cpfr + (f3(p)*f4*(1._r8+f2))/cplw + &
+            p_allometry(p) = 1._r8/cpl + f1(p)/cpfr + (f3(p)*f4*(1._r8+f2(p)))/cplw + &
                 (f3(p)*(1._r8-f4)*(1._r8+f2(p)))/cpdw
 
         else if (ivt(p) >= npcropmin) then ! skip generic crops
             cng = graincn(ivt(p))
-            c_allometry(p) = (1._r8+g1)*(1._r8+f1(p)+f5+f3(p)*(1._r8+f2))
+            c_allometry(p) = (1._r8+g1)*(1._r8+f1(p)+f5+f3(p)*(1._r8+f2(p)))
             n_allometry(p) = 1._r8/cnl + f1(p)/cnfr + f5/cng + (f3(p)*f4*(1._r8+f2(p)))/cnlw + &
                 (f3(p)*(1._r8-f4)*(1._r8+f2(p)))/cndw
             p_allometry(p) = 1._r8/cpl + f1(p)/cpfr + (f3(p)*f4*(1._r8+f2(p)))/cplw + &
@@ -229,7 +248,7 @@ contains
         nlc_c(p) = plant_calloc(p)/c_allometry(p)
         nlc_n(p) = plant_nalloc(p)/n_allometry(p)
         nlc_p(p) = plant_palloc(p)/p_allometry(p)
-    end if
   enddo
+  end associate
   end subroutine calc_plant_allometry_force
 end module CNAllocationBetrMod
