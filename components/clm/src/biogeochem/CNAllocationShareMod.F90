@@ -6,6 +6,7 @@ module CNAllocationSharedMod
   ! among different nutrient competition strategies
   use shr_kind_mod        , only : r8 => shr_kind_r8
   use shr_log_mod         , only : errMsg => shr_log_errMsg
+  use clm_varctl          , only : use_c13, use_c14
   use decompMod           , only : bounds_type
   use PhotosynthesisType  , only : photosyns_type
   use CropType            , only : crop_type
@@ -27,7 +28,7 @@ implicit none
   public :: CNAllocation_PlantNPDemand
   public :: CNAllocation_PlantCNPAlloc
   public :: update_plant_stoichiometry
-
+  public :: dynamic_plant_alloc
   contains
 !!-------------------------------------------------------------------------------------------------
   subroutine CNAllocation_PlantNPDemand (bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, &
@@ -45,6 +46,7 @@ implicit none
     use clm_varpar       , only: nlevdecomp
     use clm_varcon       , only: nitrif_n2o_loss_frac, secspday
     use clm_varctl       , only: cnallocate_carbon_only_set,spinup_state
+
 !    use landunit_varcon  , only: istsoil, istcrop
     use clm_time_manager , only: get_step_size, get_curr_date
     !
@@ -110,60 +112,6 @@ implicit none
 
     !! Local P variables
     real(r8):: cpl,cpfr,cplw,cpdw,cpg                                    !C:N ratios for leaf, fine root, and wood
-    real(r8):: sum_pdemand_vr(bounds%begc:bounds%endc, 1:nlevdecomp)     !total column P demand (gN/m3/s) at a given level
-    real(r8):: puptake_prof(bounds%begc:bounds%endc, 1:nlevdecomp)
-    real(r8):: solutionp_tot(bounds%begc:bounds%endc)
-    integer :: plimit(bounds%begc:bounds%endc,0:nlevdecomp)              !flag for P limitation
-    real(r8):: residual_sminp_vr(bounds%begc:bounds%endc, 1:nlevdecomp)
-    real(r8):: residual_sminp(bounds%begc:bounds%endc)
-    real(r8):: residual_plant_pdemand(bounds%begc:bounds%endc)
-    real(r8):: sum_ndemand_scaled(bounds%begc:bounds%endc, 1:nlevdecomp) !total column N demand (gN/m3/s) at a given level
-
-    real(r8):: temp_sminn_to_plant(bounds%begc:bounds%endc)
-    real(r8):: temp_sminp_to_plant(bounds%begc:bounds%endc)
-
-   real(r8), pointer :: leafc_storage(:)
-   real(r8), pointer :: leafc_xfer(:)
-
-   real(r8), pointer :: col_plant_ndemand_vr(:,:)
-   real(r8), pointer :: col_plant_nh4demand_vr(:,:)
-   real(r8), pointer :: col_plant_no3demand_vr(:,:)
-   real(r8), pointer :: col_plant_pdemand_vr(:,:)
-   real(r8), pointer :: plant_nh4demand_vr_patch(:,:)
-   real(r8), pointer :: plant_no3demand_vr_patch(:,:)
-   real(r8), pointer :: plant_ndemand_vr_patch(:,:)
-   real(r8), pointer :: actual_immob_no3(:)
-   real(r8), pointer :: actual_immob_nh4(:)
-   real(r8), pointer :: smin_nh4_to_plant_patch(:)
-   real(r8), pointer :: smin_no3_to_plant_patch(:)
-   real(r8), pointer :: sminn_to_plant_patch(:)
-   real(r8), pointer :: pnup_pfrootc(:)
-   real(r8), pointer :: pgpp_pleafc(:)
-   real(r8), pointer :: pgpp_pleafn(:)
-   real(r8), pointer :: pgpp_pleafp(:)
-   real(r8), pointer :: plant_n_uptake_flux(:)
-
-   real(r8), pointer :: leafn(:)
-   real(r8), pointer :: leafn_storage(:)
-   real(r8), pointer :: leafn_xfer(:)
-
-   real(r8), pointer :: labilep_vr(:,:)
-   real(r8), pointer :: secondp_vr(:,:)
-   real(r8), pointer :: actual_leafcp(:)
-   real(r8), pointer :: actual_frootcp(:)
-   real(r8), pointer :: actual_livewdcp(:)
-   real(r8), pointer :: actual_deadwdcp(:)
-   real(r8), pointer :: leafp(:)
-
-   real(r8), pointer :: plant_pdemand_vr_patch(:,:)
-   real(r8), pointer :: plant_p_uptake_flux(:)
-   real(r8), pointer :: sminp_to_plant_patch(:)
-   real(r8), pointer :: adsorb_to_labilep_vr(:,:)
-   real(r8), pointer :: desorb_to_solutionp_vr(:,:)
-   real(r8), pointer :: primp_to_labilep_vr_col(:,:)
-   real(r8), pointer :: biochem_pmin_vr_col(:,:)
-   real(r8), pointer :: secondp_to_labilep_vr_col(:,:)
-   real(r8), pointer :: labilep_to_secondp_vr_col(:,:)
    real(r8) :: dt
 
     !-----------------------------------------------------------------------
@@ -372,6 +320,9 @@ implicit none
          arepr                        => cnstate_vars%arepr_patch                              , &
 
          isoilorder                   => cnstate_vars%isoilorder                               , &
+         f1                           => cnstate_vars%f1_patch                                 , &
+         f2                           => cnstate_vars%f2_patch                                 , &
+         f3                           => cnstate_vars%f3_patch                                 , &
          vmax_plant_nh4               => ecophyscon%vmax_plant_nh4                             , &
          vmax_plant_no3               => ecophyscon%vmax_plant_no3                             , &
          vmax_plant_p                 => ecophyscon%vmax_plant_p                               , &
@@ -541,8 +492,8 @@ implicit none
             cpool_to_xsmrpool(p) = xsmrpool_recover(p)
          end if
 
-         f1 = froot_leaf(ivt(p))
-         f2 = croot_stem(ivt(p))
+         f1(p) = froot_leaf(ivt(p))
+         f2(p) = croot_stem(ivt(p))
 
          ! modified wood allocation to be 2.2 at npp=800 gC/m2/yr, 0.2 at npp=0,
          ! constrained so that it does not go lower than 0.2 (under negative annsum_npp)
@@ -682,14 +633,14 @@ implicit none
                   arepr(p) = 0._r8    ! a few lines down
                end if
 
-               f1 = aroot(p) / aleaf(p)
-               f3 = astem(p) / aleaf(p)
+               f1(p) = aroot(p) / aleaf(p)
+               f3(p) = astem(p) / aleaf(p)
                f5 = arepr(p) / aleaf(p)
                g1 = 0.25_r8
 
             else   ! .not croplive
-               f1 = 0._r8
-               f3 = 0._r8
+               f1(p) = 0._r8
+               f3(p) = 0._r8
                f5 = 0._r8
                g1 = 0.25_r8
             end if
@@ -700,24 +651,24 @@ implicit none
          ! determine P requirements   -X. YANG
 
          if (woody(ivt(p)) == 1.0_r8) then
-            c_allometry(p) = (1._r8+g1)*(1._r8+f1+f3*(1._r8+f2))
-            n_allometry(p) = 1._r8/cnl + f1/cnfr + (f3*f4*(1._r8+f2))/cnlw + &
-                 (f3*(1._r8-f4)*(1._r8+f2))/cndw
-            p_allometry(p) = 1._r8/cpl + f1/cpfr + (f3*f4*(1._r8+f2))/cplw + &
-                 (f3*(1._r8-f4)*(1._r8+f2))/cpdw
+            c_allometry(p) = (1._r8+g1)*(1._r8+f1(p)+f3(p)*(1._r8+f2))
+            n_allometry(p) = 1._r8/cnl + f1(p)/cnfr + (f3(p)*f4*(1._r8+f2(p)))/cnlw + &
+                 (f3(p)*(1._r8-f4)*(1._r8+f2(p)))/cndw
+            p_allometry(p) = 1._r8/cpl + f1(p)/cpfr + (f3(p)*f4*(1._r8+f2(p)))/cplw + &
+                 (f3(p)*(1._r8-f4)*(1._r8+f2(p)))/cpdw
 
          else if (ivt(p) >= npcropmin) then ! skip generic crops
             cng = graincn(ivt(p))
-            c_allometry(p) = (1._r8+g1)*(1._r8+f1+f5+f3*(1._r8+f2))
-            n_allometry(p) = 1._r8/cnl + f1/cnfr + f5/cng + (f3*f4*(1._r8+f2))/cnlw + &
-                 (f3*(1._r8-f4)*(1._r8+f2))/cndw
-            p_allometry(p) = 1._r8/cpl + f1/cpfr + (f3*f4*(1._r8+f2))/cplw + &
-                 (f3*(1._r8-f4)*(1._r8+f2))/cpdw
+            c_allometry(p) = (1._r8+g1)*(1._r8+f1(p)+f5+f3(p)*(1._r8+f2(p)))
+            n_allometry(p) = 1._r8/cnl + f1(p)/cnfr + f5/cng + (f3(p)*f4*(1._r8+f2(p)))/cnlw + &
+                 (f3(p)*(1._r8-f4)*(1._r8+f2(p)))/cndw
+            p_allometry(p) = 1._r8/cpl + f1(p)/cpfr + (f3(p)*f4*(1._r8+f2(p)))/cplw + &
+                 (f3(p)*(1._r8-f4)*(1._r8+f2(p)))/cpdw
 
          else
-            c_allometry(p) = 1._r8+g1+f1+f1*g1
-            n_allometry(p) = 1._r8/cnl + f1/cnfr
-            p_allometry(p) = 1._r8/cpl + f1/cpfr
+            c_allometry(p) = 1._r8+g1+f1(p)+f1(p)*g1
+            n_allometry(p) = 1._r8/cnl + f1(p)/cnfr
+            p_allometry(p) = 1._r8/cpl + f1(p)/cpfr
          end if
          plant_ndemand(p) = availc(p)*(n_allometry(p)/c_allometry(p))
          plant_pdemand(p) = availc(p)*(p_allometry(p)/c_allometry(p))
