@@ -6,6 +6,7 @@ program gpmtest
    use gpm_gmi_mod, only:gpm_gmi_addsensor, gpm_gmi_adddefaultsensor, gpm_gmi_init, gpm_gmi_run, gpm_gmi_clean, gpm_gmi_toabt
    use mod_cosp_types, only: cosp_gridbox, construct_cosp_gridbox, free_cosp_gridbox
    use shr_kind_mod, only: r8 =>shr_kind_r8
+   use gpm_gmi_sensor_mod, only: gpm_gmi_sensor, gpm_gmi_sensor_create
   ! use netcdf
    implicit none
    
@@ -126,6 +127,8 @@ program gpmtest
   
    type(gpm_gmi_toabt), allocatable :: toabt(:)
 
+   type(gpm_gmi_sensor) :: testgmisensor
+   integer :: i
   ! call check( nf90_open(file_name, NF90_NOWRITE, ncid) )
   ! call check( nf90_inq_varid(ncid, "q", varid) )
   ! call check( nf90_get_var(ncid, varid, q_in) )
@@ -244,6 +247,9 @@ print *, "clean gbx"
    
    print *, 'Run successful'
 
+   !testgmisensor = gpm_gmi_sensor('abc','histabc',10,20,(/ (i, i=1,0) /),4)  
+   testgmisensor = gpm_gmi_sensor_create('abc','histabc',10.0,20.0,(/2,3,4/))  
+   print *, 'test for gpm sensor types : ', size(testgmisensor.channel_subset) 
 
 end program gpmtest
 

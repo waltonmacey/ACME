@@ -8,6 +8,7 @@ module GPM_GMI_MOD
    ! Environment setup
    !------------------
    ! Module use
+   use gpm_gmi_sensor_mod, only: gpm_gmi_sensor
    use CRTM_Module!,    only: CRTM_ChannelInfo_type, CRTM_Geometry_type, &
                   !           CRTM_Options_type, CRTM_Atmosphere_type,   &
                   !           CRTM_Surface_type, CRTM_RTSolution_type,   &
@@ -16,33 +17,9 @@ module GPM_GMI_MOD
    use MOD_COSP_CONSTANTS, only: I_LSCLIQ, I_LSCICE, I_LSRAIN, I_LSSNOW, &
                                  I_CVCLIQ, I_CVCICE, I_CVRAIN, I_CVSNOW, &
                                  I_LSGRPL
-   use cam_history_support, only: max_fieldname_len
    implicit none
    private
 
-!--------------------------------
-   ! gpm_gmi_sensor is a type that saves the properties of the sensors
-   type gpm_gmi_sensor
-      !! The following variables are set in function gpm_gmi_addsensor()
-      ! 
-      character(20) :: sensor_id = ''
-      ! cam history field name of results
-      ! TODO: set the length of cam_histfld_name 
-      character(max_fieldname_len) :: cam_histfld_name = ''
-      ! sensor scan angle (degree)
-      real :: sensor_scan_angle
-      ! sensor zenith angle (degree)
-      real :: sensor_zenith_angle
-
-      integer, allocatable :: channel_subset(:) ! channel subset
-      
-      !! The following variables are set (and allocated if applicabable) 
-      !! in function gpm_gmi_init()
-      ! number of channels of the sensor, for convenience
-      integer :: n_channels
-
-
-   end type gpm_gmi_sensor
 !-------------------------------
    ! gpm_gmi_toabt is a structure to store calculated TOA BT
    type gpm_gmi_toabt
