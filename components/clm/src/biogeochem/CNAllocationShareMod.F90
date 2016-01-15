@@ -34,7 +34,41 @@ implicit none
   !set from namelist somewhere else.
   logical,          private :: nu_com_phosphatase = .false.
   logical,          private :: nu_com_nfix = .false.
+
+
+  type :: CNAllocShareParamsType
+     real(r8) :: dayscrecover      ! number of days to recover negative cpool
+  end type CNAllocShareParamsType
   contains
+
+  ! CNAllocParamsInst is populated in readCNAllocParams which is called in
+  type(CNAllocShareParamsType),protected ::  CNAllocShareParamsInst
+  !-----------------------------------------------------------------------
+  subroutine readCNAllocShareParams ( ncid )
+    !
+    ! !USES:
+    use ncdio_pio , only : file_desc_t,ncd_io
+
+    ! !ARGUMENTS:
+    implicit none
+    type(file_desc_t),intent(inout) :: ncid   ! pio netCDF file id
+    !
+    ! !LOCAL VARIABLES:
+    character(len=32)  :: subname = 'readCNAllocShareParams'
+    character(len=100) :: errCode = '-Error reading in parameters file:'
+    logical            :: readv ! has variable been read in or not
+    real(r8)           :: tempr ! temporary to read in parameter
+    character(len=100) :: tString ! temp. var for reading
+
+    tString='dayscrecover'
+
+    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    CNAllocShareParamsInst%dayscrecover=tempr
+
+
+  end subroutine readCNAllocShareParams
+
 !!-------------------------------------------------------------------------------------------------
   subroutine CNAllocation_PlantNPDemand (bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, &
        photosyns_vars, crop_vars, canopystate_vars, cnstate_vars,             &
@@ -327,11 +361,11 @@ implicit none
          f1                           => cnstate_vars%f1_patch                                 , &
          f2                           => cnstate_vars%f2_patch                                 , &
          f3                           => cnstate_vars%f3_patch                                 , &
-         
+
 
          leafc_storage                => carbonstate_vars%leafc_storage_patch            , &
          leafc_xfer                   => carbonstate_vars%leafc_xfer_patch               , &
-  
+
          plant_ndemand_vr_patch       => nitrogenflux_vars%plant_ndemand_vr_patch        , &
          smin_nh4_to_plant_patch      => nitrogenflux_vars%smin_nh4_to_plant_patch       , &
          smin_no3_to_plant_patch      => nitrogenflux_vars%smin_no3_to_plant_patch       , &
@@ -351,7 +385,7 @@ implicit none
          actual_livewdcp              => phosphorusstate_vars%actual_livewdcp            , &
          actual_deadwdcp              => phosphorusstate_vars%actual_deadwdcp            , &
          leafp                        => phosphorusstate_vars%leafp_patch                , &
-
+         dayscrecover                 => CNAllocShareParamsInst%dayscrecover             , &
          plant_pdemand_vr_patch       => phosphorusflux_vars%plant_pdemand_vr_patch      , &
          plant_p_uptake_flux          => phosphorusflux_vars%plant_p_uptake_flux         , &
          sminp_to_plant_patch         => phosphorusflux_vars%sminp_to_plant_patch          &

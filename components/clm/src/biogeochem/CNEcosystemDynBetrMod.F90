@@ -117,9 +117,7 @@ module CNEcosystemDynBetrMod
     use dynHarvestMod             , only: CNHarvest
     use clm_varpar                , only: crop_prog
     use PlantSoilnutrientFluxType , only : plantsoilnutrientflux_type
-    use CNAllocationBetrMod       , only : calc_plant_nutrient_demand
     use CNVerticalProfileMod      , only : decomp_vertprofiles
-    use CNAllocationBetrMod       , only : plantCNAlloc
     use CNNStateUpdate3Mod        , only : NStateUpdate3
     implicit none
     !

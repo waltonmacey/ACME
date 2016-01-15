@@ -24,6 +24,7 @@ module CNAllocationBetrMod
   use PhotosynthesisType  , only : photosyns_type
   use CropType            , only : crop_type
   use PhosphorusFluxType  , only : phosphorusflux_type
+  use CNAllocationSharedMod
   use EcophysConType      , only : ecophyscon
   use LandunitType        , only : lun
   use ColumnType          , only : col
@@ -36,7 +37,7 @@ module CNAllocationBetrMod
   ! !PUBLIC MEMBER FUNCTIONS:
   public :: CNAllocationBetrInit         ! Initialization
   public :: calc_plant_allometry_force
-
+  public :: readCNAllocBetrParams
   ! CNAllocParamsInst is populated in readCNAllocParams which is called in
   !
   ! !PUBLIC DATA MEMBERS:
@@ -77,6 +78,21 @@ contains
   end subroutine CNAllocationBetrInit
 
 
+
+  subroutine readCNAllocBetrParams ( ncid )
+    !
+    ! !USES:
+    use ncdio_pio , only : file_desc_t,ncd_io
+
+    ! !ARGUMENTS:
+    implicit none
+    type(file_desc_t),intent(inout) :: ncid   ! pio netCDF file id
+    !
+    ! !LOCAL VARIABLES:
+    character(len=32)  :: subname = 'CNAllocParamsType'
+
+    call readCNAllocShareParams(ncid)
+  end subroutine readCNAllocBetrParams
 !-----------------------------------------------------------------------
 
   subroutine calc_plant_allometry_force(bounds, num_soilp, filter_soilp, canopystate_vars,carbonflux_vars, &
@@ -107,13 +123,13 @@ contains
   real(r8) :: f4, f5
   real(r8) :: cnl,cnfr,cnlw,cndw
   real(r8) :: cpl, cplw, cpfr, cpdw
-  real(r8) :: cng   
+  real(r8) :: cng
   integer :: p, fp, c
 
  associate(                                                                 &
    ivt                          => pft%itype                              , & ! Input:  [integer  (:) ]  pft vegetation type
    woody                        => ecophyscon%woody                       , & ! Input:  [real(r8) (:)   ]  binary flag for woody lifeform (1=woody, 0=not woody)
-  
+
    croplive                     => cnstate_vars%croplive_patch            , &
    graincn                      => ecophyscon%graincn                     , & ! Input:  [real(r8) (:)   ]  grain C:N (gC/gN)
    f1                           => cnstate_vars%f1_patch                  , &
@@ -131,7 +147,7 @@ contains
    arepr                        => cnstate_vars%arepr_patch               , &
    aleaf                        => cnstate_vars%aleaf_patch               , & ! Output: [real(r8) (:)   ]  leaf allocation coefficient
    astem                        => cnstate_vars%astem_patch               , & ! Output: [real(r8) (:)   ]  stem allocation coefficient
- 
+
    croot_stem                   => ecophyscon%croot_stem                  , & ! Input:  [real(r8) (:)   ]  allocation parameter: new coarse root C per new stem C (gC/gC)
    flivewd                      => ecophyscon%flivewd                     , & ! Input:  [real(r8) (:)   ]  allocation parameter: fraction of new wood that is live (phloem and ray parenchyma) (no units)
    leafcn                       => ecophyscon%leafcn                      , & ! Input:  [real(r8) (:)   ]  leaf C:N (gC/gN)
@@ -153,7 +169,7 @@ contains
    laisun                       => canopystate_vars%laisun_patch          , & ! Input:  [real(r8) (:)   ]  sunlit projected leaf area index
    laisha                       => canopystate_vars%laisha_patch          , & ! Input:  [real(r8) (:)   ]  shaded projected leaf area index
    plant_calloc                 => carbonflux_vars%plant_calloc_patch     , & ! Output: [real(r8) (:)   ]  total allocated C flux (gC/m2/s)
-  
+
    availc                       => carbonflux_vars%availc_patch             & ! Output: [real(r8) (:)   ]  C flux available for allocation (gC/m2/s)
 
  )
