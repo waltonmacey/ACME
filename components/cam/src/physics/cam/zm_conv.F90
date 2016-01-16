@@ -36,6 +36,7 @@ module zm_conv
   public convtran                 ! convective transport
   public momtran                  ! convective momentum transport
   public trigmem                  ! true if convective memory
+  public multi_updrafts           ! true if convective multi updrafts
 
 !
 ! Private data
@@ -45,7 +46,10 @@ module zm_conv
    real(r8) :: zmconv_c0_ocn = unset_r8    
    real(r8) :: zmconv_ke     = unset_r8 
    real(r8) :: zmconv_tau    = unset_r8   
-   logical  :: zmconv_trigmem= .false.    
+   logical  :: zmconv_trigmem = .false.    
+   logical  :: zmconv_multi_updrafts = .false.
+   integer  :: zmconv_multi_nupdrafts = -1 
+   real(r8) :: zmconv_multi_acoeff = 0.
    real(r8) :: zmconv_alfa      = unset_r8
    real(r8) :: zmconv_dmpdz     = unset_r8
    real(r8) :: zmconv_epsm_fact = unset_r8
@@ -65,12 +69,18 @@ module zm_conv
    real(r8) :: c0_lnd       ! set from namelist input zmconv_c0_lnd
    real(r8) :: c0_ocn       ! set from namelist input zmconv_c0_ocn
    logical  :: trigmem      ! set from namelist input zmconv_trigmem
+   logical  :: multi_updrafts  ! set from namelist input zmconv_multi_updrafts
+   integer  :: multi_nupdrafts ! set from namelist input zmconv_multi_nupdrafts
+   real(r8) :: multi_acoeff    ! set from namelist input zmconv_multi_acoeff
    real(r8),parameter :: c1 = 6.112_r8
    real(r8),parameter :: c2 = 17.67_r8
    real(r8),parameter :: c3 = 243.5_r8
    real(r8) :: tfreez
    real(r8) :: eps1
       
+   integer :: ncld
+   real(r8) retv
+   real(r8) arb    
 
    logical :: no_deep_pbl ! default = .false.
                           ! no_deep_pbl = .true. eliminates deep convection entirely within PBL 
@@ -101,9 +111,11 @@ subroutine zmconv_readnl(nlfile)
    character(len=*), parameter :: subname = 'zmconv_readnl'
 
    namelist /zmconv_nl/ zmconv_c0_lnd, zmconv_c0_ocn, zmconv_ke, & 
-                        zmconv_tau, zmconv_trigmem, zmconv_alfa, & 
+                        zmconv_tau, zmconv_alfa, & 
                         zmconv_dmpdz, zmconv_epsm_fact, zmconv_capelmt, & 
-                        zmconv_dcapelmt
+                        zmconv_dcapelmt, &
+                        zmconv_trigmem, &
+                        zmconv_multi_updrafts, zmconv_multi_nupdrafts, zmconv_multi_acoeff
 
    if (masterproc) then
       unitn = getunit()
@@ -124,6 +136,9 @@ subroutine zmconv_readnl(nlfile)
       ke = zmconv_ke
       tau = zmconv_tau
       trigmem = zmconv_trigmem
+      multi_updrafts = zmconv_multi_updrafts
+      multi_nupdrafts = zmconv_multi_nupdrafts
+      multi_acoeff = zmconv_multi_acoeff
       alfax = zmconv_alfa
       dmpdz = zmconv_dmpdz
       epsm_fact = zmconv_epsm_fact
@@ -136,6 +151,9 @@ subroutine zmconv_readnl(nlfile)
           write(iulog,*) 'zmconv_nl parameters: zmconv_ke',zmconv_ke
           write(iulog,*) 'zmconv_nl parameters: zmconv_tau',zmconv_tau
           write(iulog,*) 'zmconv_nl parameters: zmconv_trigmem',zmconv_trigmem
+          write(iulog,*) 'zmconv_nl parameters: zmconv_multi_updrafts',multi_updrafts
+          write(iulog,*) 'zmconv_nl parameters: zmconv_multi_nupdrafts',multi_nupdrafts
+          write(iulog,*) 'zmconv_nl parameters: zmconv_multi_acoeff',multi_acoeff
           write(iulog,*) 'zmconv_nl parameters: zmconv_alfa',zmconv_alfa
           write(iulog,*) 'zmconv_nl parameters: zmconv_dmpdz',zmconv_dmpdz
           write(iulog,*) 'zmconv_nl parameters: zmconv_epsm_fact',zmconv_epsm_fact
@@ -151,7 +169,10 @@ subroutine zmconv_readnl(nlfile)
    call mpibcast(c0_ocn,            1, mpir8,  0, mpicom)
    call mpibcast(ke,                1, mpir8,  0, mpicom)
    call mpibcast(tau,               1, mpir8,  0, mpicom)
-   call mpibcast(trigmem,           1, mpir8,  0, mpicom)
+   call mpibcast(trigmem,           1, mpilog,  0, mpicom)
+   call mpibcast(multi_updrafts,    1, mpilog,  0, mpicom)
+   call mpibcast(multi_nupdrafts,   1, mpiint,  0, mpicom)
+   call mpibcast(multi_acoeff,      1, mpir8,  0, mpicom)
    call mpibcast(zmconv_alfa,       1, mpir8,  0, mpicom)
    call mpibcast(zmconv_dmpdz,      1, mpir8,  0, mpicom)
    call mpibcast(zmconv_epsm_fact,  1, mpir8,  0, mpicom)
@@ -193,6 +214,12 @@ subroutine zm_convi(limcnv_in, no_deep_pbl_in)
    ! convection is too weak, thus adjusted to 2400.
 
    hgrid = get_resolution()
+   if(trigmem)tau = 3600._r8
+   if (multi_updrafts) then
+       ncld = multi_nupdrafts
+       retv = 0.608_r8
+       arb = multi_acoeff
+   endif
 
    if (zmconv_tau /= unset_r8) then
       tau = zmconv_tau
@@ -520,6 +547,9 @@ subroutine zm_convr(lchnk   ,ncol    , &
 
    real(r8) mb(pcols)                  ! wg cloud base mass flux.
 
+   real(r8)  negadq
+   integer   kk
+
    integer jlcl(pcols)
    integer j0(pcols)                 ! wg detrainment initiation level index.
    integer jd(pcols)                 ! wg downdraft initiation level index.
@@ -781,18 +811,32 @@ subroutine zm_convr(lchnk   ,ncol    , &
 !
 ! obtain cloud properties.
 !
-
-   call cldprp(lchnk   , &
-               qg      ,tg      ,ug      ,vg      ,pg      , &
-               zg      ,sg      ,mu      ,eu      ,du      , &
-               md      ,ed      ,sd      ,qd      ,mc      , &
-               qu      ,su      ,zfg     ,qs      ,hmn     , &
-               hsat    ,shat    ,qlg     , &
-               cmeg    ,maxg    ,lelg    ,jt      ,jlcl    , &
-               maxg    ,j0      ,jd      ,rl      ,lengath , &
-               rgas    ,grav    ,cpres   ,msg     , &
-               pflxg   ,evpg    ,cug     ,rprdg   ,limcnv  , &
-               landfracg, hu_nm1g )   !songxl 2014-05-20
+   
+   if (zmconv_multi_updrafts) then
+       call cldprp_sp(lchnk   , &
+                   qg      ,tg      ,ug      ,vg      ,pg      , &
+                   zg      ,sg      ,mu      ,eu      ,du      , &
+                   md      ,ed      ,sd      ,qd      ,mc      , &
+                   qu      ,su      ,zfg     ,qs      ,hmn     , &
+                   hsat    ,shat    ,qlg     , &
+                   cmeg    ,maxg    ,lelg    ,jt      ,jlcl    , &
+                   maxg    ,j0      ,jd      ,rl      ,lengath , &
+                   rgas    ,grav    ,cpres   ,msg     , &
+                   pflxg   ,evpg    ,cug     ,rprdg   ,limcnv  , & 
+                   landfracg, hu_nm1g)
+   else
+       call cldprp(lchnk   , &
+                   qg      ,tg      ,ug      ,vg      ,pg      , &
+                   zg      ,sg      ,mu      ,eu      ,du      , &
+                   md      ,ed      ,sd      ,qd      ,mc      , &
+                   qu      ,su      ,zfg     ,qs      ,hmn     , &
+                   hsat    ,shat    ,qlg     , &
+                   cmeg    ,maxg    ,lelg    ,jt      ,jlcl    , &
+                   maxg    ,j0      ,jd      ,rl      ,lengath , &
+                   rgas    ,grav    ,cpres   ,msg     , &
+                   pflxg   ,evpg    ,cug     ,rprdg   ,limcnv  , &
+                   landfracg, hu_nm1g )   !songxl 2014-05-20
+   endif
 !
 ! convert detrainment from units of "1/m" to "1/mb".
 !
@@ -883,6 +927,107 @@ subroutine zm_convr(lchnk   ,ncol    , &
    endif
 !>songxl 2014-05-20-----------------
 
+   if (zmconv_multi_updrafts) then
+       do k = msg + 1,pver
+    !DIR$ CONCURRENT
+          do i = 1,lengath
+             if (dqdt(i,k)*2._r8*delt+qg(i,k)<0._r8) then
+                negadq = (dqdt(i,k)+0.5_r8*qg(i,k)/delt)/0.9999_r8
+                dqdt(i,k) = dqdt(i,k)-negadq
+
+                do kk=k,jt(i),-1
+                  if (negadq<0._r8) then
+                     if (rprdg(i,kk)> -negadq*dp(i,k)/dp(i,kk)) then
+                        dsdt(i,k) = dsdt(i,k) + negadq*rl/cpres
+                        rprdg(i,kk) = rprdg(i,kk)+negadq*dp(i,k)/dp(i,kk)
+                        negadq = 0._r8
+                     else
+                        negadq = rprdg(i,kk)*dp(i,kk)/dp(i,k)+negadq
+                        dsdt(i,k) = dsdt(i,k) - rprdg(i,kk)*rl/cpres*dp(i,kk)/dp(i,k)
+                        rprdg(i,kk) = 0._r8
+                     end if
+
+                     if (negadq<0._r8) then
+                         if (dlg(i,kk)> -negadq*dp(i,k)/dp(i,kk)) then
+                            dsdt(i,k) = dsdt(i,k) + negadq*rl/cpres
+                            dlg(i,kk)  = dlg(i,kk)+negadq*dp(i,k)/dp(i,kk)
+                            negadq = 0._r8
+                         else
+                            negadq = negadq + dlg(i,kk)*dp(i,kk)/dp(i,k)
+                            dsdt(i,k) = dsdt(i,k) - dlg(i,kk)*dp(i,kk)/dp(i,k)*rl/cpres
+                            dlg(i,kk) = 0._r8
+                         end if
+                     end if
+                  end if
+                end do
+
+                if (negadq<0._r8) then   
+                  do kk=k+1,maxg(i)
+                    if (negadq<0._r8) then
+                      if (rprdg(i,kk)> -negadq*dp(i,k)/dp(i,kk)) then
+                        dsdt(i,k) = dsdt(i,k) + negadq*rl/cpres
+                        rprdg(i,kk) = rprdg(i,kk)+negadq*dp(i,k)/dp(i,kk)
+                        negadq = 0._r8
+                      else
+                        negadq = rprdg(i,kk)*dp(i,kk)/dp(i,k)+negadq
+                        dsdt(i,k) = dsdt(i,k) - rprdg(i,kk)*rl/cpres*dp(i,kk)/dp(i,k)
+                        rprdg(i,kk) = 0._r8
+                      end if
+
+                      if (negadq<0._r8) then
+                         if (dlg(i,kk)> -negadq*dp(i,k)/dp(i,kk)) then
+                            dsdt(i,k) = dsdt(i,k) + negadq*rl/cpres
+                            dlg(i,kk)  = dlg(i,kk)+negadq*dp(i,k)/dp(i,kk)
+                            negadq = 0._r8
+                         else
+                            negadq = negadq + dlg(i,kk)*dp(i,kk)/dp(i,k)
+                            dsdt(i,k) = dsdt(i,k) - dlg(i,kk)*dp(i,kk)/dp(i,k)*rl/cpres
+                            dlg(i,kk) = 0._r8
+                         end if
+                      end if
+                    end if
+                  end do 
+                end if
+
+                if (negadq<0._r8.and.k>jt(i)) then  
+                  do kk=k-1,jt(i),-1
+                    if (negadq<0._r8 .and. dqdt(i,kk)>0._r8) then
+                      if (dqdt(i,kk)> -negadq*dp(i,k)/dp(i,kk)) then
+                        dqdt(i,kk) = dqdt(i,kk)+negadq*dp(i,k)/dp(i,kk)
+                        negadq = 0._r8
+                      else 
+                        negadq = dqdt(i,kk)*dp(i,kk)/dp(i,k)+negadq
+                        dqdt(i,kk) = 0._r8
+                      end if
+                    end if
+                  end do
+                end if
+
+                if (negadq<0._r8) then
+                  do kk=k+1,maxg(i)
+                    if (negadq<0._r8 .and. dqdt(i,kk)>0._r8) then
+                      if (dqdt(i,kk)> -negadq*dp(i,k)/dp(i,kk)) then
+                        dqdt(i,kk) = dqdt(i,kk)+negadq*dp(i,k)/dp(i,kk)
+                        negadq = 0._r8
+                      else 
+                        negadq = dqdt(i,kk)*dp(i,kk)/dp(i,k)+negadq
+                        dqdt(i,kk) = 0._r8
+                      end if
+                    end if
+                  end do
+                end if
+
+
+                if (negadq<0._r8) then
+                   write(*,*) "can not fix negadq=",negadq,"k=",k,"jt=",jt(i),"jb=",maxg(i),"rprd=",rprdg(i,:), &
+                      "dlg=",dlg(i,:),"cu=",cug(i,:),"dqdt=",dqdt(i,:)
+    !               dqdt(i,k) = dqdt(i,k) + negadq
+                end if
+    !            if (rprdg(i,k)==infinite) write(*,*) "rprd=",rprdg(i,k),"i=",i,"k=",k 
+              end if
+          end do
+       end do
+   end if
 ! gather back temperature and mixing ratio.
 !
    do k = msg + 1,pver
@@ -922,7 +1067,7 @@ subroutine zm_convr(lchnk   ,ncol    , &
 ! Compute precip by integrating change in water vapor minus detrained cloud water
    do k = pver,msg + 1,-1
       do i = 1,ncol
-         prec(i) = prec(i) - dpp(i,k)* (q(i,k)-qh(i,k)) - dpp(i,k)*dlf(i,k)*2*delt
+         prec(i) = prec(i) - dpp(i,k)* (q(i,k)-qh(i,k)) - dpp(i,k)*dlf(i,k)*2._r8*delt
       end do
    end do
 
@@ -1132,7 +1277,7 @@ subroutine convtran(lchnk   , &
                     doconvtran,q       ,ncnst   ,mu      ,md      , &
                     du      ,eu      ,ed      ,dp      ,dsubcld , &
                     jt      ,mx      ,ideep   ,il1g    ,il2g    , &
-                    nstep   ,fracis  ,dqdt    ,dpdry   )
+                    nstep   ,fracis  ,dqdt    ,dpdry   ,dt)
 !----------------------------------------------------------------------- 
 ! 
 ! Purpose: 
@@ -1178,6 +1323,7 @@ subroutine convtran(lchnk   , &
    integer, intent(in) :: nstep             ! Time step index
 
    real(r8), intent(in) :: dpdry(pcols,pver)       ! Delta pressure between interfaces
+   real(r8), intent(in) :: dt               ! 2 delta t (model time increment)
 
 
 ! input/output
@@ -1218,6 +1364,9 @@ subroutine convtran(lchnk   , &
    real(r8) eutmp(pcols,pver)       ! Mass entraining from updraft
    real(r8) edtmp(pcols,pver)       ! Mass entraining from downdraft
    real(r8) dptmp(pcols,pver)    ! Delta pressure between interfaces
+
+   real(r8) total(pcols)
+   real(r8) negadt,qtmp
 !-----------------------------------------------------------------------
 !
    small = 1.e-36_r8
@@ -1406,6 +1555,46 @@ subroutine convtran(lchnk   , &
             end do
          end do
 
+   if (zmconv_multi_updrafts) then
+         do i = il1g,il2g
+           do k = jt(i),mx(i)
+             if (dcondt(i,k)*dt+const(i,k)<0._r8) then
+                negadt = dcondt(i,k)+const(i,k)/dt
+                dcondt(i,k) = -const(i,k)/dt
+                do kk= k+1, mx(i)
+                  if (negadt<0._r8 .and. dcondt(i,kk)*dt+const(i,kk)>0._r8 ) then
+                    qtmp = dcondt(i,kk)+negadt*dptmp(i,k)/dptmp(i,kk)
+                    if (qtmp*dt+const(i,kk)>0._r8) then
+                      dcondt(i,kk)= qtmp
+                      negadt=0._r8
+                    else
+                      negadt= negadt+(const(i,kk)/dt+dcondt(i,kk))*dptmp(i,kk)/dptmp(i,k)
+                      dcondt(i,kk)= -const(i,kk)/dt
+                    end if
+
+                  end if
+                end do
+                 do kk= k-1, jt(i), -1
+                  if (negadt<0._r8 .and. dcondt(i,kk)*dt+const(i,kk)>0._r8 ) then
+                    qtmp = dcondt(i,kk)+negadt*dptmp(i,k)/dptmp(i,kk)
+                    if (qtmp*dt+const(i,kk)>0._r8) then
+                      dcondt(i,kk)= qtmp
+                      negadt=0._r8
+                    else
+                      negadt= negadt+(const(i,kk)/dt+dcondt(i,kk))*dptmp(i,kk)/dptmp(i,k)
+                      dcondt(i,kk)= -const(i,kk)/dt
+                    end if
+                  end if
+                end do
+
+                if (negadt<0._r8) then
+                   write(*,*) "can not fix negadt=",negadt
+                   dcondt(i,k) = dcondt(i,k) + negadt
+                end if
+             end if
+           end do
+         end do
+   end if
 ! Initialize to zero everywhere, then scatter tendency back to full array
          dqdt(:,:,m) = 0._r8
          do k = 1,pver
@@ -2152,8 +2341,6 @@ subroutine cldprp(lchnk   , &
                   cmeg    ,jb      ,lel     ,jt      ,jlcl    , &
                   mx      ,j0      ,jd      ,rl      ,il2g    , &
                   rd      ,grav    ,cp      ,msg     , &
-!<songxl 2014-05-20-------
-!                  pflx    ,evp     ,cu      ,rprd    ,limcnv  ,landfrac)
                   pflx    ,evp     ,cu      ,rprd    ,limcnv  ,landfrac,  &
                   hu_nm1  )
 !>songxl 2014-05-20-------
@@ -3949,5 +4136,729 @@ elemental subroutine qsat_hPa(t, p, es, qm)
   es = es*0.01_r8
 
 end subroutine qsat_hPa
+
+
+subroutine cldprp_sp(lchnk   , &
+                  q       ,t       ,u       ,v       ,p       , &
+                  z       ,s       ,mu      ,eu      ,du      , &
+                  md      ,ed      ,sd      ,qd      ,mc      , &
+                  qu      ,su      ,zf      ,qst     ,hmn     , &
+                  hsat    ,shat    ,ql      , &
+                  cmeg    ,jb      ,lel     ,jt      ,jlcl    , &
+                  mx      ,j0      ,jd      ,rl      ,il2g    , &
+                  rd      ,grav    ,cp      ,msg     , &
+                  pflx    ,evp     ,cu      ,rprd    ,limcnv  , &
+                  landfrac,  hu_nm1 )  
+!----------------------------------------------------------------------- 
+! 
+! Purpose: 
+! Spectral cloud model 
+! 
+! Author: Xiaoliang Song and Guang Zhang
+!
+!-----------------------------------------------------------------------
+
+   implicit none
+
+!------------------------------------------------------------------------------
+!
+! Input arguments
+!
+   integer, intent(in) :: lchnk                  ! chunk identifier
+
+   real(r8), intent(in) :: q(pcols,pver)         ! spec. humidity of env
+   real(r8), intent(in) :: t(pcols,pver)         ! temp of env
+   real(r8), intent(in) :: p(pcols,pver)         ! pressure of env
+   real(r8), intent(in) :: z(pcols,pver)         ! height of env
+   real(r8), intent(in) :: s(pcols,pver)         ! normalized dry static energy of env
+   real(r8), intent(in) :: zf(pcols,pverp)       ! height of interfaces
+   real(r8), intent(in) :: u(pcols,pver)         ! zonal velocity of env
+   real(r8), intent(in) :: v(pcols,pver)         ! merid. velocity of env
+
+   real(r8), intent(in) :: landfrac(pcols) ! RBN Landfrac
+
+   integer, intent(in) :: jb(pcols)              ! updraft base level
+   integer, intent(in) :: lel(pcols)             ! updraft launch level
+   integer, intent(out) :: jt(pcols)              ! updraft plume top
+   integer, intent(out) :: jlcl(pcols)            ! updraft lifting cond level
+   integer, intent(in) :: mx(pcols)              ! updraft base level (same is jb)
+   integer, intent(out) :: j0(pcols)              ! level where updraft begins detraining
+   integer, intent(out) :: jd(pcols)              ! level of downdraft
+   integer, intent(in) :: limcnv                 ! convection limiting level
+   integer, intent(in) :: il2g                   !CORE GROUP REMOVE
+   integer, intent(in) :: msg                    ! missing moisture vals (always 0)
+   real(r8), intent(in) :: rl                    ! latent heat of vap
+   real(r8), intent(in) :: shat(pcols,pver)      ! interface values of dry stat energy
+!
+! output
+!
+   real(r8), intent(out) :: rprd(pcols,pver)     ! rate of production of precip at that layer
+   real(r8), intent(out) :: du(pcols,pver)       ! detrainement rate of updraft
+   real(r8), intent(out) :: ed(pcols,pver)       ! entrainment rate of downdraft
+   real(r8), intent(out) :: eu(pcols,pver)       ! entrainment rate of updraft
+   real(r8), intent(out) :: hmn(pcols,pver)      ! moist stat energy of env
+   real(r8), intent(out) :: hsat(pcols,pver)     ! sat moist stat energy of env
+   real(r8), intent(out) :: mc(pcols,pver)       ! net mass flux
+   real(r8), intent(out) :: md(pcols,pver)       ! downdraft mass flux
+   real(r8), intent(out) :: mu(pcols,pver)       ! updraft mass flux
+   real(r8), intent(out) :: pflx(pcols,pverp)    ! precipitation flux thru layer
+   real(r8), intent(out) :: qd(pcols,pver)       ! spec humidity of downdraft
+   real(r8), intent(out) :: ql(pcols,pver)       ! liq water of updraft
+   real(r8), intent(out) :: qst(pcols,pver)      ! saturation mixing ratio of env.
+   real(r8), intent(out) :: qu(pcols,pver)       ! spec hum of updraft
+   real(r8), intent(out) :: sd(pcols,pver)       ! normalized dry stat energy of downdraft
+   real(r8), intent(out) :: su(pcols,pver)       ! normalized dry stat energy of updraft
+
+
+!<songxl 2014-05-20----------------
+   real(r8), intent(inout) :: hu_nm1 (pcols,pver)
+!>songxl 2014-05-20----------------
+
+   real(r8) rd                   ! gas constant for dry air
+   real(r8) grav                 ! gravity
+   real(r8) cp                   ! heat capacity of dry air
+
+!
+! Local workspace
+!
+   real(r8) gamma(pcols,pver)
+   real(r8) dz(pcols,pver)
+   real(r8) iprm(pcols,pver)
+   real(r8) hu(pcols,pver)
+   real(r8) hd(pcols,pver)
+   real(r8) eps(pcols,pver)
+   real(r8) qsthat(pcols,pver)
+   real(r8) hsthat(pcols,pver)
+   real(r8) gamhat(pcols,pver)
+   real(r8) cu(pcols,pver)
+   real(r8) evp(pcols,pver)
+   real(r8) cmeg(pcols,pver)
+   real(r8) qds(pcols,pver)
+! RBN For c0mask
+   real(r8) c0mask(pcols)
+
+   real(r8) hmin(pcols)
+   real(r8) epsm(pcols)
+   real(r8) ratmjb(pcols)
+   real(r8) est(pcols)
+   real(r8) totpcp(pcols)
+   real(r8) totevp(pcols)
+   real(r8) alfa(pcols)
+   real(r8) ql1
+   real(r8) tu
+   real(r8) estu
+   real(r8) qstu
+
+   real(r8) small
+   real(r8) mdt
+
+   integer khighest
+   integer klowest
+   integer kount
+   integer i,k
+
+   logical doit(pcols)
+   logical done(pcols)
+
+
+
+!<songxl--------------------
+   integer j,kk,it
+   real(r8) th(pcols,pver)
+   real(r8) qh(pcols,pver)
+   real(r8) wu(pcols,pver)
+
+
+   real(r8) rprd_sp(pcols,pver,ncld)     ! rate of production of precip at that layer
+   real(r8) du_sp(pcols,pver,ncld)       ! detrainement rate of updraft
+   real(r8) ed_sp(pcols,pver,ncld)       ! entrainment rate of downdraft
+   real(r8) eu_sp(pcols,pver,ncld)       ! entrainment rate of updraft
+   real(r8) eu_spo(pcols,pver,ncld)       ! entrainment rate of updraft
+   real(r8) md_sp(pcols,pver,ncld)       ! downdraft mass flux
+   real(r8) mu_sp(pcols,pver,ncld)       ! updraft mass flux
+   real(r8) qd_sp(pcols,pver,ncld)       ! spec humidity of downdraft
+   real(r8) qu_sp(pcols,pver,ncld)       ! spec hum of updraft
+   real(r8) sd_sp(pcols,pver,ncld)       ! normalized dry stat energy of downdraft
+   real(r8) su_sp(pcols,pver,ncld)       ! normalized dry stat energy of updraft
+   real(r8) ql_sp(pcols,pver,ncld)       ! liq water of updraft
+   real(r8) cu_sp(pcols,pver,ncld)
+   real(r8) hu_sp(pcols,pver,ncld)
+   real(r8) hd_sp(pcols,pver,ncld)
+
+   real(r8) wu_sp(pcols,pver,ncld)
+   real(r8) zkine_sp(pcols,pver,ncld)
+   real(r8) tu_sp(pcols,pver,ncld)
+   real(r8) zbuo_sp(pcols,pver,ncld)
+
+   real(r8) evp_sp(pcols,pver,ncld)
+   real(r8) qds_sp(pcols,pver,ncld)  
+
+   real(r8) totpcp_sp(pcols,ncld)
+   real(r8) totevp_sp(pcols,ncld)
+   real(r8) ratmjb_sp(pcols,ncld)
+   real(r8) weight(pcols,ncld)
+
+
+   integer  ncldt(pcols)
+   integer  ncldk(pcols,pver)
+   integer  jt_sp(pcols,ncld)              ! updraft plume top
+   integer  jlcl_sp(pcols,ncld)            ! updraft lifting cond level
+   integer  jd_sp(pcols,ncld)
+
+   logical  done_sp(pcols,ncld)
+   logical  doit_sp(pcols,ncld)
+
+   real(r8) ceu(ncld)
+
+   real(r8) mum_sp 
+   real(r8) zbuom_sp 
+   real(r8) wum_sp
+   real(r8) zbc
+   real(r8) zbe
+!
+!------------------------------------------------------------------------------
+!
+    do j = 1, ncld
+      if (ncld==1) then
+        ceu(j)= 0.225_r8
+      else 
+        ceu(j)= 0.225_r8 + (0.75_r8-0.225_r8)*(j-1)/(ncld-1)
+      end if
+    end do
+
+
+   do i = 1,il2g
+      c0mask(i)  = c0_ocn * (1._r8-landfrac(i)) +   c0_lnd * landfrac(i) 
+   end do
+!
+!
+   do k = 1,pver
+      do i = 1,il2g
+         dz(i,k) = zf(i,k) - zf(i,k+1)
+      end do
+   end do
+
+!
+! initialize many output and work variables to zero
+!
+   pflx(:il2g,1) = 0
+
+   do k = 1,pver
+      do i = 1,il2g
+         mu(i,k) = 0._r8
+         eu(i,k) = 0._r8
+         du(i,k) = 0._r8
+         ql(i,k) = 0._r8
+         cu(i,k) = 0._r8
+         evp(i,k) = 0._r8
+         cmeg(i,k) = 0._r8
+         qds(i,k) = q(i,k)
+         md(i,k) = 0._r8
+         ed(i,k) = 0._r8
+         sd(i,k) = s(i,k)
+         qd(i,k) = q(i,k)
+         mc(i,k) = 0._r8
+         qu(i,k) = q(i,k)
+         su(i,k) = s(i,k)
+         call qsat_hPa(t(i,k), p(i,k), est(i), qst(i,k))
+         if ( p(i,k)-est(i) <= 0._r8 ) then
+            qst(i,k) = 1.0_r8
+         end if
+         gamma(i,k) = qst(i,k)*(1._r8 + qst(i,k)/eps1)*eps1*rl/(rd*t(i,k)**2)*rl/cp
+         hmn(i,k) = cp*t(i,k) + grav*z(i,k) + rl*q(i,k)
+         hsat(i,k) = cp*t(i,k) + grav*z(i,k) + rl*qst(i,k)
+         hu(i,k) = hmn(i,k)
+         hd(i,k) = hmn(i,k)
+         rprd(i,k) = 0._r8
+
+         do j = 1, ncld
+            mu_sp(i,k,j) = 0._r8
+            eu_sp(i,k,j) = 0._r8
+            du_sp(i,k,j) = 0._r8
+            ql_sp(i,k,j) = 0._r8
+            cu_sp(i,k,j) = 0._r8           
+            qu_sp(i,k,j) = q(i,k)
+            su_sp(i,k,j) = s(i,k) 
+            hu_sp(i,k,j) = hmn(i,k)
+            wu_sp(i,k,j) = 0._r8
+            zkine_sp(i,k,j) = 0._r8
+            tu_sp(i,k,j) = t(i,k)
+            zbuo_sp(i,k,j) = 0._r8
+
+            md_sp(i,k,j) = 0._r8
+            ed_sp(i,k,j) = 0._r8
+            sd_sp(i,k,j) = s(i,k)
+            qd_sp(i,k,j) = q(i,k)
+            qds_sp(i,k,j) = q(i,k) 
+            hd_sp(i,k,j) = hmn(i,k)
+            evp_sp(i,k,j) = 0._r8
+            rprd_sp(i,k,j) = 0._r8
+         end do
+      end do
+   end do
+!
+!jr Set to zero things which make this routine blow up
+!
+   do k=1,msg
+      do i=1,il2g
+         rprd(i,k) = 0._r8
+      end do
+   end do
+!
+! interpolate the layer values of qst, hsat and gamma to
+! layer interfaces
+!
+   do k = 1, msg+1
+      do i = 1,il2g
+         hsthat(i,k) = hsat(i,k)
+         qsthat(i,k) = qst(i,k)
+         gamhat(i,k) = gamma(i,k)
+      end do
+   end do
+   do i = 1,il2g
+      totpcp(i) = 0._r8
+      totevp(i) = 0._r8
+      do j = 1, ncld
+         totpcp_sp(i,j) = 0._r8
+         totevp_sp(i,j) = 0._r8
+      end do 
+   end do
+   do k = msg + 2,pver
+      do i = 1,il2g
+         if (abs(qst(i,k-1)-qst(i,k)) > 1.E-6_r8) then
+            qsthat(i,k) = log(qst(i,k-1)/qst(i,k))*qst(i,k-1)*qst(i,k)/ (qst(i,k-1)-qst(i,k))
+         else
+            qsthat(i,k) = qst(i,k)
+         end if
+         hsthat(i,k) = cp*shat(i,k) + rl*qsthat(i,k)
+         if (abs(gamma(i,k-1)-gamma(i,k)) > 1.E-6_r8) then
+            gamhat(i,k) = log(gamma(i,k-1)/gamma(i,k))*gamma(i,k-1)*gamma(i,k)/ &
+                                (gamma(i,k-1)-gamma(i,k))
+         else
+            gamhat(i,k) = gamma(i,k)
+         end if
+         if (abs(q(i,k-1)-q(i,k)) > 1.E-6_r8) then
+            qh(i,k) = log(q(i,k-1)/q(i,k))*q(i,k-1)*q(i,k)/(q(i,k-1)-q(i,k))
+         else
+            qh(i,k) = q(i,k)
+         end if
+         if (abs(t(i,k-1)-t(i,k)) > 1.E-6_r8) then
+            th(i,k) = log(t(i,k-1)/t(i,k))*t(i,k-1)*t(i,k)/(t(i,k-1)-t(i,k))
+         else
+            th(i,k) = t(i,k)
+         end if
+      end do
+   end do
+!
+! initialize cloud top to highest plume top.
+!jr changed hard-wired 4 to limcnv+1 (not to exceed pver)
+!
+   jt(:) = pver
+   do i = 1,il2g
+      jt(i) = max(lel(i),limcnv+1)
+      jt(i) = min(jt(i),pver)
+      jd(i) = pver
+      jlcl(i) = lel(i)
+      hmin(i) = 1.E6_r8
+      do j = 1, ncld
+         jt_sp(i,j) = pver
+         jt_sp(i,j) = max(lel(i),limcnv+1)
+         jt_sp(i,j) = min(jt_sp(i,j),pver) 
+         jd_sp(i,j) = pver
+         jlcl_sp(i,j) = lel(i)
+      end do
+   end do
+!
+! find the level of minimum hsat, where detrainment starts
+!
+
+   do k = msg + 1,pver
+      do i = 1,il2g
+         if (hsat(i,k) <= hmin(i) .and. k >= jt(i) .and. k <= jb(i)) then
+            hmin(i) = hsat(i,k)
+            j0(i) = k
+         end if
+      end do
+   end do
+   do i = 1,il2g
+      j0(i) = min(j0(i),jb(i)-2)
+      j0(i) = max(j0(i),jt(i)+2)
+!
+! Fix from Guang Zhang to address out of bounds array reference
+!
+      j0(i) = min(j0(i),pver)
+   end do
+!
+! Initialize certain arrays inside cloud
+!
+   do k = msg + 1,pver
+      do i = 1,il2g
+         if (k >= jt(i) .and. k <= jb(i)) then
+            hu(i,k) = hmn(i,mx(i)) + cp*tiedke_add
+            su(i,k) = s(i,mx(i)) + tiedke_add
+            do j = 1, ncld
+              hu_sp(i,k,j) = hmn(i,mx(i)) + cp*tiedke_add
+              su_sp(i,k,j) = s(i,mx(i)) + tiedke_add
+            end do
+         end if
+      end do
+   end do
+!
+!
+! re-initialize hmin array for ensuing calculation.
+!
+   do i = 1,il2g
+      hmin(i) = 1.E6_r8
+   end do
+   do k = msg + 1,pver
+      do i = 1,il2g
+         if (k >= j0(i) .and. k <= jb(i) .and. hmn(i,k) <= hmin(i)) then
+            hmin(i) = hmn(i,k)
+         end if
+      end do
+   end do
+!
+!
+! specify the updraft mass flux mu, entrainment eu, detrainment du
+! and moist static energy hu.
+! here and below mu, eu,du, md and ed are all normalized by mb
+!
+   do i = 1,il2g
+     kk = jb(i)
+     do j = 1, ncld
+         mu_sp(i,kk,j) = 1._r8
+         wu_sp(i,kk,j) = 1._r8
+         zkine_sp(i,kk,j) = 0.5_r8
+         qu_sp(i,kk,j) = q(i,mx(i))
+         su_sp(i,kk,j) = (hu_sp(i,kk,j)-rl*qu_sp(i,kk,j))/cp
+         tu_sp(i,kk,j) = su_sp(i,kk,j) - grav/cp*zf(i,kk)
+         zbuo_sp(i,kk,j) = (tu_sp(i,kk,j)*(1._r8+retv*qu_sp(i,kk,j))-    &
+                    th(i,kk)*(1._r8+retv*qh(i,kk)))/   &
+                    (th(i,kk)*(1._r8+retv*qh(i,kk)))
+         eu_sp(i,kk,j) = mu_sp(i,kk,j)/dz(i,kk)
+!         eu_sp(i,kk,j) = 0._r8
+         done_sp(i,j) = .false.
+         do k= jb(i)-1,msg + 1,-1
+            if (.not. done_sp(i,j)) then
+              do it =1,2
+                 if (it.eq.1) then
+                    mum_sp =  mu_sp(i,k+1,j)
+                    zbuom_sp= zbuo_sp(i,k+1,j)
+                    wum_sp = wu_sp(i,k+1,j)
+                 end if
+                 eu_sp(i,k,j)= arb*ceu(j)*zbuom_sp/(wum_sp**2)
+                 eu_sp(i,k,j)= max(eu_sp(i,k,j),1.0e-5_r8)
+                 eu_sp(i,k,j)= min(eu_sp(i,k,j),2.0e-3_r8)
+                 eu_spo(i,k,j)= eu_sp(i,k,j)
+                 eu_sp(i,k,j)= eu_sp(i,k,j)* mum_sp
+                 mu_sp(i,k,j)= mu_sp(i,k+1,j)+ eu_sp(i,k,j)*dz(i,k)
+                 if (mu_sp(i,k,j)==0._r8) write(*,*) "mu_sp=0","i=",i,"j=",j,"k=",k
+                 if (.true.) then   
+                    hu_sp(i,k,j)= mu_sp(i,k+1,j)/mu_sp(i,k,j)*hu_sp(i,k+1,j) +  &
+                               eu_sp(i,k,j)*dz(i,k)*hu_nm1(i,k)/mu_sp(i,k,j)
+                 else
+                    hu_sp(i,k,j)= mu_sp(i,k+1,j)/mu_sp(i,k,j)*hu_sp(i,k+1,j) +  & 
+                               eu_sp(i,k,j)*dz(i,k)*hmn(i,k)/mu_sp(i,k,j)
+                 end if
+                 su_sp(i,k,j)= mu_sp(i,k+1,j)/mu_sp(i,k,j)*su_sp(i,k+1,j) +  &
+                               eu_sp(i,k,j)*dz(i,k)*s(i,k)/mu_sp(i,k,j)
+                 qu_sp(i,k,j)= mu_sp(i,k+1,j)/mu_sp(i,k,j)*qu_sp(i,k+1,j) +  &
+                               eu_sp(i,k,j)*dz(i,k)*q(i,k)/mu_sp(i,k,j)
+                 tu_sp(i,k,j)= su_sp(i,k,j) - grav/cp*zf(i,k)
+                 zbuo_sp(i,k,j) = (0.5_r8*(tu_sp(i,k,j)+tu_sp(i,k+1,j))*    &
+                              (1._r8+retv*0.5_r8*(qu_sp(i,k,j)+qu_sp(i,k+1,j)))-    &
+                              t(i,k)*(1._r8+retv*q(i,k)))/   &
+                              (t(i,k)*(1._r8+retv*q(i,k)))
+                 zkine_sp(i,k,j) = zkine_sp(i,k+1,j) + arb*(1._r8-ceu(j))*zbuo_sp(i,k,j)*dz(i,k)
+                 wu_sp(i,k,j) = min(15._r8,sqrt(2._r8*max(0.1_r8,zkine_sp(i,k,j) ))) 
+                 mum_sp = 0.5_r8*(mu_sp(i,k+1,j)+mu_sp(i,k,j))
+                 zbuom_sp= 0.5_r8*(zbuo_sp(i,k+1,j)+zbuo_sp(i,k,j))  
+                 wum_sp = 0.5_r8*(wu_sp(i,k+1,j)+wu_sp(i,k,j))
+              end do  !it
+              call qsat_hPa(tu_sp(i,k,j), (p(i,k)+p(i,k-1))/2._r8, estu, qstu)
+              if (qu_sp(i,k,j) >= qstu) then
+                 jlcl_sp(i,j) = k
+                 done_sp(i,j) = .true.
+              end if
+            end if
+         end do  !k
+     end do  !j
+   end do  !i
+
+
+   do i = 1,il2g
+     do j = 1, ncld
+        doit_sp(i,j) = .true. 
+        do k= jlcl_sp(i,j), msg + 1,-1
+           if(doit_sp(i,j)) then
+              do it =1,2
+                 if (it.eq.1) then
+                    mum_sp =  mu_sp(i,k+1,j)
+                    zbuom_sp= zbuo_sp(i,k+1,j)
+                    wum_sp = wu_sp(i,k+1,j)
+                 end if
+                 eu_sp(i,k,j)= arb*ceu(j)*zbuom_sp/(wum_sp**2)
+                 eu_sp(i,k,j)= max(eu_sp(i,k,j),1.0e-5_r8)
+                 eu_sp(i,k,j)= min(eu_sp(i,k,j),2.0e-3_r8)
+                 eu_spo(i,k,j)=  eu_sp(i,k,j)     
+                 eu_sp(i,k,j)= eu_sp(i,k,j)* mum_sp
+
+                 mu_sp(i,k,j)= mu_sp(i,k+1,j)+ eu_sp(i,k,j)*dz(i,k)
+                 if (.true.) then
+                    hu_sp(i,k,j)= mu_sp(i,k+1,j)/mu_sp(i,k,j)*hu_sp(i,k+1,j) + &
+                               eu_sp(i,k,j)*dz(i,k)*hu_nm1(i,k)/mu_sp(i,k,j)
+                 else
+                    hu_sp(i,k,j)= mu_sp(i,k+1,j)/mu_sp(i,k,j)*hu_sp(i,k+1,j) +  &
+                               eu_sp(i,k,j)*dz(i,k)*hmn(i,k)/mu_sp(i,k,j)
+                 end if  
+                 su_sp(i,k,j)= shat(i,k) + (hu_sp(i,k,j)-hsthat(i,k))/       &
+                               (cp*(1._r8+gamhat(i,k)))
+                 tu_sp(i,k,j)= su_sp(i,k,j) - grav/cp*zf(i,k)
+                 qu_sp(i,k,j)= qsthat(i,k) + gamhat(i,k)*(hu_sp(i,k,j)-hsthat(i,k))/ &
+                               (rl* (1._r8+gamhat(i,k)))
+                 
+                 cu_sp(i,k,j)= ((mu_sp(i,k,j)*su_sp(i,k,j)-mu_sp(i,k+1,j)*su_sp(i,k+1,j))/ &
+                                dz(i,k)- eu_sp(i,k,j)*su_sp(i,k,j))/(rl/cp)
+                 cu_sp(i,k,j) = max(0._r8,cu_sp(i,k,j))
+                 if (mu_sp(i,k,j) > 0._r8) then
+                   ql1 = 1._r8/mu_sp(i,k,j)* (mu_sp(i,k+1,j)*ql_sp(i,k+1,j) &
+                         +dz(i,k)*cu_sp(i,k,j))
+                   ql_sp(i,k,j) = ql1/ (1._r8+dz(i,k)*c0mask(i))
+                 else
+                   ql_sp(i,k,j) = 0._r8
+                 end if
+                 zbc = 0.5_r8*(tu_sp(i,k,j)+tu_sp(i,k+1,j))*    &
+                        (1._r8+retv*0.5_r8*(qu_sp(i,k,j)+qu_sp(i,k+1,j)))
+                 zbe = t(i,k)*(1._r8+retv*q(i,k))
+                 zbuo_sp(i,k,j) = (zbc-zbe)/zbe-0.5_r8*(ql_sp(i,k,j)+ql_sp(i,k+1,j))  
+                 zkine_sp(i,k,j) = zkine_sp(i,k+1,j) + arb*(1._r8-ceu(j))*zbuo_sp(i,k,j)*dz(i,k)
+                 wu_sp(i,k,j) = min(15._r8,sqrt(2._r8*max(0.1_r8,zkine_sp(i,k,j) )))
+                 mum_sp = 0.5_r8*(mu_sp(i,k+1,j)+mu_sp(i,k,j))
+                 zbuom_sp= 0.5_r8*(zbuo_sp(i,k+1,j)+zbuo_sp(i,k,j))
+                 wum_sp = 0.5_r8*(wu_sp(i,k+1,j)+wu_sp(i,k,j))
+              end do  !it
+
+              if (doit_sp(i,j) .and. k <= jb(i)-2 .and. k >= lel(i)-1) then
+                 if (hu_sp(i,k,j) <= hsthat(i,k) .and. hu_sp(i,k+1,j) > hsthat(i,k+1) ) then
+                    
+                    if (hu_sp(i,k,j)-hsthat(i,k) < -2000._r8) then
+                       jt_sp(i,j) = k + 1
+                       doit_sp(i,j) = .false.
+                    else
+                       jt_sp(i,j) = k
+                       doit_sp(i,j) = .false.
+                    end if
+                 else 
+                    if (mu_sp(i,k,j) < 0.02_r8) then
+                       jt_sp(i,j) = k + 1
+                       doit_sp(i,j) = .false.
+                    end if
+                 end if
+                 if (k==lel(i)-1 .and. doit_sp(i,j).and. hu_sp(i,k,j)>hsthat(i,k)) then
+                    jt_sp(i,j) = lel(i)-1
+                    doit_sp(i,j) = .false.
+                 end if
+              end if
+           end if
+         end do  !k
+     end do  !j
+   end do  !i
+
+
+   do i = 1,il2g
+     do j = 1, ncld
+       kk= jt_sp(i,j)
+         eu_spo(i,kk,j)= 0._r8    
+         eu_sp(i,kk,j)= 0._r8
+         mu_sp(i,kk,j)= 0._r8
+         du_sp(i,kk,j)=  mu_sp(i,kk+1,j)/dz(i,kk)  
+         cu_sp(i,kk,j)= 0._r8 
+         hu_sp(i,kk,j)= hmn(i,kk) 
+         ql_sp(i,kk,j)= 0._r8   
+        do k= jt_sp(i,j)-1, msg + 1,-1
+           eu_spo(i,k,j)= 0._r8
+           eu_sp(i,k,j)= 0._r8
+           mu_sp(i,k,j)= 0._r8
+           du_sp(i,k,j)= 0._r8
+           cu_sp(i,k,j)= 0._r8
+           hu_sp(i,k,j)= hmn(i,k)
+           ql_sp(i,k,j)= 0._r8
+           su_sp(i,k,j)= s(i,k)
+           qu_sp(i,k,j)= q(i,k)
+        end do
+        do k= jlcl_sp(i,j), jt_sp(i,j),-1 
+           totpcp_sp(i,j) = totpcp_sp(i,j) + dz(i,k)*(cu_sp(i,k,j)-du_sp(i,k,j)*ql_sp(i,k+1,j))
+           rprd_sp(i,k,j) = c0mask(i)*mu_sp(i,k,j)*ql_sp(i,k,j)
+        end do
+      end do   
+    end do
+
+!downdraft
+    small = 1.e-20_r8
+    do i = 1,il2g
+       alfa(i) = 0.1_r8
+       do j = 1, ncld
+          jt_sp(i,j) = min(jt_sp(i,j),jb(i)-1)
+          jd_sp(i,j) = max(j0(i),jt_sp(i,j)+1)
+          jd_sp(i,j) = min(jd_sp(i,j),jb(i))
+          kk = jd_sp(i,j)
+          hd_sp(i,kk,j) = hmn(i,kk-1)
+          qds_sp(i,kk,j)= qsthat(i,kk) + gamhat(i,kk)*(hd_sp(i,kk,j)-hsthat(i,kk))/ &
+                              (rl*(1._r8 + gamhat(i,kk)))
+          qd_sp(i,kk,j) = qds_sp(i,kk,j)
+          sd_sp(i,kk,j) = (hd_sp(i,kk,j) - rl*qd_sp(i,kk,j))/cp
+          md_sp(i,kk,j) = -alfa(i)*mu_sp(i,kk,j)
+          if (mu_sp(i,kk+1,j)+mu_sp(i,kk,j)==0._r8) write(*,*) "mu==0 in downdraft"
+          ed_sp(i,kk,j)=  2.0_r8*eu_sp(i,kk,j)/(mu_sp(i,kk+1,j)+mu_sp(i,kk,j)) 
+          do k = jd_sp(i,j)+1,jb(i)
+             ed_sp(i,k-1,j) = -ed_sp(i,jd_sp(i,j),j)*md_sp(i,k-1,j)
+             md_sp(i,k,j)= md_sp(i,k-1,j)- ed_sp(i,k-1,j)*dz(i,k-1)
+          end do
+          if(md_sp(i,jb(i),j)==0._r8) write(*,*) "md_sp(i,jb(i),j)=0","jb=",jb(i),"jd_sp=",jd_sp(i,j)
+          ratmjb_sp(i,j) = min(abs(mu_sp(i,jb(i),j)/md_sp(i,jb(i),j)),1._r8)
+          md_sp(i,jd_sp(i,j),j) = md_sp(i,jd_sp(i,j),j)*ratmjb_sp(i,j)
+          do k = jd_sp(i,j)+1,jb(i)
+             md_sp(i,k,j) = md_sp(i,k,j)*ratmjb_sp(i,j)
+             ed_sp(i,k-1,j) = ed_sp(i,k-1,j)*ratmjb_sp(i,j)                
+             mdt = min(md_sp(i,k,j),-small)
+             hd_sp(i,k,j) = (md_sp(i,k-1,j)*hd_sp(i,k-1,j) - dz(i,k-1)*ed_sp(i,k-1,j)*hmn(i,k-1))/mdt
+               qds_sp(i,k,j) = qsthat(i,k) + gamhat(i,k)*(hd_sp(i,k,j)-hsthat(i,k))/ &
+                              (rl*(1._r8 + gamhat(i,k)))
+             qd_sp(i,k,j) = qds_sp(i,k,j)
+             evp_sp(i,k-1,j) = -ed_sp(i,k-1,j)*q(i,k-1) + (md_sp(i,k-1,j)*qd_sp(i,k-1,j)-   &
+                              md_sp(i,k,j)*qd_sp(i,k,j))/dz(i,k-1)
+             evp_sp(i,k-1,j) = max(evp_sp(i,k-1,j),0._r8)
+             evp_sp(i,k-1,j) = min(evp_sp(i,k-1,j),rprd_sp(i,k-1,j))
+             mdt = min(md_sp(i,k,j),-small)
+             sd_sp(i,k,j) = ((rl/cp*evp_sp(i,k-1,j)-ed_sp(i,k-1,j)*s(i,k-1))*dz(i,k-1) +   &
+                             md_sp(i,k-1,j)*sd_sp(i,k-1,j))/mdt
+             totevp_sp(i,j) = totevp_sp(i,j) - dz(i,k-1)*ed_sp(i,k-1,j)*q(i,k-1)
+         end do
+         totevp_sp(i,j) = totevp_sp(i,j) + md_sp(i,jd_sp(i,j),j)*qd_sp(i,jd_sp(i,j),j) -   &
+                          md_sp(i,jb(i),j)*qd_sp(i,jb(i),j)
+      end do
+   end do
+!
+   do i = 1,il2g
+     do j = 1, ncld 
+        totpcp_sp(i,j) = max(totpcp_sp(i,j),0._r8)
+        totevp_sp(i,j) = max(totevp_sp(i,j),0._r8)
+        do k = jd_sp(i,j),jb(i)
+          if (totevp_sp(i,j) > 0._r8 .and. totpcp_sp(i,j) > 0._r8) then
+            md_sp(i,k,j)  = md_sp (i,k,j)*min(1._r8, totpcp_sp(i,j)/(totevp_sp(i,j)+totpcp_sp(i,j)))
+            ed_sp(i,k,j)  = ed_sp (i,k,j)*min(1._r8, totpcp_sp(i,j)/(totevp_sp(i,j)+totpcp_sp(i,j)))
+            evp_sp(i,k,j) = evp_sp(i,k,j)*min(1._r8, totpcp_sp(i,j)/(totevp_sp(i,j)+totpcp_sp(i,j)))
+          else
+            md_sp(i,k,j) = 0._r8
+            ed_sp(i,k,j) = 0._r8
+            evp_sp(i,k,j)= 0._r8
+          end if          
+        end do
+     end do
+   end do
+
+1010  continue
+
+   do i = 1,il2g
+     jt(i) = minval(jt_sp(i,:))
+     jd(i) = minval(jd_sp(i,:))
+     jlcl(i) = maxval(jlcl_sp(i,:))
+     mu(i,:) = 0._r8
+     eu(i,:) = 0._r8
+     du(i,:) = 0._r8
+     wu(i,:) = 0._r8
+     md(i,:) = 0._r8
+     ed(i,:) = 0._r8
+     evp(i,:) = 0._r8
+     do k = jb(i),jt(i)+1,-1
+       su(i,k) = 0._r8
+       qu(i,k) = 0._r8      
+     end do
+     do k =jd(i), jb(i)
+       sd(i,k) = 0._r8
+       qd(i,k) = 0._r8
+     end do
+
+     
+     ncldt(i) = ncld
+     do k = jb(i),jt(i),-1
+        ncldk(i,k) = 0
+        do j = 1, ncld    
+           if(jt_sp(i,j)==k) ncldk(i,k) = ncldk(i,k)+1
+        end do
+        if (ncldk(i,k)>1) ncldt(i) = ncldt(i)-(ncldk(i,k)-1) 
+     end do  
+
+
+     weight(:,:)=1._r8/ncld  
+     do j = 1, ncld
+       do k = jb(i),jt(i),-1
+          if (jt_sp(i,j)==k.and.ncldk(i,k)>1) weight(i,j)=1._r8/ncldt(i)/ncldk(i,k)               
+          if (jt_sp(i,j)==k.and.ncldk(i,k)==1) weight(i,j)=1._r8/ncldt(i)
+       end do
+     end do
+  
+ 
+     do j = 1, ncld
+        do k = jb(i),jt(i),-1
+           mu(i,k) = mu(i,k) + mu_sp (i,k,j)*weight(i,j)
+           eu(i,k) = eu(i,k) + eu_sp (i,k,j)*weight(i,j)
+           du(i,k) = du(i,k) + du_sp (i,k,j)*weight(i,j)
+        end do
+        do k = jd(i),jb(i)
+           md(i,k) = md(i,k) + md_sp (i,k,j)*weight(i,j)
+           ed(i,k) = ed(i,k) + ed_sp (i,k,j)*weight(i,j)
+        end do
+     end do
+
+     do j = 1, ncld
+        do k = jb(i),jt(i)+1,-1
+           if(mu(i,k)==0._r8) write(*,*) "mu=0._r8","jt=",jt(i),"jb=",jb(i),"k=",k
+           su(i,k) = su(i,k) + su_sp(i,k,j)*mu_sp(i,k,j)/mu(i,k)*weight(i,j)
+           qu(i,k) = qu(i,k) + qu_sp(i,k,j)*mu_sp(i,k,j)/mu(i,k)*weight(i,j)
+           wu(i,k) = wu(i,k) + wu_sp(i,k,j)*mu_sp(i,k,j)/mu(i,k)*weight(i,j)
+           cu(i,k) = cu(i,k) + cu_sp(i,k,j)*weight(i,j)
+           rprd(i,k) = rprd(i,k) + rprd_sp(i,k,j)*weight(i,j)
+           if (du(i,k-1) > 0._r8) then
+              ql(i,k) = ql(i,k) + ql_sp(i,k,j)*du_sp(i,k-1,j)/du(i,k-1)*weight(i,j)
+           else
+              ql(i,k) = ql(i,k) + ql_sp(i,k,j)*mu_sp(i,k,j)/mu(i,k)*weight(i,j)
+           end if
+         end do
+         do k = jd(i),jb(i) 
+           if(md(i,k) < -small) then 
+             sd(i,k) = sd(i,k) + sd_sp(i,k,j)*md_sp(i,k,j)/md(i,k)*weight(i,j)
+             qd(i,k) = qd(i,k) + qd_sp(i,k,j)*md_sp(i,k,j)/md(i,k)*weight(i,j)
+             evp(i,k) = evp(i,k) + evp_sp(i,k,j)*weight(i,j)  
+           end if
+         end do
+     end do
+     do k = jb(i),jt(i)+1,-1
+        cmeg(i,k) = cu(i,k)
+     end do
+     do k = jd(i),jb(i)
+       rprd(i,k) = rprd(i,k) -evp(i,k)
+       cmeg(i,k) = cu(i,k) - evp(i,k)
+     end do
+   end do  
+
+
+! compute the net precipitation flux across interfaces
+   pflx(:il2g,1) = 0._r8
+   do k = 2,pverp
+      do i = 1,il2g
+         pflx(i,k) = pflx(i,k-1) + rprd(i,k-1)*dz(i,k-1)
+      end do
+   end do
+!
+   do k = msg + 1,pver
+      do i = 1,il2g
+         mc(i,k) = mu(i,k) + md(i,k)
+      end do
+   end do
+!
+   return
+
+end subroutine cldprp_sp 
 
 end module zm_conv
