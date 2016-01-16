@@ -745,8 +745,7 @@ contains
               col, atm2lnd_vars,                                                     &
               soilhydrology_vars, soilstate_vars, waterstate_vars, temperature_vars, &
               waterflux_vars, chemstate_vars, cnstate_vars, canopystate_vars,        &
-              carbonstate_vars, carbonflux_vars, nitrogenstate_vars, nitrogenflux_vars,&
-              betrtracer_vars, bgc_reaction,     &
+              carbonflux_vars,  betrtracer_vars, bgc_reaction,                       &
               tracerboundarycond_vars, tracercoeff_vars, tracerstate_vars,           &
               tracerflux_vars, plantsoilnutrientflux_vars)
 
@@ -932,8 +931,8 @@ contains
 
          if (use_betr)then
             if (do_betr_leaching)then
-               call bgc_reaction%init_betr_alm_bgc_coupler(bounds_proc, &
-                    carbonstate_vars, nitrogenstate_vars, betrtracer_vars, tracerstate_vars)
+!               call bgc_reaction%init_betr_alm_bgc_coupler(bounds_proc, &
+!                    carbonstate_vars, nitrogenstate_vars, betrtracer_vars, tracerstate_vars)
 
               !the following is dirty hack, I'll reconsider this in later modifcations, Jinyun Tang May 14, 2015
                call begin_betr_tracer_massbalance(bounds_clump, 1, nlevtrc_soil, &
@@ -949,8 +948,7 @@ contains
                col, atm2lnd_vars,                                                     &
                soilhydrology_vars, soilstate_vars, waterstate_vars, temperature_vars, &
                waterflux_vars, chemstate_vars, cnstate_vars, canopystate_vars,        &
-               carbonstate_vars, carbonflux_vars,  nitrogenstate_vars,                &
-               nitrogenflux_vars, betrtracer_vars, bgc_reaction,                      &
+               carbonflux_vars,   betrtracer_vars, bgc_reaction,                      &
                tracerboundarycond_vars, tracercoeff_vars, tracerstate_vars,           &
                tracerflux_vars, plantsoilnutrientflux_vars)
          endif
@@ -1006,10 +1004,10 @@ contains
             tracerstate_vars,  tracerflux_vars)
           call t_stopf('betr balchk')  
 
-          call bgc_reaction%betr_alm_flux_statevar_feedback(bounds_clump, &
-               filter(nc)%num_soilc, filter(nc)%soilc,                    &
-               carbonstate_vars, nitrogenstate_vars, nitrogenflux_vars,   &
-               tracerstate_vars, tracerflux_vars,  betrtracer_vars)          
+!          call bgc_reaction%betr_alm_flux_statevar_feedback(bounds_clump, &
+!               filter(nc)%num_soilc, filter(nc)%soilc,                    &
+!               carbonstate_vars, nitrogenstate_vars, nitrogenflux_vars,   &
+!               tracerstate_vars, tracerflux_vars,  betrtracer_vars)          
        endif          
 
        ! ============================================================================

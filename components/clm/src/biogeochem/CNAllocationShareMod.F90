@@ -19,6 +19,7 @@ module CNAllocationSharedMod
   use CNNitrogenFluxType  , only : nitrogenflux_type
   use PhosphorusFluxType  , only : phosphorusflux_type
   use PhosphorusStateType , only : phosphorusstate_type
+  use abortutils          , only : endrun
   use LandunitType        , only : lun
   use ColumnType          , only : col
   use PatchType           , only : pft
@@ -39,10 +40,11 @@ implicit none
   type :: CNAllocShareParamsType
      real(r8) :: dayscrecover      ! number of days to recover negative cpool
   end type CNAllocShareParamsType
+
+  type(CNAllocShareParamsType),protected ::  CNAllocShareParamsInst
   contains
 
   ! CNAllocParamsInst is populated in readCNAllocParams which is called in
-  type(CNAllocShareParamsType),protected ::  CNAllocShareParamsInst
   !-----------------------------------------------------------------------
   subroutine readCNAllocShareParams ( ncid )
     !

@@ -423,7 +423,7 @@ contains
     use SoilWaterRetentionCurveFactoryMod   , only : create_soil_water_retention_curve
     use clm_varctl                          , only : use_bgc_interface, use_pflotran
     use clm_pflotran_interfaceMod           , only : clm_pf_interface_init !!, clm_pf_set_restart_stamp
-    use betr_initializeMod    , only : betr_initialize
+    use betr_initializeMod    , only : betr_initialize,plantsoilnutrientflux_vars
     use betr_initializeMod    , only : betrtracer_vars, tracerstate_vars, tracerflux_vars, tracercoeff_vars
     use betr_initializeMod    , only : bgc_reaction
     use tracer_varcon         , only : is_active_betr_bgc    
@@ -920,8 +920,9 @@ contains
     end if
        
     if (use_betr)then
-       call bgc_reaction%init_betr_alm_bgc_coupler(bounds_proc, &
-            carbonstate_vars, nitrogenstate_vars, betrtracer_vars, tracerstate_vars)
+       call bgc_reaction%init_betr_lsm_bgc_coupler(bounds_proc,                                     &
+            carbonstate_vars, nitrogenstate_vars, phosphorusstate_vars, plantsoilnutrientflux_vars, &
+            betrtracer_vars, tracerstate_vars, cnstate_vars, soilstate_vars, waterflux_vars, ecophyscon)
     endif
     ! ------------------------------------------------------------------------
     ! Initialize filters and weights
