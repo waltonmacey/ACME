@@ -645,7 +645,7 @@ module PlantSoilnutrientFluxType
   end subroutine calc_nutrient_uptake_kinetic_pars
 
 !--------------------------------------------------------------------------------
-  subroutine sub_froot_prof(this, bounds, num_soilc, filter_soilc, frootc_patch, cnstate_vars, e_plant_scalar)
+  subroutine sub_froot_prof(this, bounds, frootc_patch, cnstate_vars, e_plant_scalar)
 
   use clm_varpar               , only : nlevtrc_soil
   use CNStateType              , only : cnstate_type
@@ -653,13 +653,11 @@ module PlantSoilnutrientFluxType
   !
   ! !ARGUMENTS:
   class(plantsoilnutrientflux_type) :: this
-  integer           , intent(in)    :: num_soilc
-  integer           , intent(in)    :: filter_soilc(:)
   type(bounds_type) , intent(in)    :: bounds
   real(r8)          , intent(in)    :: frootc_patch(bounds%begp: )
   real(r8)          , intent(in)    :: e_plant_scalar
   type(cnstate_type), intent(in)    :: cnstate_vars
-  integer :: p, j, fc, c
+  integer :: p, j, fc, c, l
 
 
   SHR_ASSERT_ALL((ubound(frootc_patch) == (/bounds%endp/)), errMsg(__FILE__,__LINE__))
@@ -667,23 +665,25 @@ module PlantSoilnutrientFluxType
          froot_prof                   => cnstate_vars%froot_prof_patch              & !
   )
 
-  do fc = 1, num_soilc
-    c = filter_soilc(fc)
-    do p = col%pfti(c), col%pftf(c)
-      if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
-        this%plant_frootsc_patch(p) = frootc_patch(p)
-        !set effective nutrient uptake profile
-        do j = 1, nlevtrc_soil
-          this%plant_effrootsc_vr_patch(p, j) = this%plant_frootsc_patch(p) * froot_prof(p,j) * e_plant_scalar
-        enddo
-      endif
-    enddo
+  do c = bounds%begc, bounds%endc
+    l = col%landunit(c)
+    if (lun%itype(l) == istsoil .or. lun%itype(l) == istcrop) then
+      do p = col%pfti(c), col%pftf(c)
+        if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
+          this%plant_frootsc_patch(p) = frootc_patch(p)
+          !set effective nutrient uptake profile
+          do j = 1, nlevtrc_soil
+            this%plant_effrootsc_vr_patch(p, j) = this%plant_frootsc_patch(p) * froot_prof(p,j) * e_plant_scalar
+          enddo
+        endif
+      enddo
+    endif
   enddo
   end associate
   end subroutine sub_froot_prof
 
 !--------------------------------------------------------------------------------
-  subroutine init_plant_soil_feedback(this, bounds, num_soilc, filter_soilc, frootc_patch, cnstate_vars, &
+  subroutine init_plant_soil_feedback(this, bounds, frootc_patch, cnstate_vars, &
    soilstate_vars,  waterflux_vars, ecophyscon_vars)
 
   use EcophysConType      , only : ecophyscon_type
@@ -695,8 +695,6 @@ module PlantSoilnutrientFluxType
 
   class(plantsoilnutrientflux_type) :: this
   type(bounds_type)    , intent(in)    :: bounds
-  integer              , intent(in)    :: num_soilc
-  integer              , intent(in)    :: filter_soilc(:)
   real(r8)             , intent(in)    :: frootc_patch(bounds%begp: )
   type(ecophyscon_type), intent(in)    :: ecophyscon_vars
   type(cnstate_type)   , intent(in)    :: cnstate_vars
@@ -704,7 +702,7 @@ module PlantSoilnutrientFluxType
   type(soilstate_type) , intent(in)    :: soilstate_vars
 
   real(r8), parameter   :: E_plant_scalar  = 0.0000125_r8
-  integer :: fc, c, p, j
+  integer :: fc, c, p, j, l
 
   SHR_ASSERT_ALL((ubound(frootc_patch) == (/bounds%endp/)), errMsg(__FILE__,__LINE__))
   associate(                                                                              &
@@ -725,25 +723,27 @@ module PlantSoilnutrientFluxType
   this%decomp_km_minp= km_decomp_p
   !set reference vmax
   do j = 1, nlevtrc_soil
-    do fc = 1, num_soilc
-      c = filter_soilc(fc)
-      this%decomp_compet_minp_vr_col(c,j) = 0._r8
-      do p = col%pfti(c), col%pftf(c)
-        if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
-          this%plant_minp_uptake_vmax_vr_patch(p, j)     = vmax_plant_p(ivt(p))
-          this%plant_minn_nh4_uptake_vmax_vr_patch(p, j) = vmax_plant_nh4(ivt(p))
-          this%plant_minn_no3_uptake_vmax_vr_patch(p, j) = vmax_plant_no3(ivt(p))
-          this%decomp_compet_minn_vr_col(c,j) = this%decomp_compet_minn_vr_col(c,j) + decompmicc_patch_vr(ivt(p),j)*pft%wtcol(p)
+    do c = bounds%begc, bounds%endc
+      l = col%landunit(c)
+      if (lun%itype(l) == istsoil .or. lun%itype(l) == istcrop) then
+        this%decomp_compet_minp_vr_col(c,j) = 0._r8
+        do p = col%pfti(c), col%pftf(c)
+          if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
+            this%plant_minp_uptake_vmax_vr_patch(p, j)     = vmax_plant_p(ivt(p))
+            this%plant_minn_nh4_uptake_vmax_vr_patch(p, j) = vmax_plant_nh4(ivt(p))
+            this%plant_minn_no3_uptake_vmax_vr_patch(p, j) = vmax_plant_no3(ivt(p))
+            this%decomp_compet_minn_vr_col(c,j) = this%decomp_compet_minn_vr_col(c,j) + decompmicc_patch_vr(ivt(p),j)*pft%wtcol(p)
 
-        endif
-      enddo
+          endif
+        enddo
+      endif
       this%decomp_compet_minp_vr_col(c,j) = this%decomp_compet_minn_vr_col(c,j)
     enddo
   enddo
 
-  call this%transp_col2patch(bounds, num_soilc, filter_soilc, soilstate_vars, waterflux_vars)
+  call this%transp_col2patch(bounds, soilstate_vars, waterflux_vars)
   !set root profile
-  call this%sub_froot_prof(bounds, num_soilc, filter_soilc,  frootc_patch, cnstate_vars, e_plant_scalar)
+  call this%sub_froot_prof(bounds, frootc_patch, cnstate_vars, e_plant_scalar)
 
   !set OM input profile
 
@@ -753,7 +753,7 @@ module PlantSoilnutrientFluxType
   end subroutine init_plant_soil_feedback
 
   !-------------------------------------------------------------------------------
-  subroutine transp_col2patch(this, bounds, num_soilc, filter_soilc, soilstate_vars, waterflux_vars)
+  subroutine transp_col2patch(this, bounds,  soilstate_vars, waterflux_vars)
 
   !
   ! USES
@@ -765,8 +765,6 @@ module PlantSoilnutrientFluxType
   !ARGUMENTS
   class(plantsoilnutrientflux_type)    :: this
   type(bounds_type)    , intent(in)    :: bounds
-  integer              , intent(in)    :: num_soilc
-  integer              , intent(in)    :: filter_soilc(:)
   type(waterflux_type) , intent(in)    :: waterflux_vars
   type(soilstate_type) , intent(in)    :: soilstate_vars
 
@@ -780,20 +778,22 @@ module PlantSoilnutrientFluxType
 
 
   do j = 1,nlevtrc_soil
-    do fc = 1, num_soilc
-      c = filter_soilc(fc)
-      rootr_col = 0._r8
-      do p = col%pfti(c), col%pftf(c)
-        if (pft%active(p)) then
-          rootr_col = rootr_col + rootr_pft(p,j) * qflx_tran_veg_pft(p) * pft%wtcol(p)
-        end if
-      enddo
+    do c = bounds%begc, bounds%endc
+      l = col%landunit(c)
+      if (lun%itype(l) == istsoil .or. lun%itype(l) == istcrop) then
+        rootr_col = 0._r8
+        do p = col%pfti(c), col%pftf(c)
+          if (pft%active(p)) then
+            rootr_col = rootr_col + rootr_pft(p,j) * qflx_tran_veg_pft(p) * pft%wtcol(p)
+          end if
+        enddo
 
-      do p = col%pfti(c), col%pftf(c)
-        if (pft%active(p)) then
-          this%tranp_wt_patch(p,j) = rootr_pft(p,j) * qflx_tran_veg_pft(p) / rootr_col
-        end if
-      enddo
+        do p = col%pfti(c), col%pftf(c)
+          if (pft%active(p)) then
+            this%tranp_wt_patch(p,j) = rootr_pft(p,j) * qflx_tran_veg_pft(p) / rootr_col
+          end if
+        enddo
+      endif
     end do
   end do
   end associate
