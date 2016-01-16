@@ -17,6 +17,8 @@ module PlantSoilnutrientFluxType
   use decompMod              , only : bounds_type
   use ColumnType             , only : col
   use PatchType              , only : pft
+  use LandunitType           , only : lun
+  use landunit_varcon        , only : istsoil, istcrop
   ! !PUBLIC TYPES:
   implicit none
   save
@@ -396,7 +398,6 @@ module PlantSoilnutrientFluxType
     !
     ! !USES:
     use clm_varpar      , only : crop_prog
-    use landunit_varcon , only : istsoil, istcrop
     use LandunitType   , only : lun
     !
     ! !ARGUMENTS:
@@ -769,7 +770,7 @@ module PlantSoilnutrientFluxType
   type(soilstate_type) , intent(in)    :: soilstate_vars
 
   real(r8) :: rootr_col
-  integer  :: p, j, fc, c
+  integer  :: p, j, fc, c, l
 
   associate(                                                     &
     rootr_pft         =>    soilstate_vars%rootfr_patch         , & ! Input:  [real(r8) (:,:) ]  effective fraction of roots in each soil layer
