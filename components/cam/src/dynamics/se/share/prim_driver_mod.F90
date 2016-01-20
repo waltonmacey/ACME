@@ -1162,11 +1162,17 @@ contains
     ! Forcing options for testing CAM-HOMME energy balance:
     if (ftype == -1) then
        ! disable all forcing, but allow moisture:
-       do ie=nets,nete
-          elem(ie)%derived%FQ = 0
-          elem(ie)%derived%FM = 0
-          elem(ie)%derived%FT = 0
-       enddo
+       !+++PMC - commenting this out b/c ftype<0 already means
+       !derived%{FQ,FM,FT} wasn't being used except in prim_print
+       !stuff which is diagnostic anyways and need to save these 
+       !quantities for application after dynamics is done for 
+       !StateParPhysDyn method. 
+       !do ie=nets,nete
+       !   elem(ie)%derived%FQ = 0
+       !   elem(ie)%derived%FM = 0
+       !   elem(ie)%derived%FT = 0
+       !enddo
+       !---PMC
     endif
     if (ftype == -2) then
        ! disable moisture, but allow dynamics forcing

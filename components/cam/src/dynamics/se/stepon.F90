@@ -469,105 +469,114 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
    end subroutine stepon_run2
    
 
-subroutine stepon_run3( dtime, etamid, cam_out, phys_state, dyn_in, dyn_out )
-   use camsrfexch,  only: cam_out_t     
-   use dyn_comp,    only: dyn_run
-   use time_mod,    only: tstep
-   !+++PMC
-   use control_mod,     only: ftype
-   use dimensions_mod, only: nlev, nelemd, np
-   !PMC note: ncnst is module-level variable.
-   !---PMC
-   real(r8), intent(in) :: dtime   ! Time-step
-   real(r8), intent(in)  :: etamid(plev)
-   type(cam_out_t),     intent(inout) :: cam_out(:) ! Output from CAM to surface
-   type(physics_state), intent(inout) :: phys_state(begchunk:endchunk)
-   type (dyn_import_t), intent(inout) :: dyn_in  ! Dynamics import container
-   type (dyn_export_t), intent(inout) :: dyn_out ! Dynamics export container
-   integer :: rc
-   integer :: i,j,k,ic
+   subroutine stepon_run3( dtime, etamid, cam_out, phys_state, dyn_in, dyn_out )
+     use camsrfexch,  only: cam_out_t     
+     use dyn_comp,    only: dyn_run
+     use time_mod,    only: tstep
+     !+++PMC
+     use control_mod,     only: ftype, qsplit
+     use dimensions_mod,  only: nlev, nelemd, np
+     use dyn_comp,        only: TimeLevel
+     use time_mod,        only: TimeLevel_Qdp
+     use hycoef,          only: hyai, hybi, ps0
+     use constituents,    only: pcnst
+     !PMC note: ncnst is module-level variable.
+     !---PMC
+     real(r8), intent(in) :: dtime   ! Time-step
+     real(r8), intent(in)  :: etamid(plev)
+     type(cam_out_t),     intent(inout) :: cam_out(:) ! Output from CAM to surface
+     type(physics_state), intent(inout) :: phys_state(begchunk:endchunk)
+     type (dyn_import_t), intent(inout) :: dyn_in  ! Dynamics import container
+     type (dyn_export_t), intent(inout) :: dyn_out ! Dynamics export container
+     integer :: rc
+     !+++PMC
+     integer :: i,j,k,ic,tl_f, tl_fQdp
+     real(r8) :: dp_tmp
+     !---PMC
+
+     call t_barrierf('sync_dyn_run', mpicom)
+     call t_startf ('dyn_run')
+     call dyn_run(dyn_out,rc)	
+     call t_stopf  ('dyn_run')
+
+     !+++PMC
+     !MIMIC PARALLEL PHYS AND DYN BY APPLYING PHYS TEND AFTER DYN FINISHED.
+     !note: physics tendencies converted into dynamics structures were stored as 
+     !dyn_in%elem(ie)%derived%{Q,T,M} in stepon_run2. Code in prim_driver_mod
+     !set these quantities to zero if ftype=-1, but for that ftype the only thing
+     !derived%{Q,T,M} were used for is in prim_printstate, which I think is just
+     !diagnostic. So I've commented out the zeroing out of derived%{Q,T,M} and 
+     !use dyn_in...derived... in my calculations below. 
+
+     if (ftype==-1) then     
+        ! apply forcing to state tl_f
+        ! requires forward-in-time timestepping, checked in namelist_mod.F90
+        !PMC - NEED TO CHECK THAT TIMELEVEL HASN'T BEEN ADVANCED WITHIN DYN???
+        tl_f = TimeLevel%n0   ! timelevel which was adjusted by physics
+        call TimeLevel_Qdp(TimeLevel, qsplit, tl_fQdp)
+
+        do ie=1,nelemd
+
+           !???????? PMC: Wouldn't a 'do private' flag be beneficial here? ??????
+           do k=1,nlev
+              do j=1,np
+                 do i=1,np
+                    do ic=1,pcnst
+                       ! apply forcing to Qdp
+                       dyn_out%elem(ie)%state%Qdp(i,j,k,ic,tl_fQdp) = &
+                            dyn_out%elem(ie)%state%Qdp(i,j,k,ic,tl_fQdp) + &
+                            dtime*dyn_in%elem(ie)%derived%FQ(i,j,k,ic,1)
+                    enddo
+
+                    ! force V, T, both timelevels
+                    dyn_out%elem(ie)%state%v(i,j,:,k,tl_f)= &
+                         dyn_out%elem(ie)%state%v(i,j,:,k,tl_f) +  &
+                         dtime*dyn_in%elem(ie)%derived%FM(i,j,:,k,1)
+
+                    dyn_out%elem(ie)%state%T(i,j,k,tl_f)= &
+                         dyn_out%elem(ie)%state%T(i,j,k,tl_f) + &
+                         dtime*dyn_in%elem(ie)%derived%FT(i,j,k,1)
 
 
-   call t_barrierf('sync_dyn_run', mpicom)
-   call t_startf ('dyn_run')
-   call dyn_run(dyn_out,rc)	
-   call t_stopf  ('dyn_run')
+                    ! Pressure is assumed to remain constant during physics, but precipitation and 
+                    ! evaporation change column mass. To maintain consistency, we must update surface
+                    ! pressure to account for changes in vertically-integrated water vapor loading 
+                    ! BEWARE critical region if using OpenMP over k (AAM)
+                    dyn_out%elem(ie)%state%ps_v(i,j,tl_f)= &
+                         dyn_out%elem(ie)%state%ps_v(i,j,tl_f) + dyn_in%elem(ie)%derived%FQ(i,j,k,1,1)*dtime
 
-   !+++PMC
-   !MIMIC PARALLEL PHYS AND DYN BY APPLYING PHYS TEND AFTER DYN FINISHED.
-   !note: physics tendencies converted into dynamics structures were stored as 
-   !dyn_in%elem(ie)%derived%{Q,T,M} in stepon_run2. Code in prim_driver_mod
-   !set these quantities to zero if ftype=-1, but for that ftype the only thing
-   !derived%{Q,T,M} were used for is in prim_printstate, which I think is just
-   !diagnostic. So I've commented out the zeroing out of derived%{Q,T,M} and 
-   !use dyn_in...derived... in my calculations below. 
-
-   if (ftype==-1) then     
-   ! apply forcing to state tl_f
-   ! requires forward-in-time timestepping, checked in namelist_mod.F90
-
-   do ie=1,nelemd
-
-   !???????? PMC: Wouldn't a 'do private' flag be beneficial here? ??????
-   do k=1,nlev
-      do j=1,np
-      	 do i=1,np
-            do ic=1,pcnst
-               ! apply forcing to Qdp
-               dyn_out%elem(ie)%state%Qdp(i,j,k,ic,tl_fQdp) = &
-               dyn_out%elem(ie)%state%Qdp(i,j,k,ic,tl_fQdp) + &
-               dtime*dyn_in%elem(ie)%derived%FQ(i,j,k,ic,1)
-             enddo
-                  
-             ! force V, T, both timelevels
-             dyn_out%elem(ie)%state%v(i,j,:,k,tl_f)= &
-             dyn_out%elem(ie)%state%v(i,j,:,k,tl_f) +  &
-             	dtime*dyn_in%elem(ie)%derived%FM(i,j,:,k,1)
-                  
-             dyn_out%elem(ie)%state%T(i,j,k,tl_f)= &
-             dyn_out%elem(ie)%state%T(i,j,k,tl_f) + &
-             	dtime*dyn_in%elem(ie)%derived%FT(i,j,k,1)
- 
-
-             ! Pressure is assumed to remain constant during physics, but precipitation and 
-             ! evaporation change column mass. To maintain consistency, we must update surface
-             ! pressure to account for changes in vertically-integrated water vapor loading 
-             ! BEWARE critical region if using OpenMP over k (AAM)
-             dyn_out%elem(ie)%state%ps_v(i,j,tl_f)= &
-   	        dyn_out%elem(ie)%state%ps_v(i,j,tl_f) + dyn_in%elem(ie)%derived%FQ(i,j,k,1,1)*dtime
-
-      	end do
-      end do
-   end do
-
-
-   ! Updating ps has the effect of redrawing cell edges in our sigma coordinate system. Because  
-   ! layer boundaries are redrawn, cell-averaged Q values must be recalculated. Qdp is assumed 
-   ! unchanged by this redrawing, so Q can be computed as Qdp divided by the new dp values. I
-   ! (PMC) think it's probably inappropriate to assume Qdp is constant when cell edges are redrawn
-   ! but leave this for future work.
-
-!$omp parallel do private(k, j, i, ic, dp_tmp)
-   do k=1,nlev
-       do ic=1,pcnst
-          do j=1,np
-             do i=1,np
-                ! Now that ps_v is updated, Q must be recalculated for consistency.
-                dp_tmp = ( hyai(k+1) - hyai(k) )*dyn_ps0 + &
-                         ( hybi(k+1) - hybi(k) )*dyn_out%elem(ie)%state%ps_v(i,j,tl_f)
-                dyn_out%elem(ie)%state%Q(i,j,k,ic)= &
-                          dyn_out%elem(ie)%state%Qdp(i,j,k,ic,tl_fQdp)/dp_tmp
+                 end do
               end do
            end do
-        end do
-    end do
 
-    end do !ie
 
-   end if !ftype==-1
-   !---PMC
+           ! Updating ps has the effect of redrawing cell edges in our sigma coordinate system. Because  
+           ! layer boundaries are redrawn, cell-averaged Q values must be recalculated. Qdp is assumed 
+           ! unchanged by this redrawing, so Q can be computed as Qdp divided by the new dp values. I
+           ! (PMC) think it's probably inappropriate to assume Qdp is constant when cell edges are redrawn
+           ! but leave this for future work.
 
-end subroutine stepon_run3
+           !$omp parallel do private(k, j, i, ic, dp_tmp)
+           do k=1,nlev
+              do ic=1,pcnst
+                 do j=1,np
+                    do i=1,np
+                       ! Now that ps_v is updated, Q must be recalculated for consistency.
+                       dp_tmp = ( hyai(k+1) - hyai(k) )*ps0 + &
+                            ( hybi(k+1) - hybi(k) )*dyn_out%elem(ie)%state%ps_v(i,j,tl_f)
+                       dyn_out%elem(ie)%state%Q(i,j,k,ic)= &
+                            dyn_out%elem(ie)%state%Qdp(i,j,k,ic,tl_fQdp)/dp_tmp
+                    end do
+                 end do
+              end do
+           end do
+
+        end do !ie
+
+     end if !ftype==-1
+     !---PMC
+
+   end subroutine stepon_run3
 
 
 !----------------------------------------------------------------------- 
