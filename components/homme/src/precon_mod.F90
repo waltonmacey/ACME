@@ -142,7 +142,7 @@ contains
                 if (precon_method == "block_jacobi") then
 
                    if (blkjac_storage == "LUfactor") then
-                      call dgesl(cg%state(ieptr)%r(:,k),cg%state(ieptr)%z(:,k),blkjac(ie)%E(:,:,k),blkjac(ie)%ipvt(:,k),npsq)
+                      !call dgesl(cg%state(ieptr)%r(:,k),cg%state(ieptr)%z(:,k),blkjac(ie)%E(:,:,k),blkjac(ie)%ipvt(:,k),npsq)
                    else if (blkjac_storage == "inverse") then
                       call matvec(cg%state(ieptr)%r(:,k),cg%state(ieptr)%z(:,k),blkjac(ie)%E(:,:,k),npsq)
                    end if
