@@ -78,6 +78,7 @@ module physpkg
   ! Private module data
   !
   ! Physics package options
+  character(len=16) :: deep_scheme
   character(len=16) :: shallow_scheme
   character(len=16) :: macrop_scheme
   character(len=16) :: microp_scheme 
@@ -1907,6 +1908,7 @@ subroutine tphysbc (ztodt,               &
 
     call phys_getopts( microp_scheme_out      = microp_scheme, &
                        macrop_scheme_out      = macrop_scheme, &
+                       deep_scheme_out        = deep_scheme,   &
                        use_subcol_microp_out  = use_subcol_microp, &
                        state_debug_checks_out = state_debug_checks &
                       ,l_bc_energy_fix_out    = l_bc_energy_fix    &
@@ -1941,10 +1943,12 @@ subroutine tphysbc (ztodt,               &
 !   if(trigmem)then
 #ifdef USE_UNICON
 #else
+    if( deep_scheme /= 'off' ) then
       ifld = pbuf_get_index('TM1')
       call pbuf_get_field(pbuf, ifld, tm1, (/1,1/),(/pcols,pver/))
       ifld = pbuf_get_index('QM1')
       call pbuf_get_field(pbuf, ifld, qm1, (/1,1/),(/pcols,pver/))
+    end if
 #endif
 !   endif
 !>songxl 2011-09-20---------------------------
@@ -2428,12 +2432,14 @@ if (l_tracer_aero) then
 end if ! l_tracer_aero
 
 !<songxl 2011-9-20---------------------------------
+   if( deep_scheme /= 'off' ) then
    if(trigmem)then
       do k=1,pver
         qm1(:ncol,k) = state%q(:ncol,k,1)
         tm1(:ncol,k) = state%t(:ncol,k)
       enddo
    endif
+   end if
 !>songxl 2011-09-20---------------------------------
 
     !===================================================
