@@ -490,7 +490,7 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
      type (dyn_export_t), intent(inout) :: dyn_out ! Dynamics export container
      integer :: rc
      !+++PMC
-     integer :: i,j,k,ic,tl_f, tl_fQdp
+     integer :: i,j,k,ie,ic,tl_f, tl_fQdp
      real(r8) :: dp_tmp
      !---PMC
 
