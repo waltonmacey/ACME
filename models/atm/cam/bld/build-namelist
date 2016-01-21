@@ -2718,6 +2718,8 @@ add_default($nl, 'csconv_cpres');
 add_default($nl, 'csconv_alp0');
 add_default($nl, 'csconv_taud');
 add_default($nl, 'csconv_rddr');
+add_default($nl, 'csconv_wcbmax');
+add_default($nl, 'csconv_tauz');
 
 # moist convection rainwater coefficients
 add_default($nl, 'hkconv_cmftau');

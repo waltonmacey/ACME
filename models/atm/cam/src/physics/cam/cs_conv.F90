@@ -59,7 +59,9 @@ module cs_conv
     CPRES,  & ! pressure factor for momentum transport [ND]
     ALP0,   & ! alpha parameter in prognostic closure [m^4/kg]
     TAUD,   & ! dissipation time scale of CKE in prognostic closure [sec]
-    RDDR      ! coefficient for downdraft rate [m^2/kg K]
+    RDDR,   & ! coefficient for downdraft rate [m^2/kg K]
+    WCBMAX, & ! maximum value of updraft velocity at cloud base [m/s]
+    TAUZ      ! E-folding height to drag updraft velocity [m]
 !
 ! PUBLIC: interfaces
 !
@@ -121,10 +123,13 @@ subroutine csconv_readnl(nlfile)
      csconv_cpres  = unset_r8,   &
      csconv_alp0   = unset_r8,   &
      csconv_taud   = unset_r8,   &
-     csconv_rddr   = unset_r8
+     csconv_rddr   = unset_r8,   &
+     csconv_wcbmax = unset_r8,   &
+     csconv_tauz   = unset_r8
 
    namelist /csconv_nl/ csconv_clmd, csconv_pa, csconv_preczh, csconv_cpres, &
-                        csconv_alp0, csconv_taud, csconv_rddr
+                        csconv_alp0, csconv_taud, csconv_rddr, csconv_wcbmax, &
+                        csconv_tauz
 
    if ( masterproc ) then
       unitn = getunit()
@@ -146,6 +151,8 @@ subroutine csconv_readnl(nlfile)
       ALP0   = csconv_alp0
       TAUD   = csconv_taud
       RDDR   = csconv_rddr
+      WCBMAX = csconv_wcbmax
+      TAUZ   = csconv_tauz
    end if
 
 #ifdef SPMD
@@ -157,6 +164,8 @@ subroutine csconv_readnl(nlfile)
    call mpibcast( ALP0  , 1, mpir8, 0, mpicom) 
    call mpibcast( TAUD  , 1, mpir8, 0, mpicom) 
    call mpibcast( RDDR  , 1, mpir8, 0, mpicom) 
+   call mpibcast( WCBMAX, 1, mpir8, 0, mpicom) 
+   call mpibcast( TAUZ  , 1, mpir8, 0, mpicom) 
 #endif
 
 end subroutine csconv_readnl
@@ -191,6 +200,10 @@ subroutine cs_convi(limcnv_in, no_deep_pbl_in)
       call endrun( 'cs_convi: csconv_taud must be set in the namelist.' )
    if ( RDDR   == unset_r8 ) &
       call endrun( 'cs_convi: csconv_rddr must be set in the namelist.' )
+   if ( WCBMAX == unset_r8 ) &
+      call endrun( 'cs_convi: csconv_wcbmax must be set in the namelist.' )
+   if ( TAUZ == unset_r8 ) &
+      call endrun( 'cs_convi: csconv_tauz must be set in the namelist.' )
 
    if ( masterproc ) then
       write(iulog,*) 'tuning parameters cs_convi: CLMD'  , CLMD
@@ -200,6 +213,8 @@ subroutine cs_convi(limcnv_in, no_deep_pbl_in)
       write(iulog,*) 'tuning parameters cs_convi: ALP0'  , ALP0
       write(iulog,*) 'tuning parameters cs_convi: TAUD'  , TAUD
       write(iulog,*) 'tuning parameters cs_convi: RDDR'  , RDDR
+      write(iulog,*) 'tuning parameters cs_convi: WCBMAX', WCBMAX
+      write(iulog,*) 'tuning parameters cs_convi: TAUZ'  , TAUZ
    end if
 
 end subroutine cs_convi
@@ -662,7 +677,6 @@ end subroutine cs_convr
 !
 !   [INTERNAL PARM]
       REAL(r8) :: WCBMIN = 0._r8       !! min. of updraft velocity at cloud base
-      REAL(r8) :: WCBMAX = 1.4_r8      !! max. of updraft velocity at cloud base
       REAL(r8) :: WCBAS  = 2._r8       !! updraft velocity**2 at cloud base (ASMODE)
       REAL(r8) :: ERAMIN = 1.e-5_r8    !! min. of entrainment rate
                                        !! used only in OPT_ASMODE
@@ -1389,7 +1403,6 @@ end subroutine cs_convr
       REAL(r8) ::  PRECZ0 = 1.5e3_r8
       REAL(r8) ::  ZTREF  = 1._r8
       REAL(r8) ::  PB     = 1._r8
-      REAL(r8) ::  TAUZ   = 1.e4_r8
       REAL(r8) ::  ELMD   = 2.4e-3     !! for Neggers and Siebesma (2002)
       REAL(r8) ::  ELAMIN = 0._r8      !! min. of entrainment rate
       REAL(r8) ::  ELAMAX = 4.e-3      !! max. of entrainment rate
