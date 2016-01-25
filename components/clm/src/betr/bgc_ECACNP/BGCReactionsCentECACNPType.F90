@@ -1041,9 +1041,6 @@ contains
          nelms              => centurybgc_vars%nelms                                   &
          )
 
-!      call plantsoilnutrientflux_vars%init_plant_soil_feedback(bounds, &
-!         carbonstate_vars%frootc_patch, cnstate_vars, soilstate_vars, waterflux_vars, ecophyscon_vars)
-
       !initialize tracer based on carbon/nitrogen pools
       do j = 1, nlevtrc_soil
          do c = bounds%begc, bounds%endc

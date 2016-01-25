@@ -735,7 +735,8 @@ contains
                   canopystate_vars, soilstate_vars, temperature_vars, crop_vars, &
                   dgvs_vars, photosyns_vars, soilhydrology_vars, energyflux_vars,&
                   plantsoilnutrientflux_vars,                                    &
-                  phosphorusflux_vars, phosphorusstate_vars)
+                  phosphorusflux_vars, phosphorusstate_vars, ecophyscon)
+
 
          !do belowground bgc and transport
          call t_startf('betr_nodrain')
@@ -930,31 +931,6 @@ contains
               photosyns_vars, drydepvel_vars)
          call t_stopf('depvel')
 
-         if (use_betr)then
-            if (do_betr_leaching)then
-               call bgc_reaction%init_betr_lsm_bgc_coupler(bounds_clump, carbonstate_vars, &
-                    nitrogenstate_vars, phosphorusstate_vars, plantsoilnutrientflux_vars, &
-                    betrtracer_vars, tracerstate_vars, cnstate_vars, soilstate_vars     , &
-                    waterflux_vars, ecophyscon)
-
-              !the following is dirty hack, I'll reconsider this in later modifcations, Jinyun Tang May 14, 2015
-               call begin_betr_tracer_massbalance(bounds_clump, 1, nlevtrc_soil, &
-                   filter(nc)%num_soilc, filter(nc)%soilc, betrtracer_vars  , &
-                   tracerstate_vars, tracerflux_vars)
-
-            endif
-
-            !this is used for non-online bgc with betr
-            call run_betr_one_step_without_drainage(bounds_clump, 1, nlevtrc_soil,    &
-               filter(nc)%num_soilc, filter(nc)%soilc,                                &
-               filter(nc)%num_soilp, filter(nc)%soilp,                                &
-               col, atm2lnd_vars,                                                     &
-               soilhydrology_vars, soilstate_vars, waterstate_vars, temperature_vars, &
-               waterflux_vars, chemstate_vars, cnstate_vars, canopystate_vars,        &
-               carbonflux_vars,   betrtracer_vars, bgc_reaction,                      &
-               tracerboundarycond_vars, tracercoeff_vars, tracerstate_vars,           &
-               tracerflux_vars, plantsoilnutrientflux_vars)
-         endif
 
          if (use_lch4) then
            call t_startf('ch4')

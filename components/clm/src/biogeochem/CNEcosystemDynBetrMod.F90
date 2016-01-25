@@ -89,7 +89,7 @@ module CNEcosystemDynBetrMod
        canopystate_vars, soilstate_vars, temperature_vars, crop_vars,  &
        dgvs_vars, photosyns_vars, soilhydrology_vars, energyflux_vars, &
        plantsoilnutrientflux_vars,                                     &
-       phosphorusflux_vars, phosphorusstate_vars)
+       phosphorusflux_vars, phosphorusstate_vars, ecophyscon_vars)
 
     !
     ! Update vegetation related state variables and fluxes
@@ -119,6 +119,11 @@ module CNEcosystemDynBetrMod
     use PlantSoilnutrientFluxType , only : plantsoilnutrientflux_type
     use CNVerticalProfileMod      , only : decomp_vertprofiles
     use CNNStateUpdate3Mod        , only : NStateUpdate3
+    use EcophysConType            , only : ecophyscon_type
+    use PDynamicsMod              , only: PDeposition, PWeathering
+    use PStateUpdate1Mod       , only: PStateUpdate1
+    use PStateUpdate2Mod       , only: PStateUpdate2
+    use PStateUpdate3Mod       , only: PStateUpdate3            
     implicit none
     !
     ! !ARGUMENTS:
@@ -153,7 +158,7 @@ module CNEcosystemDynBetrMod
     type(plantsoilnutrientflux_type) , intent(inout) :: plantsoilnutrientflux_vars
     type(phosphorusflux_type)        , intent(inout) :: phosphorusflux_vars
     type(phosphorusstate_type)       , intent(inout) :: phosphorusstate_vars
-
+    type(ecophyscon_type)            , intent(in)    :: ecophyscon_vars
     ! --------------------------------------------------
     ! zero the column-level C and N fluxes
     ! --------------------------------------------------
@@ -212,6 +217,16 @@ module CNEcosystemDynBetrMod
 
     call t_stopf('CNMResp')
 
+    call t_startf('PWeathering')
+    call PWeathering(num_soilc, filter_soilc, &
+         cnstate_vars,phosphorusstate_vars,phosphorusflux_vars)
+    call t_stopf('PWeathering')
+
+    call t_startf('PDeposition')
+    call PDeposition(bounds, &
+         atm2lnd_vars, phosphorusflux_vars)
+    call t_stopf('PDeposition')
+
     !calculate vertical profiles to destribute various variables, this could also pet put outside this block of codes
     call decomp_vertprofiles(bounds,  num_soilc, filter_soilc, num_soilp, filter_soilp,  &
          soilstate_vars, canopystate_vars, cnstate_vars)
@@ -258,6 +273,7 @@ module CNEcosystemDynBetrMod
 
     call carbonflux_vars%summary_rr(bounds,num_soilp, filter_soilp, num_soilc, filter_soilc)
     call t_stopf('CNGResp')
+
 
     !--------------------------------------------
     ! CNUpdate0
@@ -318,6 +334,10 @@ module CNEcosystemDynBetrMod
          cnstate_vars, nitrogenflux_vars, nitrogenstate_vars)
     call t_stopf('CNUpdate1')
 
+
+    call PStateUpdate1(num_soilc, filter_soilc, num_soilp, filter_soilp, &
+         cnstate_vars, phosphorusflux_vars, phosphorusstate_vars)
+
     call t_startf('CNGapMortality')
     call CNGapMortality( num_soilc, filter_soilc, num_soilp, filter_soilp,          &
          dgvs_vars, cnstate_vars,                                                   &
@@ -360,6 +380,9 @@ module CNEcosystemDynBetrMod
 
     call NStateUpdate2(num_soilc, filter_soilc, num_soilp, filter_soilp, &
          nitrogenflux_vars, nitrogenstate_vars)
+
+    call PStateUpdate2(num_soilc, filter_soilc, num_soilp, filter_soilp, &
+         phosphorusflux_vars, phosphorusstate_vars)
 
     if (flanduse_timeseries /= ' ') then
        call CNHarvest(num_soilc, filter_soilc, num_soilp, filter_soilp, &
@@ -460,6 +483,15 @@ module CNEcosystemDynBetrMod
          nitrogenflux_vars, nitrogenstate_vars)
     call t_stopf('CNUpdate3')
 
+    call t_startf('PUpdate3')
+    call PStateUpdate3(bounds,num_soilc, filter_soilc, num_soilp, filter_soilp, &
+         cnstate_vars,phosphorusflux_vars, phosphorusstate_vars)
+    call t_stopf('PUpdate3')
+
+    call plantsoilnutrientflux_vars%init_plant_soil_feedback(bounds, num_soilc, &
+             filter_soilc,  carbonstate_vars%frootc_patch, cnstate_vars, &
+             soilstate_vars,  waterflux_vars, ecophyscon_vars)
+
   end subroutine CNEcosystemDynBetrVeg
 
 
@@ -533,6 +565,7 @@ module CNEcosystemDynBetrMod
     type(energyflux_type)            , intent(in)    :: energyflux_vars
     type(plantsoilnutrientflux_type) , intent(in)    :: plantsoilnutrientflux_vars
     type(phosphorusstate_type)       , intent(inout) :: phosphorusstate_vars
+
 
     call nitrogenstate_vars%nbuffer_update(bounds, num_soilc, filter_soilc,                   &
          plantsoilnutrientflux_vars%plant_minn_active_yield_flx_col(bounds%begc:bounds%endc), &
