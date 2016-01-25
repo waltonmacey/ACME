@@ -552,7 +552,19 @@
     <SUPPORTED_BY>agsalin at sandia dot gov</SUPPORTED_BY>
     <GMAKE_J>20</GMAKE_J>
     <MAX_TASKS_PER_NODE>20</MAX_TASKS_PER_NODE>
-    <PES_PER_NODE>2</PES_PER_NODE>
+    <PES_PER_NODE>10</PES_PER_NODE>
+    <batch_system type="none" version="x.y">
+      <queues>
+      </queues>
+      <walltimes>
+      </walltimes>
+    </batch_system>
+    <mpirun mpilib="default">
+      <executable>mpirun</executable>
+      <arguments>
+        <arg name="num_tasks"> -np {{ num_tasks }}</arg>
+      </arguments>
+    </mpirun>
 </machine>
 
 <machine MACH="mira">
