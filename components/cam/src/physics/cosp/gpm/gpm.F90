@@ -6,8 +6,15 @@ program gpmtest
    use gpm_gmi_mod, only:gpm_gmi_addsensor, gpm_gmi_adddefaultsensor, gpm_gmi_init, gpm_gmi_run, gpm_gmi_clean, gpm_gmi_toabt
    use mod_cosp_types, only: cosp_gridbox, construct_cosp_gridbox, free_cosp_gridbox
    use shr_kind_mod, only: r8 =>shr_kind_r8
-   use gpm_gmi_sensor_mod, only: gpm_gmi_sensor, gpm_gmi_sensor_create
-  ! use netcdf
+   use gpm_gmi_sensor_mod, only: gpm_crtm_addsensor, gpm_crtm_init, gpm_crtm_destroy, &
+                                 gpm_crtm_inquire
+                              ! gpm_gmi_sensor, gpm_gmi_sensor_create
+   use CRTM_Module, only: crtm_channelInfo_type, CRTM_Init 
+   use gpm_crtm_simulator_mod
+   use gpm_gmi_crtm_mod
+   use gpm_crtm_result_mod
+
+   ! use netcdf
    implicit none
    
    type(cosp_gridbox) :: gbx
@@ -127,15 +134,18 @@ program gpmtest
   
    type(gpm_gmi_toabt), allocatable :: toabt(:)
 
-   type(gpm_gmi_sensor) :: testgmisensor
+!   type(gpm_gmi_sensor) :: testgmisensor
    integer :: i
+   integer :: err_stat
+   type(CRTM_ChannelInfo_type) :: chinfo(2)
   ! call check( nf90_open(file_name, NF90_NOWRITE, ncid) )
   ! call check( nf90_inq_varid(ncid, "q", varid) )
   ! call check( nf90_get_var(ncid, varid, q_in) )
 
   ! call check ( nf90_close(ncid))
 
-
+!----------------------
+type(gpm_crtm_result) :: gpm_result(2)
 
 
 
@@ -236,20 +246,37 @@ program gpmtest
    call gpm_gmi_adddefaultsensor('gpm-gmi-lowfreq')
    call gpm_gmi_adddefaultsensor('gpm-gmi-highfreq')
    print *, "debug    2"
-   call gpm_gmi_init(gbx)   
-   call gpm_gmi_run(gbx, toabt)
+!   call gpm_gmi_init(gbx)   
+!   call gpm_gmi_run(gbx, toabt)
 
    print *, "clean starts here"
-   call gpm_gmi_clean()
-print *, "clean gbx"
-   call free_cosp_gridbox(gbx)
+!   call gpm_gmi_clean()
 
    
    print *, 'Run successful'
 
    !testgmisensor = gpm_gmi_sensor('abc','histabc',10,20,(/ (i, i=1,0) /),4)  
-   testgmisensor = gpm_gmi_sensor_create('abc','histabc',10.0,20.0,(/2,3,4/))  
-   print *, 'test for gpm sensor types : ', size(testgmisensor.channel_subset) 
+!   testgmisensor = gpm_gmi_sensor_create('abc','histabc',10.0,20.0,(/2,3,4/))  
+!   print *, 'test for gpm sensor types : ', size(testgmisensor.channel_subset) 
+!----------------------
+   !err_stat = CRTM_Init((/'gmi_gpm','atms_npp'/),chinfo, File_Path = '/global/homes/y/yxl232/local/CRTM/coeff_data/Big_Endian_ODAS/', Quiet = .TRUE.)
+
+   call gpm_crtm_addsensor('gpm-gmi-lowfreq')
+   call gpm_crtm_addsensor('gpm-gmi-highfreq')
+   call gpm_crtm_init()
+   print *, size(chinfo)
+   call gpm_crtm_inquire(chinfo)
+   
+   call CRTM_ChannelInfo_Inspect(chinfo(1)) 
+   call CRTM_ChannelInfo_Inspect(chinfo(2)) 
+   call gpm_crtm_simulator(gbx, chinfo,gpm_result)
+
+   call gpm_crtm_destroy() 
+!----------------------
+
+print *, "clean gbx"
+   call free_cosp_gridbox(gbx)
+
 
 end program gpmtest
 

@@ -2,3 +2,4 @@
 #define GPM_KA
 #define GPM_TWO_MOMENT
 #define GPM_GMI
+#define GPM_GMI2

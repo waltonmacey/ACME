@@ -295,7 +295,7 @@ CONTAINS
       integer :: m
       integer :: n_profiles
       !----------------
-      ! Chech if GPM GMI structures are already initialized 
+      ! Check if GPM GMI structures are already initialized 
       if ( l_initialized == .FALSE. ) then
          print *, "GPM GMI structures are not initialized. Need to initialize &
                   them first, and then run calculations "
@@ -424,48 +424,48 @@ print *, "12345678"
 
          tmpint = I_LSCLIQ
          atm(iatm)%Cloud(1)%Type = WATER_CLOUD
-         atm(iatm)%Cloud(1)%Effective_Radius = gbx%Reff(igbx,:,tmpint)
-         atm(iatm)%Cloud(1)%Water_Content    = gbx%mr_hydro(igbx,:,tmpint)
+         atm(iatm)%Cloud(1)%Effective_Radius = gbx%Reff(igbx,n_layers:1:-1,tmpint)
+         atm(iatm)%Cloud(1)%Water_Content    = gbx%mr_hydro(igbx,n_layers:1:-1,tmpint)
          
          tmpint = I_LSCICE
          atm(iatm)%Cloud(2)%Type = ICE_CLOUD
-         atm(iatm)%Cloud(2)%Effective_Radius = gbx%Reff(igbx,:,tmpint)
-         atm(iatm)%Cloud(2)%Water_Content    = gbx%mr_hydro(igbx,:,tmpint)
+         atm(iatm)%Cloud(2)%Effective_Radius = gbx%Reff(igbx,n_layers:1:-1,tmpint)
+         atm(iatm)%Cloud(2)%Water_Content    = gbx%mr_hydro(igbx,n_layers:1:-1,tmpint)
          
          tmpint = I_LSRAIN
          atm(iatm)%Cloud(3)%Type = RAIN_CLOUD
-         atm(iatm)%Cloud(3)%Effective_Radius = gbx%Reff(igbx,:,tmpint)
-         atm(iatm)%Cloud(3)%Water_Content    = gbx%mr_hydro(igbx,:,tmpint)
+         atm(iatm)%Cloud(3)%Effective_Radius = gbx%Reff(igbx,n_layers:1:-1,tmpint)
+         atm(iatm)%Cloud(3)%Water_Content    = gbx%mr_hydro(igbx,n_layers:1:-1,tmpint)
          
          tmpint = I_LSSNOW
          atm(iatm)%Cloud(4)%Type = SNOW_CLOUD
-         atm(iatm)%Cloud(4)%Effective_Radius = gbx%Reff(igbx,:,tmpint)
-         atm(iatm)%Cloud(4)%Water_Content    = gbx%mr_hydro(igbx,:,tmpint)
+         atm(iatm)%Cloud(4)%Effective_Radius = gbx%Reff(igbx,n_layers:1:-1,tmpint)
+         atm(iatm)%Cloud(4)%Water_Content    = gbx%mr_hydro(igbx,n_layers:1:-1,tmpint)
          
          tmpint = I_CVCLIQ
          atm(iatm)%Cloud(5)%Type = WATER_CLOUD
-         atm(iatm)%Cloud(5)%Effective_Radius = gbx%Reff(igbx,:,tmpint)
-         atm(iatm)%Cloud(5)%Water_Content    = gbx%mr_hydro(igbx,:,tmpint)
+         atm(iatm)%Cloud(5)%Effective_Radius = gbx%Reff(igbx,n_layers:1:-1,tmpint)
+         atm(iatm)%Cloud(5)%Water_Content    = gbx%mr_hydro(igbx,n_layers:1:-1,tmpint)
          
          tmpint = I_CVCICE
          atm(iatm)%Cloud(6)%Type = ICE_CLOUD
-         atm(iatm)%Cloud(6)%Effective_Radius = gbx%Reff(igbx,:,tmpint)
-         atm(iatm)%Cloud(6)%Water_Content    = gbx%mr_hydro(igbx,:,tmpint)
+         atm(iatm)%Cloud(6)%Effective_Radius = gbx%Reff(igbx,n_layers:1:-1,tmpint)
+         atm(iatm)%Cloud(6)%Water_Content    = gbx%mr_hydro(igbx,n_layers:1:-1,tmpint)
          
          tmpint = I_CVRAIN
          atm(iatm)%Cloud(7)%Type = RAIN_CLOUD
-         atm(iatm)%Cloud(7)%Effective_Radius = gbx%Reff(igbx,:,tmpint)
-         atm(iatm)%Cloud(7)%Water_Content    = gbx%mr_hydro(igbx,:,tmpint)
+         atm(iatm)%Cloud(7)%Effective_Radius = gbx%Reff(igbx,n_layers:1:-1,tmpint)
+         atm(iatm)%Cloud(7)%Water_Content    = gbx%mr_hydro(igbx,n_layers:1:-1,tmpint)
          
          tmpint = I_CVSNOW
          atm(iatm)%Cloud(8)%Type = SNOW_CLOUD
-         atm(iatm)%Cloud(8)%Effective_Radius = gbx%Reff(igbx,:,tmpint)
-         atm(iatm)%Cloud(8)%Water_Content    = gbx%mr_hydro(igbx,:,tmpint)
+         atm(iatm)%Cloud(8)%Effective_Radius = gbx%Reff(igbx,n_layers:1:-1,tmpint)
+         atm(iatm)%Cloud(8)%Water_Content    = gbx%mr_hydro(igbx,n_layers:1:-1,tmpint)
          
          tmpint = I_LSGRPL
          atm(iatm)%Cloud(9)%Type = GRAUPEL_CLOUD
-         atm(iatm)%Cloud(9)%Effective_Radius = gbx%Reff(igbx,:,tmpint)
-         atm(iatm)%Cloud(9)%Water_Content    = gbx%mr_hydro(igbx,:,tmpint)
+         atm(iatm)%Cloud(9)%Effective_Radius = gbx%Reff(igbx,n_layers:1:-1,tmpint)
+         atm(iatm)%Cloud(9)%Water_Content    = gbx%mr_hydro(igbx,n_layers:1:-1,tmpint)
          
          
          

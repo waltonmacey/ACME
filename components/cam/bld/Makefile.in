@@ -317,7 +317,7 @@ endif
 CFLAGS = $(cpp_path) $(CPPDEF)
 
 # Set search path for module files for external libraries.
-mod_path := -I$(MCT_LIBDIR)/mct -I$(MCT_LIBDIR)/mpeu
+mod_path := -I$(MCT_LIBDIR)/mct -I$(MCT_LIBDIR)/mpeu -I$(HOME)/local/CRTM/include
 ifeq ($(SPMD),FALSE)
   mod_path += -I$(MCT_LIBDIR)/mpi-serial
 endif
