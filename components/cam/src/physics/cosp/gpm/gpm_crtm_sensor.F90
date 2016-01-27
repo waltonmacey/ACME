@@ -1,7 +1,7 @@
 !
 !  Code related to GPM GMI sensors
 !
-module gpm_gmi_sensor_mod
+module GPM_CRTM_sensor_mod
   !------------------
   ! Environment setup
   !------------------
@@ -21,22 +21,22 @@ module gpm_gmi_sensor_mod
   ! Everything private by default
   private
   ! Public attribute will be set on declaration
-  public :: gpm_gmi_sensor
-  public :: gpm_gmi_sensor_create, gpm_gmi_sensor_createdefault
-  public :: gpm_crtm_addsensor, gpm_crtm_init, gpm_crtm_destroy, &
-            gpm_crtm_inquire
+!  public :: GPM_CRTM_sensor_type
+!  public :: GPM_CRTM_sensor_create, GPM_CRTM_sensor_createdefault
+  public :: GPM_CRTM_sensor_add, GPM_CRTM_sensor_init, GPM_CRTM_sensor_destroy, &
+            GPM_CRTM_sensor_inquire
   ! ---------------------
   ! Procedure overloading
   ! ---------------------
-  interface gpm_crtm_addsensor
-    module procedure gpm_crtm_addsensor_byproperties
-    module procedure gpm_crtm_addsensor_byname
-   end interface gpm_crtm_addsensor
+  interface GPM_CRTM_sensor_add
+    module procedure GPM_CRTM_sensor_add_byproperties
+    module procedure GPM_CRTM_sensor_add_byname
+   end interface GPM_CRTM_sensor_add
   ! -------------------------------
-  ! gpm_gmi_sensor is a type that saves the properties of the sensors
+  ! GPM_CRTM_sensor_type is a type that saves the properties of the sensors
   ! -------------------------------
   !:tdoc+:
-  type gpm_gmi_sensor
+  type GPM_CRTM_sensor_type
     character(maxlen_sensorid) :: sensor_id = ''                 ! sensor ID string
     character(maxlen_camhistfld_name) :: cam_histfld_name = ''   ! cam history field name of results
     real :: sensor_scan_angle    = 0                       ! sensor zenith angle (degree)
@@ -45,17 +45,17 @@ module gpm_gmi_sensor_mod
     logical :: l_channelsubset   = .FALSE.
 
     !! The following variables are set (and allocated if applicabable) 
-    !! in function gpm_gmi_init()
+    !! in function GPM_CRTM_init()
     ! number of channels of the sensor, for convenience
     integer :: n_channels        = 0
 
-  end type gpm_gmi_sensor
+  end type GPM_CRTM_sensor_type
   !:tdoc-:
   ! ---------------
   ! saved variables 
   ! ---------------
   ! Arrays of sensors and sensor informations
-  type(gpm_gmi_sensor),        save :: sensor_list(max_CRTM_sensors)
+  type(GPM_CRTM_sensor_type),  save :: sensor_list(max_CRTM_sensors)
   character(maxlen_sensorid),  save :: sensor_id_list(max_CRTM_sensors)
   type(CRTM_ChannelInfo_type), save :: chinfo_list(max_CRTM_sensors)
   ! logical variable indicating if the sensors are initialized
@@ -75,7 +75,7 @@ contains
 ! Initialize GPM CRTM shared variables
 !--------------------------------------------------------------------------------
 
-   subroutine gpm_crtm_init()
+   subroutine GPM_CRTM_sensor_init()
      ! local variables
     integer :: err_stat
     integer :: n  
@@ -91,7 +91,7 @@ contains
       ! Check if there are already sensors added. If no sensors added, stop
       ! running 
       if (n_sensors <= 0) then
-         print *, "No sensors added. Add sensor first then run gpm_gmi_init()"
+         print *, "No sensors added. Add sensor first then run GPM_CRTM_init()"
          stop
       end if
 
@@ -127,11 +127,11 @@ contains
 !         allocate( currentsensor%toa_bt(currentsensor%n_channels, n_profiles))
       end do !n_sensors
 
-   end subroutine gpm_crtm_init
+   end subroutine GPM_CRTM_sensor_init
 !--------------------------------------------------------------------------------
 ! Destroy GPM CRTM shared variables
 !--------------------------------------------------------------------------------
-   subroutine gpm_crtm_destroy()
+   subroutine GPM_CRTM_sensor_destroy()
       ! local variables
       integer :: n
       integer :: err_stat
@@ -143,7 +143,7 @@ contains
       do n= 1, n_sensors
          sensor_id_list(n) = ''
       end do
-      call gpm_gmi_sensor_clear(sensor_list)
+      call GPM_CRTM_sensor_clear(sensor_list)
       err_stat =  CRTM_Destroy(chinfo_list)
       if (err_stat .NE. SUCCESS) then
          print *, "Error occurred when destroying CRTM_ChannelInfo arrays"
@@ -153,12 +153,12 @@ contains
       l_initialized = .FALSE.
 
 
-   end subroutine gpm_crtm_destroy
+   end subroutine GPM_CRTM_sensor_destroy
 !--------------------------------------------------------------------------------
 ! Inquire GPM CRTM shared variables
 !--------------------------------------------------------------------------------
-   subroutine gpm_crtm_inquire(chinfo_list_out, n_sensors_out)
-!  type(gpm_gmi_sensor),        intent(out), optional :: sensor_list(:)
+   subroutine GPM_CRTM_sensor_inquire(chinfo_list_out, n_sensors_out)
+!  type(GPM_CRTM_sensor_type),        intent(out), optional :: sensor_list(:)
 !  character(maxlen_sensorid),  intent(out), optional :: sensor_id_list(:)
   type(CRTM_ChannelInfo_type), intent(out), optional :: chinfo_list_out(:)
   ! current number of sensors added
@@ -185,7 +185,7 @@ contains
   end if
 
 
-   end subroutine gpm_crtm_inquire
+   end subroutine GPM_CRTM_sensor_inquire
 
 !################################################################################
 !################################################################################
@@ -197,7 +197,7 @@ contains
 !--------------------------------------------------------------------------------
 ! Add a sensor by its properties
 !--------------------------------------------------------------------------------
-  subroutine gpm_crtm_addsensor_byproperties(sensor_id, cam_histfld_name,&
+  subroutine GPM_CRTM_sensor_add_byproperties(sensor_id, cam_histfld_name,&
                       sensor_scan_angle, sensor_zenith_angle, channel_subset )
       character(len=*), intent(in) :: sensor_id
       character(len=*), intent(in) :: cam_histfld_name
@@ -215,14 +215,14 @@ contains
        stop
     end if
       n_sensors = n_sensors +1
-      call gpm_gmi_sensor_create(sensor_list(n_sensors),sensor_id, cam_histfld_name,&
+      call GPM_CRTM_sensor_create(sensor_list(n_sensors),sensor_id, cam_histfld_name,&
                 sensor_scan_angle, sensor_zenith_angle, channel_subset) 
     
-  end subroutine gpm_crtm_addsensor_byproperties
+  end subroutine GPM_CRTM_sensor_add_byproperties
 !--------------------------------------------------------------------------------
 ! Add a sensor by its name
 !--------------------------------------------------------------------------------
-  subroutine gpm_crtm_addsensor_byname(sensor_name)
+  subroutine GPM_CRTM_sensor_add_byname(sensor_name)
     character(len=*), intent(in) :: sensor_name
     !----------------
     if (n_sensors >= max_CRTM_sensors) then
@@ -236,21 +236,21 @@ contains
     end if
       n_sensors = n_sensors +1
      
-      call gpm_gmi_sensor_createdefault(sensor_list(n_sensors),sensor_name)
-  end subroutine gpm_crtm_addsensor_byname
+      call GPM_CRTM_sensor_createdefault(sensor_list(n_sensors),sensor_name)
+  end subroutine GPM_CRTM_sensor_add_byname
   
 
 !--------------------------------------------------------------------------------
 !:sdoc+:
 !
 ! NAME:
-!       gpm_gmi_sensor_create
+!       GPM_CRTM_sensor_create
 !
 ! PURPOSE:
 !       Create GPM CRTM sensor
 !
 ! CALLING SEQUENCE:
-!       call gpm_gmi_sensor_create( Atm )
+!       call GPM_CRTM_sensor_create( Atm )
 !
 ! OBJECTS:
 !       Atm:       Atmosphere structure which is to have its member's
@@ -271,9 +271,9 @@ contains
 !
 !:sdoc-:
 !--------------------------------------------------------------------------------
-! TODO: hide the constructor of gpm_gmi_sensor
+! TODO: hide the constructor of GPM_CRTM_sensor_type
 ! TODO: finish changing comments and documentation
-   subroutine gpm_gmi_sensor_create(gmi, sensor_id, cam_histfld_name,&
+   subroutine GPM_CRTM_sensor_create(gmi, sensor_id, cam_histfld_name,&
                 sensor_scan_angle, sensor_zenith_angle, channel_subset) 
    
    !--------------------------
@@ -281,7 +281,7 @@ contains
    !  Add a sensor and update n_sensors
    !
    !-------------------------
-      type(gpm_gmi_sensor), intent(out) :: gmi
+      type(GPM_CRTM_sensor_type), intent(out) :: gmi
       character(len=*), intent(in) :: sensor_id
       character(len=*), intent(in) :: cam_histfld_name
       real, intent(in) :: sensor_scan_angle
@@ -305,40 +305,40 @@ contains
          gmi%n_channels = -1
       end if
       
-   end subroutine gpm_gmi_sensor_create
+   end subroutine GPM_CRTM_sensor_create
 !======================================
 ! TODO: use xml file to store default sensor properties
 ! The current implementation hard-wired all the prpoerties
-   subroutine gpm_gmi_sensor_createdefault(gmi, sensorname)
+   subroutine GPM_CRTM_sensor_createdefault(gmi, sensorname)
 !-----------------------
 !
 ! create a default sensor
 !
 !-----------------------
-      type(gpm_gmi_sensor) :: gmi      
+      type(GPM_CRTM_sensor_type) :: gmi      
       character(len=*), intent(in) :: sensorname
       !--- local variable ---
       integer :: i
       !----------
       select case (sensorname)
          case ('gpm-gmi-lowfreq')
-            call gpm_gmi_sensor_create(gmi, 'gmi_gpm','GPM_GMI_LOWFREQ',52.8, 48.5,&
+            call GPM_CRTM_sensor_create(gmi, 'gmi_gpm','GPM_GMI_LOWFREQ',52.8, 48.5,&
                       channel_subset = (/(i,i=1,9)/)  )
          case ('gpm-gmi-highfreq')
-            call gpm_gmi_sensor_create(gmi, 'gmi_gpm','GPM_GMI_LOWFREQ',49.19, 45.36,&
+            call GPM_CRTM_sensor_create(gmi, 'gmi_gpm','GPM_GMI_LOWFREQ',49.19, 45.36,&
                       channel_subset = (/(i,i=10,13)/)  )
          case default
             print *, 'error: sensor not implemented in default list'
             stop
       end select
-   end subroutine gpm_gmi_sensor_createdefault
+   end subroutine GPM_CRTM_sensor_createdefault
 !============================================
 
 !----------------------------------
 !  clear information in sensor
 !----------------------------------
-   elemental subroutine gpm_gmi_sensor_clear(sensor)
-      type(gpm_gmi_sensor), intent(inout) :: sensor
+   elemental subroutine GPM_CRTM_sensor_clear(sensor)
+      type(GPM_CRTM_sensor_type), intent(inout) :: sensor
       !---------------
       sensor%sensor_id = ''
       sensor%cam_histfld_name = ''
@@ -350,6 +350,6 @@ contains
          sensor%l_channelsubset = .FALSE.
          sensor%n_channels = -1
 
-   end subroutine gpm_gmi_sensor_clear
+   end subroutine GPM_CRTM_sensor_clear
 
-end module gpm_gmi_sensor_mod
+end module GPM_CRTM_sensor_mod

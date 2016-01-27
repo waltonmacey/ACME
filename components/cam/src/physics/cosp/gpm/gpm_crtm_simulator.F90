@@ -8,13 +8,13 @@
 module gpm_crtm_simulator_mod
    use MOD_COSP_TYPES, only: cosp_gridbox
    use CRTM_Module, only: crtm_channelInfo_type, CRTM_ChannelInfo_n_Channels 
-   use gpm_gmi_crtm_mod, only: crtm_multiprof 
-   use gpm_crtm_result_mod, only: gpm_crtm_result, gpm_crtm_result_init, &
-                                  gpm_crtm_result_destroy, gpm_crtm_result_inquire, &
-                                  gpm_crtm_result_set
+   use GPM_CRTM_mod, only: crtm_multiprof 
+   use GPM_CRTM_result_mod, only: GPM_CRTM_result_type, GPM_CRTM_result_init, &
+                                  GPM_CRTM_result_destroy, GPM_CRTM_result_inquire, &
+                                  GPM_CRTM_result_set
    implicit none
    private
-   public:: gpm_crtm_simulator
+   public:: gpm_crtm_simulator_run
 
 
 contains
@@ -25,11 +25,11 @@ contains
 ! scattering results
 !
 !-----------------------
-   subroutine gpm_crtm_simulator(gbx,chinfo, y)
+   subroutine gpm_crtm_simulator_run(gbx,chinfo, y)
       ! Arguments
       type(cosp_gridbox), intent(in)  :: gbx
       type(CRTM_ChannelInfo_type), intent(in) :: chinfo(:) ! [n_sensors]
-      type(gpm_crtm_result), intent(out) :: y(:)  ! [n_sensors]
+      type(GPM_CRTM_result_type), intent(out) :: y(:)  ! [n_sensors]
       
       ! Parameters used for converting model variables to that used by crtm
       real, parameter :: eps    =  0.622
@@ -133,8 +133,8 @@ print *, '--------- debug gpm_crtm_simulator.F90 -------'
   do n=1, n_sensors
      n_channels = CRTM_ChannelInfo_n_Channels(chinfo(n))
      allocate(tbs(n_channels, n_profiles) )
-     call gpm_crtm_result_destroy(y(n))
-     call gpm_crtm_result_init(n_channels, n_profiles, y(n) )
+     call GPM_CRTM_result_destroy(y(n))
+     call GPM_CRTM_result_init(n_channels, n_profiles, y(n) )
 print *,"channel ", n, " has ", n_channels, " channels"
      call crtm_multiprof( &
       n_profiles,   & ! number of profiles
@@ -162,10 +162,10 @@ print *,"channel ", n, " has ", n_channels, " channels"
       day,          & ! model day of month
       tbs           & ! brightness temperature [output]
       )
-      call gpm_crtm_result_set(y(n), tbs)
+      call GPM_CRTM_result_set(y(n), tbs)
       deallocate(tbs)
   end do
-   end subroutine gpm_crtm_simulator
+   end subroutine gpm_crtm_simulator_run
 
 
 end module gpm_crtm_simulator_mod

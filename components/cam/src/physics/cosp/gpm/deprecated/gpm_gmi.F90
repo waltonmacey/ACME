@@ -8,7 +8,7 @@ module GPM_GMI_MOD
    ! Environment setup
    !------------------
    ! Module use
-   use gpm_gmi_sensor_mod, only: gpm_gmi_sensor
+   use GPM_CRTM_sensor_mod, only: gpm_CRTM_sensor_type
    use CRTM_Module!,    only: CRTM_ChannelInfo_type, CRTM_Geometry_type, &
                   !           CRTM_Options_type, CRTM_Atmosphere_type,   &
                   !           CRTM_Surface_type, CRTM_RTSolution_type,   &

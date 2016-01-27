@@ -5,9 +5,10 @@ CRTMLINKS       := -L$(HOME)/local/CRTM/lib -lCRTM -L/global/cscratch1/sd/yxl232
 CAMHISTLINKS :=  -I/global/cscratch1/sd/yxl232/acme_scratch/cosp_gpm.v0.1.2.test/bld/atm/obj -L/global/cscratch1/sd/yxl232/acme_scratch/cosp_gpm.v0.1.2.test/bld/lib -latm -L/global/cscratch1/sd/yxl232/acme_scratch/cosp_gpm.v0.1.2.test/bld/intel/mpt/debug/nothreads/lib -lpio 
 
 
-OBJS = gpm.o gpm_gmi.o gpm_gmi_sensor.o   \
-   			gpm_gmi_crtm.o gpm_crtm_simulator.o \
-				gpm_crtm_result.o  gpm_crtm_constants.o
+OBJS = gpm.o  gpm_crtm_sensor.o   \
+   			gpm_crtm.o gpm_crtm_simulator.o \
+				gpm_crtm_result.o  gpm_crtm_constants.o \
+				gpm_utility.o  gpmsimulator_intr.o
 
 gpm.exe : $(OBJS)
 	ftn $(OBJS) $(CAMHISTLINKS)  -o gpm.exe $(CRTMFLAGS) $(CRTMLINKS)  
@@ -15,12 +16,10 @@ gpm.exe : $(OBJS)
 %.o: %.F90
 	ftn $(CRTMFLAGS) $(CAMHISTLINKS) -c $<
 
-gpm.o : gpm.F90 gpm_gmi.o gpm_gmi_sensor.o gpm_gmi_crtm.o gpm_crtm_simulator.o
-gpm_gmi.o: gpm_gmi.F90 gpm_gmi_sensor.o
-cmparray_mod.o: cmparray_mod.F90
-gpm_gmi_sensor.o: gpm_crtm_constants.o
-gpm_gmi_crtm.o: gpm_gmi_crtm.F90
-gpm_crtm_simulator.o: gpm_crtm_result.o gpm_gmi_crtm.o
+gpm.o :  gpm_crtm_sensor.o gpm_crtm.o gpm_crtm_simulator.o gpm_utility.o gpmsimulator_intr.o
+#gpm_gmi.o:  gpm_gmi_sensor.o
+gpm_crtm_sensor.o: gpm_crtm_constants.o
+gpm_crtm_simulator.o: gpm_crtm_result.o gpm_crtm.o
 
 clean:
 	rm *.o *.mod gpm.exe

@@ -3,16 +3,16 @@
 ! Jan. 22, 2016 Created by Yinghui Lu
 ! Jan. 22, 2016: move code related to GPM Results here from
 !                gpm_crtm_simulator_mod
-module gpm_crtm_result_mod
+module GPM_CRTM_result_mod
    implicit none
    private
-   public:: gpm_crtm_result,          &
-            gpm_crtm_result_init,     &
-            gpm_crtm_result_destroy,  &
-            gpm_crtm_result_inquire,  &
-            gpm_crtm_result_set 
+   public:: GPM_CRTM_result_type,          &
+            GPM_CRTM_result_init,     &
+            GPM_CRTM_result_destroy,  &
+            GPM_CRTM_result_inquire,  &
+            GPM_CRTM_result_set 
    
-   type gpm_crtm_result
+   type GPM_CRTM_result_type
    !----------------------
    !
    !  output for GPM CRTM
@@ -23,7 +23,7 @@ module gpm_crtm_result_mod
       integer :: n_profiles = -1
       real, allocatable :: tbs(:,:) ! n_channels x n_profiles
 
-   end type gpm_crtm_result
+   end type GPM_CRTM_result_type
 
 contains
    
@@ -32,36 +32,36 @@ contains
 ! Initialize GPM result structure
 !
 !----------------------
-   subroutine gpm_crtm_result_init(n_channels, n_profiles, gpm)
+   subroutine GPM_CRTM_result_init(n_channels, n_profiles, gpm)
       integer, intent(in) :: n_channels
       integer, intent(in) :: n_profiles
-      type(gpm_crtm_result), intent(out) :: gpm
+      type(GPM_CRTM_result_type), intent(out) :: gpm
       gpm%n_channels = n_channels
       gpm%n_profiles = n_profiles
       allocate(gpm%tbs(n_channels, n_profiles ) )
-   end subroutine gpm_crtm_result_init
+   end subroutine GPM_CRTM_result_init
 !-----------------------
 !
 ! Destroy GPM CRTM result structure 
 !
 !----------------------
-   subroutine gpm_crtm_result_destroy(gpm)
-      type(gpm_crtm_result), intent(inout) :: gpm
+   subroutine GPM_CRTM_result_destroy(gpm)
+      type(GPM_CRTM_result_type), intent(inout) :: gpm
       gpm%n_channels = -1
       gpm%n_profiles = -1
       if(allocated(gpm%tbs) ) then
          deallocate(gpm%tbs)
       endif
-   end subroutine gpm_crtm_result_destroy
+   end subroutine GPM_CRTM_result_destroy
 
 !-----------------------
 !
-! Obtain information in gpm_crtm_result structure.
-! It is needed because the variables in gpm_crtm_result are private for safety
+! Obtain information in GPM_CRTM_result_type structure.
+! It is needed because the variables in GPM_CRTM_result_type are private for safety
 !
 !----------------------
-   subroutine gpm_crtm_result_inquire(gpm, n_channels, n_profiles, tb)
-      type(gpm_crtm_result), intent(in) :: gpm
+   subroutine GPM_CRTM_result_inquire(gpm, n_channels, n_profiles, tb)
+      type(GPM_CRTM_result_type), intent(in) :: gpm
       integer, intent(out), optional :: n_channels
       integer, intent(out), optional :: n_profiles
       real,    intent(out), optional :: tb(:,:)
@@ -74,16 +74,16 @@ contains
       if(present(tb)) then
          tb = gpm%tbs
       endif
-   end subroutine gpm_crtm_result_inquire
+   end subroutine GPM_CRTM_result_inquire
 
 !-----------------------
 !
-! Obtain information in gpm_crtm_result structure.
-! It is needed because the variables in gpm_crtm_result are private for safety
+! Obtain information in GPM_CRTM_result_type structure.
+! It is needed because the variables in GPM_CRTM_result_type are private for safety
 !
 !----------------------
-   subroutine gpm_crtm_result_set(gpm, tbs)
-      type(gpm_crtm_result), intent(inout) :: gpm
+   subroutine GPM_CRTM_result_set(gpm, tbs)
+      type(GPM_CRTM_result_type), intent(inout) :: gpm
       real, intent(in) :: tbs(:,:)
       ! check if the size is the same
       if ( (size(tbs,1) .NE. gpm%n_channels) .OR. (size(tbs,2) .NE. gpm%n_profiles) ) then
@@ -92,6 +92,6 @@ contains
       end if
 
       gpm%tbs = tbs
-   end subroutine gpm_crtm_result_set
+   end subroutine GPM_CRTM_result_set
 
-end module gpm_crtm_result_mod
+end module GPM_CRTM_result_mod

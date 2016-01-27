@@ -2,7 +2,7 @@
 ! This file mimics the cosp_rttov.F90 in COSP package
 !
 ! Jan. 13, 2016  Created by Yinghui Lu
-module gpm_gmi_crtm_mod
+module GPM_CRTM_mod
    use CRTM_Module
    use MOD_COSP_CONSTANTS, only: I_LSCLIQ, I_LSCICE, I_LSRAIN, I_LSSNOW, &
                                  I_CVCLIQ, I_CVCICE, I_CVRAIN, I_CVSNOW, &
@@ -228,4 +228,4 @@ contains
 
 
 
-end module gpm_gmi_crtm_mod
+end module GPM_CRTM_mod
