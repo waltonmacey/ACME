@@ -5,6 +5,9 @@ OPTION(ACME_BUILD "Flag to distinguish Cmake logic for full ACME build versus Un
 PROJECT(ACME Fortran C)
 FIND_PACKAGE(MPI)
 
+#AGS: needed this or ran into error in  gptl. Need logic?
+ADD_DEFINITIONS(-DHAVE_MPI)
+
 
 # Require installed NETCDF under ACME_NETCDF_DIR
 IF (NOT DEFINED ACME_NETCDF_DIR)
