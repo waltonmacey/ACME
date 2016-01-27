@@ -20,6 +20,17 @@ ELSE()
   MESSAGE(FATAL_ERROR "Can't find netcdf.mod under ${ACME_NETCDF_DIR}/include")
 ENDIF()
 
+# Require installed HDF5 under ACME_HDF5_DIR
+IF (NOT DEFINED ACME_HDF5_DIR)
+  MESSAGE(FATAL_ERROR "ACME_HDF5_DIR must be defined.")
+ENDIF()
+IF (EXISTS ${ACME_HDF5_DIR}/lib/libhdf5.a)
+  INCLUDE_DIRECTORIES(${ACME_HDF5_DIR}/include)
+  MESSAGE("-- Found libhdf5.a")
+ELSE()
+  MESSAGE(FATAL_ERROR "Can't find libhdf5.a under ${ACME_HDF5_DIR}/include")
+ENDIF()
+
 # Require installed PIO under ACME_PIO_DIR
 IF (NOT DEFINED ACME_PIO_DIR)
   MESSAGE(FATAL_ERROR "ACME_PIO_DIR must be defined.")
@@ -121,8 +132,8 @@ set (PIO_LIB ${ACME_PIO_DIR}/libpio.a)
 set (NETCDF_LIB ${ACME_NETCDF_DIR}/lib/libnetcdff.a
                 ${ACME_NETCDF_DIR}/lib/libnetcdf.a
                 ${ACME_NETCDF_DIR}/lib/libpnetcdf.a
-                /home/agsalin/install/hdf5-1.8.11/hdf5/lib/libhdf5_hl.a
-                /home/agsalin/install/hdf5-1.8.11/hdf5/lib/libhdf5.a
+                ${ACME_HDF5_DIR}/lib/libhdf5_hl.a
+                ${ACME_HDF5_DIR}/lib/libhdf5.a
                 z )
 
 message ("\nAGS: these are pio netcdf Libs : ${PIO_LIB} ${NETCDF_LIB}")

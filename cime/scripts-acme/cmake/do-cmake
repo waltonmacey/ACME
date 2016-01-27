@@ -4,6 +4,7 @@ rm -rf CMakeFiles
 
 ACMEDIR=/home/agsalin/ACME
 NETCDFDIR=$SEMS_NETCDF_ROOT
+HDF5DIR=$SEMS_HDF5_ROOT
 PIODIR=/home/agsalin/install/pio
 
 
@@ -14,6 +15,7 @@ cmake \
   -D CMAKE_Fortran_FLAGS=-ffree-line-length-none \
 \
   -D ACME_NETCDF_DIR=$NETCDFDIR \
+  -D ACME_HDF5_DIR=$HDF5DIR \
   -D ACME_PIO_DIR=$PIODIR \
 \
   $ACMEDIR
