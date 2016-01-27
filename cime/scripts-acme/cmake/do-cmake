@@ -3,7 +3,7 @@ rm CMakeCache.txt
 rm -rf CMakeFiles
 
 ACMEDIR=/home/agsalin/ACME
-NETCDFDIR=/home/agsalin/install/acme/install
+NETCDFDIR=$SEMS_NETCDF_ROOT
 PIODIR=/home/agsalin/install/pio
 
 
