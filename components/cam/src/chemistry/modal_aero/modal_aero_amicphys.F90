@@ -93,7 +93,7 @@
 #if ( defined MODAL_AERO_3MODE )
   integer, parameter :: max_gas = nsoa + 1
   integer, parameter :: max_aer = nsoa + npoa + nbc + 3
-#elif ( defined MODAL_AERO_4MODE )
+#elif (( defined MODAL_AERO_4MODE ) || ( defined MODAL_AERO_4MODE_MOM ))
   integer, parameter :: max_gas = nsoa + 1
   integer, parameter :: max_aer = nsoa + npoa + nbc + 3
 #elif ( ( defined MODAL_AERO_7MODE ) && ( defined MOSAIC_SPECIES ) )
@@ -110,7 +110,7 @@
   integer, parameter :: max_aer = nsoa + npoa + nbc + 4 + 5
 #endif
 
-#if ( defined MODAL_AERO_8MODE ) || ( defined MODAL_AERO_4MODE )
+#if (( defined MODAL_AERO_8MODE ) || ( defined MODAL_AERO_4MODE ) || ( defined MODAL_AERO_4MODE_MOM ))
   integer, parameter :: ntot_amode_extd = ntot_amode
 #else
   integer, parameter :: ntot_amode_extd = ntot_amode + 1
@@ -5108,9 +5108,7 @@ use modal_aero_data, only : &
     dgnum_amode, dgnumlo_amode, dgnumhi_amode, &
     lmassptr_amode, lmassptrcw_amode, &
     modeptr_accum, modeptr_aitken, modeptr_pcarbon, modeptr_ufine, &
-#if ( defined MODAL_AERO_9MODE )
     modeptr_maccum, modeptr_maitken, &
-#endif
     nspec_amode, &
     numptr_amode, numptrcw_amode, sigmag_amode
 
@@ -5747,7 +5745,7 @@ implicit none
 !
 !-----------------------------------------------------------------------
 
-use cam_history, only  :  addfld, add_default, fieldname_len, phys_decomp
+use cam_history, only  :  addfld, horiz_only, add_default, fieldname_len
 use cam_logfile, only  :  iulog
 use constituents, only :  pcnst, cnst_get_ind, cnst_name
 use spmd_utils, only   :  masterproc
@@ -5838,7 +5836,7 @@ implicit none
             fieldname = trim(tmpnamea) // '_sfgaex1'
             long_name = trim(tmpnamea) // ' gas-aerosol-exchange primary column tendency'
             unit = 'kg/m2/s'
-            call addfld( fieldname, unit, 1, 'A', long_name, phys_decomp )
+            call addfld( fieldname, horiz_only, 'A', unit, long_name )
             if ( history_aerosol ) call add_default( fieldname, 1, ' ' )
             if ( masterproc ) write(iulog,'(3(a,3x))') 'gasaerexch addfld', fieldname, unit
          end if
@@ -5855,7 +5853,7 @@ implicit none
          fieldname = trim(tmpnamea) // '_sfgaex3d'
          long_name = trim(tmpnamea) // ' gas-aerosol-exchange primary 3d tendency'
          unit = 'kg/m2/s'
-         call addfld( fieldname, unit, pver, 'A', long_name, phys_decomp )
+         call addfld( fieldname, (/ 'lev' /), 'A', unit, long_name )
          call add_default( fieldname, 1, ' ' )
          if ( masterproc ) write(iulog,'(3(a,3x),2i5)') &
             'gasaerexch addfld', fieldname, unit, igas, lmz+loffset
@@ -5898,7 +5896,7 @@ implicit none
             long_name = trim(tmpnamea) // ' gas-aerosol-exchange renaming column tendency'
             unit = 'kg/m2/s'
             if (tmpnamea(1:4) == 'num_' .or. tmpnamea(1:4) == 'NUM_') unit = '#/m2/s'
-            call addfld( fieldname, unit, 1, 'A', long_name, phys_decomp )
+            call addfld( fieldname, horiz_only, 'A', unit, long_name )
             if ( history_aerosol ) call add_default( fieldname, 1, ' ' )
             if ( masterproc ) write(iulog,'(3(a,3x))') 'gasaerexch addfld', fieldname, unit
          end if
@@ -5908,7 +5906,7 @@ implicit none
             long_name = trim(tmpnamea) // ' gas-aerosol-exchange renaming column tendency'
             unit = 'kg/m2/s'
             if (tmpnamea(1:4) == 'num_' .or. tmpnamea(1:4) == 'NUM_') unit = '#/m2/s'
-            call addfld( fieldname, unit, 1, 'A', long_name, phys_decomp )
+            call addfld( fieldname, horiz_only, 'A', unit, long_name )
             if ( history_aerosol ) call add_default( fieldname, 1, ' ' )
             if ( masterproc ) write(iulog,'(3(a,3x))') 'gasaerexch addfld', fieldname, unit
          end if
@@ -5953,7 +5951,7 @@ implicit none
             long_name = trim(tmpnamea) // ' modal_aero coagulation column tendency'
             unit = 'kg/m2/s'
             if (tmpnamea(1:4) == 'num_' .or. tmpnamea(1:4) == 'NUM_') unit = '#/m2/s'
-            call addfld( fieldname, unit, 1, 'A', long_name, phys_decomp )
+            call addfld( fieldname, horiz_only, 'A', unit, long_name )
             if ( history_aerosol ) call add_default( fieldname, 1, ' ' )
             if ( masterproc ) write(iulog,'(3(a,3x))') 'modal_aero_coag_init addfld', fieldname, unit
          end if
@@ -5986,7 +5984,7 @@ implicit none
             long_name = trim(tmpnamea) // ' modal_aero new particle nucleation column tendency'
             unit = 'kg/m2/s'
             if (tmpnamea(1:4) == 'num_' .or. tmpnamea(1:4) == 'NUM_') unit = '#/m2/s'
-            call addfld( fieldname, unit, 1, 'A', long_name, phys_decomp )
+            call addfld( fieldname, horiz_only, 'A', unit, long_name )
             if ( history_aerosol ) call add_default( fieldname, 1, ' ' )
             if ( masterproc ) write(iulog,'(3(a,3x))') 'modal_aero_newnuc_init addfld', fieldname, unit
          end if
@@ -5997,7 +5995,7 @@ implicit none
             fieldname = trim(tmpnamea) // '_nuc1'
             long_name = trim(tmpnamea) // ' modal_aero new particle nucleation tendency'
             unit = '#/m3/s'
-            call addfld( fieldname, unit, pver, 'A', long_name, phys_decomp )
+            call addfld( fieldname, (/ 'lev' /), 'A', unit, long_name )
             call add_default( fieldname, 1, ' ' )
             if ( masterproc ) write(iulog,'(3(a,2x))') &
                 'modal_aero_newnuc_init addfld', fieldname, unit
@@ -6005,7 +6003,7 @@ implicit none
             fieldname = trim(tmpnamea) // '_nuc2'
             long_name = trim(tmpnamea) // ' modal_aero cluster nucleation rate'
             unit = '#/m3/s'
-            call addfld( fieldname, unit, pver, 'A', long_name, phys_decomp )
+            call addfld( fieldname, (/ 'lev' /), 'A', unit, long_name )
             call add_default( fieldname, 1, ' ' )
             if ( masterproc ) write(iulog,'(3(a,2x))') &
                 'modal_aero_newnuc_init addfld', fieldname, unit
@@ -6015,8 +6013,8 @@ implicit none
 #if ( defined( MOSAIC_SPECIES ) )
       if ( mosaic ) then
          !BSINGH - Adding addfld and add_default call for tracking convergence failures
-         call addfld('convergence_fail', 'no units', pver, 'A', 'For tracking MOSAIC convergence failure', phys_decomp )
-         call addfld('max_kelvin_iter', 'no units', pver, 'A', 'For tracking when MOSAIC kelvin iterations hit max ', phys_decomp )
+         call addfld('convergence_fail', (/ 'lev' /), 'A', 'no units', 'For tracking MOSAIC convergence failure' )
+         call addfld('max_kelvin_iter', (/ 'lev' /), 'A', 'no units', 'For tracking when MOSAIC kelvin iterations hit max ' )
          call add_default( 'convergence_fail', 1, ' ' )
          call add_default( 'max_kelvin_iter', 1, ' ' )
 
@@ -6024,7 +6022,7 @@ implicit none
          do m = 1, 5
             fieldname = ' '
             write( fieldname(1:16), '(a,i1,a,i1)') 'astem_negval_', m, '_', n
-            call addfld( fieldname, 'no units', pver, 'A', 'For tracking ASTEM negative values', phys_decomp )
+            call addfld( fieldname, (/ 'lev' /), 'A', 'no units', 'For tracking ASTEM negative values' )
             call add_default( fieldname, 1, ' ' )
          end do
          end do

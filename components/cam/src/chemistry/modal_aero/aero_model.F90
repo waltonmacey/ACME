@@ -175,7 +175,7 @@ contains
   subroutine aero_model_init( pbuf2d, species_class, iflagaa )
 
     use mo_chem_utls,    only: get_inv_ndx
-    use cam_history,     only: addfld, add_default, phys_decomp
+    use cam_history,     only: addfld, horiz_only, add_default
     use phys_control,    only: phys_getopts
     use mo_chem_utls,    only: get_rxt_ndx, get_spc_ndx
     use modal_aero_data, only: cnst_name_cw, rain_evap_to_coarse_aero, mam_prevap_resusp_optaa
@@ -413,12 +413,12 @@ contains
        call inidrydep(rair, gravit)
 
        dummy = 'RAM1'
-       call addfld (dummy,'frac ',1, 'A','RAM1',phys_decomp)
+       call addfld (dummy,horiz_only, 'A','frac','RAM1')
        if ( history_aerosol ) then  
           call add_default (dummy, 1, ' ')
        endif
        dummy = 'airFV'
-       call addfld (dummy,'frac ',1, 'A','FV',phys_decomp)
+       call addfld (dummy,horiz_only, 'A','frac','FV')
        if ( history_aerosol ) then  
           call add_default (dummy, 1, ' ')
        endif
@@ -430,20 +430,20 @@ contains
 
        do m = 1, dust_nbin+dust_nnum
           dummy = trim(dust_names(m)) // 'SF'
-          call addfld (dummy,'kg/m2/s ',1, 'A',trim(dust_names(m))//' dust surface emission',phys_decomp)
+          call addfld (dummy,horiz_only, 'A','kg/m2/s',trim(dust_names(m))//' dust surface emission')
           if (history_aerosol) then
              call add_default (dummy, 1, ' ')
           endif
        enddo
 
        dummy = 'DSTSFMBL'
-       call addfld (dummy,'kg/m2/s',1, 'A','Mobilization flux at surface',phys_decomp)
+       call addfld (dummy,horiz_only, 'A','kg/m2/s','Mobilization flux at surface')
        if (history_aerosol) then
           call add_default (dummy, 1, ' ')
        endif
 
        dummy = 'LND_MBL'
-       call addfld (dummy,'frac ',1, 'A','Soil erodibility factor',phys_decomp)
+       call addfld (dummy,horiz_only, 'A','frac','Soil erodibility factor')
        if (history_aerosol) then
           call add_default (dummy, 1, ' ')
        endif
@@ -453,18 +453,32 @@ contains
     if (seasalt_active) then
        
        dummy = 'SSTSFMBL'
-       call addfld (dummy,'kg/m2/s',1, 'A','Mobilization flux at surface',phys_decomp)
+       call addfld (dummy,horiz_only, 'A','kg/m2/s','Mobilization flux at surface')
        if (history_aerosol) then
           call add_default (dummy, 1, ' ')
        endif
 
        do m = 1, seasalt_nbin
           dummy = trim(seasalt_names(m)) // 'SF'
-          call addfld (dummy,'kg/m2/s ',1, 'A',trim(seasalt_names(m))//' seasalt surface emission',phys_decomp)
+          call addfld (dummy,horiz_only, 'A','kg/m2/s',trim(seasalt_names(m))//' seasalt surface emission')
           if (history_aerosol) then
              call add_default (dummy, 1, ' ')
           endif
        enddo
+
+#if (defined MODAL_AERO_9MODE || MODAL_AERO_4MODE_MOM)
+       dummy = 'SSTSFMBL_OM'
+       call addfld (dummy,horiz_only, 'A','kg/m2/s','Mobilization flux of marine organic matter at surface')
+       if (history_aerosol) then
+          call add_default (dummy, 1, ' ')
+       endif
+
+       dummy = 'F_eff'
+       call addfld (dummy,horiz_only, 'A','1','Effective enrichment factor of marine organic matter')
+       if (history_aerosol) then
+          call add_default (dummy, 1, ' ')
+       endif
+#endif
 
     endif
 
@@ -499,16 +513,16 @@ contains
           unit_basename = 'kg'  
        endif
 
-       call addfld (trim(drydep_list(m))//'DDF',unit_basename//'/m2/s ',   1, 'A', &
-            trim(drydep_list(m))//' dry deposition flux at bottom (grav + turb)',phys_decomp)
-       call addfld (trim(drydep_list(m))//'TBF',unit_basename//'/m2/s',   1, 'A', &
-            trim(drydep_list(m))//' turbulent dry deposition flux',phys_decomp)
-       call addfld (trim(drydep_list(m))//'GVF',unit_basename//'/m2/s ',   1, 'A', &
-            trim(drydep_list(m))//' gravitational dry deposition flux',phys_decomp)
-       call addfld (trim(drydep_list(m))//'DTQ',unit_basename//'/kg/s ',pver, 'A', &
-            trim(drydep_list(m))//' dry deposition',phys_decomp)
-       call addfld (trim(drydep_list(m))//'DDV','m/s     ',pver, 'A', &
-            trim(drydep_list(m))//' deposition velocity',phys_decomp)
+       call addfld (trim(drydep_list(m))//'DDF',   horiz_only, 'A',unit_basename//'/m2/s ', &
+            trim(drydep_list(m))//' dry deposition flux at bottom (grav + turb)')
+       call addfld (trim(drydep_list(m))//'TBF',   horiz_only, 'A',unit_basename//'/m2/s', &
+            trim(drydep_list(m))//' turbulent dry deposition flux')
+       call addfld (trim(drydep_list(m))//'GVF',   horiz_only, 'A',unit_basename//'/m2/s ', &
+            trim(drydep_list(m))//' gravitational dry deposition flux')
+       call addfld (trim(drydep_list(m))//'DTQ',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
+            trim(drydep_list(m))//' dry deposition')
+       call addfld (trim(drydep_list(m))//'DDV',(/ 'lev' /), 'A','m/s', &
+            trim(drydep_list(m))//' deposition velocity')
 
        if ( history_aerosol ) then 
           call add_default (trim(drydep_list(m))//'DDF', 1, ' ')
@@ -528,43 +542,43 @@ contains
           unit_basename = 'kg'  
        endif
 
-       call addfld (trim(wetdep_list(m))//'SFWET',unit_basename//'/m2/s ', &
-            1,  'A','Wet deposition flux at surface',phys_decomp)
-       call addfld (trim(wetdep_list(m))//'SFSIC',unit_basename//'/m2/s ', &
-            1,  'A','Wet deposition flux (incloud, convective) at surface',phys_decomp)
-       call addfld (trim(wetdep_list(m))//'SFSIS',unit_basename//'/m2/s ', &
-            1,  'A','Wet deposition flux (incloud, stratiform) at surface',phys_decomp)
-       call addfld (trim(wetdep_list(m))//'SFSBC',unit_basename//'/m2/s ', &
-            1,  'A','Wet deposition flux (belowcloud, convective) at surface',phys_decomp)
-       call addfld (trim(wetdep_list(m))//'SFSBS',unit_basename//'/m2/s ', &
-            1,  'A','Wet deposition flux (belowcloud, stratiform) at surface',phys_decomp)
+       call addfld (trim(wetdep_list(m))//'SFWET', &
+            horiz_only,  'A',unit_basename//'/m2/s ','Wet deposition flux at surface')
+       call addfld (trim(wetdep_list(m))//'SFSIC', &
+            horiz_only,  'A',unit_basename//'/m2/s ','Wet deposition flux (incloud, convective) at surface')
+       call addfld (trim(wetdep_list(m))//'SFSIS', &
+            horiz_only,  'A',unit_basename//'/m2/s ','Wet deposition flux (incloud, stratiform) at surface')
+       call addfld (trim(wetdep_list(m))//'SFSBC', &
+            horiz_only,  'A',unit_basename//'/m2/s ','Wet deposition flux (belowcloud, convective) at surface')
+       call addfld (trim(wetdep_list(m))//'SFSBS', &
+            horiz_only,  'A',unit_basename//'/m2/s ','Wet deposition flux (belowcloud, stratiform) at surface')
 
        if ( history_aero_prevap_resusp ) then
-          call addfld (trim(wetdep_list(m))//'SFSEC','kg/m2/s ', &
-               1,  'A','Wet deposition flux (precip evap, convective) at surface',phys_decomp)  !RCE
-          call addfld (trim(wetdep_list(m))//'SFSES','kg/m2/s ', &
-               1,  'A','Wet deposition flux (precip evap, stratiform) at surface',phys_decomp)  !RCE
+          call addfld (trim(wetdep_list(m))//'SFSEC', &
+               horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, convective) at surface')  !RCE
+          call addfld (trim(wetdep_list(m))//'SFSES', &
+               horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, stratiform) at surface')  !RCE
           if (convproc_do_aer .and. deepconv_wetdep_history) then
-          call addfld (trim(wetdep_list(m))//'SFSED','kg/m2/s ', &
-               1,  'A','Wet deposition flux (precip evap, deep convective) at surface',phys_decomp)  !RCE
+          call addfld (trim(wetdep_list(m))//'SFSED', &
+               horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, deep convective) at surface')  !RCE
           endif
        endif
        if (convproc_do_aer .and. deepconv_wetdep_history) then
-          call addfld (trim(wetdep_list(m))//'SFSID','kg/m2/s ', &
-               1,  'A','Wet deposition flux (incloud, deep convective) at surface',phys_decomp)  !RCE
-          call addfld (trim(wetdep_list(m))//'SFSBD','kg/m2/s ', &
-               1,  'A','Wet deposition flux (belowcloud, deep convective) at surface',phys_decomp)  !RCE
+                    call addfld (trim(wetdep_list(m))//'SFSID', &
+               horiz_only,  'A','kg/m2/s','Wet deposition flux (incloud, deep convective) at surface')  !RCE
+          call addfld (trim(wetdep_list(m))//'SFSBD', &
+               horiz_only,  'A','kg/m2/s','Wet deposition flux (belowcloud, deep convective) at surface')  !RCE
        endif
 
-       call addfld (trim(wetdep_list(m))//'WET',unit_basename//'/kg/s ',pver, 'A','wet deposition tendency',phys_decomp)
-       call addfld (trim(wetdep_list(m))//'SIC',unit_basename//'/kg/s ',pver, 'A', &
-            trim(wetdep_list(m))//' ic wet deposition',phys_decomp)
-       call addfld (trim(wetdep_list(m))//'SIS',unit_basename//'/kg/s ',pver, 'A', &
-            trim(wetdep_list(m))//' is wet deposition',phys_decomp)
-       call addfld (trim(wetdep_list(m))//'SBC',unit_basename//'/kg/s ',pver, 'A', &
-            trim(wetdep_list(m))//' bc wet deposition',phys_decomp)
-       call addfld (trim(wetdep_list(m))//'SBS',unit_basename//'/kg/s ',pver, 'A', &
-            trim(wetdep_list(m))//' bs wet deposition',phys_decomp)
+       call addfld (trim(wetdep_list(m))//'WET',(/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency')
+       call addfld (trim(wetdep_list(m))//'SIC',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
+            trim(wetdep_list(m))//' ic wet deposition')
+       call addfld (trim(wetdep_list(m))//'SIS',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
+            trim(wetdep_list(m))//' is wet deposition')
+       call addfld (trim(wetdep_list(m))//'SBC',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
+            trim(wetdep_list(m))//' bc wet deposition')
+       call addfld (trim(wetdep_list(m))//'SBS',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
+            trim(wetdep_list(m))//' bs wet deposition')
        
        if ( history_aerosol ) then          
           call add_default (trim(wetdep_list(m))//'SFWET', 1, ' ')
@@ -588,10 +602,10 @@ contains
           unit_basename = 'kg'  ! Units 'kg' or '1' 
        end if
 
-       call addfld( 'GS_'//trim(solsym(m)), unit_basename//'/m2/s ',1,  'A', &
-                    trim(solsym(m))//' gas chemistry/wet removal (for gas species)', phys_decomp)
-       call addfld( 'AQ_'//trim(solsym(m)), unit_basename//'/m2/s ',1,  'A', &
-                    trim(solsym(m))//' aqueous chemistry (for gas species)', phys_decomp)
+       call addfld( 'GS_'//trim(solsym(m)),horiz_only,  'A', unit_basename//'/m2/s ', &
+                    trim(solsym(m))//' gas chemistry/wet removal (for gas species)')
+       call addfld( 'AQ_'//trim(solsym(m)),horiz_only,  'A', unit_basename//'/m2/s ', &
+                    trim(solsym(m))//' aqueous chemistry (for gas species)')
        if ( history_aerosol ) then 
           call add_default( 'GS_'//trim(solsym(m)), 1, ' ')
           call add_default( 'AQ_'//trim(solsym(m)), 1, ' ')
@@ -602,10 +616,10 @@ contains
        if( nspc > 0 ) then                                      ! REASTER 08/04/2015
         if ( .not. cnst_name_cw(nspc) == ' ') then              ! REASTER 08/04/2015
           if ( history_aero_prevap_resusp ) then
-             call addfld (trim(cnst_name_cw(nspc))//'SFSEC','kg/m2/s ',1,  'A', &
-                  trim(cnst_name_cw(nspc))//' wet deposition flux (precip evap, convective) at surface',phys_decomp)  !RCE
-             call addfld (trim(cnst_name_cw(nspc))//'SFSES','kg/m2/s ',1,  'A', &
-                  trim(cnst_name_cw(nspc))//' wet deposition flux (precip evap, stratiform) at surface',phys_decomp)  !RCE             
+             call addfld (trim(cnst_name_cw(nspc))//'SFSEC',horiz_only,  'A','kg/m2/s', &
+                  trim(cnst_name_cw(nspc))//' wet deposition flux (precip evap, convective) at surface')  !RCE
+             call addfld (trim(cnst_name_cw(nspc))//'SFSES',horiz_only,  'A','kg/m2/s', &
+                  trim(cnst_name_cw(nspc))//' wet deposition flux (precip evap, stratiform) at surface')  !RCE             
              if(history_aerosol) then
                 call add_default (trim(cnst_name_cw(nspc))//'SFSEC', 1, ' ')  !RCE
                 call add_default (trim(cnst_name_cw(nspc))//'SFSES', 1, ' ')  !RCE
@@ -625,24 +639,24 @@ contains
              unit_basename = 'kg'  
           endif
 
-          call addfld( cnst_name_cw(n),                unit_basename//'/kg ', pver, 'A', &
-               trim(cnst_name_cw(n))//' in cloud water',phys_decomp)
-          call addfld (trim(cnst_name_cw(n))//'SFWET', unit_basename//'/m2/s ',1,  'A', &
-               trim(cnst_name_cw(n))//' wet deposition flux at surface',phys_decomp)
-          call addfld (trim(cnst_name_cw(n))//'SFSIC', unit_basename//'/m2/s ',1,  'A', &
-               trim(cnst_name_cw(n))//' wet deposition flux (incloud, convective) at surface',phys_decomp)
-          call addfld (trim(cnst_name_cw(n))//'SFSIS', unit_basename//'/m2/s ',1,  'A', &
-               trim(cnst_name_cw(n))//' wet deposition flux (incloud, stratiform) at surface',phys_decomp)
-          call addfld (trim(cnst_name_cw(n))//'SFSBC', unit_basename//'/m2/s ',1,  'A', &
-               trim(cnst_name_cw(n))//' wet deposition flux (belowcloud, convective) at surface',phys_decomp)
-          call addfld (trim(cnst_name_cw(n))//'SFSBS', unit_basename//'/m2/s ',1,  'A', &
-               trim(cnst_name_cw(n))//' wet deposition flux (belowcloud, stratiform) at surface',phys_decomp)
-          call addfld (trim(cnst_name_cw(n))//'DDF',   unit_basename//'/m2/s ',   1, 'A', &
-               trim(cnst_name_cw(n))//' dry deposition flux at bottom (grav + turb)',phys_decomp)
-          call addfld (trim(cnst_name_cw(n))//'TBF',   unit_basename//'/m2/s ',   1, 'A', &
-               trim(cnst_name_cw(n))//' turbulent dry deposition flux',phys_decomp)
-          call addfld (trim(cnst_name_cw(n))//'GVF',   unit_basename//'/m2/s ',   1, 'A', &
-               trim(cnst_name_cw(n))//' gravitational dry deposition flux',phys_decomp)     
+          call addfld( cnst_name_cw(n), (/ 'lev' /), 'A',                unit_basename//'/kg ', &
+               trim(cnst_name_cw(n))//' in cloud water')
+          call addfld (trim(cnst_name_cw(n))//'SFWET',horiz_only,  'A', unit_basename//'/m2/s ', &
+               trim(cnst_name_cw(n))//' wet deposition flux at surface')
+          call addfld (trim(cnst_name_cw(n))//'SFSIC',horiz_only,  'A', unit_basename//'/m2/s ', &
+               trim(cnst_name_cw(n))//' wet deposition flux (incloud, convective) at surface')
+          call addfld (trim(cnst_name_cw(n))//'SFSIS',horiz_only,  'A', unit_basename//'/m2/s ', &
+               trim(cnst_name_cw(n))//' wet deposition flux (incloud, stratiform) at surface')
+          call addfld (trim(cnst_name_cw(n))//'SFSBC',horiz_only,  'A', unit_basename//'/m2/s ', &
+               trim(cnst_name_cw(n))//' wet deposition flux (belowcloud, convective) at surface')
+          call addfld (trim(cnst_name_cw(n))//'SFSBS',horiz_only,  'A', unit_basename//'/m2/s ', &
+               trim(cnst_name_cw(n))//' wet deposition flux (belowcloud, stratiform) at surface')
+          call addfld (trim(cnst_name_cw(n))//'DDF',   horiz_only, 'A',   unit_basename//'/m2/s ', &
+               trim(cnst_name_cw(n))//' dry deposition flux at bottom (grav + turb)')
+          call addfld (trim(cnst_name_cw(n))//'TBF',   horiz_only, 'A',   unit_basename//'/m2/s ', &
+               trim(cnst_name_cw(n))//' turbulent dry deposition flux')
+          call addfld (trim(cnst_name_cw(n))//'GVF',   horiz_only, 'A',   unit_basename//'/m2/s ', &
+               trim(cnst_name_cw(n))//' gravitational dry deposition flux')     
 
           if ( history_aerosol ) then 
              call add_default( cnst_name_cw(n), 1, ' ' )
@@ -661,7 +675,7 @@ contains
     do n=1,ntot_amode
        dgnum_name(n) = ' '
        write(dgnum_name(n),fmt='(a,i1)') 'dgnumwet',n
-       call addfld( dgnum_name(n), 'm', pver, 'I', 'Aerosol mode wet diameter', phys_decomp )
+       call addfld( dgnum_name(n), (/ 'lev' /), 'I', 'm', 'Aerosol mode wet diameter' )
        if ( history_aerosol ) then 
           call add_default( dgnum_name(n), 1, ' ' )
        endif
@@ -722,8 +736,80 @@ contains
     index_tot_mass(3,3) = get_spc_ndx('so4_a3')
     index_chm_mass(3,1) = get_spc_ndx('so4_a3')
     !
-#endif
-#if ( defined MODAL_AERO_7MODE )
+#elif ( defined MODAL_AERO_4MODE_MOM )
+    !
+    ! accumulation mode #1
+    !
+    index_tot_mass(1,1) = get_spc_ndx('so4_a1')
+    index_tot_mass(1,2) = get_spc_ndx('pom_a1')
+    index_tot_mass(1,3) = get_spc_ndx('soa_a1')
+    index_tot_mass(1,4) = get_spc_ndx('bc_a1' )
+    index_tot_mass(1,5) = get_spc_ndx('dst_a1')
+    index_tot_mass(1,6) = get_spc_ndx('ncl_a1')
+    index_tot_mass(1,7) = get_spc_ndx('mom_a1')
+    index_chm_mass(1,1) = get_spc_ndx('so4_a1')
+    index_chm_mass(1,2) = get_spc_ndx('soa_a1')
+    index_chm_mass(1,3) = get_spc_ndx('bc_a1' )
+    !
+    ! aitken mode
+    !
+    index_tot_mass(2,1) = get_spc_ndx('so4_a2')
+    index_tot_mass(2,2) = get_spc_ndx('soa_a2')
+    index_tot_mass(2,3) = get_spc_ndx('ncl_a2')
+    index_tot_mass(2,4) = get_spc_ndx('mom_a2')
+    index_chm_mass(2,1) = get_spc_ndx('so4_a2')
+    index_chm_mass(2,2) = get_spc_ndx('soa_a2')
+    !
+    ! coarse mode
+    !
+    index_tot_mass(3,1) = get_spc_ndx('dst_a3')
+    index_tot_mass(3,2) = get_spc_ndx('ncl_a3')
+    index_tot_mass(3,3) = get_spc_ndx('so4_a3')
+    index_chm_mass(3,1) = get_spc_ndx('so4_a3')
+    !
+    ! POM mode
+    !
+    index_tot_mass(4,1) = get_spc_ndx('pom_a4')
+    index_tot_mass(4,2) = get_spc_ndx('bc_a4')
+    index_tot_mass(4,3) = get_spc_ndx('mom_a4')
+    index_chm_mass(4,1) = get_spc_ndx('bc_a1' )
+    !
+#elif ( defined MODAL_AERO_4MODE )
+    !
+    ! accumulation mode #1
+    !
+    index_tot_mass(1,1) = get_spc_ndx('so4_a1')
+    index_tot_mass(1,2) = get_spc_ndx('pom_a1')
+    index_tot_mass(1,3) = get_spc_ndx('soa_a1')
+    index_tot_mass(1,4) = get_spc_ndx('bc_a1' )
+    index_tot_mass(1,5) = get_spc_ndx('dst_a1')
+    index_tot_mass(1,6) = get_spc_ndx('ncl_a1')
+    index_chm_mass(1,1) = get_spc_ndx('so4_a1')
+    index_chm_mass(1,2) = get_spc_ndx('soa_a1')
+    index_chm_mass(1,3) = get_spc_ndx('bc_a1' )
+    !
+    ! aitken mode
+    !
+    index_tot_mass(2,1) = get_spc_ndx('so4_a2')
+    index_tot_mass(2,2) = get_spc_ndx('soa_a2')
+    index_tot_mass(2,3) = get_spc_ndx('ncl_a2')
+    index_chm_mass(2,1) = get_spc_ndx('so4_a2')
+    index_chm_mass(2,2) = get_spc_ndx('soa_a2')
+    !
+    ! coarse mode
+    !
+    index_tot_mass(3,1) = get_spc_ndx('dst_a3')
+    index_tot_mass(3,2) = get_spc_ndx('ncl_a3')
+    index_tot_mass(3,3) = get_spc_ndx('so4_a3')
+    index_chm_mass(3,1) = get_spc_ndx('so4_a3')
+    !
+    ! POM mode
+    !
+    index_tot_mass(4,1) = get_spc_ndx('pom_a4')
+    index_tot_mass(4,2) = get_spc_ndx('bc_a4')
+    index_chm_mass(4,1) = get_spc_ndx('bc_a1' )
+    !
+#elif ( defined MODAL_AERO_7MODE )
     !
     ! accumulation mode #1
     !
@@ -781,6 +867,86 @@ contains
     index_tot_mass(7,3) = get_spc_ndx('dst_a7')
     index_chm_mass(7,1) = get_spc_ndx('so4_a7')
     index_chm_mass(7,2) = get_spc_ndx('nh4_a7')
+    !
+#elif ( defined MODAL_AERO_9MODE )
+    !
+    ! accumulation mode #1
+    !
+    index_tot_mass(1,1) = get_spc_ndx('so4_a1')
+    index_tot_mass(1,2) = get_spc_ndx('nh4_a1')
+    index_tot_mass(1,3) = get_spc_ndx('pom_a1')
+    index_tot_mass(1,4) = get_spc_ndx('soa_a1')
+    index_tot_mass(1,5) = get_spc_ndx('bc_a1' )
+    index_tot_mass(1,6) = get_spc_ndx('ncl_a1')
+    index_tot_mass(1,7) = get_spc_ndx('mpoly_a1')
+    index_tot_mass(1,8) = get_spc_ndx('mprot_a1')
+    index_tot_mass(1,9) = get_spc_ndx('mlip_a1')
+    index_chm_mass(1,1) = get_spc_ndx('so4_a1')
+    index_chm_mass(1,2) = get_spc_ndx('nh4_a1')
+    index_chm_mass(1,3) = get_spc_ndx('soa_a1')
+    index_chm_mass(1,4) = get_spc_ndx('bc_a1' )
+    !
+    ! aitken mode
+    !
+    index_tot_mass(2,1) = get_spc_ndx('so4_a2')
+    index_tot_mass(2,2) = get_spc_ndx('nh4_a2')
+    index_tot_mass(2,3) = get_spc_ndx('soa_a2')
+    index_tot_mass(2,4) = get_spc_ndx('ncl_a2')
+    index_tot_mass(2,5) = get_spc_ndx('mpoly_a2')
+    index_tot_mass(2,6) = get_spc_ndx('mprot_a2')
+    index_tot_mass(2,7) = get_spc_ndx('mlip_a2')
+    index_chm_mass(2,1) = get_spc_ndx('so4_a2')
+    index_chm_mass(2,2) = get_spc_ndx('nh4_a2')
+    index_chm_mass(2,3) = get_spc_ndx('soa_a2')
+    !
+    ! primary carbon mode not added 
+    !
+    ! fine sea salt 
+    !
+    index_tot_mass(4,1) = get_spc_ndx('so4_a4')
+    index_tot_mass(4,2) = get_spc_ndx('nh4_a4')
+    index_tot_mass(4,3) = get_spc_ndx('ncl_a4')
+    index_tot_mass(4,4) = get_spc_ndx('mpoly_a4')
+    index_tot_mass(4,5) = get_spc_ndx('mprot_a4')
+    index_tot_mass(4,6) = get_spc_ndx('mlip_a4')
+    index_chm_mass(4,1) = get_spc_ndx('so4_a4')
+    index_chm_mass(4,2) = get_spc_ndx('nh4_a4')
+    !
+    ! fine soil dust 
+    !
+    index_tot_mass(5,1) = get_spc_ndx('so4_a5')
+    index_tot_mass(5,2) = get_spc_ndx('nh4_a5')
+    index_tot_mass(5,3) = get_spc_ndx('dst_a5')
+    index_chm_mass(5,1) = get_spc_ndx('so4_a5')
+    index_chm_mass(5,2) = get_spc_ndx('nh4_a5')
+    !
+    ! coarse sea salt 
+    !
+    index_tot_mass(6,1) = get_spc_ndx('so4_a6')
+    index_tot_mass(6,2) = get_spc_ndx('nh4_a6')
+    index_tot_mass(6,3) = get_spc_ndx('ncl_a6')
+    index_chm_mass(6,1) = get_spc_ndx('so4_a6')
+    index_chm_mass(6,2) = get_spc_ndx('nh4_a6')
+    !
+    ! coarse soil dust 
+    !
+    index_tot_mass(7,1) = get_spc_ndx('so4_a7')
+    index_tot_mass(7,2) = get_spc_ndx('nh4_a7')
+    index_tot_mass(7,3) = get_spc_ndx('dst_a7')
+    index_chm_mass(7,1) = get_spc_ndx('so4_a7')
+    index_chm_mass(7,2) = get_spc_ndx('nh4_a7')
+    !
+    ! marine organics - accumulation marine
+    !
+    index_tot_mass(8,1) = get_spc_ndx('mpoly_a8')
+    index_tot_mass(8,2) = get_spc_ndx('mprot_a8')
+    index_tot_mass(8,3) = get_spc_ndx('mlip_a8')
+    !
+    ! marine organics - Aitken marine
+    !
+    index_tot_mass(9,1) = get_spc_ndx('mpoly_a9')
+    index_tot_mass(9,2) = get_spc_ndx('mprot_a9')
+    index_tot_mass(9,3) = get_spc_ndx('mlip_a9')
     !
 #endif
 
@@ -1108,10 +1274,10 @@ contains
 
     if ( mam_prevap_resusp_optaa == 30 ) then
 
-#if ( defined MODAL_AERO_3MODE ) || ( defined MODAL_AERO_4MODE )
+#if ( defined MODAL_AERO_3MODE ) || ( defined MODAL_AERO_4MODE ) || ( defined MODAL_AERO_4MODE_MOM )
        ntoo = modeptr_coarse
 #else
-       call endrun( 'modal_aero_wetscav_init: new resuspension not implemented for 7-mode')
+       call endrun( 'modal_aero_wetscav_init: new resuspension not implemented for 7-mode or 9-mode MAM.')
 #endif
 
        do n = 1, ntot_amode   ! loop over aerosol modes that was wet-removed
@@ -2415,7 +2581,8 @@ do_lphase2_conditional: &
   !=============================================================================
   !=============================================================================
   subroutine aero_model_emissions( state, cam_in )
-    use seasalt_model, only: seasalt_emis, seasalt_names, seasalt_indices, seasalt_active,seasalt_nbin
+    use seasalt_model, only: seasalt_emis, seasalt_names, seasalt_indices, seasalt_active,seasalt_nbin, &
+         has_mam_mom, F_eff_out, nslt_om
     use dust_model,    only: dust_emis, dust_names, dust_indices, dust_active,dust_nbin, dust_nnum
     use physics_types, only: physics_state
 
@@ -2431,6 +2598,9 @@ do_lphase2_conditional: &
     real(r8) :: soil_erod_tmp(pcols)
     real(r8) :: sflx(pcols)   ! accumulate over all bins for output
     real(r8) :: u10cubed(pcols)
+    real(r8) :: u10(pcols)               ! Needed in Gantt et al. calculation of organic mass fraction
+    real(r8) :: F_eff(pcols) ! optional diagnostic output -- organic enrichment ratio
+
     real (r8), parameter :: z0=0.0001_r8  ! m roughness length over oceans--from ocean model
 
     lchnk = state%lchnk
@@ -2452,25 +2622,45 @@ do_lphase2_conditional: &
     endif
 
     if (seasalt_active) then
-       u10cubed(:ncol)=sqrt(state%u(:ncol,pver)**2+state%v(:ncol,pver)**2)
+       u10(:ncol)=sqrt(state%u(:ncol,pver)**2+state%v(:ncol,pver)**2)
        ! move the winds to 10m high from the midpoint of the gridbox:
        ! follows Tie and Seinfeld and Pandis, p.859 with math.
 
-       u10cubed(:ncol)=u10cubed(:ncol)*log(10._r8/z0)/log(state%zm(:ncol,pver)/z0)
+       u10cubed(:ncol)=u10(:ncol)*log(10._r8/z0)/log(state%zm(:ncol,pver)/z0)
 
        ! we need them to the 3.41 power, according to Gong et al., 1997:
        u10cubed(:ncol)=u10cubed(:ncol)**3.41_r8
 
        sflx(:)=0._r8
+       F_eff(:)=0._r8
 
-       call seasalt_emis( u10cubed, cam_in%sst, cam_in%ocnfrac, ncol, cam_in%cflx, seasalt_emis_scale )
+       call seasalt_emis(u10, u10cubed, lchnk, cam_in%sst, cam_in%ocnfrac, ncol, cam_in%cflx, seasalt_emis_scale, F_eff)
 
-       do m=1,seasalt_nbin
+       ! Write out salt mass fluxes to history files
+       do m=1,seasalt_nbin-nslt_om
           mm = seasalt_indices(m)
           sflx(:ncol)=sflx(:ncol)+cam_in%cflx(:ncol,mm)
           call outfld(trim(seasalt_names(m))//'SF',cam_in%cflx(:,mm),pcols,lchnk)
        enddo
+       ! accumulated flux
        call outfld('SSTSFMBL',sflx(:),pcols,lchnk)
+
+       ! Write out marine organic mass fluxes to history files
+       if ( has_mam_mom ) then
+          sflx(:)=0._r8
+          do m=seasalt_nbin-nslt_om+1,seasalt_nbin
+             mm = seasalt_indices(m)
+             sflx(:ncol)=sflx(:ncol)+cam_in%cflx(:ncol,mm)
+             call outfld(trim(seasalt_names(m))//'SF',cam_in%cflx(:,mm),pcols,lchnk)
+          end do
+          ! accumulated flux
+          call outfld('SSTSFMBL_OM',sflx(:),pcols,lchnk)
+
+          if ( F_eff_out ) then
+             call outfld('F_eff',F_eff(:),pcols,lchnk)
+          endif
+       end if
+
     endif
 
   end subroutine aero_model_emissions

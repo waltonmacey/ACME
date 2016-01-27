@@ -25,7 +25,7 @@
 ! !PUBLIC DATA MEMBERS:
   integer, parameter :: pcnstxx = gas_pcnst
 
-#if ( defined MODAL_AERO_7MODE || defined MODAL_AERO_4MODE )
+#if ( defined MODAL_AERO_9MODE || defined MODAL_AERO_7MODE || defined MODAL_AERO_4MODE || defined MODAL_AERO_4MODE_MOM )
   integer, parameter, public :: pair_option_acoag = 3
 #elif ( defined MODAL_AERO_3MODE )
   integer, parameter, public :: pair_option_acoag = 1
@@ -760,8 +760,8 @@ main_ipair2: do ipair = 1, npair_acoag
 	use modal_aero_gasaerexch, only:  &
 		modefrm_pcage, nspecfrm_pcage, lspecfrm_pcage, lspectoo_pcage
 
-	use cam_abortutils,  only: endrun
-	use cam_history,     only: addfld, add_default, fieldname_len, phys_decomp
+	use cam_abortutils,      only: endrun
+	use cam_history,     only: addfld, horiz_only, add_default, fieldname_len
 	use constituents,    only: pcnst, cnst_name
 	use spmd_utils,      only: masterproc
         use phys_control,    only: phys_getopts
@@ -980,7 +980,7 @@ aa_iqfrm: do iqfrm = 1, nspec_amode(mfrm)
 	    end do
 	    fieldname = trim(tmpname) // '_sfcoag1'
 	    long_name = trim(tmpname) // ' modal_aero coagulation column tendency'
-	    call addfld( fieldname, unit, 1, 'A', long_name, phys_decomp )
+	    call addfld( fieldname, horiz_only, 'A', unit, long_name )
             if ( history_aerosol ) then 
                call add_default( fieldname, 1, ' ' )
 	    endif
