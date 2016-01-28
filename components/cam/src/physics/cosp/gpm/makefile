@@ -20,7 +20,7 @@ gpm.o :  gpm_crtm_sensor.o gpm_crtm.o gpm_crtm_simulator.o gpm_utility.o gpmsimu
 #gpm_gmi.o:  gpm_gmi_sensor.o
 gpm_crtm_sensor.o: gpm_crtm_constants.o
 gpm_crtm_simulator.o: gpm_crtm_result.o gpm_crtm.o
-
+gpmsimulator.o: gpm_utility.o gpm_crtm_sensor.o
 clean:
 	rm *.o *.mod gpm.exe
 

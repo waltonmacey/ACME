@@ -139,7 +139,7 @@ program gpmtest
 !   type(GPM_CRTM_sensor) :: testgmisensor
    integer :: i
    integer :: err_stat
-   type(CRTM_ChannelInfo_type) :: chinfo(2)
+   type(CRTM_ChannelInfo_type), allocatable :: chinfo(:)
   ! call check( nf90_open(file_name, NF90_NOWRITE, ncid) )
   ! call check( nf90_inq_varid(ncid, "q", varid) )
   ! call check( nf90_get_var(ncid, varid, q_in) )
@@ -266,25 +266,24 @@ type(GPM_CRTM_result_type) :: gpm_result(2)
    call GPM_CRTM_sensor_add('gpm-gmi-lowfreq')
    call GPM_CRTM_sensor_add('gpm-gmi-highfreq')
    call GPM_CRTM_sensor_init()
-   print *, size(chinfo)
    call GPM_CRTM_sensor_inquire(chinfo)
    
-   call CRTM_ChannelInfo_Inspect(chinfo(1)) 
-   call CRTM_ChannelInfo_Inspect(chinfo(2)) 
-   call gpm_crtm_simulator_run(gbx, chinfo,gpm_result)
+   !call CRTM_ChannelInfo_Inspect(chinfo(1)) 
+   !call CRTM_ChannelInfo_Inspect(chinfo(2)) 
+   !call gpm_crtm_simulator_run(gbx, chinfo,gpm_result)
 
 
    call GPM_CRTM_sensor_destroy() 
 !----------------------
+call gpmsimulator_intr_init()
+call gpmsimulator_intr_run(gbx)
+call gpmsimulator_intr_finalize()
+
 
 print *, "clean gbx"
    call free_cosp_gridbox(gbx)
-   call gpm_errorHandler('test error', 'test module','test subroutine')
-!   call gpm_errorHandler('test error', 'test module')
-!   call gpm_errorHandler('test error')
-call gpmsimulator_intr_init()
-call gpmsimulator_intr_run()
-call gpmsimulator_intr_finalize()
+
+
 
 end program gpmtest
 

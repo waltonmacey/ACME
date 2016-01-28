@@ -6,7 +6,7 @@ module GPM_CRTM_sensor_mod
   ! Environment setup
   !------------------
   ! Module use
-  use CRTM_Module, only: crtm_channelInfo_type, CRTM_Init, CRTM_Destroy, &
+  use CRTM_Module, only: CRTM_ChannelInfo_Type, CRTM_Init, CRTM_Destroy, &
                          CRTM_ChannelInfo_Inspect, SUCCESS, &
                          CRTM_ChannelInfo_n_Channels, CRTM_ChannelInfo_Subset
   use GPM_CRTM_Constants, only: maxlen_camhistfld_name, maxlen_sensorid, &
@@ -160,7 +160,7 @@ contains
    subroutine GPM_CRTM_sensor_inquire(chinfo_list_out, n_sensors_out)
 !  type(GPM_CRTM_sensor_type),        intent(out), optional :: sensor_list(:)
 !  character(maxlen_sensorid),  intent(out), optional :: sensor_id_list(:)
-  type(CRTM_ChannelInfo_type), intent(out), optional :: chinfo_list_out(:)
+  type(CRTM_ChannelInfo_type), intent(out), allocatable, optional :: chinfo_list_out(:)
   ! current number of sensors added
   integer, intent(out), optional :: n_sensors_out
   ! ---------
@@ -173,10 +173,7 @@ contains
   ! inquire value for chinfo
   if (present(chinfo_list_out) ) then
      ! check if the sizes is consistant
-     print *, size(chinfo_list_out), n_sensors
-     if(size(chinfo_list_out) .NE. n_sensors ) then
-        print *, "output variable size is not consistant with n_sensors"
-     end if
+     allocate(chinfo_list_out(n_sensors) )
      chinfo_list_out = chinfo_list(1:n_sensors)
   end if
   ! inquire n_sensors
