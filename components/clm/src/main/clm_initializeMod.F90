@@ -7,17 +7,17 @@ module clm_initializeMod
   use spmdMod          , only : masterproc
   use shr_sys_mod      , only : shr_sys_flush
   use shr_log_mod      , only : errMsg => shr_log_errMsg
-  use decompMod        , only : bounds_type, get_proc_bounds 
+  use decompMod        , only : bounds_type, get_proc_bounds
   use abortutils       , only : endrun
   use clm_varctl       , only : nsrest, nsrStartup, nsrContinue, nsrBranch
   use clm_varctl       , only : create_glacier_mec_landunit, iulog
-  use clm_varctl       , only : use_lch4, use_cn, use_cndv, use_voc, use_c13, use_c14, use_ed, use_betr  
+  use clm_varctl       , only : use_lch4, use_cn, use_cndv, use_voc, use_c13, use_c14, use_ed, use_betr
   use clm_varsur       , only : wt_lunit, urban_valid, wt_nat_patch, wt_cft, wt_glc_mec, topo_glc_mec
   use perf_mod         , only : t_startf, t_stopf
   !use readParamsMod    , only : readParameters
   use readParamsMod    , only : readSharedParameters, readPrivateParameters
   use ncdio_pio        , only : file_desc_t
-  ! 
+  !
   !-----------------------------------------
   ! Definition of component types
   !-----------------------------------------
@@ -41,7 +41,7 @@ module clm_initializeMod
   use FrictionVelocityType   , only : frictionvel_type
   use LakeStateType          , only : lakestate_type
   use PhotosynthesisType     , only : photosyns_type
-  use SoilHydrologyType      , only : soilhydrology_type  
+  use SoilHydrologyType      , only : soilhydrology_type
   use SoilStateType          , only : soilstate_type
   use SolarAbsorbedType      , only : solarabs_type
   use SurfaceRadiationMod    , only : surfrad_type
@@ -54,30 +54,30 @@ module clm_initializeMod
   use VOCEmissionMod         , only : vocemis_type
   use atm2lndType            , only : atm2lnd_type
   use lnd2atmType            , only : lnd2atm_type
-  use lnd2glcMod             , only : lnd2glc_type 
+  use lnd2glcMod             , only : lnd2glc_type
   use glc2lndMod             , only : glc2lnd_type
   use glcDiagnosticsMod      , only : glc_diagnostics_type
   use SoilWaterRetentionCurveMod, only : soil_water_retention_curve_type
-  use UrbanParamsType        , only : urbanparams_type   ! Constants 
-  use CNDecompCascadeConType , only : decomp_cascade_con ! Constants 
-  use CNDVType               , only : dgv_ecophyscon     ! Constants 
-  use EcophysConType         , only : ecophyscon         ! Constants 
-  use SoilorderConType       , only : soilordercon         ! Constants 
+  use UrbanParamsType        , only : urbanparams_type   ! Constants
+  use CNDecompCascadeConType , only : decomp_cascade_con ! Constants
+  use CNDVType               , only : dgv_ecophyscon     ! Constants
+  use EcophysConType         , only : ecophyscon         ! Constants
+  use SoilorderConType       , only : soilordercon         ! Constants
   use GridcellType           , only : grc
   use TopounitType           , only : top_pp, top_es, top_ws
-  use LandunitType           , only : lun                
-  use ColumnType             , only : col                
-  use PatchType              , only : pft                
+  use LandunitType           , only : lun
+  use ColumnType             , only : col
+  use PatchType              , only : pft
   use EDEcophysConType       , only : EDecophyscon       ! ED Constants
   use EDBioType              , only : EDbio_type         ! ED type used to interact with CLM variables
-  use EDVecPatchType         , only : EDpft                   
+  use EDVecPatchType         , only : EDpft
   use EDVecCohortType        , only : coh                ! unique to ED, used for domain decomp
   use clm_bgc_interface_data , only : clm_bgc_interface_data_type
   use ChemStateType          , only : chemstate_type     ! structure for chemical indices of the soil, such as pH and Eh
   !
   implicit none
   save
-  public   ! By default everything is public 
+  public   ! By default everything is public
   !
   !-----------------------------------------
   ! Instances of component types
@@ -123,7 +123,7 @@ module clm_initializeMod
   type(phosphorusstate_type)    :: phosphorusstate_vars
   type(phosphorusflux_type)     :: phosphorusflux_vars
   type(clm_bgc_interface_data_type) :: clm_bgc_data
-  type(chemstate_type)        :: chemstate_vars  
+  type(chemstate_type)        :: chemstate_vars
   !
   public :: initialize1  ! Phase one initialization
   public :: initialize2  ! Phase two initialization
@@ -135,19 +135,19 @@ contains
   subroutine initialize1( )
     !
     ! !DESCRIPTION:
-    ! CLM initialization first phase 
+    ! CLM initialization first phase
     !
     ! !USES:
     use clm_varpar       , only: clm_varpar_init, natpft_lb, natpft_ub, cft_lb, cft_ub, maxpatch_glcmec
     use clm_varcon       , only: clm_varcon_init
     use landunit_varcon  , only: landunit_varcon_init, max_lunit, istice_mec
     use column_varcon    , only: col_itype_to_icemec_class
-    use clm_varctl       , only: fsurdat, fatmlndfrc, flndtopo, fglcmask, noland, version  
+    use clm_varctl       , only: fsurdat, fatmlndfrc, flndtopo, fglcmask, noland, version
     use pftvarcon        , only: pftconrd
     use soilorder_varcon , only: soilorder_conrd
     use decompInitMod    , only: decompInit_lnd, decompInit_clumps, decompInit_glcp
     use domainMod        , only: domain_check, ldomain, domain_init
-    use surfrdMod        , only: surfrd_get_globmask, surfrd_get_grid, surfrd_get_topo, surfrd_get_data 
+    use surfrdMod        , only: surfrd_get_globmask, surfrd_get_grid, surfrd_get_topo, surfrd_get_data
     use controlMod       , only: control_init, control_print
     use ncdio_pio        , only: ncd_pio_init
     use initGridCellsMod , only: initGridCells
@@ -161,7 +161,7 @@ contains
     integer           :: ns, ni, nj              ! global grid sizes
     integer           :: begg, endg              ! processor bounds
     integer           :: icemec_class            ! current icemec class (1..maxpatch_glcmec)
-    type(bounds_type) :: bounds_proc             
+    type(bounds_type) :: bounds_proc
     integer ,pointer  :: amask(:)                ! global land mask
     character(len=32) :: subname = 'initialize1' ! subroutine name
     !-----------------------------------------------------------------------
@@ -215,7 +215,7 @@ contains
     deallocate(amask)
 
     ! *** Get JUST gridcell processor bounds ***
-    ! Remaining bounds (landunits, columns, patches) will be determined 
+    ! Remaining bounds (landunits, columns, patches) will be determined
     ! after the call to decompInit_glcp - so get_proc_bounds is called
     ! twice and the gridcell information is just filled in twice
 
@@ -246,7 +246,7 @@ contains
           write(iulog,*) 'Attempting to read atm topo from ',trim(flndtopo)
           call shr_sys_flush(iulog)
        endif
-       call surfrd_get_topo(ldomain, flndtopo)  
+       call surfrd_get_topo(ldomain, flndtopo)
     endif
 
     ! Initialize urban model input (initialize urbinp data structure)
@@ -291,14 +291,14 @@ contains
     ! *** Get ALL processor bounds - for gridcells, landunit, columns and patches ***
 
     call get_proc_bounds(bounds_proc)
-    
+
     ! Allocate memory for subgrid data structures
     ! This is needed here BEFORE the following call to initGridcells
     ! Note that the assumption is made that none of the subgrid initialization
     ! can depend on other elements of the subgrid in the calls below
 
     call grc%Init (bounds_proc%begg, bounds_proc%endg)
-    ! --ALM-v1: add initialization for topographic unit data types. 
+    ! --ALM-v1: add initialization for topographic unit data types.
     ! For preliminary testing, use the same dimensions as gridcell (one topounit per gridcell)
     call top_pp%Init (bounds_proc%begg, bounds_proc%endg) ! topology and physical properties
     call top_es%Init (bounds_proc%begg, bounds_proc%endg) ! energy state
@@ -330,7 +330,7 @@ contains
     ! ------------------------------------------------------------------------
 
     ! Set CH4 Model Parameters from namelist.
-    ! Need to do before initTimeConst so that it knows whether to 
+    ! Need to do before initTimeConst so that it knows whether to
     ! look for several optional parameters on surfdata file.
 
     if (use_lch4) then
@@ -377,14 +377,14 @@ contains
     use shr_orb_mod           , only : shr_orb_decl
     use shr_scam_mod          , only : shr_scam_getCloseLatLon
     use seq_drydep_mod        , only : n_drydep, drydep_method, DD_XLND
-    use clm_varpar            , only : nlevsno, numpft, crop_prog, nlevsoi    
+    use clm_varpar            , only : nlevsno, numpft, crop_prog, nlevsoi
     use clm_varcon            , only : h2osno_max, bdsno, c13ratio, c14ratio, spval
     use landunit_varcon       , only : istice, istice_mec, istsoil
     use clm_varctl            , only : finidat, finidat_interp_source, finidat_interp_dest, fsurdat
     use clm_varctl            , only : use_century_decomp, single_column, scmlat, scmlon, use_cn, use_ed
     use clm_varorb            , only : eccen, mvelpp, lambm0, obliqr
     use clm_time_manager      , only : get_step_size, get_curr_calday
-    use clm_time_manager      , only : get_curr_date, get_nstep, advance_timestep 
+    use clm_time_manager      , only : get_curr_date, get_nstep, advance_timestep
     use clm_time_manager      , only : timemgr_init, timemgr_restart_io, timemgr_restart
     use controlMod            , only : nlfilename
     use decompMod             , only : get_proc_clumps, get_proc_bounds, get_clump_bounds, bounds_type
@@ -399,36 +399,36 @@ contains
     use histFileMod           , only : hist_htapes_build, htapes_fieldlist, hist_printflds
     use histFileMod           , only : hist_addfld1d, hist_addfld2d, no_snow_normal
     use restFileMod           , only : restFile_getfile, restFile_open, restFile_close
-    use restFileMod           , only : restFile_read, restFile_write 
-    use accumulMod            , only : print_accum_fields 
+    use restFileMod           , only : restFile_read, restFile_write
+    use accumulMod            , only : print_accum_fields
     use ndepStreamMod         , only : ndep_init, ndep_interp
     use CNEcosystemDynMod     , only : CNEcosystemDynInit
-    use CNEcosystemDynBetrMod , only : CNEcosystemDynBetrInit    
+    use CNEcosystemDynBetrMod , only : CNEcosystemDynBetrInit
     use pdepStreamMod         , only : pdep_init, pdep_interp
     use CNDecompCascadeBGCMod , only : init_decompcascade_bgc
     use CNDecompCascadeCNMod  , only : init_decompcascade_cn
     use CNDecompCascadeContype, only : init_decomp_cascade_constants
-    use EDInitMod             , only : ed_init  
-    use EcophysConType        , only : ecophysconInit 
-    use SoilorderConType      , only : soilorderconInit 
-    use EDEcophysConType      , only : EDecophysconInit 
+    use EDInitMod             , only : ed_init
+    use EcophysConType        , only : ecophysconInit
+    use SoilorderConType      , only : soilorderconInit
+    use EDEcophysConType      , only : EDecophysconInit
     use EDPftVarcon           , only : EDpftvarcon_inst
-    use LakeCon               , only : LakeConInit 
+    use LakeCon               , only : LakeConInit
     use SatellitePhenologyMod , only : SatellitePhenologyInit, readAnnualVegetation, interpMonthlyVeg
     use SnowSnicarMod         , only : SnowAge_init, SnowOptics_init
     use initVerticalMod       , only : initVertical
     use lnd2atmMod            , only : lnd2atm_minimal
     use glc2lndMod            , only : glc2lnd_type
-    use lnd2glcMod            , only : lnd2glc_type 
+    use lnd2glcMod            , only : lnd2glc_type
     use SoilWaterRetentionCurveFactoryMod   , only : create_soil_water_retention_curve
     use clm_varctl                          , only : use_bgc_interface, use_pflotran
     use clm_pflotran_interfaceMod           , only : clm_pf_interface_init !!, clm_pf_set_restart_stamp
     use betr_initializeMod    , only : betr_initialize,plantsoilnutrientflux_vars
     use betr_initializeMod    , only : betrtracer_vars, tracerstate_vars, tracerflux_vars, tracercoeff_vars
     use betr_initializeMod    , only : bgc_reaction
-    use tracer_varcon         , only : is_active_betr_bgc    
+    use tracer_varcon         , only : is_active_betr_bgc
     !
-    ! !ARGUMENTS    
+    ! !ARGUMENTS
     implicit none
     !
     ! !LOCAL VARIABLES:
@@ -439,7 +439,7 @@ contains
     integer               :: ncsec        ! current time of day [seconds]
     integer               :: nc           ! clump index
     integer               :: nclumps      ! number of clumps on this processor
-    character(len=256)    :: fnamer       ! name of netcdf restart file 
+    character(len=256)    :: fnamer       ! name of netcdf restart file
     character(len=256)    :: pnamer       ! full pathname of netcdf restart file
     character(len=256)    :: locfn        ! local file name
     type(file_desc_t)     :: ncid         ! netcdf id
@@ -462,7 +462,7 @@ contains
     integer               :: begc, endc
     integer               :: begl, endl
     real(r8), pointer     :: data2dptr(:,:) ! temp. pointers for slicing larger arrays
-    character(len=32)     :: subname = 'initialize2' 
+    character(len=32)     :: subname = 'initialize2'
     !----------------------------------------------------------------------
 
     call t_startf('clm_init2')
@@ -483,7 +483,7 @@ contains
     ! Initialize time manager
     ! ------------------------------------------------------------------------
 
-    if (nsrest == nsrStartup) then  
+    if (nsrest == nsrStartup) then
        call timemgr_init()
     else
        call restFile_getfile(file=fnamer, path=pnamer)
@@ -507,11 +507,11 @@ contains
     call shr_orb_decl( caldaym1, eccen, mvelpp, lambm0, obliqr, declinm1, eccf )
 
     call t_stopf('init_orbd')
-    
+
     call InitDaylength(bounds_proc, declin=declin, declinm1=declinm1)
-             
+
     ! Initialize maximum daylength, based on latitude and maximum declination
-    ! maximum declination hardwired for present-day orbital parameters, 
+    ! maximum declination hardwired for present-day orbital parameters,
     ! +/- 23.4667 degrees = +/- 0.409571 radians, use negative value for S. Hem
 
     do g = bounds_proc%begg,bounds_proc%endg
@@ -533,7 +533,7 @@ contains
     end if
 
     ! ------------------------------------------------------------------------
-    ! Initialize component data structures 
+    ! Initialize component data structures
     ! ------------------------------------------------------------------------
 
     ! Note: new logic is in place that sets all the history fields to spval so
@@ -541,7 +541,7 @@ contains
 
     ! First put in history calls for subgrid data structures - these cannot appear in the
     ! module for the subgrid data definition due to circular dependencies that are introduced
-    
+
     data2dptr => col%dz(:,-nlevsno+1:0)
     col%dz(bounds_proc%begc:bounds_proc%endc,:) = spval
     call hist_addfld2d (fname='SNO_Z', units='m', type2d='levsno',  &
@@ -553,12 +553,12 @@ contains
          avgflag='A', long_name='convective boundary height', &
          ptr_col=col%zii, default='inactive')
 
-    ! Note: h2osno_col and snow_depth_col are initialized as local variable 
-    ! since they are needed to initialize vertical data structures  
+    ! Note: h2osno_col and snow_depth_col are initialized as local variable
+    ! since they are needed to initialize vertical data structures
 
-    begp = bounds_proc%begp; endp = bounds_proc%endp 
-    begc = bounds_proc%begc; endc = bounds_proc%endc 
-    begl = bounds_proc%begl; endl = bounds_proc%endl 
+    begp = bounds_proc%begp; endp = bounds_proc%endp
+    begc = bounds_proc%begc; endc = bounds_proc%endc
+    begl = bounds_proc%begl; endl = bounds_proc%endl
 
     allocate (h2osno_col(begc:endc))
     allocate (snow_depth_col(begc:endc))
@@ -575,7 +575,7 @@ contains
        if (lun%itype(l)==istice) then
           h2osno_col(c) = h2osno_max
        elseif (lun%itype(l)==istice_mec .or. &
-              (lun%itype(l)==istsoil .and. ldomain%glcmask(g) > 0._r8)) then 
+              (lun%itype(l)==istsoil .and. ldomain%glcmask(g) > 0._r8)) then
           ! Initialize a non-zero snow thickness where the ice sheet can/potentially operate.
           ! Using glcmask to capture all potential vegetated points around GrIS (ideally
           ! we would use icemask from CISM, but that isn't available until after initialization.)
@@ -609,7 +609,7 @@ contains
 
     call SurfaceAlbedoInitTimeConst(bounds_proc)
 
-    ! Initialize vertical data components 
+    ! Initialize vertical data components
 
     call initVertical(bounds_proc,               &
          snow_depth_col(begc:endc),              &
@@ -653,10 +653,10 @@ contains
          soilstate_vars%watsat_col(begc:endc, 1:), &
          temperature_vars%t_soisno_col(begc:endc, -nlevsno+1:) )
 
-    
+
     call waterflux_vars%init(bounds_proc)
 
-    call chemstate_vars%Init(bounds_proc)    
+    call chemstate_vars%Init(bounds_proc)
     ! WJS (6-24-14): Without the following write statement, the assertion in
     ! energyflux_vars%init fails with pgi 13.9 on yellowstone. So for now, I'm leaving
     ! this write statement in place as a workaround for this problem.
@@ -690,14 +690,14 @@ contains
 
 
     ! --------------------------------------------------------------
-    ! Initialise the BeTR 
+    ! Initialise the BeTR
     ! --------------------------------------------------------------
 
     if(use_betr)then
       !state variables will be initialized inside betr_initialize
       call betr_initialize(bounds_proc, 1, nlevsoi, waterstate_vars)
     endif
-    
+
     call SnowOptics_init( ) ! SNICAR optical parameters:
 
     call SnowAge_init( )    ! SNICAR aging   parameters:
@@ -721,23 +721,23 @@ contains
     endif
     !read bgc implementation specific parameters when needed
     call readPrivateParameters()
-    
+
     if (use_cn) then
        if (.not. is_active_betr_bgc)then
           if (use_century_decomp) then
            ! Note that init_decompcascade_bgc needs cnstate_vars to be initialized
              call init_decompcascade_bgc(bounds_proc, cnstate_vars, soilstate_vars)
-          else 
+          else
            ! Note that init_decompcascade_cn needs cnstate_vars to be initialized
              call init_decompcascade_cn(bounds_proc, cnstate_vars)
           end if
        endif
 
        ! Note - always initialize the memory for the c13_carbonstate_vars and
-       ! c14_carbonstate_vars data structure so that they can be used in 
+       ! c14_carbonstate_vars data structure so that they can be used in
        ! associate statements (nag compiler complains otherwise)
 
-       call carbonstate_vars%Init(bounds_proc, carbon_type='c12', ratio=1._r8) 
+       call carbonstate_vars%Init(bounds_proc, carbon_type='c12', ratio=1._r8)
        if (use_c13) then
           call c13_carbonstate_vars%Init(bounds_proc, carbon_type='c13', ratio=c13ratio, &
                c12_carbonstate_vars=carbonstate_vars)
@@ -748,10 +748,10 @@ contains
        end if
 
        ! Note - always initialize the memory for the c13_carbonflux_vars and
-       ! c14_carbonflux_vars data structure so that they can be used in 
+       ! c14_carbonflux_vars data structure so that they can be used in
        ! associate statements (nag compiler complains otherwise)
 
-       call carbonflux_vars%Init(bounds_proc, carbon_type='c12') 
+       call carbonflux_vars%Init(bounds_proc, carbon_type='c12')
        if (use_c13) then
           call c13_carbonflux_vars%Init(bounds_proc, carbon_type='c13')
        end if
@@ -769,7 +769,7 @@ contains
             carbonstate_vars%decomp_cpools_col(begc:endc, 1:),        &
             carbonstate_vars%decomp_cpools_1m_col(begc:endc, 1:))
 
-       call nitrogenflux_vars%Init(bounds_proc) 
+       call nitrogenflux_vars%Init(bounds_proc)
 
 
        call phosphorusstate_vars%Init(bounds_proc,                    &
@@ -782,14 +782,14 @@ contains
             carbonstate_vars%decomp_cpools_col(begc:endc, 1:),        &
             carbonstate_vars%decomp_cpools_1m_col(begc:endc, 1:))
 
-       call phosphorusflux_vars%Init(bounds_proc) 
+       call phosphorusflux_vars%Init(bounds_proc)
 
        ! Note - always initialize the memory for the dgvs_vars data structure so
        ! that it can be used in associate statements (nag compiler complains otherwise)
        call dgvs_vars%Init(bounds_proc)
 
        call crop_vars%Init(bounds_proc)
-       
+
     end if
 
     if ( use_ed ) then
@@ -806,7 +806,7 @@ contains
     ! ------------------------------------------------------------------------
 
     ! The time manager needs to be initialized before thes called is made, since
-    ! the step size is needed. 
+    ! the step size is needed.
 
     call t_startf('init_accflds')
 
@@ -845,7 +845,7 @@ contains
 
     if (use_cn) then
        if(is_active_betr_bgc)then
-          call CNEcosystemDynBetrInit(bounds_proc)         
+          call CNEcosystemDynBetrInit(bounds_proc)
        else
           call CNEcosystemDynInit(bounds_proc)
        endif
@@ -854,13 +854,13 @@ contains
     end if
 
     if (use_cn .and. n_drydep > 0 .and. drydep_method == DD_XLND) then
-       ! Must do this also when drydeposition is used so that estimates of monthly 
+       ! Must do this also when drydeposition is used so that estimates of monthly
        ! differences in LAI can be computed
        call SatellitePhenologyInit(bounds_proc)
     end if
 
     ! ------------------------------------------------------------------------
-    ! On restart only - process the history namelist. 
+    ! On restart only - process the history namelist.
     ! ------------------------------------------------------------------------
 
     ! Later the namelist from the restart file will be used.  This allows basic
@@ -871,7 +871,7 @@ contains
     end if
 
     ! ------------------------------------------------------------------------
-    ! Read restart/initial info 
+    ! Read restart/initial info
     ! ------------------------------------------------------------------------
 
     if (nsrest == nsrStartup) then
@@ -881,13 +881,13 @@ contains
              if (masterproc) then
                 write(iulog,*)'Using cold start initial conditions '
              end if
-          else 
+          else
              if (masterproc) then
                 write(iulog,*)'Interpolating initial conditions from ',trim(finidat_interp_source),&
                      ' and creating new initial conditions ', trim(finidat_interp_dest)
              end if
           end if
-       else 
+       else
           if (masterproc) then
              write(iulog,*)'Reading initial conditions from ',trim(finidat)
           end if
@@ -918,16 +918,16 @@ contains
             betrtracer_vars, tracerstate_vars, tracerflux_vars, tracercoeff_vars)
 
     end if
-       
+
     if (use_betr)then
        call bgc_reaction%init_betr_lsm_bgc_coupler(bounds_proc,                                     &
             carbonstate_vars, nitrogenstate_vars, phosphorusstate_vars, plantsoilnutrientflux_vars, &
-            betrtracer_vars, tracerstate_vars, cnstate_vars, soilstate_vars, waterflux_vars, ecophyscon)
+            betrtracer_vars, tracerstate_vars, cnstate_vars,  ecophyscon)
     endif
     ! ------------------------------------------------------------------------
     ! Initialize filters and weights
     ! ------------------------------------------------------------------------
-    
+
     call t_startf('init_filters')
     call allocFilters()
     call t_stopf('init_filters')
@@ -978,7 +978,7 @@ contains
             phosphorusstate_vars,phosphorusflux_vars,                                      &
             betrtracer_vars, tracerstate_vars, tracerflux_vars, tracercoeff_vars)
 
-       ! Reset finidat to now be finidat_interp_dest 
+       ! Reset finidat to now be finidat_interp_dest
        ! (to be compatible with routines still using finidat)
        finidat = trim(finidat_interp_dest)
 
@@ -1002,7 +1002,7 @@ contains
        call ndep_interp(bounds_proc, atm2lnd_vars)
        call t_stopf('init_ndep')
     end if
-    
+
     ! ------------------------------------------------------------------------
     ! Initialize phosphorus deposition
     ! ------------------------------------------------------------------------
@@ -1013,14 +1013,14 @@ contains
        call pdep_interp(bounds_proc, atm2lnd_vars)
        call t_stopf('init_pdep')
     end if
- 
+
 
     ! ------------------------------------------------------------------------
-    ! Initialize active history fields. 
+    ! Initialize active history fields.
     ! ------------------------------------------------------------------------
 
-    ! This is only done if not a restart run. If a restart run, then this 
-    ! information has already been obtained from the restart data read above. 
+    ! This is only done if not a restart run. If a restart run, then this
+    ! information has already been obtained from the restart data read above.
     ! Note that routine hist_htapes_build needs time manager information,
     ! so this call must be made after the restart information has been read.
 
@@ -1033,7 +1033,7 @@ contains
     ! ------------------------------------------------------------------------
 
     ! The following is called for both initial and restart runs and must
-    ! must be called after the restart file is read 
+    ! must be called after the restart file is read
 
     call atm2lnd_vars%initAccVars(bounds_proc)
     call temperature_vars%initAccVars(bounds_proc)
@@ -1045,11 +1045,11 @@ contains
        call crop_vars%initAccVars(bounds_proc)
     end if
 
-    !------------------------------------------------------------       
+    !------------------------------------------------------------
     ! Read monthly vegetation
-    !------------------------------------------------------------       
+    !------------------------------------------------------------
 
-    ! Even if CN is on, and dry-deposition is active, read CLMSP annual vegetation 
+    ! Even if CN is on, and dry-deposition is active, read CLMSP annual vegetation
     ! to get estimates of monthly LAI
 
     if ( n_drydep > 0 .and. drydep_method == DD_XLND )then
@@ -1061,9 +1061,9 @@ contains
        end if
     end if
 
-    !------------------------------------------------------------       
+    !------------------------------------------------------------
     ! Determine gridcell averaged properties to send to atm
-    !------------------------------------------------------------       
+    !------------------------------------------------------------
 
     if (nsrest == nsrStartup) then
        call t_startf('init_map2gc')
@@ -1072,11 +1072,11 @@ contains
        call t_stopf('init_map2gc')
     end if
 
-    !------------------------------------------------------------       
+    !------------------------------------------------------------
     ! Initialize sno export state to send to glc
-    !------------------------------------------------------------       
+    !------------------------------------------------------------
 
-    if (create_glacier_mec_landunit) then  
+    if (create_glacier_mec_landunit) then
        !$OMP PARALLEL DO PRIVATE (nc, bounds_clump)
        do nc = 1,nclumps
           call get_clump_bounds(nc, bounds_clump)
@@ -1091,9 +1091,9 @@ contains
        !$OMP END PARALLEL DO
     end if
 
-    !------------------------------------------------------------       
+    !------------------------------------------------------------
     ! Deallocate wt_nat_patch
-    !------------------------------------------------------------       
+    !------------------------------------------------------------
 
     ! wt_nat_patch was allocated in initialize1, but needed to be kept around through
     ! initialize2 for some consistency checking; now it can be deallocated
@@ -1103,13 +1103,13 @@ contains
     ! --------------------------------------------------------------
     ! Initialise the ED model state structure
     ! --------------------------------------------------------------
-   
+
     if ( use_ed ) then
        !$OMP PARALLEL DO PRIVATE (nc, bounds_clump)
        do nc = 1, nclumps
           call get_clump_bounds(nc, bounds_clump)
           call ed_init( bounds_clump, waterstate_vars, canopystate_vars, EDbio_vars, &
-               carbonstate_vars, nitrogenstate_vars, carbonflux_vars) 
+               carbonstate_vars, nitrogenstate_vars, carbonflux_vars)
        end do
     endif ! use_ed
 
@@ -1132,9 +1132,9 @@ contains
     call t_stopf('init_clm_bgc_interface_data & pflotran')
     !------------------------------------------------------------
 
-    !------------------------------------------------------------       
+    !------------------------------------------------------------
     ! Write log output for end of initialization
-    !------------------------------------------------------------       
+    !------------------------------------------------------------
 
     call t_startf('init_wlog')
     if (masterproc) then

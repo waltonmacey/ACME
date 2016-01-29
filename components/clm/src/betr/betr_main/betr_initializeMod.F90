@@ -102,6 +102,8 @@ contains
     integer              , intent(in) :: lbj, ubj
     type(waterstate_type), intent(in) :: waterstate_vars
 
+    character(len=32) :: subname='betr_initialize'
+
     call betrtracer_vars%init_scalars()
 
     allocate(bgc_reaction, source=ctreate_bgc_reaction_type(bgc_method))
@@ -119,6 +121,7 @@ contains
     call tracerboundarycond_vars%Init(bounds, betrtracer_vars)
 
     call plantsoilnutrientflux_vars%Init(bounds, lbj, ubj)
+
 
     !initialize state variable
     call bgc_reaction%initCold(bounds,  betrtracer_vars, waterstate_vars, tracerstate_vars)
