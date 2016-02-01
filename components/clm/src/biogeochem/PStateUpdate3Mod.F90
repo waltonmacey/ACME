@@ -197,6 +197,19 @@ contains
       end do
 
 
+      ! litter and SOM P losses due to biochemical mineralization
+      do l = 1, ndecomp_pools
+         do j = 1, nlevdecomp
+            ! column loop
+            do fc = 1,num_soilc
+               c = filter_soilc(fc)
+               ps%decomp_ppools_vr_col(c,j,l) = ps%decomp_ppools_vr_col(c,j,l) - pf%biochem_pmin_ppools_vr_col(c,j,l) * dt
+            end do
+         end do
+      end do
+
+
+
       ! patch-level phosphorus fluxes 
 
       do fp = 1,num_soilp
