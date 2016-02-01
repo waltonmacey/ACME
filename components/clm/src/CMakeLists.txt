@@ -76,6 +76,15 @@ ELSE() #ACME_BUILD
   FILE(GLOB CLM_BIOGEOPHYS_SOURCE   biogeophys/*F90 ED/biogeophys/*F90)
   FILE(GLOB CLM_BIOGEOCHEM_SOURCE   biogeochem/*F90 ED/biogeochem/*F90)
   FILE(GLOB CLM_DYN_SUBGRID_SOURCE  dyn_subgrid/*F90)
+  FILE(GLOB CLM_BETR_SOURCE         betr/*F90 betr/betr_core/*F90
+         betr/betr_math/*F90 betr/bgc_century/*F90 betr/bgc_sminn/*F90)
+  FILE(GLOB CLM_CPL_SOURCE  cpl/*F90)
+
+  message("   clm build: add_definitions: NDEBUG Required!!")
+#  add_definitions( -mcmodel=medium -fconvert=big-endian
+#-ffree-line-length-none -ffixed-line-length-none  -O2 -DLINUX  -DNDEBUG
+#-DMCT_INTERFACE -DNO_R16 -DHAVE_SLASHPROC -ffree-form)
+  add_definitions(-O2 -DNDEBUG)
 
   INCLUDE_DIRECTORIES (
           ${SHR_BINARY_DIR}
@@ -90,10 +99,9 @@ ELSE() #ACME_BUILD
                ${CLM_MAIN_SOURCE} ${CLM_UTILS_SOURCE}
                ${CLM_BIOGEOPHYS_SOURCE} ${CLM_BIOGEOCHEM_SOURCE}
                ${CLM_EDFIRE_SOURCE} ${CLM_DYN_SUBGRID_SOURCE}
+               ${CLM_BETR_SOURCE} ${CLM_CPL_SOURCE}
               )
   ADD_DEPENDENCIES(clm shrsys seq shr gptl)
 
 
-
 ENDIF()
-

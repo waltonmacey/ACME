@@ -4,7 +4,7 @@ MESSAGE("   + MPEU:")
 if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../config.h) 
 
 MESSAGE("     - Generating config.h in mct using configure")
-execute_process (COMMAND configure
+execute_process (COMMAND ./configure
                  OUTPUT_FILE ${CMAKE_CURRENT_BINARY_DIR}/../configure.out
                  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/..)
 endif()
