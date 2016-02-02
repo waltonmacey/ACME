@@ -3178,12 +3178,12 @@ contains
 
                      plant_palloc(p) = plant_nalloc(p) * (p_allometry(p)/n_allometry(p))
 
-                     sminp_to_ppool(p) = plant_palloc(p) - retransp_to_ppool(p)
+                     sminp_to_ppool(p) = max(0._r8,plant_palloc(p) - retransp_to_ppool(p))
                  else
                      plant_calloc(p) = plant_palloc(p) * (c_allometry(p)/p_allometry(p))
 
                      plant_nalloc(p) = plant_palloc(p) * (n_allometry(p)/p_allometry(p))
-                     sminn_to_npool(p) = plant_nalloc(p) - retransn_to_npool(p)
+                     sminn_to_npool(p) = max(0._r8,plant_nalloc(p) - retransn_to_npool(p))
                  endif
              endif
          
