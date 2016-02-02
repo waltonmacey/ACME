@@ -801,7 +801,7 @@
          <PIO_CONFIG_OPTS> -D PIO_BUILD_TIMING:BOOL=ON </PIO_CONFIG_OPTS>
          <batch_system type="pbs">
             <queues>
-              <queue walltimemax="24:00" default="true">batch</queue>
+              <queue walltimemax="24:00" default="true">titan</queue>
               <queue walltimemax="24:00">debug</queue>
             </queues>
             <walltimes>
