@@ -230,21 +230,21 @@ sub doPreRunChecks()
 	close $CS;
 	
 	print "-------------------------------------------------------------------------\n";
-#print " CESM BUILDNML SCRIPT STARTING\n";
-#print " - To prestage restarts, untar a restart.tar file into $config{'RUNDIR'}\n";
+ 	print " CESM BUILDNML SCRIPT STARTING\n";
+ 	print " - To prestage restarts, untar a restart.tar file into $config{'RUNDIR'}\n";
 	
-## Run preview namelists.. should turn this into a module at some point..
-#my @previewoutput = qx("./preview_namelists");
-#map { print $_ } @previewoutput;
+ 	# Run preview namelists.. should turn this into a module at some point..
+ 	my @previewoutput = qx("./preview_namelists");
+ 	map { print $_ } @previewoutput;
 	
-#if($?)
-#{
-#	print "ERROR from preview namelist - EXITING\n";
-#	exit(-1);
-#}
-#
-#print " CESM BUILDNML SCRIPT HAS FINISHED SUCCESSFULLY\n";
-	print " CESM BUILDNML SCRIPT is skipped\n";
+ 	if($?)
+ 	{
+ 		print "ERROR from preview namelist - EXITING\n";
+ 		exit(-1);
+ 	}
+ 	
+ 	print " CESM BUILDNML SCRIPT HAS FINISHED SUCCESSFULLY\n";
+#	print " CESM BUILDNML SCRIPT is skipped\n";
 	print "-------------------------------------------------------------------------\n\n";
 	print "-------------------------------------------------------------------------\n";
 	print " CESM PRESTAGE SCRIPT STARTING\n";
