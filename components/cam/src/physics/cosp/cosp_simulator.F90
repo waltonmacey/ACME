@@ -50,10 +50,7 @@ MODULE MOD_COSP_SIMULATOR
 #endif
 
 #ifdef GPM_GMI2
-   use CRTM_Module, only: crtm_channelInfo_type, CRTM_Init, CRTM_Destroy
-   use gpm_crtm_simulator_mod
-   use gpm_gmi_crtm_mod
-   use gpm_crtm_result_mod, only: gpm_crtm_result
+  USE gpmsimulator_intr_mod, only: gpmsimulator_intr_run
 #endif
 
    IMPLICIT NONE
@@ -111,9 +108,9 @@ SUBROUTINE COSP_SIMULATOR(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,m
 
   ! Local variables
 #ifdef GPM_GMI2
-  type(gpm_crtm_result) :: gpm_result
-  integer :: err_stat
-  type(CRTM_ChannelInfo_type) :: chinfo(1)
+!  type(gpm_crtm_result) :: gpm_result
+!  integer :: err_stat
+!  type(CRTM_ChannelInfo_type) :: chinfo(1)
 #endif
   integer :: i,j,k,isim
   logical :: inconsistent
@@ -169,9 +166,7 @@ SUBROUTINE COSP_SIMULATOR(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,m
 
 #ifdef GPM_GMI2
   !+++++++++ GPM_GMI v2 model ++++
-  err_stat = CRTM_Init((/'gmi_gpm'/),chinfo, File_Path = '/global/homes/y/yxl232/local/CRTM/coeff_data/Big_Endian_ODAS/', Quiet = .TRUE.)
-  call gpm_crtm_simulator(gbx, chinfo, gpm_result)   
-  err_stat = CRTM_Destroy(chinfo)
+  call gpmsimulator_intr_run(gbx)
 #endif
 
   !+++++++++ Lidar model ++++++++++

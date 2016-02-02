@@ -9,13 +9,17 @@ module gpm_crtm_simulator_mod
    use MOD_COSP_TYPES, only: cosp_gridbox
    use CRTM_Module, only: crtm_channelInfo_type, CRTM_ChannelInfo_n_Channels 
    use GPM_CRTM_mod, only: crtm_multiprof 
-   use GPM_CRTM_result_mod, only: GPM_CRTM_result_type, GPM_CRTM_result_init, &
-                                  GPM_CRTM_result_destroy, GPM_CRTM_result_inquire, &
-                                  GPM_CRTM_result_set
+!   use GPM_CRTM_result_mod, only: GPM_CRTM_result_type, GPM_CRTM_result_init, &
+!                                  GPM_CRTM_result_destroy, GPM_CRTM_result_inquire, &
+!                                  GPM_CRTM_result_set
    implicit none
    private
-   public:: gpm_crtm_simulator_run
+   public:: gpm_crtm_simulator_run, GPM_CRTM_result_type
 
+   ! User defined type that used to hold CRTM results (TBs)
+   type GPM_CRTM_result_type
+     real, allocatable, public :: tbs(:,:) ! n_channels x n_profiles
+   end type GPM_CRTM_result_type
 
 contains
 
@@ -25,11 +29,13 @@ contains
 ! scattering results
 !
 !-----------------------
-   subroutine gpm_crtm_simulator_run(gbx,chinfo, y)
+   subroutine gpm_crtm_simulator_run(gbx,chinfo, scan_angle, zenith_angle, gpm_results)
       ! Arguments
       type(cosp_gridbox), intent(in)  :: gbx
       type(CRTM_ChannelInfo_type), intent(in) :: chinfo(:) ! [n_sensors]
-      type(GPM_CRTM_result_type), intent(out) :: y(:)  ! [n_sensors]
+      real, intent(in) :: scan_angle(:)          ! [n_sensors]         
+      real, intent(in) :: zenith_angle(:)        ! [n_sensors]         
+      type(GPM_CRTM_result_type),allocatable, intent(out) :: gpm_results(:)  ! [n_sensors]
       
       ! Parameters used for converting model variables to that used by crtm
       real, parameter :: eps    =  0.622
@@ -60,22 +66,14 @@ contains
       real, allocatable :: surface_type(:,:)   ! [n_profiles x 4]
       real, allocatable :: latitude(:)         ! [n_profiles]
       real, allocatable :: longitude(:)        ! [n_profiles]         
-      real :: scan_angle          ! [1]         
-      real :: zenith_angle        ! [1]         
       real :: year                ! [1]         
       real :: month               ! [1]         
       real :: day                 ! [1]         
-      real, allocatable :: tbs(:,:)
       !---------- local variables -------
       integer :: n_channels
       integer :: n_sensors
       integer :: n
       !--------------
-      ! check inputs
-      if (size(chinfo) .NE. size(y)) then
-         print *, 'chinfo and y must have the same length'
-         stop
-      endif
       n_sensors = size(chinfo)
       ! obtain variable dimensions from gbx
       n_profiles = gbx%Npoints
@@ -98,6 +96,8 @@ contains
 
       allocate(latitude(n_profiles), &
                longitude(n_profiles) )
+
+      allocate(gpm_results(n_sensors))
       !-------------- construct atmosphere profile -----------
       ! COSP structure layers are from bottom to top, while CRTM wants top to
       ! bottom
@@ -106,7 +106,7 @@ contains
       T    = gbx%T(   :, n_layers:1:-1)
       q    = gbx%q(   :, n_layers:1:-1)
       o3   = gbx%mr_ozone(  :, n_layers:1:-1)
-
+print *, pint
       Reff_hydro   = gbx%Reff(    :, n_layers:1:-1, :)
       mr_hydro     = gbx%mr_hydro(:, n_layers:1:-1, :)
       !FIXME: add aerosol properties
@@ -132,9 +132,7 @@ contains
 print *, '--------- debug gpm_crtm_simulator.F90 -------'
   do n=1, n_sensors
      n_channels = CRTM_ChannelInfo_n_Channels(chinfo(n))
-     allocate(tbs(n_channels, n_profiles) )
-     call GPM_CRTM_result_destroy(y(n))
-     call GPM_CRTM_result_init(n_channels, n_profiles, y(n) )
+     allocate(gpm_results(n)%tbs(n_channels, n_profiles) )
 print *,"channel ", n, " has ", n_channels, " channels"
      call crtm_multiprof( &
       n_profiles,   & ! number of profiles
@@ -155,15 +153,18 @@ print *,"channel ", n, " has ", n_channels, " channels"
       surface_type, & ! surface type [land/water/snow/ice coverage]
       latitude,     & ! latitude
       longitude,    & ! longitude
-      scan_angle,   & ! sensor scan angle
-      zenith_angle, & ! sensor zenith angle
+      scan_angle(n),   & ! sensor scan angle
+      zenith_angle(n), & ! sensor zenith angle
       year,         & ! model year
       month,        & ! model month of year
       day,          & ! model day of month
-      tbs           & ! brightness temperature [output]
+      gpm_results(n)%tbs           & ! brightness temperature [output]
       )
-      call GPM_CRTM_result_set(y(n), tbs)
-      deallocate(tbs)
+!      print *, gpm_results(n)%tbs
+
+
+!      print *, 'in gpm_crtm_simulator'
+!      print *, tbs
   end do
    end subroutine gpm_crtm_simulator_run
 

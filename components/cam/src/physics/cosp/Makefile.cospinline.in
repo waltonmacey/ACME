@@ -53,8 +53,10 @@ OBJS =  cosp_radar.o cosp_types.o cosp_constants.o cosp_simulator.o \
         cosp_isccp_simulator.o icarus.o \
         cosp_misr_simulator.o MISR_simulator.o \
         cosp_modis_simulator.o modis_simulator.o \
-		  cosp_gpmdpr.o gpm_gmi_crtm.o gpm_crtm_simulator.o \
-		  gpm_crtm_result.o gpm_crtm_constants.o
+			  cosp_gpmdpr.o gpm_crtm_sensor.o   \
+	      gpm_crtm.o gpm_crtm_simulator.o \
+        gpm_crtm_constants.o \
+        gpm_utility.o  gpmsimulator_intr.o
 
 libcosp.a: $(OBJS)
 	ar cr libcosp.a $(OBJS)
@@ -71,13 +73,13 @@ cosp_radar.o    : cosp_constants.o cosp_types.o radar_simulator_types.o \
 	              array_lib.o atmos_lib.o format_input.o math_lib.o optics_lib.o
 cosp_gpmdpr.o   : cosp_constants.o cosp_types.o radar_simulator_types.o \
 	              array_lib.o atmos_lib.o format_input.o math_lib.o optics_lib.o
-#gpm_gmi.o       : cosp_types.o
 cosp_simulator.o: cosp_types.o cosp_radar.o cosp_lidar.o \
                   cosp_isccp_simulator.o cosp_misr_simulator.o \
                   cosp_modis_simulator.o cosp_stats.o \
-						cosp_gpmdpr.o gpm_gmi_crtm.o gpm_crtm_simulator.o
-gpm_gmi_simulator.o  : cosp_constants.o
-gpm_crtm_simulator.o : gpm_gmi_crtm.o cosp_types.o gpm_crtm_result.o 
+									cosp_gpmdpr.o gpmsimulator_intr.o
+gpm_crtm_sensor.o: gpm_crtm_constants.o
+gpm_crtm_simulator.o:  gpm_crtm.o cosp_types.o cosp_constants.o
+gpmsimulator_intr.o: gpm_utility.o gpm_crtm_sensor.o gpm_crtm_simulator.o
 cosp_stats.o    : cosp_constants.o cosp_types.o llnl_stats.o lmd_ipsl_stats.o
 cosp_types.o    : cosp_constants.o cosp_utils.o radar_simulator_types.o \
                   scale_LUTs_io.o radar_simulator_init.o
@@ -174,19 +176,22 @@ cosp_radar.o : $(LLNL_PATH)/cosp_radar.F90
 cosp_gpmdpr.o : $(LLNL_PATH)/cosp_gpmdpr.F90
 	$(F90) $(F90FLAGS) -c $<
 
-#gpm_gmi.o : $(GPM_PATH)/gpm_gmi.F90
-#	$(F90) $(F90FLAGS) $(CRTMFLAGS)  -c $<
-#
-gpm_gmi_crtm.o : $(GPM_PATH)/gpm_gmi_crtm.F90
+gpm_crtm.o : $(GPM_PATH)/gpm_crtm.F90
+	$(F90) $(F90FLAGS) $(CRTMFLAGS) -c $<
+
+gpm_crtm_sensor.o : $(GPM_PATH)/gpm_crtm_sensor.F90
 	$(F90) $(F90FLAGS) $(CRTMFLAGS) -c $<
 
 gpm_crtm_simulator.o : $(GPM_PATH)/gpm_crtm_simulator.F90
 	$(F90) $(F90FLAGS) $(CRTMFLAGS) -c $<
 
 gpm_crtm_constants.o : $(GPM_PATH)/gpm_crtm_constants.F90
+	$(F90) -I$(CAM_BLD)  $(F90FLAGS) $(CRTMFLAGS) -c $<
+
+gpm_utility.o : $(GPM_PATH)/gpm_utility.F90
 	$(F90) $(F90FLAGS) $(CRTMFLAGS) -c $<
 
-gpm_crtm_result.o : $(GPM_PATH)/gpm_crtm_result.F90
+gpmsimulator_intr.o : $(GPM_PATH)/gpmsimulator_intr.F90
 	$(F90) $(F90FLAGS) $(CRTMFLAGS) -c $<
 
 MISR_simulator.o : $(MISR_PATH)/MISR_simulator.f90

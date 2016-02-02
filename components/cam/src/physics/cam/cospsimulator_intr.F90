@@ -48,7 +48,6 @@ module cospsimulator_intr
    use phys_control,    only: cam_physpkg_is
    use cam_logfile,     only: iulog !!+COSP1.4
 
-
    implicit none
    private
    save
@@ -901,6 +900,10 @@ subroutine cospsimulator_intr_init
 #else
    real(r8),parameter :: R_UNDEF = -1.0E30_r8
 #endif
+#ifdef GPM_GMI2
+   use gpmsimulator_intr_mod, only:gpmsimulator_intr_init
+#endif
+
    integer ncid,latid,lonid,did,hrid,minid,secid, istat
    !------------------------------------------------------------------------------
 
@@ -954,6 +957,14 @@ if (cosp_sample_atrain) then
 endif
 
 #endif
+
+! Initialize GPM simulator if used
+#ifdef GPM_GMI2
+   call gpmsimulator_intr_init()
+#endif
+
+
+
 
 ! ADDFLD ADD_DEFAULT CALLS FOR COSP OUTPUTS
 ! notes on addfld/add_default/outfld calls:  
@@ -1272,14 +1283,12 @@ endif
       call add_hist_coord('cosp_scol', nscol_cosp, 'COSP subcolumn',          &
            values=scol_cosp)
       !!! addfld calls
-      call addfld('CFAD_DBZEGPMKU_CS','fraction',nht_cosp*ndbze_cosp,'A', &
-                  'Radar Reflectivity Factor CFAD GPM KuPR (13.6 GHz)', phys_decomp, &
-                  flag_xyfill=.true., mdimnames=(/'cosp_dbze','cosp_ht'/), &
-                  fill_value=R_UNDEF)
-      call addfld('DBZEGPMKU_CS','dBZe', nhtml_cosp*nscol_cosp,'I', &
-                  'GPM KuPR dBZe (13.6 GHz) in each subcolumn', phys_decomp, &
-                  flag_xyfill=.true., mdimnames=(/'cosp_scol','lev'/), &
-                  fill_value=R_UNDEF)
+      call addfld('CFAD_DBZEGPMKU_CS',(/'cosp_dbze','cosp_ht  '/),'A','fraction', &
+                  'Radar Reflectivity Factor CFAD GPM KuPR (13.6 GHz)',  &
+                  flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld('DBZEGPMKU_CS', (/'cosp_scol','lev      '/) ,'I','dBZe', &
+                  'GPM KuPR dBZe (13.6 GHz) in each subcolumn',  &
+                  flag_xyfill=.true., fill_value=R_UNDEF)
       !!! add default calls
       call add_default('CFAD_DBZEGPMKU_CS',cosp_histfile_num,' ')
       call add_default('DBZEGPMKU_CS',cosp_histfile_num,' ')
@@ -1298,14 +1307,12 @@ endif
       call add_hist_coord('cosp_scol', nscol_cosp, 'COSP subcolumn',          &
            values=scol_cosp)
       !!! addfld calls
-      call addfld('CFAD_DBZEGPMKA_CS','fraction',nht_cosp*ndbze_cosp,'A', &
-                  'Radar Reflectivity Factor CFAD GPM KaPR (35.5 GHz)', phys_decomp, &
-                  flag_xyfill=.true., mdimnames=(/'cosp_dbze','cosp_ht'/), &
-                  fill_value=R_UNDEF)
-      call addfld('DBZEGPMKA_CS','dBZe', nhtml_cosp*nscol_cosp,'I', &
-                  'GPM KaPR dBZe (35.5 GHz) in each subcolumn', phys_decomp, &
-                  flag_xyfill=.true., mdimnames=(/'cosp_scol','lev'/), &
-                  fill_value=R_UNDEF)
+      call addfld('CFAD_DBZEGPMKA_CS',(/'cosp_dbze','cosp_ht  '/),'A','fraction', &
+                  'Radar Reflectivity Factor CFAD GPM KaPR (35.5 GHz)',  &
+                  flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld('DBZEGPMKA_CS',(/'cosp_scol','lev      '/) ,'I','dBZe', &
+                  'GPM KaPR dBZe (35.5 GHz) in each subcolumn',  &
+                  flag_xyfill=.true., fill_value=R_UNDEF)
       !!! add default calls
       call add_default('CFAD_DBZEGPMKA_CS',cosp_histfile_num,' ')
       call add_default('DBZEGPMKA_CS',cosp_histfile_num,' ')
@@ -2187,14 +2194,14 @@ if (first_run_cosp(lchnk)) then
 #ifdef GPM_KU
    if (lgpmku_sim) then                                                 ! +YLu
      do i=1,nf_gpmku                                                    ! +YLu
-        run_gpmku(i,1:pcols)=hist_fld_col_active(fname_gpmku(i),lchnk) ! +YLu
+        run_gpmku(i,1:pcols)=hist_fld_col_active(fname_gpmku(i),lchnk,pcols) ! +YLu
      end do                                                              ! +YLu
    end if                                                                ! +YLu
 #endif
 #ifdef GPM_KA
    if (lgpmka_sim) then                                                 ! +YLu
      do i=1,nf_gpmka                                                    ! +YLu
-        run_gpmka(i,1:pcols)=hist_fld_col_active(fname_gpmka(i),lchnk) ! +YLu
+        run_gpmka(i,1:pcols)=hist_fld_col_active(fname_gpmka(i),lchnk,pcols) ! +YLu
      end do                                                              ! +YLu
    end if                                                                ! +YLu
 #endif

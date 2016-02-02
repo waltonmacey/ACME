@@ -117,10 +117,9 @@ contains
          ! Profile data
          ! COSP is from surface to top, but CRTM wants top to surface. Need to flip
          ! the profiles
-         atm(i_profile)%Level_Pressure = pint(i_profile,:)
+         atm(i_profile)%Level_Pressure(0:n_layers) = pint(i_profile,:)
          atm(i_profile)%Pressure       = p(i_profile, :) 
          atm(i_profile)%Temperature    = T(i_profile, :) 
-
          ! unit for q in COSP is kg/kg, while CRTM wants g/kg. Need to do unit
          ! conversion
          atm(i_profile)%Absorber(:,1)  = q(i_profile,:) 
@@ -205,18 +204,35 @@ contains
       geo%Year  = year
       geo%Month = month
       geo%Day   = day
-
       !-----------------
       ! allocate RTSolution structure
       !FIXME: add check for allocation success
       allocate(rts(n_channels, n_profiles) )
       !-----------------
       ! forward calculation
+! For debug use
+!      call CRTM_Atmosphere_Inspect(atm)
+!      call CRTM_Surface_Inspect(sfc(1))
+!      call CRTM_Geometry_Inspect(geo(1))
+!      call CRTM_ChannelInfo_Inspect(chinfo(1))
+
       err_stat = CRTM_Forward(atm, sfc, geo, chinfo(1:1),rts)
+      
+!call CRTM_RTSolution_Inspect(rts)
+      
+      if (err_stat .NE. SUCCESS) then
+        print *,'CRTM_Forward not successful'
+
+      end if
+
+      print *, err_stat, SUCCESS
 
       ! obtain brightness temperatures from RTSolution structure
       tbs = rts%Brightness_temperature
-
+! For debug use
+!print *,'in gpm_crtm.F90'
+!print *, rts(1,1)%Brightness_temperature
+!print *, tbs
       ! destroy the CRTM structures
       call CRTM_Geometry_destroy(  geo)
       call CRTM_Options_Destroy(   opt)

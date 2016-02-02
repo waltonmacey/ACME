@@ -15,7 +15,7 @@ module GPM_CRTM_Constants
   ! Environment setup
   ! -----------------
   ! Module use
-  use cam_history_support, only: max_fieldname_len
+!  use cam_history_support, only: max_fieldname_len
   use CRTM_Parameters, only: STRLEN
   ! Disable implicit typing
   implicit none
@@ -31,7 +31,7 @@ module GPM_CRTM_Constants
   ! Module parameters
   ! -----------------
   ! maximum length of the CAM history field name
-  integer, parameter, public :: maxlen_camhistfld_name = max_fieldname_len
+  integer, parameter, public :: maxlen_camhistfld_name = 1000!max_fieldname_len
   ! maximum length of the sensor ID used in CRTM
   integer, parameter, public :: maxlen_sensorid = STRLEN
   ! maximum number of sensors calculated using CRTM

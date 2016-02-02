@@ -35,7 +35,7 @@ contains
    subroutine GPM_CRTM_result_init(n_channels, n_profiles, gpm)
       integer, intent(in) :: n_channels
       integer, intent(in) :: n_profiles
-      type(GPM_CRTM_result_type), intent(out) :: gpm
+      type(GPM_CRTM_result_type), intent(inout) :: gpm
       gpm%n_channels = n_channels
       gpm%n_profiles = n_profiles
       allocate(gpm%tbs(n_channels, n_profiles ) )
@@ -91,7 +91,8 @@ contains
          stop
       end if
 
-      gpm%tbs = tbs
+      gpm%tbs(:,:) = tbs(:,:)
+      print *, gpm%tbs
    end subroutine GPM_CRTM_result_set
 
 end module GPM_CRTM_result_mod

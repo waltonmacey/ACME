@@ -12,7 +12,7 @@ program gpmtest
    use CRTM_Module, only: crtm_channelInfo_type, CRTM_Init 
    use gpm_crtm_simulator_mod
    use GPM_CRTM_mod
-   use GPM_CRTM_result_mod
+!   use GPM_CRTM_result_mod
    use GPM_utility_mod
    use GPMsimulator_intr_mod
 
@@ -131,14 +131,14 @@ program gpmtest
    integer, parameter :: nlev = 37
    integer, parameter :: ntime = 2
 
-   integer q_in(nlon, nlat, nlev, ntime)
-   integer :: ncid, varid
+   !integer q_in(nlon, nlat, nlev, ntime)
+   !integer :: ncid, varid
   
 !   type(gpm_gmi_toabt), allocatable :: toabt(:)
 
 !   type(GPM_CRTM_sensor) :: testgmisensor
-   integer :: i
-   integer :: err_stat
+  ! integer :: i
+  ! integer :: err_stat
    type(CRTM_ChannelInfo_type), allocatable :: chinfo(:)
   ! call check( nf90_open(file_name, NF90_NOWRITE, ncid) )
   ! call check( nf90_inq_varid(ncid, "q", varid) )
@@ -147,7 +147,7 @@ program gpmtest
   ! call check ( nf90_close(ncid))
 
 !----------------------
-type(GPM_CRTM_result_type) :: gpm_result(2)
+type(GPM_CRTM_result_type), allocatable :: gpm_result(:)
 
 
 
@@ -270,7 +270,7 @@ type(GPM_CRTM_result_type) :: gpm_result(2)
    
    !call CRTM_ChannelInfo_Inspect(chinfo(1)) 
    !call CRTM_ChannelInfo_Inspect(chinfo(2)) 
-   !call gpm_crtm_simulator_run(gbx, chinfo,gpm_result)
+   call gpm_crtm_simulator_run(gbx, chinfo,(/10.0, 10.0/), (/10.0, 10.0/),gpm_result)
 
 
    call GPM_CRTM_sensor_destroy() 

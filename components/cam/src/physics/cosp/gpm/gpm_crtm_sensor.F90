@@ -157,12 +157,16 @@ contains
 !--------------------------------------------------------------------------------
 ! Inquire GPM CRTM shared variables
 !--------------------------------------------------------------------------------
-   subroutine GPM_CRTM_sensor_inquire(chinfo_list_out, n_sensors_out)
+   subroutine GPM_CRTM_sensor_inquire(chinfo_list_out, n_sensors_out, &
+   scan_angle_out, zenith_angle_out)
 !  type(GPM_CRTM_sensor_type),        intent(out), optional :: sensor_list(:)
 !  character(maxlen_sensorid),  intent(out), optional :: sensor_id_list(:)
   type(CRTM_ChannelInfo_type), intent(out), allocatable, optional :: chinfo_list_out(:)
+  real, intent(out), allocatable, optional :: scan_angle_out(:)
+  real, intent(out), allocatable, optional :: zenith_angle_out(:)
   ! current number of sensors added
   integer, intent(out), optional :: n_sensors_out
+  
   ! ---------
   ! check if the GPM CRTM shared variable has been initialized
   if (.NOT. l_initialized) then
@@ -176,6 +180,16 @@ contains
      allocate(chinfo_list_out(n_sensors) )
      chinfo_list_out = chinfo_list(1:n_sensors)
   end if
+
+  if (present(scan_angle_out)) then
+    allocate(scan_angle_out(n_sensors) )
+  end if
+
+  if (present(zenith_angle_out)) then
+    allocate(zenith_angle_out(n_sensors) )
+  end if
+
+
   ! inquire n_sensors
   if (present(n_sensors_out) ) then
      n_sensors_out = n_sensors
@@ -284,8 +298,6 @@ contains
       real, intent(in) :: sensor_scan_angle
       real, intent(in) :: sensor_zenith_angle
       integer, intent(in), optional :: channel_subset(:)
-      !-------------------
-      integer :: i
       !-------------------
       gmi%sensor_id = sensor_id
       gmi%cam_histfld_name = cam_histfld_name
