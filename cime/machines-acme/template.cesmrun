@@ -95,7 +95,7 @@ sub main
 
 	$time_sec2 = time;
 	$time_diff = $time_sec2 - $time_sec1;
-	print "\n CASE_RUN___RUN_CESM_EXE___WALL_SEC $time_diff \n\n";
+	print "\n CASE_RUN___RUN_CESM___WALL_SEC $time_diff \n\n";
 
 	#------
 	$time_sec1 = time;
@@ -363,6 +363,15 @@ sub checkInputData()
 # -------------------------------------------------------------------------
 sub runCESM()
 {
+
+#hwan++
+        # declare local variables
+        my $time_sec1 = time;
+        my $time_sec2 = time;
+        my $time_diff = time;
+
+        $time_sec1 = time;
+#hwan--
 #pw++
         system("$config{'CASEROOT'}/Tools/cesm_prerun -machine $config{'MACH'} -compiler $config{'COMPILER'} -case $config{'CASE'} -cesmid $LID -user $config{'CCSMUSER'} -caseroot $config{'CASEROOT'} -rundir $config{'RUNDIR'} -save $config{'SAVE_TIMING'} -archive $config{'SAVE_TIMING_DIR'} -sampling $config{'SYSLOG_N'} &");
 #pw--
@@ -374,15 +383,36 @@ sub runCESM()
         sleep 1 while not -e 'cesm_prerun_done';
         unlink 'cesm_prerun_done';
 #pw--
+#hwan++
+        $time_sec2 = time;
+        $time_diff = $time_sec2 - $time_sec1;
+        print "\n CASE_RUN___RUN_CESM___CESM_PRERUN___WALL_SEC $time_diff \n\n";
+
+        $time_sec1 = time;
+#hwan--
+
 	my $localtime = localtime;
 	print "$localtime CESM EXECUTION BEGINS HERE\n";
 	# Run the model
 	{{ mpirun }}
 	$localtime = localtime;
 	print "$localtime CESM EXECUTION HAS FINISHED\n";
+
+#hwan++
+        $time_sec2 = time;
+        $time_diff = $time_sec2 - $time_sec1;
+        print "\n CASE_RUN___RUN_CESM___CESM_EXE___WALL_SEC $time_diff \n\n";
+#hwan--
 #pw++
+        $time_sec1 = time;
+
         qx($config{'CASEROOT'}/Tools/cesm_postrun -machine $config{'MACH'} -case $config{'CASE'} -cesmid $LID -user $config{'CCSMUSER'} -caseroot $config{'CASEROOT'} -rundir $config{'RUNDIR'} -save $config{'SAVE_TIMING'} -archive $config{'SAVE_TIMING_DIR'});
 #pw--
+#hwan++
+        $time_sec2 = time;
+        $time_diff = $time_sec2 - $time_sec1;
+        print "\n CASE_RUN___RUN_CESM___CESM_POSTRUN___WALL_SEC $time_diff \n\n";
+#hwan--
 }
 
 
