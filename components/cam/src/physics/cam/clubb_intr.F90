@@ -1060,7 +1060,8 @@ end subroutine clubb_init_cnst
    real(r8) :: relvarmax
    real(r8) :: qmin
    real(r8) :: varmu(pcols)
-   real(r8) :: varmu2
+   real(r8) :: varmu2, se_upper_a, se_upper_b, se_upper_diss
+   real(r8) :: tw_upper_a, tw_upper_b, tw_upper_diss
    
    ! Variables below are needed to compute energy integrals for conservation
    real(r8) :: ke_a(pcols), ke_b(pcols), te_a(pcols), te_b(pcols)
@@ -1457,23 +1458,6 @@ end subroutine clubb_init_cnst
       up2(1:ncol,pverp)=up2(1:ncol,pver)
       vp2(1:ncol,pverp)=vp2(1:ncol,pver)
    endif
-
-   ! Compute integrals of static energy, kinetic energy, water vapor, and liquid water
-   ! for the computation of total energy before CLUBB is called.  This is for an 
-   ! effort to conserve energy since liquid water potential temperature (which CLUBB 
-   ! conserves) and static energy (which CAM conserves) are not exactly equal.   
-   se_b = 0._r8
-   ke_b = 0._r8
-   wv_b = 0._r8
-   wl_b = 0._r8
-   do k=1,pver
-     do i=1,ncol
-       se_b(i) = se_b(i) + state1%s(i,k)*state1%pdel(i,k)/gravit
-       ke_b(i) = ke_b(i) + 0.5_r8*(um(i,k)**2+vm(i,k)**2)*state1%pdel(i,k)/gravit
-       wv_b(i) = wv_b(i) + state1%q(i,k,ixq)*state1%pdel(i,k)/gravit
-       wl_b(i) = wl_b(i) + state1%q(i,k,ixcldliq)*state1%pdel(i,k)/gravit
-     enddo
-   enddo
 
    !  Compute virtual potential temperature, which is needed for CLUBB  
    do k=1,pver
@@ -1950,44 +1934,98 @@ end subroutine clubb_init_cnst
       !   thus why the second loop is needed.
      
       zi_out(i,1) = 0._r8
+
+      ! Section below is concentrated on energy fixing for conservation.
+      !   There are two steps to this process.  The first is to remove any tendencies
+      !   CLUBB may have produced above where it is active due to roundoff. 
+      !   The second is to provider a fixer because CLUBB and CAM's thermodynamic
+      !   variables are different.  
+
+      ! Limit the energy fixer to find highest layer where CLUBB is active 
+      ! Find first level where rtp2 is past a certain threshold or where
+      ! CLUBB has generated a cloud water mixing ratio greater than zero 
+      clubbtop = 1
+      do while ((rtp2(i,clubbtop) .le. 1.e-15_r8 .and. rcm(i,clubbtop) .eq. 0._r8) .and. clubbtop .lt. pver-1)
+         clubbtop = clubbtop + 1
+      enddo    
+      
+      ! Compute static energy using CLUBB's variables
+      do k=1,pver
+         clubb_s(k) = cpair*((thlm(i,k)+(latvap/cpair)*rcm(i,k))/exner_clubb(i,k))+ &
+                      gravit*state1%zm(i,k)+state1%phis(i)      
+      enddo      
+      
+      !  Compute integrals above layer where CLUBB is active
+      se_upper_a = 0._r8   ! energy in layers above where CLUBB is active AFTER CLUBB is called
+      se_upper_b = 0._r8   ! energy in layers above where CLUBB is active BEFORE CLUBB is called
+      tw_upper_a = 0._r8   ! total water in layers above where CLUBB is active AFTER CLUBB is called
+      tw_upper_b = 0._r8   ! total water in layers above where CLUBB is active BEFORE CLUBB is called
+      do k=1,clubbtop
+        se_upper_a = se_upper_a + (clubb_s(k)+0.5_r8*(um(i,k)**2+vm(i,k)**2)+(latvap+latice)* &
+	             (rtm(i,k)-rcm(i,k))+(latice)*rcm(i,k))*state1%pdel(i,k)/gravit
+	se_upper_b = se_upper_b + (state1%s(i,k)+0.5_r8*(state1%u(i,k)**2+state1%v(i,k)**2)+(latvap+latice)* &
+	             state1%q(i,k,ixq)+(latice)*state1%q(i,k,ixcldliq))*state1%pdel(i,k)/gravit
+	tw_upper_a = tw_upper_a + rtm(i,k)*state1%pdel(i,k)/gravit
+	tw_upper_b = tw_upper_b + (state1%q(i,k,ixq)+state1%q(i,k,ixcldliq))*state1%pdel(i,k)/gravit
+      enddo
+      
+      ! Compute the disbalance of total energy and water in upper levels,
+      !   divide by the thickness in the lower atmosphere where we will 
+      !   evenly distribute this disbalance
+      se_upper_diss = (se_upper_a - se_upper_b)/(state1%pint(i,pverp)-state1%pint(i,clubbtop+1))
+      tw_upper_diss = (tw_upper_a - tw_upper_b)/(state1%pint(i,pverp)-state1%pint(i,clubbtop+1))
+      
+      ! Apply the disbalances above to layers where CLUBB is active
+      do k=clubbtop+1,pver
+        clubb_s(k) = clubb_s(k) + se_upper_diss*gravit
+	rtm(i,k) = rtm(i,k) + tw_upper_diss*gravit
+      enddo
+      
+      ! Essentially "zero" out tendencies in the layers above where CLUBB is active
+      do k=1,clubbtop
+        clubb_s(k) = state1%s(i,k)
+	rcm(i,k) = state1%q(i,k,ixcldliq)
+	rtm(i,k) = state1%q(i,k,ixq) + rcm(i,k)
+      enddo           
      
       ! Compute integrals for static energy, kinetic energy, water vapor, and liquid water
-      ! after CLUBB is called.  This is for energy conservation purposes.
+      ! after CLUBB is called.  
       se_a = 0._r8
       ke_a = 0._r8
       wv_a = 0._r8
       wl_a = 0._r8
+      
+      ! Do the same as above, but for before CLUBB was called.
+      se_b = 0._r8
+      ke_b = 0._r8
+      wv_b = 0._r8
+      wl_b = 0._r8            
       do k=1,pver
-         clubb_s(k) = cpair*((thlm(i,k)+(latvap/cpair)*rcm(i,k))/exner_clubb(i,k))+ &
-                      gravit*state1%zm(i,k)+state1%phis(i)
          se_a(i) = se_a(i) + clubb_s(k)*state1%pdel(i,k)/gravit
          ke_a(i) = ke_a(i) + 0.5_r8*(um(i,k)**2+vm(i,k)**2)*state1%pdel(i,k)/gravit
          wv_a(i) = wv_a(i) + (rtm(i,k)-rcm(i,k))*state1%pdel(i,k)/gravit
          wl_a(i) = wl_a(i) + (rcm(i,k))*state1%pdel(i,k)/gravit
+	 
+         se_b(i) = se_b(i) + state1%s(i,k)*state1%pdel(i,k)/gravit
+         ke_b(i) = ke_b(i) + 0.5_r8*(state1%u(i,k)**2+state1%v(i,k)**2)*state1%pdel(i,k)/gravit
+         wv_b(i) = wv_b(i) + state1%q(i,k,ixq)*state1%pdel(i,k)/gravit
+         wl_b(i) = wl_b(i) + state1%q(i,k,ixcldliq)*state1%pdel(i,k)/gravit	 
       enddo
      
       ! Based on these integrals, compute the total energy before and after CLUBB call
-      do k=1,pver
-         te_a(i) = se_a(i) + ke_a(i) + (latvap+latice)*wv_a(i)+latice*wl_a(i)
-         te_b(i) = se_b(i) + ke_b(i) + (latvap+latice)*wv_b(i)+latice*wl_b(i)
-      enddo
-     
+      te_a(i) = se_a(i) + ke_a(i) + (latvap+latice)*wv_a(i)+latice*wl_a(i)
+      te_b(i) = se_b(i) + ke_b(i) + (latvap+latice)*wv_b(i)+latice*wl_b(i)
+      
       ! Take into account the surface fluxes of heat and moisture
-      te_b(i) = te_b(i)+(cam_in%shf(i)+(cam_in%lhf(i)/latvap)*(latvap+latice))*hdtime
-
-      ! Limit the energy fixer to find highest layer where CLUBB is active
-      ! Find first level where wp2 is higher than lowest threshold
-      clubbtop = 1
-      do while (wp2(i,clubbtop) .eq. w_tol_sqd .and. clubbtop .lt. pver-1)
-         clubbtop = clubbtop + 1
-      enddo
+      te_b(i) = te_b(i)+(cam_in%shf(i)+(cam_in%lhf(i)/latvap)*(latvap+latice))*hdtime      
 
       ! Compute the disbalance of total energy, over depth where CLUBB is active
-      se_dis = (te_a(i) - te_b(i))/(state1%pint(i,pverp)-state1%pint(i,clubbtop))
+      se_dis = (te_a(i) - te_b(i))/(state1%pint(i,pverp)-state1%pint(i,clubbtop+1))
 
-      ! Apply this fixer throughout the column evenly, but only at layers where
+      ! Fix the total energy coming out of CLUBB so it achieves enery conservation.
+      ! Apply this fixer throughout the column evenly, but only at layers where 
       ! CLUBB is active.
-      do k=clubbtop,pver
+      do k=clubbtop+1,pver
          clubb_s(k) = clubb_s(k) - se_dis*gravit
       enddo    
 

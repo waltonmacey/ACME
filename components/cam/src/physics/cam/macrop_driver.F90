@@ -1299,10 +1299,10 @@ elemental subroutine ice_macro_tend(naai,t,p,qv,qi,ni,xxls,deltat,stend,qvtend,q
            tau = 300._r8 + (1800._r8 - 300._r8) * ( 268.15_r8 - t ) / 30._r8
         endif
      else
-         tau = 300._r8
+         tau = 1800._r8
      end if
 
-     qitend = (qv-QSI)/deltat !* exp(-tau/deltat)
+     qitend = (qv-QSI)/deltat * exp(-tau/deltat)
      qvtend = 0._r8 - qitend
      stend  = qitend * xxls    ! moist static energy tend...[J/kg/s] !
 
