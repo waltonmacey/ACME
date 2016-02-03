@@ -126,11 +126,11 @@ module seasalt_model
    real(r8)            :: l_bub = 0.1e-6_r8
   ! Determine mixing state for MOM emissions.
   ! Currently implemented options:
-  ! mixing_state = 0 : total external mixture, add to mass
-  !                1 : total external mixture, replace mass
-  !                2 : total internal mixture, add to mass
-  !                3 : total internal mixture, replace mass
-   integer             :: mixing_state = 0
+  ! mixing_state = 0 : total external mixture, replace mass
+  !                1 : total external mixture, add to mass
+  !                2 : total internal mixture, replace mass
+  !                3 : total internal mixture, add to mass
+   integer             :: mixing_state = 1
 
   ! Selection of alternate parameterizations
   ! Set fmoa=1 for Burrows et al., 2014 parameterization

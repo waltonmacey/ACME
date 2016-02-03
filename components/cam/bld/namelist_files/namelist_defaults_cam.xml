@@ -456,7 +456,7 @@
 <mam_mom_fixed_ymd>0</mam_mom_fixed_ymd>
 <mam_mom_fixed_tod>0</mam_mom_fixed_tod>
 <mam_mom_bubble_thickness>0.1e-6</mam_mom_bubble_thickness>
-<mam_mom_mixing_state>0</mam_mom_mixing_state>
+<mam_mom_mixing_state>1</mam_mom_mixing_state>
 <mam_mom_parameterization>1</mam_mom_parameterization>
 
 <!-- oxidant data for prognostic sulfur cycle -->
