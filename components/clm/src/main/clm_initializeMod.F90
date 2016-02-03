@@ -769,6 +769,8 @@ contains
             carbonstate_vars%decomp_cpools_col(begc:endc, 1:),        &
             carbonstate_vars%decomp_cpools_1m_col(begc:endc, 1:))
 
+       print*,'nitrogenflux_vars'
+       pause
        call nitrogenflux_vars%Init(bounds_proc)
 
 

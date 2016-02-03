@@ -354,13 +354,14 @@ module PlantSoilnutrientFluxType
          ptr_col=this%plant_minp_active_yield_flx_col)
 
 
+
     this%f_nit_vr_col(begc:endc,:) = spval
-    call hist_addfld_decomp (fname='F_NIT'//trim(vr_suffix), units='gN/m^3/s', type2d='levdcmp', &
+    call hist_addfld_decomp (fname='F_NIT_vr', units='gN/m^3/s', type2d='levdcmp', &
          avgflag='A', long_name='nitrification flux', &
          ptr_col=this%f_nit_vr_col)
 
     this%f_denit_vr_col(begc:endc,:) = spval
-    call hist_addfld_decomp (fname='F_DENIT'//trim(vr_suffix), units='gN/m^3/s', type2d='levdcmp', &
+    call hist_addfld_decomp (fname='F_DENIT_vr', units='gN/m^3/s', type2d='levdcmp', &
          avgflag='A', long_name='denitrification flux', &
          ptr_col=this%f_denit_vr_col)
 

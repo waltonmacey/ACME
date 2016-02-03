@@ -397,6 +397,7 @@ module CNNitrogenFluxType
      procedure , public  :: Summary
      procedure , private :: InitAllocate
      procedure , private :: InitHistory
+     procedure , private :: InitHistory_2dfld
      procedure , private :: InitCold
 
      procedure , private :: NSummary_interface
@@ -409,11 +410,18 @@ contains
   !------------------------------------------------------------------------
   subroutine Init(this, bounds)
 
+    use tracer_varcon, only : is_active_betr_bgc
+    use clm_varctl   , only : use_betr
+
     class(nitrogenflux_type) :: this
     type(bounds_type), intent(in) :: bounds
 
     call this%InitAllocate (bounds)
-    call this%InitHistory (bounds)
+    if(use_betr .and. is_active_betr_bgc)then
+      call this%InitHistory_2dfld (bounds)
+    else
+      call this%InitHistory (bounds)
+    endif
     call this%InitCold (bounds)
 
   end subroutine Init
@@ -791,6 +799,16 @@ contains
 
   end subroutine InitAllocate
 
+  !------------------------------------------------------------------------
+  subroutine InitHistory_2dfld(this, bounds)
+
+  ! add 2d integrated fields to history file
+  ! !ARGUMENTS:
+  class(nitrogenflux_type) :: this
+  type(bounds_type), intent(in) :: bounds
+
+
+  end subroutine InitHistory_2dfld
   !------------------------------------------------------------------------
   subroutine InitHistory(this, bounds)
     !

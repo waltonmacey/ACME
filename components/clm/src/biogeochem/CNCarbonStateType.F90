@@ -6,29 +6,29 @@ module CNCarbonStateType
   use clm_varpar             , only : ndecomp_cascade_transitions, ndecomp_pools, nlevcan
   use clm_varpar             , only : nlevdecomp_full, crop_prog, nlevdecomp
   use clm_varcon             , only : spval, ispval, dzsoi_decomp, zisoi, zsoi
-  use landunit_varcon        , only : istcrop 
-  use clm_varctl             , only : iulog, use_vertsoilc, use_cndv, spinup_state 
+  use landunit_varcon        , only : istcrop
+  use clm_varctl             , only : iulog, use_vertsoilc, use_cndv, spinup_state
   use decompMod              , only : bounds_type
   use CNStateType            , only : cnstate_type
   use pftvarcon              , only : npcropmin
   use CNDecompCascadeConType , only : decomp_cascade_con
   use EcophysConType         , only : ecophyscon
   use abortutils             , only : endrun
-  use spmdMod                , only : masterproc 
+  use spmdMod                , only : masterproc
   use subgridAveMod          , only : p2c
-  use LandunitType           , only : lun                
-  use ColumnType             , only : col                
+  use LandunitType           , only : lun
+  use ColumnType             , only : col
   use PatchType              , only : pft
   use clm_varctl             , only : nu_com
-  
-  ! 
+
+  !
   ! !PUBLIC TYPES:
   implicit none
   save
   private
   !
   type, public :: carbonstate_type
-     
+
      real(r8), pointer :: grainc_patch             (:)     ! (gC/m2) grain C (crop model)
      real(r8), pointer :: grainc_storage_patch     (:)     ! (gC/m2) grain C storage (crop model)
      real(r8), pointer :: grainc_xfer_patch        (:)     ! (gC/m2) grain C transfer (crop model)
@@ -94,7 +94,7 @@ module CNCarbonStateType
      real(r8), pointer :: totsomc_1m_col           (:)     ! col (gC/m2) total soil organic matter carbon to 1 meter
      real(r8), pointer :: totecosysc_col           (:)     ! col (gC/m2) total ecosystem carbon, incl veg but excl cpool
      real(r8), pointer :: totcolc_col              (:)     ! col (gC/m2) total column carbon, incl veg and cpool
-     real(r8), pointer :: totabgc_col              (:)     ! col (gC/m2) total column above ground carbon, excluding som 
+     real(r8), pointer :: totabgc_col              (:)     ! col (gC/m2) total column above ground carbon, excluding som
 
      ! Balance checks
      real(r8), pointer :: begcb_patch              (:)     ! patch carbon mass, beginning of time step (gC/m**2)
@@ -103,12 +103,12 @@ module CNCarbonStateType
      real(r8), pointer :: endcb_col                (:)     ! patch carbon mass, end of time step (gC/m**2)
      real(r8), pointer :: errcb_patch              (:)     ! patch carbon balance error for the timestep (gC/m**2)
      real(r8), pointer :: errcb_col                (:)     ! patch carbon balance error for the timestep (gC/m**2)
-     
+
      real(r8), pointer :: totpftc_beg_col(:)
      real(r8), pointer :: cwdc_beg_col(:)
      real(r8), pointer :: totlitc_beg_col(:)
      real(r8), pointer :: totsomc_beg_col(:)
-     
+
      real(r8), pointer :: totpftc_end_col(:)
      real(r8), pointer :: cwdc_end_col(:)
      real(r8), pointer :: totlitc_end_col(:)
@@ -116,14 +116,15 @@ module CNCarbonStateType
 
    contains
 
-     procedure , public  :: Init   
-     procedure , public  :: SetValues 
+     procedure , public  :: Init
+     procedure , public  :: SetValues
      procedure , public  :: ZeroDWT
      procedure , public  :: Restart
      procedure , public  :: Summary
-     procedure , private :: InitAllocate 
-     procedure , private :: InitHistory  
-     procedure , private :: InitCold     
+     procedure , private :: InitAllocate
+     procedure , private :: InitHistory
+     procedure , private :: InitHistory_2dfld
+     procedure , private :: InitCold
 
   end type carbonstate_type
   !------------------------------------------------------------------------
@@ -132,15 +133,22 @@ contains
 
   !------------------------------------------------------------------------
   subroutine Init(this, bounds, carbon_type, ratio, c12_carbonstate_vars)
-
+  use tracer_varcon, only : is_active_betr_bgc
+  use clm_varctl   , only : use_betr
+  
     class(carbonstate_type)                       :: this
-    type(bounds_type)      , intent(in)           :: bounds  
+    type(bounds_type)      , intent(in)           :: bounds
     character(len=3)       , intent(in)           :: carbon_type
     real(r8)               , intent(in)           :: ratio
     type(carbonstate_type) , intent(in), optional :: c12_carbonstate_vars
 
     call this%InitAllocate ( bounds)
-    call this%InitHistory ( bounds, carbon_type)
+    if(use_betr .and. is_active_betr_bgc)then
+      call this%InitHistory_2dfld (bounds, carbon_type)
+    else
+      call this%InitHistory ( bounds, carbon_type)
+    endif
+
     if (present(c12_carbonstate_vars)) then
        call this%InitCold  ( bounds, ratio, c12_carbonstate_vars)
     else
@@ -154,7 +162,7 @@ contains
     !
     ! !ARGUMENTS:
     class (carbonstate_type) :: this
-    type(bounds_type), intent(in) :: bounds  
+    type(bounds_type), intent(in) :: bounds
     !
     ! !LOCAL VARIABLES:
     integer           :: begp,endp
@@ -195,7 +203,7 @@ contains
     allocate(this%grainc_patch             (begp :endp))                   ;     this%grainc_patch             (:)   = nan
     allocate(this%grainc_storage_patch     (begp :endp))                   ;     this%grainc_storage_patch     (:)   = nan
     allocate(this%grainc_xfer_patch        (begp :endp))                   ;     this%grainc_xfer_patch        (:)   = nan
-    allocate(this%woodc_patch              (begp :endp))                   ;     this%woodc_patch              (:)   = nan     
+    allocate(this%woodc_patch              (begp :endp))                   ;     this%woodc_patch              (:)   = nan
 
     allocate(this%cwdc_col                 (begc :endc))                   ;     this%cwdc_col                 (:)   = nan
     allocate(this%ctrunc_col               (begc :endc))                   ;     this%ctrunc_col               (:)   = nan
@@ -223,7 +231,7 @@ contains
     allocate(this%totvegc_col              (begc :endc))                   ;     this%totvegc_col              (:)   = nan
 
     allocate(this%totabgc_col              (begc :endc))                   ;     this%totabgc_col              (:)   = nan
-    allocate(this%decomp_cpools_vr_col(begc:endc,1:nlevdecomp_full,1:ndecomp_pools))  
+    allocate(this%decomp_cpools_vr_col(begc:endc,1:nlevdecomp_full,1:ndecomp_pools))
     this%decomp_cpools_vr_col(:,:,:)= nan
 
     allocate(this%begcb_patch (begp:endp));     this%begcb_patch (:) = nan
@@ -237,13 +245,27 @@ contains
     allocate(this%cwdc_beg_col   (begc:endc));  this%cwdc_beg_col    (:) = nan
     allocate(this%totlitc_beg_col(begc:endc));  this%totlitc_beg_col (:) = nan
     allocate(this%totsomc_beg_col(begc:endc));  this%totsomc_beg_col (:) = nan
-    
+
     allocate(this%totpftc_end_col(begc:endc));  this%totpftc_end_col (:) = nan
     allocate(this%cwdc_end_col   (begc:endc));  this%cwdc_end_col    (:) = nan
     allocate(this%totlitc_end_col(begc:endc));  this%totlitc_end_col (:) = nan
     allocate(this%totsomc_end_col(begc:endc));  this%totsomc_end_col (:) = nan
 
   end subroutine InitAllocate
+
+
+
+  !------------------------------------------------------------------------
+  subroutine InitHistory_2dfld(this, bounds, carbon_type)
+
+  ! add 2d integrated fields to history file
+  ! !ARGUMENTS:
+  class (carbonstate_type) :: this
+  type(bounds_type)         , intent(in) :: bounds
+  character(len=3)          , intent(in) :: carbon_type ! one of ['c12', c13','c14']
+
+
+  end subroutine InitHistory_2dfld
 
   !------------------------------------------------------------------------
   subroutine InitHistory(this, bounds, carbon_type)
@@ -255,19 +277,19 @@ contains
     use clm_varpar , only : ndecomp_cascade_transitions, ndecomp_pools
     use clm_varpar , only : nlevdecomp, nlevdecomp_full, nlevgrnd
     use clm_varctl , only : use_c13, use_c14
-    use histFileMod, only : hist_addfld1d, hist_addfld2d, hist_addfld_decomp 
+    use histFileMod, only : hist_addfld1d, hist_addfld2d, hist_addfld_decomp
     !
     ! !ARGUMENTS:
     class (carbonstate_type) :: this
-    type(bounds_type)         , intent(in) :: bounds 
+    type(bounds_type)         , intent(in) :: bounds
     character(len=3)          , intent(in) :: carbon_type ! one of ['c12', c13','c14']
     !
     ! !LOCAL VARIABLES:
-    integer           :: k,l,ii,jj 
+    integer           :: k,l,ii,jj
     character(10)     :: active
     integer           :: begp,endp
     integer           :: begc,endc
-    integer           :: begg,endg 
+    integer           :: begg,endg
     character(24)     :: fieldname
     character(100)    :: longname
     real(r8), pointer :: data1dptr(:)   ! temp. pointer for slicing larger arrays
@@ -290,7 +312,7 @@ contains
                avgflag='A', long_name='grain C', &
                ptr_patch=this%grainc_patch, default='inactive')
        end if
-       
+
        this%woodc_patch(begp:endp) = spval
        call hist_addfld1d (fname='WOODC', units='gC/m^2', &
             avgflag='A', long_name='wood C', &
@@ -434,7 +456,7 @@ contains
     end if
 
     !-------------------------------
-    ! C13 state variables 
+    ! C13 state variables
     !-------------------------------
 
     if ( carbon_type == 'c13' ) then
@@ -576,7 +598,7 @@ contains
     endif
 
     !-------------------------------
-    ! C14 state variables 
+    ! C14 state variables
     !-------------------------------
 
     if ( carbon_type == 'c14') then
@@ -733,7 +755,7 @@ contains
                data2dptr => this%decomp_cpools_vr_col(:,:,l)
                fieldname = trim(decomp_cascade_con%decomp_pool_name_history(l))//'C_vr'
                longname =  trim(decomp_cascade_con%decomp_pool_name_history(l))//' C (vertically resolved)'
- 
+
                call hist_addfld2d (fname=fieldname, units='gC/m^3',  type2d='levdcmp', &
                   avgflag='A', long_name=longname, &
                   ptr_col=data2dptr)
@@ -971,7 +993,7 @@ contains
             avgflag='A', long_name='C14 total soil organic matter carbon', &
             ptr_col=this%totsomc_col)
 
-       if ( nlevdecomp_full > 1 ) then       
+       if ( nlevdecomp_full > 1 ) then
           this%totlitc_1m_col(begc:endc) = spval
           call hist_addfld1d (fname='C14_TOTLITC_1m', units='gC14/m^2', &
                avgflag='A', long_name='C14 total litter carbon to 1 meter', &
@@ -1027,8 +1049,8 @@ contains
     use pftvarcon       , only: noveg, npcropmin
     !
     ! !ARGUMENTS:
-    class(carbonstate_type) :: this 
-    type(bounds_type), intent(in) :: bounds  
+    class(carbonstate_type) :: this
+    type(bounds_type), intent(in) :: bounds
     real(r8), intent(in) :: ratio
     type(carbonstate_type), optional, intent(in) :: c12_carbonstate_vars
     !
@@ -1066,7 +1088,7 @@ contains
     !-----------------------------------------------
     ! initialize patch-level carbon state variables
     !-----------------------------------------------
-    
+
     do p = bounds%begp,bounds%endp
 
        this%leafcmax_patch(p) = 0._r8
@@ -1091,22 +1113,22 @@ contains
           end if
           this%leafc_xfer_patch(p) = 0._r8
 
-          this%frootc_patch(p)            = 0._r8 
-          this%frootc_storage_patch(p)    = 0._r8 
-          this%frootc_xfer_patch(p)       = 0._r8 
+          this%frootc_patch(p)            = 0._r8
+          this%frootc_storage_patch(p)    = 0._r8
+          this%frootc_xfer_patch(p)       = 0._r8
 
-          this%livestemc_patch(p)         = 0._r8 
-          this%livestemc_storage_patch(p) = 0._r8 
-          this%livestemc_xfer_patch(p)    = 0._r8 
+          this%livestemc_patch(p)         = 0._r8
+          this%livestemc_storage_patch(p) = 0._r8
+          this%livestemc_xfer_patch(p)    = 0._r8
 
           if (ecophyscon%woody(pft%itype(p)) == 1._r8) then
              this%deadstemc_patch(p) = 0.1_r8 * ratio
           else
-             this%deadstemc_patch(p) = 0._r8 
+             this%deadstemc_patch(p) = 0._r8
           end if
-          this%deadstemc_storage_patch(p)  = 0._r8 
+          this%deadstemc_storage_patch(p)  = 0._r8
           this%deadstemc_xfer_patch(p)     = 0._r8
-          
+
           if (nu_com .ne. 'RD') then
               ! eca competition calculate root NP uptake as a function of fine root biomass
               ! better to initialize frootc(p) with a non-zero value
@@ -1128,33 +1150,33 @@ contains
                   end if
               end if
           end if
-           
-          this%livecrootc_patch(p)         = 0._r8 
-          this%livecrootc_storage_patch(p) = 0._r8 
-          this%livecrootc_xfer_patch(p)    = 0._r8 
 
-          this%deadcrootc_patch(p)         = 0._r8 
-          this%deadcrootc_storage_patch(p) = 0._r8 
-          this%deadcrootc_xfer_patch(p)    = 0._r8 
+          this%livecrootc_patch(p)         = 0._r8
+          this%livecrootc_storage_patch(p) = 0._r8
+          this%livecrootc_xfer_patch(p)    = 0._r8
 
-          this%gresp_storage_patch(p)      = 0._r8 
-          this%gresp_xfer_patch(p)         = 0._r8 
+          this%deadcrootc_patch(p)         = 0._r8
+          this%deadcrootc_storage_patch(p) = 0._r8
+          this%deadcrootc_xfer_patch(p)    = 0._r8
 
-          this%cpool_patch(p)              = 0._r8 
-          this%xsmrpool_patch(p)           = 0._r8 
-          this%ctrunc_patch(p)             = 0._r8 
-          this%dispvegc_patch(p)           = 0._r8 
-          this%storvegc_patch(p)           = 0._r8 
-          this%totpftc_patch(p)            = 0._r8 
+          this%gresp_storage_patch(p)      = 0._r8
+          this%gresp_xfer_patch(p)         = 0._r8
+
+          this%cpool_patch(p)              = 0._r8
+          this%xsmrpool_patch(p)           = 0._r8
+          this%ctrunc_patch(p)             = 0._r8
+          this%dispvegc_patch(p)           = 0._r8
+          this%storvegc_patch(p)           = 0._r8
+          this%totpftc_patch(p)            = 0._r8
           this%woodc_patch(p)              = 0._r8
 
           if ( crop_prog )then
-             this%grainc_patch(p)         = 0._r8 
-             this%grainc_storage_patch(p) = 0._r8 
-             this%grainc_xfer_patch(p)    = 0._r8 
+             this%grainc_patch(p)         = 0._r8
+             this%grainc_storage_patch(p) = 0._r8
+             this%grainc_xfer_patch(p)    = 0._r8
           end if
 
-          ! calculate totvegc explicitly so that it is available for the isotope 
+          ! calculate totvegc explicitly so that it is available for the isotope
           ! code on the first time step.
 
           this%totvegc_patch(p) = &
@@ -1187,7 +1209,7 @@ contains
                   this%grainc_xfer_patch(p)
           end if
        endif
-       
+
     end do
 
     ! initialize column-level variables
@@ -1264,7 +1286,7 @@ contains
 
     ! now loop through special filters and explicitly set the variables that
     ! have to be in place for biogeophysics
-    
+
     do fc = 1,num_special_col
        c = special_col(fc)
 
@@ -1286,7 +1308,7 @@ contains
   !-----------------------------------------------------------------------
   subroutine Restart ( this,  bounds, ncid, flag, carbon_type, c12_carbonstate_vars, cnstate_vars)
     !
-    ! !DESCRIPTION: 
+    ! !DESCRIPTION:
     ! Read/write CN restart data for carbon state
     !
     ! !USES:
@@ -1301,11 +1323,11 @@ contains
     !
     ! !ARGUMENTS:
     class (carbonstate_type) :: this
-    type(bounds_type)         , intent(in)           :: bounds 
+    type(bounds_type)         , intent(in)           :: bounds
     type(file_desc_t)         , intent(inout)        :: ncid   ! netcdf id
     character(len=*)          , intent(in)           :: flag   !'read' or 'write'
     character(len=3)          , intent(in)           :: carbon_type ! 'c12' or 'c13' or 'c14'
-    type (carbonstate_type)   , intent(in), optional :: c12_carbonstate_vars 
+    type (carbonstate_type)   , intent(in), optional :: c12_carbonstate_vars
     type (cnstate_type)       , intent(in)           :: cnstate_vars
 
     !
@@ -1327,9 +1349,9 @@ contains
     logical  :: exit_spinup  = .false.
     logical  :: enter_spinup = .false.
     ! spinup state as read from restart file, for determining whether to enter or exit spinup mode.
-    integer  :: restart_file_spinup_state 
+    integer  :: restart_file_spinup_state
     ! flags for comparing the model and restart decomposition cascades
-    integer  :: decomp_cascade_state, restart_file_decomp_cascade_state 
+    integer  :: decomp_cascade_state, restart_file_decomp_cascade_state
     !------------------------------------------------------------------------
 
     if (carbon_type == 'c13' .or. carbon_type == 'c14') then
@@ -1346,145 +1368,145 @@ contains
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='leafc', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%leafc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%leafc_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='leafc_storage', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%leafc_storage_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%leafc_storage_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='leafc_xfer', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%leafc_xfer_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%leafc_xfer_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='frootc', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%frootc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%frootc_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='frootc_storage', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%frootc_storage_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%frootc_storage_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='frootc_xfer', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%frootc_xfer_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%frootc_xfer_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='livestemc', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%livestemc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%livestemc_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='livestemc_storage', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%livestemc_storage_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%livestemc_storage_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='livestemc_xfer', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%livestemc_xfer_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%livestemc_xfer_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='deadstemc', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%deadstemc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%deadstemc_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='deadstemc_storage', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%deadstemc_storage_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%deadstemc_storage_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='deadstemc_xfer', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%deadstemc_xfer_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%deadstemc_xfer_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='livecrootc', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%livecrootc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%livecrootc_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='livecrootc_storage', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%livecrootc_storage_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%livecrootc_storage_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='livecrootc_xfer', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%livecrootc_xfer_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%livecrootc_xfer_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='deadcrootc', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%deadcrootc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%deadcrootc_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='deadcrootc_storage', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%deadcrootc_storage_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%deadcrootc_storage_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='deadcrootc_xfer', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%deadcrootc_xfer_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%deadcrootc_xfer_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='gresp_storage', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%gresp_storage_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%gresp_storage_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='gresp_xfer', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%gresp_xfer_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%gresp_xfer_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='cpool', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%cpool_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%cpool_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='xsmrpool', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%xsmrpool_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%xsmrpool_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='pft_ctrunc', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%ctrunc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%ctrunc_patch)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='totvegc', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%totvegc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%totvegc_patch)
     end if
 
     if (carbon_type == 'c12' .and. use_cndv) then
@@ -1495,7 +1517,7 @@ contains
     end if
 
     !--------------------------------
-    ! C13 pft carbon state variables 
+    ! C13 pft carbon state variables
     !--------------------------------
 
     if ( carbon_type == 'c13')  then
@@ -1554,7 +1576,7 @@ contains
     if ( carbon_type == 'c13')  then
        call restartvar(ncid=ncid, flag=flag, varname='leafc_storage_13', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%leafc_storage_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%leafc_storage_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%leafc_storage with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1570,7 +1592,7 @@ contains
     if ( carbon_type == 'c13')  then
        call restartvar(ncid=ncid, flag=flag, varname='leafc_xfer_13', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%leafc_xfer_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%leafc_xfer_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%leafc_xfer with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1586,7 +1608,7 @@ contains
     if ( carbon_type == 'c13')  then
        call restartvar(ncid=ncid, flag=flag, varname='frootc_13', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%frootc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%frootc_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%frootc with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1602,7 +1624,7 @@ contains
     if ( carbon_type == 'c13')  then
        call restartvar(ncid=ncid, flag=flag, varname='frootc_storage_13', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%frootc_storage_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%frootc_storage_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%frootc_storage with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1618,7 +1640,7 @@ contains
     if ( carbon_type == 'c13')  then
        call restartvar(ncid=ncid, flag=flag, varname='frootc_xfer_13', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%frootc_xfer_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%frootc_xfer_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%frootc_xfer with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1634,7 +1656,7 @@ contains
     if ( carbon_type == 'c13')  then
        call restartvar(ncid=ncid, flag=flag, varname='livestemc_13', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%livestemc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%livestemc_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%livestemc with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1650,7 +1672,7 @@ contains
     if ( carbon_type == 'c13')  then
        call restartvar(ncid=ncid, flag=flag, varname='livestemc_storage_13', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%livestemc_storage_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%livestemc_storage_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%livestemc_storage with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1666,7 +1688,7 @@ contains
     if ( carbon_type == 'c13')  then
        call restartvar(ncid=ncid, flag=flag, varname='livestemc_xfer_13', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%livestemc_xfer_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%livestemc_xfer_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%livestemc_xfer with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1682,7 +1704,7 @@ contains
     if ( carbon_type == 'c13')  then
        call restartvar(ncid=ncid, flag=flag, varname='deadstemc_13', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%deadstemc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%deadstemc_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%deadstemc with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1698,7 +1720,7 @@ contains
     if ( carbon_type == 'c13')  then
        call restartvar(ncid=ncid, flag=flag, varname='deadstemc_storage_13', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%deadstemc_storage_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%deadstemc_storage_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%deadstemc_storage with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1714,7 +1736,7 @@ contains
     if ( carbon_type == 'c13')  then
        call restartvar(ncid=ncid, flag=flag, varname='deadstemc_xfer_13', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%deadstemc_xfer_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%deadstemc_xfer_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%deadstemc_xfer with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1730,7 +1752,7 @@ contains
     if ( carbon_type == 'c13')  then
        call restartvar(ncid=ncid, flag=flag, varname='livecrootc_13', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%livecrootc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%livecrootc_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%livecrootc with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1746,7 +1768,7 @@ contains
     if ( carbon_type == 'c13')  then
        call restartvar(ncid=ncid, flag=flag, varname='livecrootc_storage_13', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%livecrootc_storage_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%livecrootc_storage_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%livecrootc_storage with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1762,7 +1784,7 @@ contains
     if ( carbon_type == 'c13')  then
        call restartvar(ncid=ncid, flag=flag, varname='livecrootc_xfer_13', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%livecrootc_xfer_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%livecrootc_xfer_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%livecrootc_xfer with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1778,7 +1800,7 @@ contains
     if ( carbon_type == 'c13')  then
        call restartvar(ncid=ncid, flag=flag, varname='deadcrootc_13', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%deadcrootc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%deadcrootc_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%deadcrootc with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1794,7 +1816,7 @@ contains
     if ( carbon_type == 'c13')  then
        call restartvar(ncid=ncid, flag=flag, varname='deadcrootc_storage_13', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%deadcrootc_storage_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%deadcrootc_storage_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%deadcrootc_storage with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1810,7 +1832,7 @@ contains
     if ( carbon_type == 'c13')  then
        call restartvar(ncid=ncid, flag=flag, varname='deadcrootc_xfer_13', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%deadcrootc_xfer_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%deadcrootc_xfer_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%deadcrootc_xfer with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1826,7 +1848,7 @@ contains
     if ( carbon_type == 'c13')  then
        call restartvar(ncid=ncid, flag=flag, varname='gresp_storage_13', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%gresp_storage_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%gresp_storage_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%gresp_storage with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1843,7 +1865,7 @@ contains
        call restartvar(ncid=ncid, flag=flag, varname='gresp_xfer_13', xtype=ncd_double,  &
             dim1name='pft', &
             long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%gresp_xfer_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%gresp_xfer_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%gresp_xfer with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1859,7 +1881,7 @@ contains
     if ( carbon_type == 'c13')  then
        call restartvar(ncid=ncid, flag=flag, varname='cpool_13', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%cpool_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%cpool_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%cpool with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1876,7 +1898,7 @@ contains
        call restartvar(ncid=ncid, flag=flag, varname='xsmrpool_13', xtype=ncd_double,  &
             dim1name='pft', &
             long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%xsmrpool_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%xsmrpool_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%xsmrpool with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1892,7 +1914,7 @@ contains
     if ( carbon_type == 'c13')  then
        call restartvar(ncid=ncid, flag=flag, varname='pft_ctrunc_13', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%ctrunc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%ctrunc_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%ctrunc with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1909,7 +1931,7 @@ contains
        call restartvar(ncid=ncid, flag=flag, varname='totvegc_13', xtype=ncd_double,  &
             dim1name='pft', &
             long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%totvegc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%totvegc_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing carbonstate_vars %totvegc with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
@@ -1923,13 +1945,13 @@ contains
     endif
 
     !--------------------------------
-    ! C14 pft carbon state variables 
+    ! C14 pft carbon state variables
     !--------------------------------
 
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='leafc_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%leafc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%leafc_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%leafc_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -1944,7 +1966,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='leafc_storage_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%leafc_storage_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%leafc_storage_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%leafc_storage_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -1959,7 +1981,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='leafc_xfer_14', xtype=ncd_double,  &
             dim1name='pft',    long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%leafc_xfer_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%leafc_xfer_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%leafc_xfer_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -1973,7 +1995,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='frootc_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%frootc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%frootc_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%frootc_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -1988,7 +2010,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='frootc_storage_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%frootc_storage_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%frootc_storage_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%frootc_storage_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -2003,7 +2025,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='frootc_xfer_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%frootc_xfer_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%frootc_xfer_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%frootc_xfer_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -2018,7 +2040,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='livestemc_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%livestemc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%livestemc_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%livestemc_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -2032,7 +2054,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='livestemc_storage_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%livestemc_storage_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%livestemc_storage_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%livestemc_storage_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -2046,7 +2068,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='livestemc_xfer_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%livestemc_xfer_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%livestemc_xfer_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%livestemc_xfer_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -2060,7 +2082,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='deadstemc_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%deadstemc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%deadstemc_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%deadstemc_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -2074,7 +2096,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='deadstemc_storage_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%deadstemc_storage_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%deadstemc_storage_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%deadstemc_storage_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -2088,7 +2110,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='deadstemc_xfer_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%deadstemc_xfer_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%deadstemc_xfer_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%deadstemc_xfer_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -2102,7 +2124,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='livecrootc_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%livecrootc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%livecrootc_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%livecrootc_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -2116,7 +2138,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='livecrootc_storage_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%livecrootc_storage_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%livecrootc_storage_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%livecrootc_storage_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -2130,7 +2152,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='livecrootc_xfer_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%livecrootc_xfer_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%livecrootc_xfer_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%livecrootc_xfer_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -2144,7 +2166,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='deadcrootc_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%deadcrootc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%deadcrootc_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%deadcrootc_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -2158,7 +2180,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='deadcrootc_storage_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%deadcrootc_storage_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%deadcrootc_storage_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%deadcrootc_storage_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -2172,7 +2194,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='deadcrootc_xfer_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%deadcrootc_xfer_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%deadcrootc_xfer_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog) 'initializing this%deadcrootc_xfer_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -2186,7 +2208,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='gresp_storage_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%gresp_storage_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%gresp_storage_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%gresp_storage_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -2200,7 +2222,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='gresp_xfer_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%gresp_xfer_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%gresp_xfer_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%gresp_xfer_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -2214,7 +2236,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='cpool_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%cpool_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%cpool_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%cpool_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -2228,7 +2250,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='xsmrpool_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%xsmrpool_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%xsmrpool_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%xsmrpool_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -2242,7 +2264,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='pft_ctrunc_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%ctrunc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%ctrunc_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%ctrunc_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -2256,7 +2278,7 @@ contains
     if ( carbon_type == 'c14')  then
        call restartvar(ncid=ncid, flag=flag, varname='totvegc_14', xtype=ncd_double,  &
             dim1name='pft', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%totvegc_patch) 
+            interpinic_flag='interp', readvar=readvar, data=this%totvegc_patch)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%totvegc_patch with atmospheric c14 value'
           do i = bounds%begp,bounds%endp
@@ -2333,31 +2355,31 @@ contains
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='seedc', xtype=ncd_double,  &
             dim1name='column', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%seedc_col) 
+            interpinic_flag='interp', readvar=readvar, data=this%seedc_col)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='totlitc', xtype=ncd_double,  &
             dim1name='column', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%totlitc_col) 
+            interpinic_flag='interp', readvar=readvar, data=this%totlitc_col)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='totcolc', xtype=ncd_double,  &
             dim1name='column', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%totcolc_col) 
+            interpinic_flag='interp', readvar=readvar, data=this%totcolc_col)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='prod10c', xtype=ncd_double,  &
             dim1name='column', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%prod10c_col) 
+            interpinic_flag='interp', readvar=readvar, data=this%prod10c_col)
     end if
 
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='prod100c', xtype=ncd_double,  &
             dim1name='column', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%prod100c_col) 
+            interpinic_flag='interp', readvar=readvar, data=this%prod100c_col)
     end if
 
     if (carbon_type == 'c12') then
@@ -2369,7 +2391,7 @@ contains
     if (carbon_type == 'c12') then
        call restartvar(ncid=ncid, flag=flag, varname='totsomc', xtype=ncd_double,  &
             dim1name='column', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%totsomc_col) 
+            interpinic_flag='interp', readvar=readvar, data=this%totsomc_col)
     end if
 
     !--------------------------------
@@ -2408,7 +2430,7 @@ contains
     if (carbon_type == 'c13') then
        call restartvar(ncid=ncid, flag=flag, varname='seedc_13', xtype=ncd_double,  &
             dim1name='column', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%seedc_col) 
+            interpinic_flag='interp', readvar=readvar, data=this%seedc_col)
        if (flag=='read' .and. .not. readvar) then
           if (c12_carbonstate_vars%seedc_col(i) /= spval .and. &
                .not. isnan(c12_carbonstate_vars%seedc_col(i)) ) then
@@ -2435,7 +2457,7 @@ contains
     if (carbon_type == 'c13') then
        call restartvar(ncid=ncid, flag=flag, varname='totlitc_13', xtype=ncd_double,  &
             dim1name='column', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%totlitc_col) 
+            interpinic_flag='interp', readvar=readvar, data=this%totlitc_col)
        if (flag=='read' .and. .not. readvar) then
           if (c12_carbonstate_vars%totlitc_col(i) /= spval .and. &
                .not. isnan( c12_carbonstate_vars%totlitc_col(i) ) ) then
@@ -2447,7 +2469,7 @@ contains
     if (carbon_type == 'c13') then
        call restartvar(ncid=ncid, flag=flag, varname='totcolc_13', xtype=ncd_double,  &
             dim1name='column', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%totcolc_col) 
+            interpinic_flag='interp', readvar=readvar, data=this%totcolc_col)
        if (flag=='read' .and. .not. readvar) then
           if (c12_carbonstate_vars%totcolc_col(i) /= spval .and. &
                .not. isnan (c12_carbonstate_vars%totcolc_col(i) ) ) then
@@ -2459,7 +2481,7 @@ contains
     if (carbon_type == 'c13') then
        call restartvar(ncid=ncid, flag=flag, varname='prod10c_13', xtype=ncd_double,  &
             dim1name='column', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%prod10c_col) 
+            interpinic_flag='interp', readvar=readvar, data=this%prod10c_col)
        if (flag=='read' .and. .not. readvar) then
           if (c12_carbonstate_vars%prod10c_col(i) /= spval .and. &
                .not. isnan( c12_carbonstate_vars%prod10c_col(i) ) ) then
@@ -2471,7 +2493,7 @@ contains
     if (carbon_type == 'c13') then
        call restartvar(ncid=ncid, flag=flag, varname='prod100c_13', xtype=ncd_double,  &
             dim1name='column', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%prod100c_col) 
+            interpinic_flag='interp', readvar=readvar, data=this%prod100c_col)
        if (flag=='read' .and. .not. readvar) then
           if (c12_carbonstate_vars%prod100c_col(i) /= spval .and. &
                .not. isnan( c12_carbonstate_vars%prod100c_col(i) ) ) then
@@ -2530,7 +2552,7 @@ contains
        call restartvar(ncid=ncid, flag=flag, varname='seedc_14', xtype=ncd_double,  &
             dim1name='column', &
             long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%seedc_col) 
+            interpinic_flag='interp', readvar=readvar, data=this%seedc_col)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%seedc_col with atmospheric c14 value'
           do i = bounds%begc,bounds%endc
@@ -2543,7 +2565,7 @@ contains
     end if
 
     if ( carbon_type == 'c14' ) then
-       if (use_vertsoilc) then 
+       if (use_vertsoilc) then
           ptr2d => this%ctrunc_vr_col
           call restartvar(ncid=ncid, flag=flag, varname="col_ctrunc_c14_vr", xtype=ncd_double,  &
                dim1name='column', dim2name='levgrnd', switchdim=.true., &
@@ -2560,7 +2582,7 @@ contains
     if ( carbon_type == 'c14' ) then
        call restartvar(ncid=ncid, flag=flag, varname='totlitc_14', xtype=ncd_double,  &
             dim1name='column', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%totlitc_col) 
+            interpinic_flag='interp', readvar=readvar, data=this%totlitc_col)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%totlitc_col with atmospheric c14 value'
           if (c12_carbonstate_vars%totlitc_col(i) /= spval .and. &
@@ -2573,7 +2595,7 @@ contains
     if ( carbon_type == 'c14' ) then
        call restartvar(ncid=ncid, flag=flag, varname='totcolc_14', xtype=ncd_double,  &
             dim1name='column', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%totcolc_col) 
+            interpinic_flag='interp', readvar=readvar, data=this%totcolc_col)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%totcolc_col with atmospheric c14 value'
           if (c12_carbonstate_vars%totcolc_col(i) /= spval .and. &
@@ -2586,7 +2608,7 @@ contains
     if ( carbon_type == 'c14' ) then
        call restartvar(ncid=ncid, flag=flag, varname='prod10c_14', xtype=ncd_double,  &
             dim1name='column', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%prod10c_col) 
+            interpinic_flag='interp', readvar=readvar, data=this%prod10c_col)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%prod10c_col with atmospheric c14 value'
           if (c12_carbonstate_vars%prod10c_col(i) /= spval .and. &
@@ -2599,7 +2621,7 @@ contains
     if ( carbon_type == 'c14' ) then
        call restartvar(ncid=ncid, flag=flag, varname='prod100c_14', xtype=ncd_double,  &
             dim1name='column', long_name='', units='', &
-            interpinic_flag='interp', readvar=readvar, data=this%prod100c_col) 
+            interpinic_flag='interp', readvar=readvar, data=this%prod100c_col)
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%prod100c_col with atmospheric c14 value'
           if (c12_carbonstate_vars%prod100c_col(i) /= spval .and. &
@@ -2638,7 +2660,7 @@ contains
            if (readvar) then
               restart_file_spinup_state = idata
            else
-              ! assume, for sake of backwards compatibility, that if spinup_state is not in 
+              ! assume, for sake of backwards compatibility, that if spinup_state is not in
               ! the restart file then current model state is the same as prior model state
               restart_file_spinup_state = spinup_state
               if ( masterproc ) then
@@ -2649,14 +2671,14 @@ contains
            end if
         end if
 
-        ! now compare the model and restart file spinup states, and either take the 
+        ! now compare the model and restart file spinup states, and either take the
         ! model into spinup mode or out of it if they are not identical
-        ! taking model out of spinup mode requires multiplying each decomposing pool 
+        ! taking model out of spinup mode requires multiplying each decomposing pool
         ! by the associated AD factor.
-        ! putting model into spinup mode requires dividing each decomposing pool 
+        ! putting model into spinup mode requires dividing each decomposing pool
         ! by the associated AD factor.
         ! only allow this to occur on first timestep of model run.
-        
+
         if (flag == 'read' .and. spinup_state /= restart_file_spinup_state ) then
            if (spinup_state == 0 .and. restart_file_spinup_state == 1 ) then
               if ( masterproc ) write(iulog,*) ' CNRest: taking SOM pools out of AD spinup mode'
@@ -2679,7 +2701,7 @@ contains
 		    if ( exit_spinup ) then
 		      m = decomp_cascade_con%spinup_factor(k)
                       if (decomp_cascade_con%spinup_factor(k) > 1) m = m / cnstate_vars%scalaravg_col(c)
-                    else if ( enter_spinup ) then 
+                    else if ( enter_spinup ) then
 		      m = 1. / decomp_cascade_con%spinup_factor(k)
 		      if (decomp_cascade_con%spinup_factor(k) > 1) m = m * cnstate_vars%scalaravg_col(c)
 		    end if
@@ -2688,9 +2710,9 @@ contains
               end do
            end do
            do i = bounds%begp, bounds%endp
-              if (exit_spinup) then 
+              if (exit_spinup) then
                  m_veg = spinup_mortality_factor
-              else if (enter_spinup) then 
+              else if (enter_spinup) then
                  m_veg = 1._r8 / spinup_mortality_factor
               end if
               this%deadstemc_patch(i)  = this%deadstemc_patch(i) * m_veg
@@ -2816,7 +2838,7 @@ contains
     !
     ! !ARGUMENTS:
     class(carbonstate_type) :: this
-    type(bounds_type), intent(in)  :: bounds 
+    type(bounds_type), intent(in)  :: bounds
     !
     ! !LOCAL VARIABLES:
     integer  :: p          ! indices
@@ -2840,11 +2862,11 @@ contains
     use clm_varctl       , only: iulog
     use clm_time_manager , only: get_step_size
     use clm_varcon       , only: secspday
-    use clm_varpar       , only: nlevdecomp, ndecomp_pools 
+    use clm_varpar       , only: nlevdecomp, ndecomp_pools
     !
     ! !ARGUMENTS:
     class(carbonstate_type) :: this
-    type(bounds_type)      , intent(in)    :: bounds          
+    type(bounds_type)      , intent(in)    :: bounds
     integer                , intent(in)    :: num_soilc       ! number of soil columns in filter
     integer                , intent(in)    :: filter_soilc(:) ! filter for soil columns
     integer                , intent(in)    :: num_soilp       ! number of soil patches in filter
@@ -3014,7 +3036,7 @@ contains
        end do
 
       endif
-    
+
       ! total litter carbon (TOTLITC)
       do fc = 1,num_soilc
        c = filter_soilc(fc)
@@ -3084,7 +3106,7 @@ contains
        this%totprodc_col(c) = &
             this%prod10c_col(c)  + &
             this%prod100c_col(c) + &
-            this%prod1c_col(c) 
+            this%prod1c_col(c)
 
        ! total ecosystem carbon, including veg but excluding cpool (TOTECOSYSC)
        this%totecosysc_col(c) = &
@@ -3104,12 +3126,12 @@ contains
             this%totprodc_col(c) + &
             this%seedc_col(c)    + &
             this%ctrunc_col(c)
-            
+
        this%totabgc_col(c) = &
             this%totpftc_col(c)  + &
             this%totprodc_col(c) + &
             this%seedc_col(c)    + &
-            this%ctrunc_col(c)    
+            this%ctrunc_col(c)
     end do
 
   end subroutine Summary

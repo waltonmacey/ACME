@@ -10,12 +10,12 @@ module PhosphorusFluxType
   use clm_varctl             , only : use_nitrif_denitrif, use_vertsoilc
   use CNDecompCascadeConType , only : decomp_cascade_con
   use abortutils             , only : endrun
-  use LandunitType           , only : lun                
-  use ColumnType             , only : col                
+  use LandunitType           , only : lun
+  use ColumnType             , only : col
   use PatchType              , only : pft
   !! bgc interface & pflotran:
   use clm_varctl             , only : use_bgc_interface, use_pflotran, pf_cmode, pf_hmode, use_vertsoilc
-  ! 
+  !
   ! !PUBLIC TYPES:
   implicit none
   save
@@ -67,58 +67,58 @@ module PhosphorusFluxType
      real(r8), pointer :: hrv_retransp_to_litter_patch              (:)     ! patch retranslocated P pool harvest mortality (gP/m2/s)
      real(r8), pointer :: hrv_deadstemp_to_prod10p_col              (:)     ! col dead stem P harvest mortality to 10-year product pool (gP/m2/s)
      real(r8), pointer :: hrv_deadstemp_to_prod100p_col             (:)     ! col dead stem P harvest mortality to 100-year product pool (gP/m2/s)
-     real(r8), pointer :: m_p_to_litr_met_fire_col                  (:,:)   ! col P from leaf, froot, xfer and storage P to litter labile P by fire (gP/m3/s) 
-     real(r8), pointer :: m_p_to_litr_cel_fire_col                  (:,:)   ! col P from leaf, froot, xfer and storage P to litter cellulose P by fire (gP/m3/s) 
-     real(r8), pointer :: m_p_to_litr_lig_fire_col                  (:,:)   ! col P from leaf, froot, xfer and storage P to litter lignin P by fire (gP/m3/s) 
+     real(r8), pointer :: m_p_to_litr_met_fire_col                  (:,:)   ! col P from leaf, froot, xfer and storage P to litter labile P by fire (gP/m3/s)
+     real(r8), pointer :: m_p_to_litr_cel_fire_col                  (:,:)   ! col P from leaf, froot, xfer and storage P to litter cellulose P by fire (gP/m3/s)
+     real(r8), pointer :: m_p_to_litr_lig_fire_col                  (:,:)   ! col P from leaf, froot, xfer and storage P to litter lignin P by fire (gP/m3/s)
      real(r8), pointer :: harvest_p_to_litr_met_p_col               (:,:)   ! col P fluxes associated with harvest to litter metabolic pool (gP/m3/s)
      real(r8), pointer :: harvest_p_to_litr_cel_p_col               (:,:)   ! col P fluxes associated with harvest to litter cellulose pool (gP/m3/s)
      real(r8), pointer :: harvest_p_to_litr_lig_p_col               (:,:)   ! col P fluxes associated with harvest to litter lignin pool (gP/m3/s)
      real(r8), pointer :: harvest_p_to_cwdp_col                     (:,:)   ! col P fluxes associated with harvest to CWD pool (gP/m3/s)
 
-     ! fire P fluxes 
+     ! fire P fluxes
      real(r8), pointer :: m_decomp_ppools_to_fire_vr_col            (:,:,:) ! col vertically-resolved decomposing P fire loss (gP/m3/s)
      real(r8), pointer :: m_decomp_ppools_to_fire_col               (:,:)   ! col vertically-integrated (diagnostic) decomposing P fire loss (gP/m2/s)
-     real(r8), pointer :: m_leafp_to_fire_patch                     (:)     ! patch (gP/m2/s) fire P emissions from leafp 
-     real(r8), pointer :: m_leafp_storage_to_fire_patch             (:)     ! patch (gP/m2/s) fire P emissions from leafp_storage            
-     real(r8), pointer :: m_leafp_xfer_to_fire_patch                (:)     ! patch (gP/m2/s) fire P emissions from leafp_xfer     
-     real(r8), pointer :: m_livestemp_to_fire_patch                 (:)     ! patch (gP/m2/s) fire P emissions from livestemp 
-     real(r8), pointer :: m_livestemp_storage_to_fire_patch         (:)     ! patch (gP/m2/s) fire P emissions from livestemp_storage      
+     real(r8), pointer :: m_leafp_to_fire_patch                     (:)     ! patch (gP/m2/s) fire P emissions from leafp
+     real(r8), pointer :: m_leafp_storage_to_fire_patch             (:)     ! patch (gP/m2/s) fire P emissions from leafp_storage
+     real(r8), pointer :: m_leafp_xfer_to_fire_patch                (:)     ! patch (gP/m2/s) fire P emissions from leafp_xfer
+     real(r8), pointer :: m_livestemp_to_fire_patch                 (:)     ! patch (gP/m2/s) fire P emissions from livestemp
+     real(r8), pointer :: m_livestemp_storage_to_fire_patch         (:)     ! patch (gP/m2/s) fire P emissions from livestemp_storage
      real(r8), pointer :: m_livestemp_xfer_to_fire_patch            (:)     ! patch (gP/m2/s) fire P emissions from livestemp_xfer
      real(r8), pointer :: m_deadstemp_to_fire_patch                 (:)     ! patch (gP/m2/s) fire P emissions from deadstemp
-     real(r8), pointer :: m_deadstemp_storage_to_fire_patch         (:)     ! patch (gP/m2/s) fire P emissions from deadstemp_storage         
+     real(r8), pointer :: m_deadstemp_storage_to_fire_patch         (:)     ! patch (gP/m2/s) fire P emissions from deadstemp_storage
      real(r8), pointer :: m_deadstemp_xfer_to_fire_patch            (:)     ! patch (gP/m2/s) fire P emissions from deadstemp_xfer
      real(r8), pointer :: m_frootp_to_fire_patch                    (:)     ! patch (gP/m2/s) fire P emissions from frootp
      real(r8), pointer :: m_frootp_storage_to_fire_patch            (:)     ! patch (gP/m2/s) fire P emissions from frootp_storage
      real(r8), pointer :: m_frootp_xfer_to_fire_patch               (:)     ! patch (gP/m2/s) fire P emissions from frootp_xfer
      real(r8), pointer :: m_livecrootp_to_fire_patch                (:)     ! patch (gP/m2/s) fire P emissions from m_livecrootp_to_fire
-     real(r8), pointer :: m_livecrootp_storage_to_fire_patch        (:)     ! patch (gP/m2/s) fire P emissions from livecrootp_storage     
+     real(r8), pointer :: m_livecrootp_storage_to_fire_patch        (:)     ! patch (gP/m2/s) fire P emissions from livecrootp_storage
      real(r8), pointer :: m_livecrootp_xfer_to_fire_patch           (:)     ! patch (gP/m2/s) fire P emissions from livecrootp_xfer
      real(r8), pointer :: m_deadcrootp_to_fire_patch                (:)     ! patch (gP/m2/s) fire P emissions from deadcrootp
-     real(r8), pointer :: m_deadcrootp_storage_to_fire_patch        (:)     ! patch (gP/m2/s) fire P emissions from deadcrootp_storage  
+     real(r8), pointer :: m_deadcrootp_storage_to_fire_patch        (:)     ! patch (gP/m2/s) fire P emissions from deadcrootp_storage
      real(r8), pointer :: m_deadcrootp_xfer_to_fire_patch           (:)     ! patch (gP/m2/s) fire P emissions from deadcrootp_xfer
      real(r8), pointer :: m_retransp_to_fire_patch                  (:)     ! patch (gP/m2/s) fire P emissions from retransp
-     real(r8), pointer :: m_leafp_to_litter_fire_patch              (:)     ! patch (gP/m2/s) from leafp to litter P  due to fire               
-     real(r8), pointer :: m_leafp_storage_to_litter_fire_patch      (:)     ! patch (gP/m2/s) from leafp_storage to litter P  due to fire                              
-     real(r8), pointer :: m_leafp_xfer_to_litter_fire_patch         (:)     ! patch (gP/m2/s) from leafp_xfer to litter P  due to fire                              
-     real(r8), pointer :: m_livestemp_to_litter_fire_patch          (:)     ! patch (gP/m2/s) from livestemp to litter P  due to fire                              
-     real(r8), pointer :: m_livestemp_storage_to_litter_fire_patch  (:)     ! patch (gP/m2/s) from livestemp_storage to litter P  due to fire                                     
-     real(r8), pointer :: m_livestemp_xfer_to_litter_fire_patch     (:)     ! patch (gP/m2/s) from livestemp_xfer to litter P  due to fire                                     
-     real(r8), pointer :: m_livestemp_to_deadstemp_fire_patch       (:)     ! patch (gP/m2/s) from livestemp to deadstemp P  due to fire                                     
-     real(r8), pointer :: m_deadstemp_to_litter_fire_patch          (:)     ! patch (gP/m2/s) from deadstemp to litter P  due to fire                                     
-     real(r8), pointer :: m_deadstemp_storage_to_litter_fire_patch  (:)     ! patch (gP/m2/s) from deadstemp_storage to litter P  due to fire                                               
-     real(r8), pointer :: m_deadstemp_xfer_to_litter_fire_patch     (:)     ! patch (gP/m2/s) from deadstemp_xfer to litter P  due to fire                                               
-     real(r8), pointer :: m_frootp_to_litter_fire_patch             (:)     ! patch (gP/m2/s) from frootp to litter P  due to fire                                               
-     real(r8), pointer :: m_frootp_storage_to_litter_fire_patch     (:)     ! patch (gP/m2/s) from frootp_storage to litter P  due to fire                                               
-     real(r8), pointer :: m_frootp_xfer_to_litter_fire_patch        (:)     ! patch (gP/m2/s) from frootp_xfer to litter P  due to fire                                               
-     real(r8), pointer :: m_livecrootp_to_litter_fire_patch         (:)     ! patch (gP/m2/s) from livecrootp to litter P  due to fire                                               
-     real(r8), pointer :: m_livecrootp_storage_to_litter_fire_patch (:)     ! patch (gP/m2/s) from livecrootp_storage to litter P  due to fire                                                     
-     real(r8), pointer :: m_livecrootp_xfer_to_litter_fire_patch    (:)     ! patch (gP/m2/s) from livecrootp_xfer to litter P  due to fire                                                     
-     real(r8), pointer :: m_livecrootp_to_deadcrootp_fire_patch     (:)     ! patch (gP/m2/s) from livecrootp_xfer to deadcrootp due to fire                                                     
-     real(r8), pointer :: m_deadcrootp_to_litter_fire_patch         (:)     ! patch (gP/m2/s) from deadcrootp to deadcrootp due to fire                                                       
-     real(r8), pointer :: m_deadcrootp_storage_to_litter_fire_patch (:)     ! patch (gP/m2/s) from deadcrootp_storage to deadcrootp due to fire                                                        
-     real(r8), pointer :: m_deadcrootp_xfer_to_litter_fire_patch    (:)     ! patch (gP/m2/s) from deadcrootp_xfer to deadcrootp due to fire                                                         
-     real(r8), pointer :: m_retransp_to_litter_fire_patch           (:)     ! patch (gP/m2/s) from retransp to deadcrootp due to fire                                                         
-     real(r8), pointer :: fire_ploss_patch                          (:)     ! patch total pft-level fire P loss (gP/m2/s) 
+     real(r8), pointer :: m_leafp_to_litter_fire_patch              (:)     ! patch (gP/m2/s) from leafp to litter P  due to fire
+     real(r8), pointer :: m_leafp_storage_to_litter_fire_patch      (:)     ! patch (gP/m2/s) from leafp_storage to litter P  due to fire
+     real(r8), pointer :: m_leafp_xfer_to_litter_fire_patch         (:)     ! patch (gP/m2/s) from leafp_xfer to litter P  due to fire
+     real(r8), pointer :: m_livestemp_to_litter_fire_patch          (:)     ! patch (gP/m2/s) from livestemp to litter P  due to fire
+     real(r8), pointer :: m_livestemp_storage_to_litter_fire_patch  (:)     ! patch (gP/m2/s) from livestemp_storage to litter P  due to fire
+     real(r8), pointer :: m_livestemp_xfer_to_litter_fire_patch     (:)     ! patch (gP/m2/s) from livestemp_xfer to litter P  due to fire
+     real(r8), pointer :: m_livestemp_to_deadstemp_fire_patch       (:)     ! patch (gP/m2/s) from livestemp to deadstemp P  due to fire
+     real(r8), pointer :: m_deadstemp_to_litter_fire_patch          (:)     ! patch (gP/m2/s) from deadstemp to litter P  due to fire
+     real(r8), pointer :: m_deadstemp_storage_to_litter_fire_patch  (:)     ! patch (gP/m2/s) from deadstemp_storage to litter P  due to fire
+     real(r8), pointer :: m_deadstemp_xfer_to_litter_fire_patch     (:)     ! patch (gP/m2/s) from deadstemp_xfer to litter P  due to fire
+     real(r8), pointer :: m_frootp_to_litter_fire_patch             (:)     ! patch (gP/m2/s) from frootp to litter P  due to fire
+     real(r8), pointer :: m_frootp_storage_to_litter_fire_patch     (:)     ! patch (gP/m2/s) from frootp_storage to litter P  due to fire
+     real(r8), pointer :: m_frootp_xfer_to_litter_fire_patch        (:)     ! patch (gP/m2/s) from frootp_xfer to litter P  due to fire
+     real(r8), pointer :: m_livecrootp_to_litter_fire_patch         (:)     ! patch (gP/m2/s) from livecrootp to litter P  due to fire
+     real(r8), pointer :: m_livecrootp_storage_to_litter_fire_patch (:)     ! patch (gP/m2/s) from livecrootp_storage to litter P  due to fire
+     real(r8), pointer :: m_livecrootp_xfer_to_litter_fire_patch    (:)     ! patch (gP/m2/s) from livecrootp_xfer to litter P  due to fire
+     real(r8), pointer :: m_livecrootp_to_deadcrootp_fire_patch     (:)     ! patch (gP/m2/s) from livecrootp_xfer to deadcrootp due to fire
+     real(r8), pointer :: m_deadcrootp_to_litter_fire_patch         (:)     ! patch (gP/m2/s) from deadcrootp to deadcrootp due to fire
+     real(r8), pointer :: m_deadcrootp_storage_to_litter_fire_patch (:)     ! patch (gP/m2/s) from deadcrootp_storage to deadcrootp due to fire
+     real(r8), pointer :: m_deadcrootp_xfer_to_litter_fire_patch    (:)     ! patch (gP/m2/s) from deadcrootp_xfer to deadcrootp due to fire
+     real(r8), pointer :: m_retransp_to_litter_fire_patch           (:)     ! patch (gP/m2/s) from retransp to deadcrootp due to fire
+     real(r8), pointer :: fire_ploss_patch                          (:)     ! patch total pft-level fire P loss (gP/m2/s)
      real(r8), pointer :: fire_ploss_col                            (:)     ! col total column-level fire P loss (gP/m2/s)
      real(r8), pointer :: fire_ploss_p2c_col                        (:)     ! col patch2col column-level fire P loss (gP/m2/s) (p2c)
      real(r8), pointer :: fire_mortality_p_to_cwdp_col              (:,:)   ! col P fluxes associated with fire mortality to CWD pool (gP/m3/s)
@@ -141,7 +141,7 @@ module PhosphorusFluxType
      real(r8), pointer :: frootp_to_litter_patch                    (:)     ! patch fine root P litterfall (gP/m2/s)
 
      ! allocation fluxes
-     real(r8), pointer :: retransp_to_ppool_patch                   (:)     ! patch deployment of retranslocated P (gP/m2/s)       
+     real(r8), pointer :: retransp_to_ppool_patch                   (:)     ! patch deployment of retranslocated P (gP/m2/s)
      real(r8), pointer :: sminp_to_ppool_patch                      (:)     ! patch deployment of soil mineral P uptake (gP/m2/s)
      real(r8), pointer :: ppool_to_grainp_patch                     (:)     ! patch allocation to grain P for prognostic crop (gP/m2/s)
      real(r8), pointer :: ppool_to_grainp_storage_patch             (:)     ! patch allocation to grain P storage for prognostic crop (gP/m2/s)
@@ -158,7 +158,7 @@ module PhosphorusFluxType
      real(r8), pointer :: ppool_to_deadcrootp_patch                 (:)     ! patch allocation to dead coarse root P (gP/m2/s)
      real(r8), pointer :: ppool_to_deadcrootp_storage_patch         (:)     ! patch allocation to dead coarse root P storage (gP/m2/s)
 
-     ! annual turnover of storage to transfer pools           
+     ! annual turnover of storage to transfer pools
      real(r8), pointer :: grainp_storage_to_xfer_patch              (:)     ! patch grain P shift storage to transfer for prognostic crop (gP/m2/s)
      real(r8), pointer :: leafp_storage_to_xfer_patch               (:)     ! patch leaf P shift storage to transfer (gP/m2/s)
      real(r8), pointer :: frootp_storage_to_xfer_patch              (:)     ! patch fine root P shift storage to transfer (gP/m2/s)
@@ -169,7 +169,7 @@ module PhosphorusFluxType
      real(r8), pointer :: fert_p_patch                                (:)     ! patch applied fertilizer (gP/m2/s)
      real(r8), pointer :: fert_p_counter_patch                        (:)     ! patch >0 fertilize; <=0 not
 
-     ! turnover of livewood to deadwood, with retranslocation 
+     ! turnover of livewood to deadwood, with retranslocation
      real(r8), pointer :: livestemp_to_deadstemp_patch              (:)     ! patch live stem P turnover (gP/m2/s)
      real(r8), pointer :: livestemp_to_retransp_patch               (:)     ! patch live stem P to retranslocated P pool (gP/m2/s)
      real(r8), pointer :: livecrootp_to_deadcrootp_patch            (:)     ! patch live coarse root P turnover (gP/m2/s)
@@ -224,10 +224,10 @@ module PhosphorusFluxType
 
      ! new variables for phosphorus code
      ! inorganic P transformation fluxes
-     real(r8), pointer :: primp_to_labilep_vr_col                     (:,:)   ! col (gP/m3/s) flux of P from primary mineral to labile 
-     real(r8), pointer :: primp_to_labilep_col                        (:)     ! col (gP/m3/s) flux of P from primary mineral to labile 
-     real(r8), pointer :: labilep_to_secondp_vr_col                   (:,:)   ! col (gP/m3/s) flux of labile P to secondary mineral P 
-     real(r8), pointer :: labilep_to_secondp_col                      (:)     ! col (gP/m3/s) flux of labile P to secondary mineral P 
+     real(r8), pointer :: primp_to_labilep_vr_col                     (:,:)   ! col (gP/m3/s) flux of P from primary mineral to labile
+     real(r8), pointer :: primp_to_labilep_col                        (:)     ! col (gP/m3/s) flux of P from primary mineral to labile
+     real(r8), pointer :: labilep_to_secondp_vr_col                   (:,:)   ! col (gP/m3/s) flux of labile P to secondary mineral P
+     real(r8), pointer :: labilep_to_secondp_col                      (:)     ! col (gP/m3/s) flux of labile P to secondary mineral P
      real(r8), pointer :: secondp_to_labilep_vr_col                   (:,:)   ! col (gP/m3/s) flux of the desorption of secondary mineral P to labile P
      real(r8), pointer :: secondp_to_labilep_col                      (:)     ! col (gP/m3/s) flux of the desorption of secondary mineral P to labile P
      real(r8), pointer :: secondp_to_occlp_vr_col                     (:,:)   ! col (gP/m3/s) flux of the occlusion of secondary P to occluded P
@@ -267,7 +267,7 @@ module PhosphorusFluxType
 
      ! all n pools involved in decomposition
      real(r8), pointer :: decomp_ppools_sourcesink_col              (:,:,:) ! col (gP/m3) change in decomposing P pools
-                                                                            !     (sum of all additions and subtractions from stateupdate1).  
+                                                                            !     (sum of all additions and subtractions from stateupdate1).
 
      ! Misc
      real(r8), pointer :: plant_pdemand_patch                       (:)     ! P flux required to support initial GPP (gP/m2/s)
@@ -295,7 +295,7 @@ module PhosphorusFluxType
      real(r8), pointer :: adsorb_to_labilep_col                     (:)
      real(r8), pointer :: desorb_to_solutionp_col                   (:)
 
-     real(r8), pointer :: plant_p_uptake_flux                       (:)     ! for the purpose of mass balance check  
+     real(r8), pointer :: plant_p_uptake_flux                       (:)     ! for the purpose of mass balance check
      real(r8), pointer :: soil_p_immob_flux                         (:)     ! for the purpose of mass balance check
      real(r8), pointer :: soil_p_immob_flux_vr                      (:,:)   ! for the purpose of mass balance check
      real(r8), pointer :: soil_p_grossmin_flux                      (:)     ! for the purpose of mass balance check
@@ -305,13 +305,14 @@ module PhosphorusFluxType
 
    contains
 
-     procedure , public  :: Init   
+     procedure , public  :: Init
      procedure , public  :: Restart
      procedure , public  :: SetValues
      procedure , public  :: ZeroDWT
      procedure , public  :: Summary
      procedure , private :: InitAllocate
      procedure , private :: InitHistory
+     procedure , private :: InitHistory_2dfld
      procedure , private :: InitCold
      !! bgc & pflotran interface
      procedure , private :: PSummary_interface
@@ -323,12 +324,18 @@ contains
 
   !------------------------------------------------------------------------
   subroutine Init(this, bounds)
+  use tracer_varcon, only : is_active_betr_bgc
+  use clm_varctl   , only : use_betr
 
     class(phosphorusflux_type) :: this
-    type(bounds_type), intent(in) :: bounds  
+    type(bounds_type), intent(in) :: bounds
 
     call this%InitAllocate (bounds)
-    call this%InitHistory (bounds)
+    if(use_betr .and. is_active_betr_bgc)then
+      call this%InitHistory_2dfld (bounds)
+    else
+      call this%InitHistory (bounds)
+    endif
     call this%InitCold (bounds)
 
   end subroutine Init
@@ -341,7 +348,7 @@ contains
     !
     ! !ARGUMENTS:
     class (phosphorusflux_type) :: this
-    type(bounds_type) , intent(in) :: bounds  
+    type(bounds_type) , intent(in) :: bounds
     !
     ! !LOCAL VARIABLES:
     integer           :: begp,endp
@@ -403,7 +410,7 @@ contains
     allocate(this%m_frootp_to_fire_patch                    (begp:endp)) ; this%m_frootp_to_fire_patch                    (:) = nan
     allocate(this%m_frootp_storage_to_fire_patch            (begp:endp)) ; this%m_frootp_storage_to_fire_patch            (:) = nan
     allocate(this%m_frootp_xfer_to_fire_patch               (begp:endp)) ; this%m_frootp_xfer_to_fire_patch               (:) = nan
-    allocate(this%m_livecrootp_to_fire_patch                (begp:endp)) ;     
+    allocate(this%m_livecrootp_to_fire_patch                (begp:endp)) ;
     allocate(this%m_livecrootp_storage_to_fire_patch        (begp:endp)) ; this%m_livecrootp_storage_to_fire_patch        (:) = nan
     allocate(this%m_livecrootp_xfer_to_fire_patch           (begp:endp)) ; this%m_livecrootp_xfer_to_fire_patch           (:) = nan
     allocate(this%m_deadcrootp_to_fire_patch                (begp:endp)) ; this%m_deadcrootp_to_fire_patch                (:) = nan
@@ -576,7 +583,7 @@ contains
     this%harvest_p_to_cwdp_col             (:,:) = nan
 
 
-    
+
     allocate(this%primp_to_labilep_vr_col                 (begc:endc,1:nlevdecomp_full                               ))
     allocate(this%primp_to_labilep_col                    (begc:endc                                                 ))
     allocate(this%labilep_to_secondp_vr_col                 (begc:endc,1:nlevdecomp_full                               ))
@@ -602,8 +609,8 @@ contains
     this%sminp_leached_vr_col                 (:,:)   = nan
     this%sminp_leached_col                    (:)     = nan
     this%decomp_ppools_leached_col            (:,:)   = nan
-    this%decomp_ppools_transport_tendency_col (:,:,:) = nan  
- 
+    this%decomp_ppools_transport_tendency_col (:,:,:) = nan
+
     allocate(this%sminp_runoff_col           (begc:endc              ))      ;this%sminp_runoff_col                (:)    = nan
 
     allocate(this%decomp_ppools_sourcesink_col (begc:endc,1:nlevdecomp_full,1:ndecomp_pools))
@@ -612,7 +619,7 @@ contains
     allocate(this%plant_pdemand_patch         (begp:endp)) ;    this%plant_pdemand_patch         (:) = nan
     allocate(this%avail_retransp_patch        (begp:endp)) ;    this%avail_retransp_patch        (:) = nan
     allocate(this%plant_palloc_patch          (begp:endp)) ;    this%plant_palloc_patch          (:) = nan
-    
+
     allocate(this%sminp_to_plant_patch        (begp:endp                   )) ; this%sminp_to_plant_patch        (:)   = nan
     allocate(this%plant_pdemand_vr_patch      (begp:endp,1:nlevdecomp_full )) ; this%plant_pdemand_vr_patch      (:,:) = nan
     allocate(this%prev_leafp_to_litter_patch  (begp:endp                   )) ; this%prev_leafp_to_litter_patch  (:)   = nan
@@ -621,7 +628,7 @@ contains
     allocate(this%desorb_to_solutionp_vr      (begc:endc,1:nlevdecomp_full )) ; this%desorb_to_solutionp_vr      (:,:) = nan
     allocate(this%adsorb_to_labilep_col       (begc:endc                   )) ; this%adsorb_to_labilep_col       (:)   = nan
     allocate(this%desorb_to_solutionp_col     (begc:endc                   )) ; this%desorb_to_solutionp_col     (:)   = nan
-    
+
     allocate(this%plant_p_uptake_flux         (begc:endc                   )) ; this%plant_p_uptake_flux         (:)   = nan
     allocate(this%soil_p_immob_flux           (begc:endc                   )) ; this%soil_p_immob_flux           (:)   = nan
     allocate(this%soil_p_immob_flux_vr        (begc:endc,1:nlevdecomp_full )) ; this%soil_p_immob_flux_vr        (:,:) = nan
@@ -641,6 +648,17 @@ contains
     !------------------------------------------------------------------------
   end subroutine InitAllocate
 
+
+  !------------------------------------------------------------------------
+  subroutine InitHistory_2dfld(this, bounds)
+
+  ! add 2d integrated fields to history file
+  ! !ARGUMENTS:
+  class(phosphorusflux_type) :: this
+  type(bounds_type), intent(in) :: bounds
+
+
+  end subroutine InitHistory_2dfld
   !------------------------------------------------------------------------
   subroutine InitHistory(this, bounds)
     !
@@ -649,12 +667,12 @@ contains
     !
     ! !USES:
     use shr_infnan_mod , only : nan => shr_infnan_nan, assignment(=)
-    use clm_varpar     , only : nlevsno, nlevgrnd, crop_prog 
+    use clm_varpar     , only : nlevsno, nlevgrnd, crop_prog
     use histFileMod    , only : hist_addfld1d, hist_addfld2d, hist_addfld_decomp
     !
     ! !ARGUMENTS:
     class(phosphorusflux_type) :: this
-    type(bounds_type), intent(in) :: bounds  
+    type(bounds_type), intent(in) :: bounds
     !
     ! !LOCAL VARIABLES:
     integer        :: k,l
@@ -664,7 +682,7 @@ contains
     character(24)  :: fieldname
     character(100) :: longname
     character(8)   :: vr_suffix
-    character(1)   :: aa 
+    character(1)   :: aa
     real(r8), pointer :: data2dptr(:,:), data1dptr(:) ! temp. pointers for slicing larger arrays
     !------------------------------------------------------------------------
 
@@ -674,7 +692,7 @@ contains
     ! add suffix if number of soil decomposition depths is greater than 1
     if (nlevdecomp > 1) then
        vr_suffix = "_vr"
-    else 
+    else
        vr_suffix = ""
     endif
 
@@ -1111,7 +1129,7 @@ contains
           if ( nlevdecomp_full > 1 ) then
              this%biochem_pmin_ppools_vr_col(begc:endc,:,k) = spval
              data2dptr => this%biochem_pmin_ppools_vr_col(:,:,k)
-             write(aa,'(i1)') k 
+             write(aa,'(i1)') k
              fieldname = 'BIOCHEM_PMIN_PPOOL'//aa//trim(vr_suffix)
              longname  = 'Biochemical mineralization of ppool'//aa
              call hist_addfld_decomp (fname=fieldname, units='gP/m^2/s',type2d='levdcmp', &
@@ -1230,7 +1248,7 @@ contains
          avgflag='A', long_name='PRIMARY MINERAL P TO LABILE P', &
          ptr_col=this%primp_to_labilep_col)
 
-    if ( nlevdecomp_full > 1 ) then  
+    if ( nlevdecomp_full > 1 ) then
        this%primp_to_labilep_vr_col(begc:endc,:) = spval
        call hist_addfld_decomp (fname='PRIMP_TO_LABILEP'//trim(vr_suffix), units='gP/m^3/s',  type2d='levdcmp', &
             avgflag='A', long_name='PRIMARY MINERAL P TO LABILE P', &
@@ -1242,7 +1260,7 @@ contains
          avgflag='A', long_name='LABILE P TO SECONDARY MINERAL P', &
          ptr_col=this%labilep_to_secondp_col)
 
-    if ( nlevdecomp_full > 1 ) then  
+    if ( nlevdecomp_full > 1 ) then
        this%labilep_to_secondp_vr_col(begc:endc,:) = spval
        call hist_addfld_decomp (fname='LABILEP_TO_SECONDP'//trim(vr_suffix), units='gP/m^3/s',  type2d='levdcmp', &
             avgflag='A', long_name='LABILE P TO SECONDARY MINERAL P', &
@@ -1255,7 +1273,7 @@ contains
          avgflag='A', long_name='SECONDARY MINERAL P TO LABILE P', &
          ptr_col=this%secondp_to_labilep_col)
 
-    if ( nlevdecomp_full > 1 ) then  
+    if ( nlevdecomp_full > 1 ) then
        this%secondp_to_labilep_vr_col(begc:endc,:) = spval
        call hist_addfld_decomp (fname='SECONDP_TO_LABILEP'//trim(vr_suffix), units='gP/m^3/s',  type2d='levdcmp', &
             avgflag='A', long_name='SECONDARY MINERAL P TO LABILE P', &
@@ -1267,7 +1285,7 @@ contains
          avgflag='A', long_name='SECONDARY MINERAL P TO OCCLUDED P', &
          ptr_col=this%secondp_to_occlp_col)
 
-    if ( nlevdecomp_full > 1 ) then  
+    if ( nlevdecomp_full > 1 ) then
        this%secondp_to_occlp_vr_col(begc:endc,:) = spval
        call hist_addfld_decomp (fname='SECONDP_TO_OCCLP'//trim(vr_suffix), units='gP/m^3/s',  type2d='levdcmp', &
             avgflag='A', long_name='SECONDARY MINERAL P TO OCCLUDED P', &
@@ -1279,7 +1297,7 @@ contains
          avgflag='A', long_name='soil mineral P pool loss to leaching', &
          ptr_col=this%sminp_leached_col)
 
-    if ( nlevdecomp_full > 1 ) then  
+    if ( nlevdecomp_full > 1 ) then
        this%sminp_leached_vr_col(begc:endc,:) = spval
        call hist_addfld_decomp (fname='SMINP_LEACHED'//trim(vr_suffix), units='gP/m^3/s',  type2d='levdcmp', &
             avgflag='A', long_name='soil mineral P pool loss to leaching', &
@@ -1335,7 +1353,7 @@ contains
             avgflag='A', long_name='biochemical rate of P mineralization', &
             ptr_col=this%biochem_pmin_vr_col, default='inactive')
     end if
-         
+
     this%potential_immob_p_col(begc:endc) = spval
     call hist_addfld1d (fname='POTENTIAL_IMMOB_P', units='gP/m^2/s', &
          avgflag='A', long_name='potential P immobilization', &
@@ -1484,12 +1502,12 @@ contains
     call hist_addfld1d (fname='ADSORBTION_P', units='gP/m^2/s', &
          avgflag='A', long_name='adsorb P flux', &
          ptr_patch=this%adsorb_to_labilep_col, default='active')
-         
+
     this%desorb_to_solutionp_col(begc:endc) = spval
     call hist_addfld1d (fname='DESORPTION_P', units='gP/m^2/s', &
          avgflag='A', long_name='desorp P flux', &
          ptr_patch=this%desorb_to_solutionp_col, default='active')
-         
+
   end subroutine InitHistory
 
   !-----------------------------------------------------------------------
@@ -1503,8 +1521,8 @@ contains
     use landunit_varcon , only : istsoil, istcrop
     !
     ! !ARGUMENTS:
-    class(phosphorusflux_type) :: this 
-    type(bounds_type), intent(in) :: bounds  
+    class(phosphorusflux_type) :: this
+    type(bounds_type), intent(in) :: bounds
     !
     ! !LOCAL VARIABLES:
     integer :: p,c,l
@@ -1544,12 +1562,12 @@ contains
     do p = bounds%begp,bounds%endp
        l = pft%landunit(p)
 
-       this%prev_leafp_to_litter_patch (p)  = 0._r8 
-       this%prev_frootp_to_litter_patch(p)  = 0._r8 
-     
+       this%prev_leafp_to_litter_patch (p)  = 0._r8
+       this%prev_frootp_to_litter_patch(p)  = 0._r8
+
        if ( crop_prog )then
           this%fert_p_counter_patch(p)  = spval
-          this%fert_p_patch(p)          = 0._r8 
+          this%fert_p_patch(p)          = 0._r8
        end if
 
        if (lun%itype(l) == istsoil .or. lun%itype(l) == istcrop) then
@@ -1579,7 +1597,7 @@ contains
   !-----------------------------------------------------------------------
   subroutine Restart (this,  bounds, ncid, flag )
     !
-    ! !DESCRIPTION: 
+    ! !DESCRIPTION:
     ! Read/write CN restart data for carbon state
     !
     ! !USES:
@@ -1589,7 +1607,7 @@ contains
     !
     ! !ARGUMENTS:
     class (phosphorusflux_type) :: this
-    type(bounds_type) , intent(in)    :: bounds 
+    type(bounds_type) , intent(in)    :: bounds
     type(file_desc_t) , intent(inout) :: ncid   ! netcdf id
     character(len=*)  , intent(in)    :: flag   !'read' or 'write'
     !
@@ -1660,17 +1678,17 @@ contains
     call restartvar(ncid=ncid, flag=flag, varname='plant_pdemand', xtype=ncd_double,  &
          dim1name='pft', &
          long_name='', units='', &
-         interpinic_flag='interp', readvar=readvar, data=this%plant_pdemand_patch) 
+         interpinic_flag='interp', readvar=readvar, data=this%plant_pdemand_patch)
 
     call restartvar(ncid=ncid, flag=flag, varname='avail_retransp', xtype=ncd_double,  &
          dim1name='pft', &
          long_name='', units='', &
-         interpinic_flag='interp', readvar=readvar, data=this%avail_retransp_patch) 
+         interpinic_flag='interp', readvar=readvar, data=this%avail_retransp_patch)
 
     call restartvar(ncid=ncid, flag=flag, varname='plant_palloc', xtype=ncd_double,  &
          dim1name='pft', &
          long_name='', units='', &
-         interpinic_flag='interp', readvar=readvar, data=this%plant_palloc_patch) 
+         interpinic_flag='interp', readvar=readvar, data=this%plant_palloc_patch)
 
     ! clm_bgc_interface & pflotran
     !------------------------------------------------------------------------
@@ -1768,26 +1786,26 @@ contains
        this%m_livecrootp_to_litter_patch(i)              = value_patch
        this%m_deadcrootp_to_litter_patch(i)              = value_patch
        this%m_retransp_to_litter_patch(i)                = value_patch
-       this%hrv_leafp_to_litter_patch(i)                 = value_patch             
-       this%hrv_frootp_to_litter_patch(i)                = value_patch            
-       this%hrv_leafp_storage_to_litter_patch(i)         = value_patch     
-       this%hrv_frootp_storage_to_litter_patch(i)        = value_patch    
-       this%hrv_livestemp_storage_to_litter_patch(i)     = value_patch 
-       this%hrv_deadstemp_storage_to_litter_patch(i)     = value_patch 
+       this%hrv_leafp_to_litter_patch(i)                 = value_patch
+       this%hrv_frootp_to_litter_patch(i)                = value_patch
+       this%hrv_leafp_storage_to_litter_patch(i)         = value_patch
+       this%hrv_frootp_storage_to_litter_patch(i)        = value_patch
+       this%hrv_livestemp_storage_to_litter_patch(i)     = value_patch
+       this%hrv_deadstemp_storage_to_litter_patch(i)     = value_patch
        this%hrv_livecrootp_storage_to_litter_patch(i)    = value_patch
        this%hrv_deadcrootp_storage_to_litter_patch(i)    = value_patch
-       this%hrv_leafp_xfer_to_litter_patch(i)            = value_patch        
-       this%hrv_frootp_xfer_to_litter_patch(i)           = value_patch       
-       this%hrv_livestemp_xfer_to_litter_patch(i)        = value_patch    
-       this%hrv_deadstemp_xfer_to_litter_patch(i)        = value_patch    
-       this%hrv_livecrootp_xfer_to_litter_patch(i)       = value_patch   
-       this%hrv_deadcrootp_xfer_to_litter_patch(i)       = value_patch   
-       this%hrv_livestemp_to_litter_patch(i)             = value_patch         
-       this%hrv_deadstemp_to_prod10p_patch(i)            = value_patch        
-       this%hrv_deadstemp_to_prod100p_patch(i)           = value_patch       
-       this%hrv_livecrootp_to_litter_patch(i)            = value_patch        
-       this%hrv_deadcrootp_to_litter_patch(i)            = value_patch        
-       this%hrv_retransp_to_litter_patch(i)              = value_patch    
+       this%hrv_leafp_xfer_to_litter_patch(i)            = value_patch
+       this%hrv_frootp_xfer_to_litter_patch(i)           = value_patch
+       this%hrv_livestemp_xfer_to_litter_patch(i)        = value_patch
+       this%hrv_deadstemp_xfer_to_litter_patch(i)        = value_patch
+       this%hrv_livecrootp_xfer_to_litter_patch(i)       = value_patch
+       this%hrv_deadcrootp_xfer_to_litter_patch(i)       = value_patch
+       this%hrv_livestemp_to_litter_patch(i)             = value_patch
+       this%hrv_deadstemp_to_prod10p_patch(i)            = value_patch
+       this%hrv_deadstemp_to_prod100p_patch(i)           = value_patch
+       this%hrv_livecrootp_to_litter_patch(i)            = value_patch
+       this%hrv_deadcrootp_to_litter_patch(i)            = value_patch
+       this%hrv_retransp_to_litter_patch(i)              = value_patch
 
        this%m_leafp_to_fire_patch(i)                     = value_patch
        this%m_leafp_storage_to_fire_patch(i)             = value_patch
@@ -1903,14 +1921,14 @@ contains
           ! fire
           this%fire_mortality_p_to_cwdp_col(i,j)         = value_column
           this%m_p_to_litr_met_fire_col(i,j)             = value_column
-          this%m_p_to_litr_cel_fire_col(i,j)             = value_column  
+          this%m_p_to_litr_cel_fire_col(i,j)             = value_column
           this%m_p_to_litr_lig_fire_col(i,j)             = value_column
 
           ! harvest
-          this%harvest_p_to_litr_met_p_col(i,j)          = value_column             
-          this%harvest_p_to_litr_cel_p_col(i,j)          = value_column             
-          this%harvest_p_to_litr_lig_p_col(i,j)          = value_column             
-          this%harvest_p_to_cwdp_col(i,j)                = value_column  
+          this%harvest_p_to_litr_met_p_col(i,j)          = value_column
+          this%harvest_p_to_litr_cel_p_col(i,j)          = value_column
+          this%harvest_p_to_litr_lig_p_col(i,j)          = value_column
+          this%harvest_p_to_cwdp_col(i,j)                = value_column
 
           this%primp_to_labilep_vr_col(i,j)              = value_column
           this%labilep_to_secondp_vr_col(i,j)            = value_column
@@ -1929,7 +1947,7 @@ contains
 
           ! bgc interface & pflotran
           this%plant_pdemand_vr_col(i,j)                 = value_column
-          
+
           this%adsorb_to_labilep_vr(i,j)                 = value_column
           this%desorb_to_solutionp_vr(i,j)               = value_column
 
@@ -1941,8 +1959,8 @@ contains
 
        this%pdep_to_sminp_col(i)             = value_column
        this%fert_p_to_sminp_col(i)           = value_column
-       this%hrv_deadstemp_to_prod10p_col(i)  = value_column        
-       this%hrv_deadstemp_to_prod100p_col(i) = value_column      
+       this%hrv_deadstemp_to_prod10p_col(i)  = value_column
+       this%hrv_deadstemp_to_prod100p_col(i) = value_column
        this%prod10p_loss_col(i)              = value_column
        this%prod100p_loss_col(i)             = value_column
        this%product_ploss_col(i)             = value_column
@@ -1973,7 +1991,7 @@ contains
 
        this%fire_ploss_col(i)                = value_column
        this%wood_harvestp_col(i)             = value_column
-       
+
        this%adsorb_to_labilep_col(i)         = value_column
        this%desorb_to_solutionp_col(i)       = value_column
 
@@ -2067,7 +2085,7 @@ contains
     !
     ! !ARGUMENTS:
     class(phosphorusflux_type) :: this
-    type(bounds_type), intent(in)  :: bounds 
+    type(bounds_type), intent(in)  :: bounds
     !
     ! !LOCAL VARIABLES:
     integer  :: c, j          ! indices
@@ -2099,13 +2117,13 @@ contains
     ! !USES:
     use clm_varpar    , only: nlevdecomp,ndecomp_cascade_transitions,ndecomp_pools
     use clm_varctl    , only: use_nitrif_denitrif
-    use subgridAveMod , only: p2c 
+    use subgridAveMod , only: p2c
     ! pflotran
 !    use clm_varctl    , only: use_pflotran, pf_cmode
     !
     ! !ARGUMENTS:
     class (phosphorusflux_type) :: this
-    type(bounds_type) , intent(in) :: bounds  
+    type(bounds_type) , intent(in) :: bounds
     integer           , intent(in) :: num_soilc       ! number of soil columns in filter
     integer           , intent(in) :: filter_soilc(:) ! filter for soil columns
     integer           , intent(in) :: num_soilp       ! number of soil patches in filter
@@ -2180,11 +2198,11 @@ contains
 
              this%decomp_cascade_ptransfer_col(c,k) = &
                   this%decomp_cascade_ptransfer_col(c,k) + &
-                  this%decomp_cascade_ptransfer_vr_col(c,j,k) * dzsoi_decomp(j) 
+                  this%decomp_cascade_ptransfer_vr_col(c,j,k) * dzsoi_decomp(j)
 
              this%decomp_cascade_sminp_flux_col(c,k) = &
                   this%decomp_cascade_sminp_flux_col(c,k) + &
-                  this%decomp_cascade_sminp_flux_vr_col(c,j,k) * dzsoi_decomp(j) 
+                  this%decomp_cascade_sminp_flux_vr_col(c,j,k) * dzsoi_decomp(j)
           end do
        end do
     end do
@@ -2287,7 +2305,7 @@ contains
        this%product_ploss_col(c) = &
             this%prod10p_loss_col(c) + &
             this%prod100p_loss_col(c) + &
-            this%prod1p_loss_col(c) 
+            this%prod1p_loss_col(c)
     end do
 
     ! add up all vertical transport tendency terms and calculate total som leaching loss as the sum of these
@@ -2313,7 +2331,7 @@ contains
                this%decomp_ppools_leached_col(c,l)
        end do
     end do
-    
+
     do fc = 1,num_soilc
        c = filter_soilc(fc)
        this%biochem_pmin_col(c) = 0.0_r8
@@ -2326,7 +2344,7 @@ contains
                this%biochem_pmin_vr_col(c,j)* dzsoi_decomp(j)
        end do
     end do
-    
+
     do fc = 1,num_soilc
        c = filter_soilc(fc)
        this%adsorb_to_labilep_col(c) = 0._r8
@@ -2341,7 +2359,7 @@ contains
           this%desorb_to_solutionp_col(c) = this%desorb_to_solutionp_col(c) + &
                this%desorb_to_solutionp_vr(c,j)* dzsoi_decomp(j)
        end do
-    end do    
+    end do
 
     do fc = 1,num_soilc
        c = filter_soilc(fc)
@@ -2350,9 +2368,9 @@ contains
        this%plant_to_litter_pflux(c) = 0._r8
        this%plant_to_cwd_pflux(c) = 0._r8
        do j = 1, nlevdecomp
-          this%actual_immob_p_col(c)= this%actual_immob_p_col(c) + & 
+          this%actual_immob_p_col(c)= this%actual_immob_p_col(c) + &
                this%actual_immob_p_vr_col(c,j) * dzsoi_decomp(j)
-          this%smin_p_to_plant_col(c)= this%smin_p_to_plant_col(c) + & 
+          this%smin_p_to_plant_col(c)= this%smin_p_to_plant_col(c) + &
                this%sminp_to_plant_vr_col(c,j) * dzsoi_decomp(j)
           this%plant_to_litter_pflux(c) = &
                this%plant_to_litter_pflux(c)  + &
@@ -2541,4 +2559,3 @@ end subroutine PSummary_interface
 !!-------------------------------------------------------------------------------------------------
 
 end module PhosphorusFluxType
-
