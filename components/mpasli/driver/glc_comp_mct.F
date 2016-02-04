@@ -180,6 +180,8 @@ contains
 
     logical, pointer :: tempLogicalConfig
     character(len=StrKIND), pointer :: tempCharConfig
+    logical, pointer :: config_adaptive_timestep
+    character(len=StrKIND), pointer :: config_adaptive_timestep_force_interval
 
 
     interface
@@ -550,51 +552,67 @@ contains
 
     ! set glc_cpl_dt (coupling interval in integer seconds) from the EClock
     call seq_timemgr_EClockGetData(EClock, dtime=glc_cpl_dt)
-    ! convert this dt to a time interval
+    ! convert this dt to a time interval; alarmTimeStep=ACME coupling interval
     call mpas_set_timeInterval(alarmTimeStep, S=glc_cpl_dt, ierr=err_tmp)
     call mpas_get_timeInterval(alarmTimeStep, timeString=coupleTimeStamp, ierr=ierr)
     ierr = ior(ierr,err_tmp)
     write (stderrUnit,*) 'Applying GLC coupling dt (s) of: ', glc_cpl_dt
 
-    ! Verify the mpas time step fits into a coupling interval
-    call mpas_pool_get_config(domain % configs, 'config_dt', tempCharConfig)
-    call mpas_set_timeInterval(denInterval, timeString=tempCharConfig, ierr=ierr)
-    call mpas_set_timeInterval(zeroInterval, S=0, ierr=ierr)
-    call mpas_interval_division(start_time, alarmTimeStep, denInterval, numDivs, remInterval)
-
     ierr = 0
 
-    if ( alarmTimeStep < denInterval ) then
-       ierr = 1
-    end if
-    ierr_local = ierr
-    call mpas_dmpar_max_int(domain % dminfo, ierr_local, ierr)
+    call mpas_pool_get_config(domain % configs, 'config_adaptive_timestep', config_adaptive_timestep)
+    if (config_adaptive_timestep) then
 
-    if ( ierr == 1 ) then
-       write(stderrUnit, *) ' ERROR: Coupling interval is: ', trim(coupleTimeStamp)
-       write(stderrUnit, *) '        GLC Model time step is: ', trim(tempCharConfig)
+       ! No need to compare MPAS timestep to coupling interval yet, since we don't know what it will be!
 
-       write(stderrUnit, *) '        The model time step cannot be longer then the coupling interval'
-       call mpas_dmpar_global_abort('ERROR: Model is not properly configured for coupling interval.')
-    end if
+       ! config_adaptive_timestep_force_interval is used to prevent the adaptive time stepper from
+       ! overshooting a specified interval.  Set it here to make sure we fit into the coupling interval.
+       call mpas_pool_get_config(domain % configs, 'config_adaptive_timestep_force_interval', config_adaptive_timestep_force_interval)
+       config_adaptive_timestep_force_interval = coupleTimeStamp
 
-    if ( remInterval > zeroInterval ) then
-       ierr = 1
-    end if
+    else  ! constant time step
 
-    ierr_local = ierr
-    call mpas_dmpar_max_int(domain % dminfo, ierr_local, ierr)
+       ! Verify the mpas time step fits into a coupling interval
+       call mpas_pool_get_config(domain % configs, 'config_dt', tempCharConfig)
+       call mpas_set_timeInterval(denInterval, timeString=tempCharConfig, ierr=ierr)
+       call mpas_set_timeInterval(zeroInterval, S=0, ierr=ierr)
+       call mpas_interval_division(start_time, alarmTimeStep, denInterval, numDivs, remInterval)
 
-    if ( ierr == 1 ) then
-       write(stderrUnit, *) ' ERROR: Coupling interval is: ', trim(coupleTimeStamp)
-       write(stderrUnit, *) '        GLC Model time step is: ', trim(tempCharConfig)
+       ! Don't let mpas time step be longer than coupling interval
+       if ( alarmTimeStep < denInterval ) then
+          ierr = 1
+       end if
+       ierr_local = ierr
+       call mpas_dmpar_max_int(domain % dminfo, ierr_local, ierr)
 
-       write(stderrUnit, *) '        These are not synchronized, so time steps'
-       write(stderrUnit, *) '        will not match to coupling interval boundaries.'
-       write(stderrUnit, *) '        Please reconfigure either the coupling interval, '
-       write(stderrUnit, *) '        or the time step.'
-       call mpas_dmpar_global_abort('ERROR: Model is not properly configured for coupling interval.')
-    end if
+       if ( ierr == 1 ) then
+          write(stderrUnit, *) ' ERROR: Coupling interval is: ', trim(coupleTimeStamp)
+          write(stderrUnit, *) '        GLC Model time step is: ', trim(tempCharConfig)
+
+          write(stderrUnit, *) '        The model time step cannot be longer then the coupling interval'
+          call mpas_dmpar_global_abort('ERROR: Model is not properly configured for coupling interval.')
+       end if
+
+       ! Make sure maps time step divides evenly into coupling interval
+       if ( remInterval > zeroInterval ) then
+          ierr = 1
+       end if
+
+       ierr_local = ierr
+       call mpas_dmpar_max_int(domain % dminfo, ierr_local, ierr)
+
+       if ( ierr == 1 ) then
+          write(stderrUnit, *) ' ERROR: Coupling interval is: ', trim(coupleTimeStamp)
+          write(stderrUnit, *) '        GLC Model time step is: ', trim(tempCharConfig)
+
+          write(stderrUnit, *) '        These are not synchronized, so time steps'
+          write(stderrUnit, *) '        will not match to coupling interval boundaries.'
+          write(stderrUnit, *) '        Please reconfigure either the coupling interval, '
+          write(stderrUnit, *) '        or the time step.'
+          call mpas_dmpar_global_abort('ERROR: Model is not properly configured for coupling interval.')
+       end if
+
+    end if ! check for adaptive time step
 
     ! set coupling alarm
     alarmStartTime = currTime
