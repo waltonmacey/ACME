@@ -5612,6 +5612,18 @@ Total number of threads per MPI task.
 Default: 1.
 </entry>
 
+<entry id="hthreads" type="integer" category="se"
+       group="ctl_nl" valid_values="" >
+Number of horizontal threads.
+Default: 1.
+</entry>
+
+<entry id="vthreads" type="integer" category="se"
+       group="ctl_nl" valid_values="" >
+Number of vertical threads.
+Default: 1.
+</entry>
+
 
 <!-- CAM I/O  -->
 
