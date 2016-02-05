@@ -1363,7 +1363,9 @@ end subroutine clubb_init_cnst
    !  determine number of timesteps CLUBB core should be advanced, 
    !  host time step divided by CLUBB time step  
    nadv = max(hdtime/dtime,1._r8)
-  
+ 
+   if (masterproc) write(iulog,*) "---- hdt = ",hdtime," dtime = ",dtime,", nadv = ",nadv 
+
    !  Initialize forcings for transported scalars to zero
    
    sclrm_forcing(:,:)   = 0._r8

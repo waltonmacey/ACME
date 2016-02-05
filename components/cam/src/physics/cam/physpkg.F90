@@ -2259,6 +2259,8 @@ end if
              !    CLUBB call (PBL, shallow convection, macrophysics)
              ! =====================================================  
    
+             if (masterproc) write(iulog,*) "--- calling clubb_tend_cam"
+
              call clubb_tend_cam(state,ptend,pbuf,cld_macmic_ztodt,&
                 cmfmc, cam_in, sgh30, macmic_it, cld_macmic_num_steps, & 
                 dlf, det_s, det_ice)
@@ -2336,6 +2338,7 @@ end if
              call physics_tend_dealloc(tend_sc)
              call physics_ptend_dealloc(ptend_sc)
           else
+             if (masterproc) write(iulog,*) "--- calling microp_driver_tend w/o subcol"
              call microp_driver_tend(state, ptend, cld_macmic_ztodt, pbuf)
           end if
           ! combine aero and micro tendencies for the grid
