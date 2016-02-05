@@ -154,9 +154,16 @@ CONTAINS
 #ifdef COLUMN_OPENMP
     if(par%masterproc) then
        write(iulog,*) " "
-       write(iulog,*) "dyn_init1: using OpenMP within element instead of across elements"
+       write(iulog,*) "dyn_init1: using OpenMP across and within elements"
+       write(iulog,*) "dyn_init1: hthreads=",hthreads,"vthreads=",vthreads
        write(iulog,*) " "
     endif
+    call omp_set_nested(.true.)
+#ifndef __bg__
+   if (.not. omp_get_nested()) then
+     call haltmp("Nested threading required but not available. Set OMP_NESTED=true")
+   endif
+#endif
 #endif
 #else
     nthreads = 1
@@ -272,13 +279,16 @@ CONTAINS
 
 #ifdef HORIZ_OPENMP
        if (iam==0) write (iulog,*) "dyn_init2: nthreads=",nthreads,&
+                                   "hthreads=",hthreads,&
+                                   "vthreads=",vthreads,&
                                    "max_threads=",omp_get_max_threads()
-       !$OMP PARALLEL NUM_THREADS(nthreads), DEFAULT(SHARED), PRIVATE(ie,ithr,nets,nete,hybrid)
+       !$OMP PARALLEL NUM_THREADS(hthreads), DEFAULT(SHARED), PRIVATE(ie,ithr,nets,nete,hybrid)
+       call omp_set_num_threads(vthreads)
 #endif
        ithr=omp_get_thread_num()
        nets=dom_mt(ithr)%start
        nete=dom_mt(ithr)%end
-       hybrid = hybrid_create(par,ithr,NThreads)
+       hybrid = hybrid_create(par,ithr,hthreads)
 
        moisture='moist'
 
@@ -376,13 +386,16 @@ CONTAINS
     if(iam < par%nprocs) then
 #ifdef HORIZ_OPENMP
        !if (iam==0) write (iulog,*) "dyn_run: nthreads=",nthreads,&
+       !                            "hthreads=",hthreads,&
+       !                            "vthreads=",vthreads,&
        !                            "max_threads=",omp_get_max_threads()
-       !$OMP PARALLEL NUM_THREADS(nthreads), DEFAULT(SHARED), PRIVATE(ithr,nets,nete,hybrid,n)
+       !$OMP PARALLEL NUM_THREADS(hthreads), DEFAULT(SHARED), PRIVATE(ithr,nets,nete,hybrid,n)
+       call omp_set_num_threads(vthreads)
 #endif
        ithr=omp_get_thread_num()
        nets=dom_mt(ithr)%start
        nete=dom_mt(ithr)%end
-       hybrid = hybrid_create(par,ithr,NThreads)
+       hybrid = hybrid_create(par,ithr,hthreads)
 
        do n=1,se_nsplit
           ! forward-in-time RK, with subcycling

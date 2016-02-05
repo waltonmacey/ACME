@@ -233,6 +233,8 @@ module namelist_mod
                      se_ne,            &
                      se_limiter_option, &
                      nthreads,      &       ! Total number of threads per process
+                     hthreads,      &       ! Number of horizontal/element threads per process
+                     vthreads,      &       ! Number of vertical/column threads per process
 #else
                      qsize,         &       ! number of SE tracers
                      ntrac,         &       ! number of fvm tracers
