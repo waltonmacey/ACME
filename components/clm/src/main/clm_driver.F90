@@ -135,6 +135,8 @@ module clm_driver
   use LandunitType           , only : lun
   use ColumnType             , only : col
   use PatchType              , only : pft
+  use TracerParamsMod        , only : diagnose_dtracer_freeze_thaw
+  use TracerParamsMod        , only : pre_diagnose_dtracer_freeze_thaw
 
   !!----------------------------------------------------------------------------
   !! bgc interface & pflotran:
@@ -572,6 +574,10 @@ contains
        ! ============================================================================
        ! Determine temperatures
        ! ============================================================================
+       if(use_betr)then
+         call pre_diagnose_dtracer_freeze_thaw(bounds_clump, filter(nc)%num_nolakec, &
+          filter(nc)%nolakec, waterstate_vars )
+       endif
 
        ! Set lake temperature
 
@@ -592,6 +598,10 @@ contains
             solarabs_vars, soilstate_vars, energyflux_vars,  temperature_vars)
        call t_stopf('soiltemperature')
 
+       if(use_betr)then
+         call diagnose_dtracer_freeze_thaw(bounds_clump, filter(nc)%num_nolakec, filter(nc)%nolakec, lun, &
+           waterstate_vars, betrtracer_vars, tracerstate_vars)
+       endif
        ! ============================================================================
        ! update surface fluxes for new ground temperature.
        ! ============================================================================
