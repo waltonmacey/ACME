@@ -1846,9 +1846,9 @@ contains
        o2x_o % rAttr(index_o2x_So_dhdy, n) = avgSSHGradient(index_avgMeridionalSSHGradient, i)
        if ( frazilIceActive ) then
           ! negative when frazil ice can be melted
-          seaIceEnergy(i) = min( rho_sw * cp_sw * layerThickness(1, i) * ( -1.8_RKIND &
+          seaIceEnergy(i) = min( rho_sw * cp_sw * layerThickness(1, i) * ( -1.8_RKIND + 273.15_RKIND &
                           - avgTracersSurfaceValue(index_temperatureSurfaceValue, i) ), 0.0_RKIND )
-
+          if (accumulatedFrazilIceMass(i) > 0.0_RKIND) seaIceEnergy(i) = 0.0_RKIND
           o2x_o % rAttr(index_o2x_Fioo_meltp, n)  = seaIceEnergy(i) / ocn_cpl_dt
           o2x_o % rAttr(index_o2x_Fioo_frazil, n) = accumulatedFrazilIceMass(i) / ocn_cpl_dt
 
