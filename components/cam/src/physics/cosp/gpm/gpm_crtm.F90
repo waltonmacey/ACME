@@ -261,6 +261,10 @@ do i_profile = 1, n_profiles
 
       err_stat = CRTM_Forward(atm(i_profile:i_profile), sfc(i_profile:i_profile), geo(i_profile:i_profile), chinfo(1:1),rts(:,i_profile:i_profile))
       !err_stat = CRTM_Forward(atm, sfc, geo, chinfo(1:1),rts)
+
+!print *,'in gpm_crtm.F90'
+!print *, "BT",rts(6,i_profile)%Brightness_temperature
+!print *, "SOD", rts(6,i_profile)%SOD, "surfEm", rts(6, i_profile)%Surface_Emissivity, "a"
 end do
 !call CRTM_RTSolution_Inspect(rts)
       
@@ -269,11 +273,13 @@ end do
 
       end if
       ! obtain brightness temperatures from RTSolution structure
+
+
       tbs = rts%Brightness_temperature
 ! For debug use
-!print *,'in gpm_crtm.F90'
 !print *, rts(1,1)%Brightness_temperature
 !print *, tbs
+
       ! destroy the CRTM structures
       call CRTM_Geometry_destroy(  geo)
       call CRTM_Options_Destroy(   opt)

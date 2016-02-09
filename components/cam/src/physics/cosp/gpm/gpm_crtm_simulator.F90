@@ -114,6 +114,7 @@ contains
       integer :: n
       integer :: i_column
       integer :: i_cloud
+      integer :: i_channel
       real, allocatable :: tbs(:,:) ! temporary variable to store Tb result
       real, allocatable :: m_layer(:,:) ! mass per unit area of air in each layer [kg/m^2] 
       !--------------
@@ -229,8 +230,10 @@ print *, 'n_sensors:', n_sensors
 
 !      print *, 'in gpm_crtm_simulator'
 !      print *, tbs
-      gpm_results(n)%tbs(:,i_column,:) = tbs
-      
+      ! Need to reshape the results
+      do i_channel = 1, n_channels
+        gpm_results(n)%tbs(:,i_column,i_channel) = tbs(i_channel,:)
+      end do
       end do ! i_column
 !      print *, "Maximum TB in sensor ", n, " is ", maxval(gpm_results(n)%tbs )
       print *, "TB(1,1,1): ",gpm_results(n)%tbs(1,1,1)
