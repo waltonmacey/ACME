@@ -156,6 +156,15 @@ ic_tod="0" sim_year="1850" glc_nec="0" use_crop=".false." >lnd/clm2/initdata_map
 ic_tod="0" sim_year="1850" glc_nec="0" use_crop=".false." >lnd/clm2/initdata_map/clmi.I1850CRUCLM45BGC.0241-01-01.ne30np4_g1v6_simyr1850_c140111.nc
 </finidat>
 
+<!-- Initial condition file with CLM45SP -->
+<finidat hgrid="ne30np4"   maxpft="17"  mask="gx1v6" use_cn=".false." ic_ymd="18500101" more_vertlayers=".false."
+ic_tod="0" sim_year="2000" glc_nec="0" use_crop=".false." >lnd/clm2/initdata_map/clmi.ICRUCLM45.ne30_g16.e61c667.clm2.r.0021-01-01-00000.nc
+</finidat>
+
+<finidat hgrid="ne30np4"   maxpft="17"  mask="oEC60to30" use_cn=".false." ic_ymd="18500101" more_vertlayers=".false."
+ic_tod="0" sim_year="2000" glc_nec="0" use_crop=".false." >lnd/clm2/initdata_map/clmi.ICRUCLM45.ne30_oEC.e61c667.clm2.r.0021-01-01-00000.nc
+</finidat>
+
 
 <!-- Initial condition files with CLM45BGCDV -->
 
@@ -204,6 +213,8 @@ lnd/clm2/surfdata_map/surfdata_10x15_simyr2000_c130927.nc</fsurdat>
 lnd/clm2/surfdata_map/surfdata_ne30np4_simyr2000_c130927.nc</fsurdat>
 <fsurdat hgrid="ne120np4"     sim_year="2000" >
 lnd/clm2/surfdata_map/surfdata_ne120np4_simyr2000_c150121.nc</fsurdat>
+<fsurdat hgrid="ne16np4"      sim_year="2000" use_crop=".false." >
+lnd/clm2/surfdata_map/surfdata_ne16np4_simyr2000_c160108.nc</fsurdat>
 
 <!-- Crop surface datasets -->
 <fsurdat hgrid="1.9x2.5"   sim_year="2000" use_crop=".true." >
@@ -253,6 +264,8 @@ lnd/clm2/surfdata_map/surfdata_1x1_brazil_simyr1850_c140610.nc</fsurdat>
 
 <fsurdat hgrid="ne30np4"      sim_year="1850" use_crop=".false." >
 lnd/clm2/surfdata_map/surfdata_ne30np4_simyr1850_c130927.nc</fsurdat>
+<fsurdat hgrid="ne16np4"      sim_year="1850" use_crop=".false." >
+lnd/clm2/surfdata_map/surfdata_ne16np4_simyr1850_c160108.nc</fsurdat>
 
 <!-- Dynamic PFT surface datasets (relative to {csmdata}) -->
 

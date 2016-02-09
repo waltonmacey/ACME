@@ -230,9 +230,6 @@ CONTAINS
        TimeLevel%nstep = get_nstep()*se_nsplit*qsplit*rsplit
     endif
 
-    ! initial SE (subcycled) nstep
-    TimeLevel%nstep0 = 0
-
     ! Define the CAM grids (this has to be after dycore spinup).
     ! Physics-grid will be defined later by phys_grid_init
     call define_cam_grids()
@@ -392,8 +389,10 @@ CONTAINS
 
        do n=1,se_nsplit
           ! forward-in-time RK, with subcycling
+          call t_startf("prim_run_sybcycle")
           call prim_run_subcycle(dyn_state%elem,dyn_state%fvm,hybrid,nets,nete,&
                tstep, TimeLevel, hvcoord, n)
+          call t_stopf("prim_run_sybcycle")
        end do
 
 

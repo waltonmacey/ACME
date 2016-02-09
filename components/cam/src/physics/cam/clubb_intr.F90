@@ -25,6 +25,7 @@ module clubb_intr
   use spmd_utils,    only: masterproc 
   use constituents,  only: pcnst, cnst_add
   use pbl_utils,     only: calc_ustar, calc_obklen
+  use perf_mod,      only: t_startf, t_stopf
   use mpishorthand
 
   implicit none
@@ -96,6 +97,13 @@ module clubb_intr
     
   real(r8) :: clubb_timestep = unset_r8  ! Default CLUBB timestep, unless overwriten by namelist
   real(r8) :: clubb_rnevap_effic = unset_r8
+
+  !namelist variables
+  real(r8) :: clubb_liq_deep = unset_r8
+  real(r8) :: clubb_liq_sh   = unset_r8
+  real(r8) :: clubb_ice_deep = unset_r8
+  real(r8) :: clubb_ice_sh   = unset_r8
+
 
 !  Constant parameters
   logical, parameter, private :: &
@@ -173,6 +181,7 @@ module clubb_intr
 
   integer :: cmfmc_sh_idx = 0
 
+  real(r8) :: dp1 !set in namelist; assigned in cloud_fraction.F90
   !  Output arrays for CLUBB statistics    
   real(r8), allocatable, dimension(:,:,:) :: out_zt, out_zm, out_radzt, out_radzm, out_sfc
 
@@ -342,6 +351,7 @@ end subroutine clubb_init_cnst
     use stats_variables, only: l_stats, l_output_rad_files
     use mpishorthand
     use model_flags,     only: l_diffuse_rtm_and_thlm, l_stability_correct_Kh_N2_zm
+    use parameters_tunable, only: clubb_param_readnl
 #endif
 
     character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
@@ -355,7 +365,8 @@ end subroutine clubb_init_cnst
     namelist /clubb_his_nl/ clubb_history, clubb_rad_history
     namelist /clubbpbl_diff_nl/ clubb_cloudtop_cooling, clubb_rainevap_turb, clubb_expldiff, &
                                 clubb_do_adv, clubb_do_deep, clubb_timestep, clubb_stabcorrect, &
-                                clubb_rnevap_effic
+                                clubb_rnevap_effic, clubb_liq_deep, clubb_liq_sh, clubb_ice_deep, &
+                                clubb_ice_sh
 
     !----- Begin Code -----
 
@@ -405,6 +416,10 @@ end subroutine clubb_init_cnst
       call mpibcast(clubb_timestep,           1,   mpir8,   0, mpicom)
       call mpibcast(clubb_stabcorrect,        1,   mpilog,   0, mpicom)
       call mpibcast(clubb_rnevap_effic,       1,   mpir8,   0, mpicom)
+      call mpibcast(clubb_liq_deep,           1,   mpir8,   0, mpicom)
+      call mpibcast(clubb_liq_sh,             1,   mpir8,   0, mpicom)
+      call mpibcast(clubb_ice_deep,           1,   mpir8,   0, mpicom)
+      call mpibcast(clubb_ice_sh,             1,   mpir8,   0, mpicom)
 #endif
 
     !  Overwrite defaults if they are true
@@ -423,6 +438,9 @@ end subroutine clubb_init_cnst
       l_stability_correct_Kh_N2_zm = .true.   ! CLUBB flag set to true
     endif
       
+    ! read tunable parameters from namelist, handlings of masterproc vs others
+    ! are done within clubb_param_readnl
+    call clubb_param_readnl(nlfile)
 #endif
   end subroutine clubb_readnl
 
@@ -430,7 +448,7 @@ end subroutine clubb_init_cnst
   !                                                                                 !
   ! =============================================================================== !
 
-  subroutine clubb_ini_cam(pbuf2d)
+  subroutine clubb_ini_cam(pbuf2d, dp1_in)
 !-------------------------------------------------------------------------------
 ! Description:
 !   Initialize UWM CLUBB.
@@ -480,6 +498,8 @@ end subroutine clubb_init_cnst
     implicit none
     !  Input Variables
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
+    
+    real(r8) :: dp1_in
 
 #ifdef CLUBB_SGS
 
@@ -841,6 +861,7 @@ end subroutine clubb_init_cnst
     ! --------------- !
 
 #endif
+    dp1 = dp1_in !set via namelist, assigned in cloud_fraction.F90
     end subroutine clubb_ini_cam
     
     
@@ -1190,6 +1211,7 @@ end subroutine clubb_init_cnst
    !-----------------------------------------------------------------------------------------------!
    !-----------------------------------------------------------------------------------------------!
 
+   call t_startf('clubb_tend_cam_init')
    frac_limit = 0.01_r8
    ic_limit   = 1.e-12_r8
 
@@ -1299,11 +1321,13 @@ end subroutine clubb_init_cnst
      qitend(:ncol,:)=0._r8
      initend(:ncol,:)=0._r8
 
+     call t_startf('ice_macro_tend')
      call ice_macro_tend(naai(:ncol,top_lev:pver),state1%t(:ncol,top_lev:pver), &
         state1%pmid(:ncol,top_lev:pver),state1%q(:ncol,top_lev:pver,1),state1%q(:ncol,top_lev:pver,ixcldice),&
         state1%q(:ncol,top_lev:pver,ixnumice),latsub,hdtime,&
         stend(:ncol,top_lev:pver),qvtend(:ncol,top_lev:pver),qitend(:ncol,top_lev:pver),&
         initend(:ncol,top_lev:pver))
+     call t_stopf('ice_macro_tend')
 
      ! update local copy of state with the tendencies
      ptend_loc%q(:ncol,top_lev:pver,1)=qvtend(:ncol,top_lev:pver)
@@ -1474,15 +1498,18 @@ end subroutine clubb_init_cnst
                   -state1%q(i,k,ixcldliq))
      enddo
    enddo
+   call t_stopf('clubb_tend_cam_init')
    
    ! ------------------------------------------------- !
    ! Begin module to compute turbulent mountain stress !
    ! ------------------------------------------------- !
    
+   call t_startf('compute_tms')
    call compute_tms( pcols,        pver,      ncol,                   &
                      state1%u,     state1%v,  state1%t,  state1%pmid, &
                      state1%exner, state1%zm, sgh30,     ksrftms,     &
                      tautmsx,      tautmsy,   cam_in%landfrac ) 
+   call t_stopf('compute_tms')
    
    if (micro_do_icesupersat) then
      call physics_ptend_init(ptend_loc,state%psetcols, 'clubb', ls=.true., lu=.true., lv=.true., lq=lq)
@@ -1492,6 +1519,7 @@ end subroutine clubb_init_cnst
    ! End module to compute turbulent mountain stress   !
    ! ------------------------------------------------- !
 
+   call t_startf('adv_clubb_core_col_loop')
    !  Loop over all columns in lchnk to advance CLUBB core
    do i=1,ncol   ! loop over columns
 
@@ -1793,6 +1821,7 @@ end subroutine clubb_init_cnst
       ! End cloud-top radiative cooling contribution to CLUBB     !
       ! --------------------------------------------------------- !  
 
+      call t_startf('adv_clubb_core_ts_loop')
       do t=1,nadv    ! do needed number of "sub" timesteps for each CAM step
     
          !  Increment the statistics then being stats timestep
@@ -1802,6 +1831,7 @@ end subroutine clubb_init_cnst
          endif 
 
          !  Advance CLUBB CORE one timestep in the future
+         call t_startf('advance_clubb_core')
          call advance_clubb_core &
             ( l_implemented, dtime, fcor, sfc_elevation, hydromet_dim, &
             thlm_forcing, rtm_forcing, um_forcing, vm_forcing, &
@@ -1830,6 +1860,7 @@ end subroutine clubb_init_cnst
             rcm_in_layer_out, cloud_cover_out, &
             khzm_out, khzt_out, qclvar_out, thlprcp_out, &
             pdf_params)
+         call t_stopf('advance_clubb_core')
 
          if (do_rainturb) then
             rvm_in = rtm_in - rcm_out 
@@ -1871,6 +1902,7 @@ end subroutine clubb_init_cnst
                                                      out_radzt,out_radzm,out_sfc)  
 
       enddo  ! end time loop
+      call t_stopf('adv_clubb_core_ts_loop')
      
       if (clubb_do_adv) then
          if (macmic_it .eq. cld_macmic_num_steps) then 
@@ -2040,6 +2072,7 @@ end subroutine clubb_init_cnst
       enddo
 
    enddo  ! end column loop
+   call t_stopf('adv_clubb_core_col_loop')
    
    ! Add constant to ghost point so that output is not corrupted 
    if (clubb_do_adv) then
@@ -2085,7 +2118,7 @@ end subroutine clubb_init_cnst
    ! ------------------------------------------------------------ !
    ! ------------------------------------------------------------ !
    ! ------------------------------------------------------------ !
-
+   call t_startf('clubb_tend_cam_diag')
    
    ! --------------------------------------------------------------------------------- !  
    !  COMPUTE THE ICE CLOUD DETRAINMENT                                                !
@@ -2103,6 +2136,7 @@ end subroutine clubb_init_cnst
     
    call physics_ptend_init(ptend_loc,state%psetcols, 'clubb', ls=.true., lq=lqice)
    
+   call t_startf('ice_cloud_detrain_diag')
    do k=1,pver
       do i=1,ncol
          if( state1%t(i,k) > 268.15_r8 ) then
@@ -2116,13 +2150,13 @@ end subroutine clubb_init_cnst
          ptend_loc%q(i,k,ixcldliq) = dlf(i,k) * ( 1._r8 - dum1 )
          ptend_loc%q(i,k,ixcldice) = dlf(i,k) * dum1
          ptend_loc%q(i,k,ixnumliq) = 3._r8 * ( max(0._r8, ( dlf(i,k) - dlf2(i,k) )) * ( 1._r8 - dum1 ) ) &
-                                     / (4._r8*3.14_r8* 8.e-6_r8**3*997._r8) + & ! Deep    Convection
+                                     / (4._r8*3.14_r8* clubb_liq_deep**3*997._r8) + & ! Deep    Convection
                                      3._r8 * (                         dlf2(i,k)    * ( 1._r8 - dum1 ) ) &
-                                     / (4._r8*3.14_r8*10.e-6_r8**3*997._r8)     ! Shallow Convection 
+                                     / (4._r8*3.14_r8*clubb_liq_sh**3*997._r8)     ! Shallow Convection 
          ptend_loc%q(i,k,ixnumice) = 3._r8 * ( max(0._r8, ( dlf(i,k) - dlf2(i,k) )) *  dum1 ) &
-                                     / (4._r8*3.14_r8*25.e-6_r8**3*500._r8) + & ! Deep    Convection
+                                     / (4._r8*3.14_r8*clubb_ice_deep**3*500._r8) + & ! Deep    Convection
                                      3._r8 * (                         dlf2(i,k)    *  dum1 ) &
-                                     / (4._r8*3.14_r8*50.e-6_r8**3*500._r8)     ! Shallow Convection
+                                     / (4._r8*3.14_r8*clubb_ice_sh**3*500._r8)     ! Shallow Convection
          ptend_loc%s(i,k)          = dlf(i,k) * dum1 * latice
  
          ! Only rliq is saved from deep convection, which is the reserved liquid.  We need to keep
@@ -2135,6 +2169,7 @@ end subroutine clubb_init_cnst
    enddo
    
    det_ice(:ncol) = det_ice(:ncol)/1000._r8  ! divide by density of water
+   call t_stopf('ice_cloud_detrain_diag')
 
    call outfld( 'DPDLFLIQ', ptend_loc%q(:,:,ixcldliq), pcols, lchnk)
    call outfld( 'DPDLFICE', ptend_loc%q(:,:,ixcldice), pcols, lchnk)
@@ -2244,7 +2279,7 @@ end subroutine clubb_init_cnst
          !  deep convective mass flux, read in from pbuf.  Since shallow convection is never 
          !  called, the shallow convective mass flux will ALWAYS be zero, ensuring that this cloud
          !  fraction is purely from deep convection scheme.  
-         deepcu(i,k) = max(0.0_r8,min(0.1_r8*log(1.0_r8+500.0_r8*(cmfmc(i,k+1)-cmfmc_sh(i,k+1))),0.6_r8))
+         deepcu(i,k) = max(0.0_r8,min(dp1*log(1.0_r8+500.0_r8*(cmfmc(i,k+1)-cmfmc_sh(i,k+1))),0.6_r8))
          shalcu(i,k) = 0._r8
        
          if (deepcu(i,k) <= frac_limit .or. dp_icwmr(i,k) < ic_limit) then
@@ -2278,10 +2313,12 @@ end subroutine clubb_init_cnst
    !  use the aist_vector function to compute the ice cloud fraction                   !
    ! --------------------------------------------------------------------------------- !  
 
+   call t_startf('ice_cloud_frac_diag')
    do k=1,pver
       call aist_vector(state1%q(:,k,ixq),state1%t(:,k),state1%pmid(:,k),state1%q(:,k,ixcldice), &
            state1%q(:,k,ixnumice),cam_in%landfrac(:),cam_in%snowhland(:),aist(:,k),ncol)
    enddo
+   call t_stopf('ice_cloud_frac_diag')
   
    ! --------------------------------------------------------------------------------- !  
    !  THIS PART COMPUTES THE LIQUID STRATUS FRACTION                                   !
@@ -2319,6 +2356,7 @@ end subroutine clubb_init_cnst
    !  this is needed for aerosol code                                                  !
    ! --------------------------------------------------------------------------------- !   
     
+   call t_startf('pbl_depth_diag')
    do i=1,ncol
       do k=1,pver
          th(i,k) = state1%t(i,k)*state1%exner(i,k)
@@ -2344,12 +2382,15 @@ end subroutine clubb_init_cnst
    call pblintd(ncol, thv, state1%zm, state1%u, state1%v, &
                 ustar2, obklen, kbfs, pblh, dummy2, &
                 state1%zi, cloud_frac(:,1:pver), 1._r8-cam_in%landfrac, dummy3)
+   call t_stopf('pbl_depth_diag')
 
    !  Output the PBL depth
    call outfld('PBLH', pblh, pcols, lchnk)
  
    ! Assign the first pver levels of cloud_frac back to cld
    cld(:,1:pver) = cloud_frac(:,1:pver)
+
+   call t_stopf('clubb_tend_cam_diag')
 
    ! --------------------------------------------------------------------------------- !   
    !  END CLOUD FRACTION DIAGNOSIS, begin to store variables back into buffer          !

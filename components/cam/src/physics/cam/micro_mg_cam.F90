@@ -95,6 +95,7 @@ use error_messages, only: handle_errmsg
 use ref_pres,       only: top_lev=>trop_cloud_top_lev
 
 use subcol_utils,   only: subcol_get_scheme
+use perf_mod,       only: t_startf, t_stopf
 
 implicit none
 private
@@ -125,6 +126,8 @@ logical :: micro_mg_dcs_tdep  = .false.! if set to true, use temperature depende
 character(len=16) :: micro_mg_precip_frac_method = 'max_overlap' ! type of precipitation fraction method
 
 real(r8)          :: micro_mg_berg_eff_factor    = 1.0_r8        ! berg efficiency factor
+
+real(r8)          :: ice_sed_ai                  = 700.0_r8      ! Fall speed parameter for cloud ice
 
 logical, public :: do_cldliq ! Prognose cldliq flag
 logical, public :: do_cldice ! Prognose cldice flag
@@ -278,7 +281,7 @@ subroutine micro_mg_cam_readnl(nlfile)
   character(len=*), parameter :: subname = 'micro_mg_cam_readnl'
 
   namelist /micro_mg_nl/ micro_mg_version, micro_mg_sub_version, &
-       micro_mg_do_cldice, micro_mg_do_cldliq, micro_mg_num_steps, &
+       micro_mg_do_cldice, micro_mg_do_cldliq, micro_mg_num_steps, ice_sed_ai,&
 !!== KZ_DCS
        micro_mg_dcs_tdep, & 
 !!== KZ_DCS
@@ -341,6 +344,7 @@ subroutine micro_mg_cam_readnl(nlfile)
   call mpibcast(microp_uniform,              1, mpilog, 0, mpicom)
   call mpibcast(micro_mg_dcs,                1, mpir8,  0, mpicom)
   call mpibcast(micro_mg_berg_eff_factor,    1, mpir8,  0, mpicom)
+  call mpibcast(ice_sed_ai,                  1, mpir8,  0, mpicom)
   call mpibcast(micro_mg_precip_frac_method, 16, mpichar,0, mpicom)
 
 #endif
@@ -670,7 +674,7 @@ subroutine micro_mg_cam_init(pbuf2d)
       case (0)
          ! MG 1 does not initialize micro_mg_utils, so have to do it here.
          call micro_mg_utils_init(r8, rh2o, cpair, tmelt, latvap, latice, &
-              micro_mg_dcs, errstring)
+              micro_mg_dcs, ice_sed_ai, errstring)
          call handle_errmsg(errstring, subname="micro_mg_utils_init")
 
          call micro_mg_init1_0( &
@@ -681,7 +685,7 @@ subroutine micro_mg_cam_init(pbuf2d)
       case (5)
          ! MG 1 does not initialize micro_mg_utils, so have to do it here.
          call micro_mg_utils_init(r8, rh2o, cpair, tmelt, latvap, latice, &
-              micro_mg_dcs, errstring)
+              micro_mg_dcs, ice_sed_ai, errstring)
          call handle_errmsg(errstring, subname="micro_mg_utils_init")
 
          call micro_mg_init1_5( &
@@ -705,7 +709,7 @@ subroutine micro_mg_cam_init(pbuf2d)
               micro_mg_dcs_tdep,             &
               microp_uniform, do_cldice, use_hetfrz_classnuc, &
               micro_mg_precip_frac_method, micro_mg_berg_eff_factor, &
-              allow_sed_supersat, errstring)
+              allow_sed_supersat, ice_sed_ai, errstring)
       end select
    end select
 
@@ -1582,6 +1586,8 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
 
    !-------------------------------------------------------------------------------
 
+   call t_startf('micro_mg_cam_tend_init')
+
    ! Find the number of levels used in the microphysics.
    nlev  = pver - top_lev + 1
 
@@ -2100,7 +2106,9 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
       allocate(packed_qs(mgncol,nlev))
       allocate(packed_ns(mgncol,nlev))
    end if
+   call t_stopf('micro_mg_cam_tend_init')
 
+   call t_startf('micro_mg_cam_tend_loop')
    do it = 1, num_steps
 
       ! Pack input variables that are updated during substeps.
@@ -2122,6 +2130,7 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
          select case (micro_mg_sub_version)
          case (0)
 
+            call t_startf('micro_mg_tend1')
             call micro_mg_tend1_0( &
                  microp_uniform, mgncol, nlev, mgncol, 1, dtime/num_steps, &
                  packed_t, packed_q, packed_qc, packed_qi, packed_nc,     &
@@ -2146,9 +2155,11 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
                  packed_nfice, packed_prer_evap, do_cldice, errstring,                      &
 		 packed_tnd_qsnow, packed_tnd_nsnow, packed_re_ice,             &
                  packed_frzimm, packed_frzcnt, packed_frzdep)
+            call t_stopf('micro_mg_tend1')
 
          case (5)
 
+            call t_startf('micro_mg_tend1_5')
             call micro_mg_tend1_5( &
                  mgncol,   nlev,     dtime/num_steps,    &
                  packed_t,       packed_q,                     &
@@ -2175,12 +2186,14 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
                  errstring, &
                  packed_tnd_qsnow,          packed_tnd_nsnow,          packed_re_ice, packed_prer_evap,             &
                  packed_frzimm, packed_frzcnt, packed_frzdep)
+            call t_stopf('micro_mg_tend1_5')
 
          end select
       case(2)
          select case (micro_mg_sub_version)
          case (0)
 
+            call t_startf('micro_mg_tend2')
             call micro_mg_tend2_0( &
                  mgncol,         nlev,           dtime/num_steps,&
                  packed_t,               packed_q,               &
@@ -2234,6 +2247,7 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
                  packed_tnd_qsnow,packed_tnd_nsnow,packed_re_ice,&
 		 packed_prer_evap,                                     &
                  packed_frzimm,  packed_frzcnt,  packed_frzdep   )
+            call t_stopf('micro_mg_tend2')
          end select
       end select
 
@@ -2279,7 +2293,9 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
       call post_proc%accumulate()
 
    end do
+   call t_stopf('micro_mg_cam_tend_loop')
 
+   call t_startf('micro_mg_cam_tend_fini')
    ! Divide ptend by substeps.
    call physics_ptend_scale(ptend, 1._r8/num_steps, ncol)
 
@@ -3099,6 +3115,7 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
 
    ! ptend_loc is deallocated in physics_update above
    call physics_state_dealloc(state_loc)
+   call t_stopf('micro_mg_cam_tend_fini')
 
 end subroutine micro_mg_cam_tend
 

@@ -709,6 +709,7 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
 
     ! local variables
     integer :: lchnk
+    real(r8) :: dp1 = huge(1.0_r8) !set in namelist, assigned in cloud_fraction.F90
 
     !-----------------------------------------------------------------------
 
@@ -821,7 +822,7 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
 
     call convect_shallow_init(pref_edge, pbuf2d)
 
-    call cldfrc_init()
+    call cldfrc_init(dp1)! for passing dp1 on to clubb
     call cldfrc2m_init()
 
     call convect_deep_init(pref_edge)
@@ -837,7 +838,7 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
 
 
     ! initiate CLUBB within CAM
-    if (do_clubb_sgs) call clubb_ini_cam(pbuf2d)
+    if (do_clubb_sgs) call clubb_ini_cam(pbuf2d,dp1)
 
     call qbo_init
 
@@ -2165,9 +2166,9 @@ if (l_tracer_aero) then
        ! Before the detrainment, the reserved condensate is all liquid, but if CARMA is doing
        ! detrainment, then the reserved condensate is snow.
        if (carma_do_detrain) then
-          call check_energy_chng(state, tend, "carma_tend", nstep, ztodt, zero, prec_str+rliq, snow_str+rliq, zero)
+          call check_energy_chng(state, tend, "carma_tend", nstep, ztodt, zero, prec_str(:ncol)+rliq(:ncol), snow_str(:ncol)+rliq(:ncol), zero)
        else
-          call check_energy_chng(state, tend, "carma_tend", nstep, ztodt, zero, prec_str, snow_str, zero)
+          call check_energy_chng(state, tend, "carma_tend", nstep, ztodt, zero, prec_str(:ncol), snow_str(:ncol), zero)
        end if
     end if
 
@@ -2193,7 +2194,7 @@ end if
             cam_in%ts,      cam_in%sst,        zdu)
 
        call physics_update(state, ptend, ztodt, tend)
-       call check_energy_chng(state, tend, "cldwat_tend", nstep, ztodt, zero, prec_str, snow_str, zero)
+       call check_energy_chng(state, tend, "cldwat_tend", nstep, ztodt, zero, prec_str(:ncol), snow_str(:ncol), zero)
 
        call t_stopf('stratiform_tend')
      end if !l_st_mac
@@ -2335,8 +2336,8 @@ end if
 
              call physics_update (state_sc, ptend_sc, ztodt, tend_sc)
              call check_energy_chng(state_sc, tend_sc, "microp_tend_subcol", &
-                  nstep, ztodt, zero_sc, prec_str_sc/cld_macmic_num_steps, &
-                  snow_str_sc/cld_macmic_num_steps, zero_sc)
+                  nstep, ztodt, zero_sc, prec_str_sc(:ncol)/cld_macmic_num_steps, &
+                  snow_str_sc(:ncol)/cld_macmic_num_steps, zero_sc)
 
              call physics_state_dealloc(state_sc)
              call physics_tend_dealloc(tend_sc)
@@ -2356,8 +2357,8 @@ end if
 
           call physics_update (state, ptend, ztodt, tend)
           call check_energy_chng(state, tend, "microp_tend", nstep, ztodt, &
-               zero, prec_str/cld_macmic_num_steps, &
-               snow_str/cld_macmic_num_steps, zero)
+               zero, prec_str(:ncol)/cld_macmic_num_steps, &
+               snow_str(:ncol)/cld_macmic_num_steps, zero)
 
           call t_stopf('microp_tend')
           prec_sed_macmic(:ncol) = prec_sed_macmic(:ncol) + prec_sed(:ncol)
