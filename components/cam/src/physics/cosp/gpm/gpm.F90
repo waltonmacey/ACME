@@ -14,8 +14,8 @@ program gpmtest
    use GPM_CRTM_mod
 !   use GPM_CRTM_result_mod
    use GPM_utility_mod
-   use GPMsimulator_intr_mod
-
+!   use GPMsimulator_intr_mod
+   use MOD_GPM_types
    ! use netcdf
    implicit none
    
@@ -149,7 +149,7 @@ program gpmtest
 !----------------------
 type(GPM_CRTM_result_type), allocatable :: gpm_result(:)
 
-
+type(GPM_gridbox) :: gpm_gbx
 
    
    co2(1,1) = 1e-07_r8;
@@ -275,15 +275,17 @@ type(GPM_CRTM_result_type), allocatable :: gpm_result(:)
 
    call GPM_CRTM_sensor_destroy() 
 !----------------------
-call gpmsimulator_intr_init()
-call gpmsimulator_intr_run(gbx)
-call gpmsimulator_intr_finalize()
+!call gpmsimulator_intr_init()
+!call gpmsimulator_intr_run(gbx)
+!call gpmsimulator_intr_finalize()
 
 
 print *, "clean gbx"
    call free_cosp_gridbox(gbx)
-
-
+  call construct_GPM_gridbox(1.0, (/2.0,3.0/), 1000, 30, 5, 9, 2, gpm_gbx)
+print *,  gpm_gbx%latitude(1)
+  gpm_gbx%latitude(1) = 1.234567
+print *, gpm_gbx%latitude(1)
 
 end program gpmtest
 

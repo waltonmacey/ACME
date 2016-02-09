@@ -18,13 +18,11 @@ module GPM_CRTM_sensor_mod
   ! ------------
   ! Visibilities
   ! ------------
-  ! Everything private by default
-  private
   ! Public attribute will be set on declaration
 !  public :: GPM_CRTM_sensor_type
 !  public :: GPM_CRTM_sensor_create, GPM_CRTM_sensor_createdefault
   public :: GPM_CRTM_sensor_add, GPM_CRTM_sensor_init, GPM_CRTM_sensor_destroy, &
-            GPM_CRTM_sensor_inquire
+            GPM_CRTM_sensor_inquire, GPM_CRTM_sensor_add_byproperties
   ! ---------------------
   ! Procedure overloading
   ! ---------------------
@@ -55,13 +53,15 @@ module GPM_CRTM_sensor_mod
   ! saved variables 
   ! ---------------
   ! Arrays of sensors and sensor informations
-  type(GPM_CRTM_sensor_type),  save :: sensor_list(max_CRTM_sensors)
-  character(maxlen_sensorid),  save :: sensor_id_list(max_CRTM_sensors)
-  type(CRTM_ChannelInfo_type), save :: chinfo_list(max_CRTM_sensors)
+  type(GPM_CRTM_sensor_type), protected, save :: sensor_list(max_CRTM_sensors)
+  character(maxlen_sensorid), protected, save :: sensor_id_list(max_CRTM_sensors)
+  type(CRTM_ChannelInfo_type),protected, save :: chinfo_list(max_CRTM_sensors)
+  real,                       protected, save :: sensor_scan_angle_list(max_CRTM_sensors)
+  real,                       protected, save :: sensor_zenith_angle_list(max_CRTM_sensors)
   ! logical variable indicating if the sensors are initialized
-  logical, save :: l_initialized = .FALSE.
+  logical, protected, save :: l_initialized = .FALSE.
   ! current number of sensors added
-  integer, save :: n_sensors = 0
+  integer, protected, save :: n_sensors = 0
   
 contains
 !################################################################################
@@ -98,7 +98,9 @@ contains
       !------------------------
       ! Copy values of sensor_id from each sensor
       do n = 1, n_sensors
-         sensor_id_list(n) = sensor_list(n)%sensor_id
+         sensor_id_list(n)           = sensor_list(n)%sensor_id
+         sensor_scan_angle_list(n)   = sensor_list(n)%sensor_scan_angle
+         sensor_zenith_angle_list(n) = sensor_list(n)%sensor_zenith_angle
       end do 
       ! Initialize chinfo
       err_stat = CRTM_Init(sensor_id_list(1:n_sensors), chinfo_list(1:n_sensors), &
@@ -324,7 +326,7 @@ contains
 ! create a default sensor
 !
 !-----------------------
-      type(GPM_CRTM_sensor_type) :: gmi      
+      type(GPM_CRTM_sensor_type), intent(out) :: gmi      
       character(len=*), intent(in) :: sensorname
       !--- local variable ---
       integer :: i

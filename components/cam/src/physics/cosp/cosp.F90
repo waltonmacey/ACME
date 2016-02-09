@@ -27,6 +27,11 @@ MODULE MOD_COSP
   USE MOD_COSP_TYPES
   USE MOD_COSP_SIMULATOR
   USE MOD_COSP_MODIS_SIMULATOR
+#ifdef GPM_GMI2
+  use GPM_CRTM_simulator_mod, only: GPM_CRTM_result_type, construct_GPM_CRTM_result, free_GPM_CRTM_result, GPM_CRTM_result_cpsection
+  use GPM_CRTM_sensor_mod,    only: n_sensors, chinfo_list
+  use CRTM_Module,            only: CRTM_ChannelInfo_n_Channels
+#endif
   IMPLICIT NONE
 
 CONTAINS
@@ -43,6 +48,9 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
 #ifdef GPM_KA
                ,sggpmka,stgpmka &
 #endif
+#ifdef GPM_GMI2
+               ,sggpmgmi &
+#endif
                )
 
 #else
@@ -52,6 +60,9 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
 #endif
 #ifdef GPM_KA
                ,sggpmka,stgpmka &
+#endif
+#ifdef GPM_GMI2
+               ,sggpmgmi &
 #endif
                )
 #endif
@@ -80,7 +91,9 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
   type(cosp_sggpmdpr),    intent(inout) :: sggpmka
   type(cosp_gpmdprstats), intent(inout) :: stgpmka
 #endif
-  
+#ifdef GPM_GMI2
+  type(GPM_CRTM_result_type), intent(inout) :: sggpmgmi(:)
+#endif
   ! Local variables 
   integer :: Npoints   ! Number of gridpoints
   integer :: Nlevels   ! Number of levels
@@ -117,6 +130,10 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
 #ifdef GPM_KA
   type(cosp_sggpmdpr)    :: sggpmka_it
   type(cosp_gpmdprstats) :: stgpmka_it
+#endif
+#ifdef GPM_GMI2
+  type(GPM_CRTM_result_type),allocatable :: sggpmgmi_it(:)
+  integer :: i_gmi_sensor
 #endif
 !++++++++++ Dimensions ++++++++++++
   Npoints  = gbx%Npoints
@@ -226,6 +243,9 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
 #ifdef GPM_KA
                ,sggpmka,stgpmka &
 #endif
+#ifdef GPM_GMI2
+               ,sggpmgmi &
+#endif
         )
 #else
         call cosp_iter(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,stradar,stlidar &
@@ -234,6 +254,9 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
 #endif
 #ifdef GPM_KA
                ,sggpmka,stgpmka &
+#endif
+#ifdef GPM_GMI2
+               ,sggpmgmi &
 #endif
         )
 #endif
@@ -287,6 +310,15 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
                 call construct_cosp_sggpmdpr(cfg,Ni,Ncolumns,Nlevels,N_HYDRO,2,sggpmka_it)
                 call construct_cosp_gpmdprstats(cfg,Ni,Ncolumns,vgrid%Nlvgrid,N_HYDRO,2,stgpmka_it)
 #endif
+
+#ifdef GPM_GMI2
+   allocate(sggpmgmi_it(n_sensors))
+   do i_gmi_sensor = 1,n_sensors
+      call construct_gpm_crtm_result(Ni, Ncolumns,&
+                    CRTM_ChannelInfo_n_Channels(chinfo_list(i_gmi_sensor)), &
+                    sggpmgmi_it(i_gmi_sensor) )
+   end do
+#endif
     
             elseif (i == Niter) then ! last iteration
                 call free_cosp_gridbox(gbx_it,.true.)
@@ -309,6 +341,12 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
 #ifdef GPM_KA
                 call free_cosp_sggpmdpr(sggpmka_it)
                 call free_cosp_gpmdprstats(stgpmka_it)
+#endif
+#ifdef GPM_GMI2
+   do i_gmi_sensor = 1,n_sensors
+      call free_gpm_crtm_result(sggpmgmi_it(i_gmi_sensor) )
+   end do
+   deallocate(sggpmgmi_it)
 #endif
                 ! Allocate types for iterations
                 call construct_cosp_gridbox(gbx%time,gbx%time_bnds,&
@@ -354,6 +392,14 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
                 call construct_cosp_sggpmdpr(cfg,Ni,Ncolumns,Nlevels,N_HYDRO,2,sggpmka_it)
                 call construct_cosp_gpmdprstats(cfg,Ni,Ncolumns,vgrid%Nlvgrid,N_HYDRO,2,stgpmka_it)
 #endif
+#ifdef GPM_GMI2
+   allocate(sggpmgmi_it(n_sensors))
+   do i_gmi_sensor = 1,n_sensors
+      call construct_gpm_crtm_result(Ni, ncolumns,&
+                    CRTM_ChannelInfo_n_Channels(chinfo_list(i_gmi_sensor)), &
+                    sggpmgmi_it(i_gmi_sensor) )
+   end do
+#endif
             endif
             ! --- Copy sections of arrays with Npoints as dimension ---
             ix=(/i_first,i_last/)
@@ -379,6 +425,13 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
             if (cfg%Lgpmka_sim) call cosp_sggpmdpr_cpsection(ix,iy,sggpmka,sggpmka_it)
             if (cfg%Lgpmka_sim) call cosp_gpmdprstats_cpsection(ix,iy,stgpmka,stgpmka_it)
 #endif
+#ifdef GPM_GMI2
+   do i_gmi_sensor = 1,n_sensors
+      call gpm_crtm_result_cpsection(ix, iy, sggpmgmi(i_gmi_sensor), &
+      sggpmgmi_it(i_gmi_sensor)  )
+   end do
+#endif
+
 #ifdef RTTOV
             call cosp_iter(overlap,seed(ix(1):ix(2)),cfg,vgrid_it,gbx_it,sgx_it,sgradar_it, &
                            sglidar_it,isccp_it,misr_it,modis_it,rttov_it,stradar_it,stlidar_it &
@@ -387,6 +440,9 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
 #endif
 #ifdef GPM_KA
                            ,sggpmka_it, stgpmka_it&
+#endif
+#ifdef GPM_GMI2
+                           ,sggpmgmi_it &
 #endif
                            )
 #else
@@ -397,6 +453,9 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
 #endif
 #ifdef GPM_KA
                            ,sggpmka_it, stgpmka_it&
+#endif
+#ifdef GPM_GMI2
+                           ,sggpmgmi_it &
 #endif
                            )
 #endif
@@ -445,6 +504,12 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
         call free_cosp_sggpmdpr(sggpmka_it)
         call free_cosp_gpmdprstats(stgpmka_it)
 #endif
+#ifdef GPM_GMI2
+   do i_gmi_sensor = 1,n_sensors
+      call free_gpm_crtm_result(sggpmgmi_it(i_gmi_sensor) )
+   end do
+   deallocate(sggpmgmi_it)
+#endif
    endif
    deallocate(seed)
 
@@ -462,6 +527,9 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
 #ifdef GPM_KA
                ,sggpmka,stgpmka &
 #endif
+#ifdef GPM_GMI2
+                           ,sggpmgmi &
+#endif
                      )
 #else
 SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,stradar,stlidar &
@@ -470,6 +538,9 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
 #endif
 #ifdef GPM_KA
                ,sggpmka,stgpmka &
+#endif
+#ifdef GPM_GMI2
+                           ,sggpmgmi &
 #endif
                      )
 #endif
@@ -498,7 +569,9 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
   type(cosp_sggpmdpr),    intent(inout) :: sggpmka
   type(cosp_gpmdprstats), intent(inout) :: stgpmka
 #endif
-
+#ifdef GPM_GMI2
+  type(GPM_CRTM_result_type), intent(inout) :: sggpmgmi(:)
+#endif
   ! Local variables 
   integer :: Npoints   ! Number of gridpoints
   integer :: Ncolumns  ! Number of subcolumns
@@ -815,6 +888,9 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
 #ifdef GPM_KA
                ,sggpmka,stgpmka &
 #endif
+#ifdef GPM_GMI2
+               ,sggpmgmi &
+#endif
                         )
 #else
     call cosp_simulator(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,modis,stradar,stlidar &
@@ -823,6 +899,9 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
 #endif
 #ifdef GPM_KA
                ,sggpmka,stgpmka &
+#endif
+#ifdef GPM_GMI2
+               ,sggpmgmi &
 #endif
     )
 #endif

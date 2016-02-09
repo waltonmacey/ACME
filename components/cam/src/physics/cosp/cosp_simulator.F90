@@ -50,7 +50,9 @@ MODULE MOD_COSP_SIMULATOR
 #endif
 
 #ifdef GPM_GMI2
-  USE gpmsimulator_intr_mod, only: gpmsimulator_intr_run
+  USE gpm_crtm_simulator_mod, only: gpm_crtm_simulator_run, GPM_CRTM_result_type
+  use GPM_CRTM_sensor_mod,    only: chinfo_list, sensor_scan_angle_list, &
+                                    sensor_zenith_angle_list, n_sensors
 #endif
 
    IMPLICIT NONE
@@ -78,7 +80,10 @@ SUBROUTINE COSP_SIMULATOR(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,m
 #ifdef GPM_KA
                            ,sggpmka, stgpmka &
 #endif
-                           )
+#ifdef GPM_GMI2
+                           ,sggpmgmi         &
+#endif
+)
 #endif
 
   ! Arguments
@@ -105,15 +110,16 @@ SUBROUTINE COSP_SIMULATOR(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,m
   type(cosp_sggpmdpr),   intent(inout)  :: sggpmka
   type(cosp_gpmdprstats),intent(inout)  :: stgpmka
 #endif
-
-  ! Local variables
 #ifdef GPM_GMI2
-!  type(gpm_crtm_result) :: gpm_result
-!  integer :: err_stat
-!  type(CRTM_ChannelInfo_type) :: chinfo(1)
+  type(GPM_CRTM_result_type), intent(inout) :: sggpmgmi(:)
 #endif
+  ! Local variables
   integer :: i,j,k,isim
   logical :: inconsistent
+
+#ifdef GPM_GMI2
+#endif
+
   ! Timing variables
   integer :: t0,t1
 
@@ -166,7 +172,10 @@ SUBROUTINE COSP_SIMULATOR(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,m
 
 #ifdef GPM_GMI2
   !+++++++++ GPM_GMI v2 model ++++
-  call gpmsimulator_intr_run(gbx)
+  call gpm_crtm_simulator_run(gbx,sghydro,chinfo_list(1:n_sensors), &
+                              sensor_scan_angle_list(1:n_sensors), &
+                              sensor_zenith_angle_list(1:n_sensors), &
+                              sggpmgmi )
 #endif
 
   !+++++++++ Lidar model ++++++++++

@@ -36,6 +36,8 @@ module GPM_CRTM_Constants
   integer, parameter, public :: maxlen_sensorid = STRLEN
   ! maximum number of sensors calculated using CRTM
   integer, parameter, public :: max_CRTM_sensors = 10
+  ! maximum number of hydrometeor types
+  integer, parameter, public :: max_hydro_types = 9
   ! Directory containing all the CRTM coefficients
   character(100), parameter, public :: CRTM_dircoef = '/global/homes/y/yxl232/local/CRTM/coeff_data/Big_Endian_ODAS/'
 

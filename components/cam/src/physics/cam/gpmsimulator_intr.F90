@@ -20,8 +20,8 @@ module gpmsimulator_intr_mod
   ! Everything private by default
   private
   ! Private variables with save attribute, indicating which simulator is used
-  logical, save :: lgpmgmi_sim = .TRUE. 
-  logical, save :: lgpmdpr_sim = .FALSE.
+  logical, save, protected :: lgpmgmi_sim = .TRUE. 
+  logical, save, protected :: lgpmdpr_sim = .FALSE.
 
   ! Private variable to indicate if the GPM simulator has been initialized
   logical, save :: linitialized = .FALSE.
@@ -83,7 +83,7 @@ subroutine gpmsimulator_intr_init()
   use cam_history,         only: addfld, add_default, outfld
   use cam_history_support, only: add_hist_coord
   use mod_cosp_constants,  only: R_UNDEF
-  
+  use GPM_CRTM_Constants,  only: max_hydro_types 
 
   ! Disable implicit typing
   implicit none
@@ -138,32 +138,78 @@ end subroutine gpmsimulator_intr_init
 !--------------------------------------------------------------------------------
 ! run
 !--------------------------------------------------------------------------------
-subroutine gpmsimulator_intr_run(gbx)
+subroutine gpmsimulator_intr_run(state, pbuf)
   !------------------
   ! Environment setup
   !------------------
   ! Module use
+  use physics_types,  only: physics_state
+  use physics_buffer, only: physics_buffer_desc, pbuf_get_field, pbuf_old_tim_idx
   use GPM_CRTM_sensor_mod, only: GPM_CRTM_sensor_inquire
-  use MOD_COSP_TYPES, only: cosp_gridbox
+  use MOD_COSP_TYPES, only: cosp_gridbox, construct_cosp_gridbox, free_cosp_gridbox, &
+                            cosp_sghydro, construct_cosp_sghydro, free_cosp_sghydro
+  use ppgrid,         only: pcols, pver, pverp, begchunk, endchunk  
   use GPM_CRTM_simulator_mod, only: GPM_CRTM_simulator_run, GPM_CRTM_result_type
   ! Disable implicit typing
   implicit none
 
   ! inputs
-  type(cosp_gridbox), intent(in) :: gbx
+  type(physics_state), intent(in), target :: state
+  type(physics_buffer_desc), pointer :: pbuf(:)
   ! parameters
   character(len=*),  parameter :: subroutinename = &
             'gpmsimulator_intr_run'   
   ! local variables
   type(GPM_CRTM_result_type), allocatable :: gpm_results(:)
   integer :: i_sensor
+  
+  ! gridbox and subgrid information
+  type(cosp_gridbox) :: gpmgbx
+  type(COSP_SGHYDRO) :: gpmsgx
+
+  integer :: Npoints
+  integer :: Nlevels
+  ! local variables used to convert CAM states to COSP inputs
+  real :: longitude(pcols)
+  real :: latitude(pcols)
+  real :: zlev(pcols,pver)
+  real :: zint(pcols,pverp)
+  real :: dlev(pcols,pver)
+  real :: p(pcols,pver)
+  real :: pint(pcols,pverp)
+  real :: T(pcols,pver)
+  real :: q(pcols,pver)
+  real :: sh(pcols,pver)
+  real :: mr_ozone(pcols,pver)
+  real :: land(pcols)
+  real :: psfc(pcols)
+  real :: mr_hydro(pcols,pver,max_hydro_types)
+  real :: Reff(pcols,pver,max_hydro_types)
+  real :: Np(pcols,pver,max_hydro_types)
+   
+  integer :: lchnk     ! chunk idendifier
+  integer :: ncol      ! number of active atmospheric columns
+
+  ! --------- end of variable declaration ----------!
 !  real, allocatable :: tbs(:,:)
-  !---------------------
+  !---------- checks -----------
   ! check if already initialized
   if (.NOT. linitialized) then
     call gpm_errorHandler('GPM simulator is not initialized yet, cannot run simulation',&
                            modulename, subroutinename)
   end if
+  ! ------------------
+  ! find the chunk and ncol from the state vector
+  lchnk = state%lchnk  ! chunk number 
+  ncol  = state%ncol   ! number of columns in the chunk
+
+  
+
+
+
+
+
+
   ! run calculations
   call gpm_crtm_simulator_run(gbx, crtm_chinfo,sensor_scan_angle_list, sensor_zenith_angle_list, gpm_results)
   ! inspect the results

@@ -2,6 +2,7 @@
 ! This file mimics the cosp_rttov.F90 in COSP package
 !
 ! Jan. 13, 2016  Created by Yinghui Lu
+include "../cosp_gpm_debugflag.F90"
 module GPM_CRTM_mod
    use CRTM_Module
    use MOD_COSP_CONSTANTS, only: I_LSCLIQ, I_LSCICE, I_LSRAIN, I_LSSNOW, &
@@ -20,12 +21,12 @@ contains
       n_absorbers,  & ! number of absorbers
       n_clouds,     & ! number of cloud profiles
       n_aerosols,   & ! number of aerosols
-      pint,         & ! pressure between levels [?]
-      p,            & ! pressure at middle of levels [?]
-      T,            & ! temperature [?]
-      q,            & ! water vapor mixing ratio [g/kg]
+      pint,         & ! pressure between levels [hPa]
+      p,            & ! pressure at middle of levels [hPa]
+      T,            & ! temperature [Kelvin]
+      mr_vapor,     & ! water vapor mixing ratio [g/kg]
       Reff_hydro,   & ! effective radius of hydrometer particle
-      mr_hydro,     & ! mixing ratio of hydrometer
+      water_content,     & ! mixing ratio of hydrometer
       Reff_aerosol, & ! effective radius of aerosol
       mr_aerosol,   & ! mixing ratio of aerosol
       o3,           & ! ozone mixing ratio [ppmv]
@@ -50,9 +51,9 @@ contains
       real, intent(in) :: pint(:,:)           ! [n_profiles x n_layers]
       real, intent(in) :: p(:,:)              ! [n_profiles x n_layers]
       real, intent(in) :: T(:,:)              ! [n_profiles x n_layers]
-      real, intent(in) :: q(:,:)              ! [n_profiles x n_layers]
+      real, intent(in) :: mr_vapor(:,:)       ! [n_profiles x n_layers]
       real, intent(in) :: Reff_hydro(:,:,:)   ! [n_profiles x n_layers x n_clouds]
-      real, intent(in) :: mr_hydro(:,:,:)     ! [n_profiles x n_layers x n_clouds]
+      real, intent(in) :: water_content(:,:,:)     ! [n_profiles x n_layers x n_clouds]
       real, intent(in) :: Reff_aerosol(:,:,:) ! [n_profiles x n_layers x n_aerosols]
       real, intent(in) :: mr_aerosol(:,:,:)   ! [n_profiles x n_layers x n_aerosols]
       real, intent(in) :: o3(:,:)             ! [n_profiles x n_layers]
@@ -108,11 +109,40 @@ contains
       endif
       !-------------------------------
       ! set values for atmosphere and surface structures
+print *, "in gpm_crtm.F90"
+print *, maxval(water_content)
+print *, maxval(T)
       do i_profile = 1, n_profiles
-         
          atm(i_profile)%Climatology         = US_STANDARD_ATMOSPHERE
          atm(i_profile)%Absorber_Id(1:2)    = (/H2O_ID                 ,  O3_ID/)
          atm(i_profile)%Absorber_units(1:2) = (/MASS_MIXING_RATIO_UNITS,  VOLUME_MIXING_RATIO_UNITS/)
+
+!#ifdef GMI_DEBUG
+  if (.false. .and. i_profile == 11 ) then
+    print *, "pint"
+    print *, pint(i_profile,:)
+    print *, "p"
+    print *, p(i_profile, :)
+    print *, "T"
+    print *, T(i_profile, :)
+    print *, "mr_vapor"
+    print *, mr_vapor(i_profile, :)
+
+    print *, "o3"
+    print *, o3(i_profile, :)
+
+    print *, "Reff_hydro"
+    print *, Reff_hydro(i_profile, :,:)
+    print *, "water_content"
+    print *, water_content(i_profile, :,:)
+
+
+  end if
+
+
+
+!#endif
+
 
          ! Profile data
          ! COSP is from surface to top, but CRTM wants top to surface. Need to flip
@@ -120,12 +150,20 @@ contains
          atm(i_profile)%Level_Pressure(0:n_layers) = pint(i_profile,:)
          atm(i_profile)%Pressure       = p(i_profile, :) 
          atm(i_profile)%Temperature    = T(i_profile, :) 
-         ! unit for q in COSP is kg/kg, while CRTM wants g/kg. Need to do unit
-         ! conversion
-         atm(i_profile)%Absorber(:,1)  = q(i_profile,:) 
+
+
+         ! unit for mr_vapor in COSP is kg/kg, while CRTM wants g/kg. Need to do unit
+         ! conversion. This unit conversion is done in gpm_crtm_simulator.F90
+         atm(i_profile)%Absorber(:,1)  = mr_vapor(i_profile,:) 
          ! units for O3 mixing ratio in COSP is kg/kg, but CRTM needs ppmv. The
-         ! conversion is not implemented here yet.
+         ! conversion is implemented in gpm_crtm_simulator.F90.
          atm(i_profile)%Absorber(:,2)  = o3(i_profile,:)
+
+#ifdef GMI_DEBUG
+         atm(i_profile)%Absorber(:,1) = 0
+         atm(i_profile)%Absorber(:,2) = 0
+#endif
+
          ! assign cloud properties
          ! For now, the cloud types follow those in COSP. Each type of
          ! hydrometer defined in COSP is set to be a single cloud
@@ -134,50 +172,52 @@ contains
          ! TODO: Make sure the units agree. In CRTM, Effective radius has unit microns,
          ! while water content has unit kg/m^2
 
+         
+#ifndef GMI_DEBUG
          tmpint = I_LSCLIQ
          atm(i_profile)%Cloud(1)%Type = WATER_CLOUD
          atm(i_profile)%Cloud(1)%Effective_Radius = Reff_hydro(i_profile,:,tmpint)
-         atm(i_profile)%Cloud(1)%Water_Content    = mr_hydro(i_profile,:,tmpint)
+         atm(i_profile)%Cloud(1)%Water_Content    = water_content(i_profile,:,tmpint)
          
          tmpint = I_LSCICE
          atm(i_profile)%Cloud(2)%Type = ICE_CLOUD
          atm(i_profile)%Cloud(2)%Effective_Radius = Reff_hydro(i_profile,:,tmpint)
-         atm(i_profile)%Cloud(2)%Water_Content    = mr_hydro(i_profile,:,tmpint)
+         atm(i_profile)%Cloud(2)%Water_Content    = water_content(i_profile,:,tmpint)
          
          tmpint = I_LSRAIN
          atm(i_profile)%Cloud(3)%Type = RAIN_CLOUD
          atm(i_profile)%Cloud(3)%Effective_Radius = Reff_hydro(i_profile,:,tmpint)
-         atm(i_profile)%Cloud(3)%Water_Content    = mr_hydro(i_profile,:,tmpint)
+         atm(i_profile)%Cloud(3)%Water_Content    = water_content(i_profile,:,tmpint)
          
          tmpint = I_LSSNOW
          atm(i_profile)%Cloud(4)%Type = SNOW_CLOUD
          atm(i_profile)%Cloud(4)%Effective_Radius = Reff_hydro(i_profile,:,tmpint)
-         atm(i_profile)%Cloud(4)%Water_Content    = mr_hydro(i_profile,:,tmpint)
+         atm(i_profile)%Cloud(4)%Water_Content    = water_content(i_profile,:,tmpint)
          
          tmpint = I_CVCLIQ
          atm(i_profile)%Cloud(5)%Type = WATER_CLOUD
          atm(i_profile)%Cloud(5)%Effective_Radius = Reff_hydro(i_profile,:,tmpint)
-         atm(i_profile)%Cloud(5)%Water_Content    = mr_hydro(i_profile,:,tmpint)
+         atm(i_profile)%Cloud(5)%Water_Content    = water_content(i_profile,:,tmpint)
          
          tmpint = I_CVCICE
          atm(i_profile)%Cloud(6)%Type = ICE_CLOUD
          atm(i_profile)%Cloud(6)%Effective_Radius = Reff_hydro(i_profile,:,tmpint)
-         atm(i_profile)%Cloud(6)%Water_Content    = mr_hydro(i_profile,:,tmpint)
+         atm(i_profile)%Cloud(6)%Water_Content    = water_content(i_profile,:,tmpint)
          
          tmpint = I_CVRAIN
          atm(i_profile)%Cloud(7)%Type = RAIN_CLOUD
          atm(i_profile)%Cloud(7)%Effective_Radius = Reff_hydro(i_profile,:,tmpint)
-         atm(i_profile)%Cloud(7)%Water_Content    = mr_hydro(i_profile,:,tmpint)
+         atm(i_profile)%Cloud(7)%Water_Content    = water_content(i_profile,:,tmpint)
          
          tmpint = I_CVSNOW
          atm(i_profile)%Cloud(8)%Type = SNOW_CLOUD
          atm(i_profile)%Cloud(8)%Effective_Radius = Reff_hydro(i_profile,:,tmpint)
-         atm(i_profile)%Cloud(8)%Water_Content    = mr_hydro(i_profile,:,tmpint)
+         atm(i_profile)%Cloud(8)%Water_Content    = water_content(i_profile,:,tmpint)
          
          tmpint = I_LSGRPL
          atm(i_profile)%Cloud(9)%Type = GRAUPEL_CLOUD
          atm(i_profile)%Cloud(9)%Effective_Radius = Reff_hydro(i_profile,:,tmpint)
-         atm(i_profile)%Cloud(9)%Water_Content    = mr_hydro(i_profile,:,tmpint)
+         atm(i_profile)%Cloud(9)%Water_Content    = water_content(i_profile,:,tmpint)
          
          ! assign aerosol properties
          ! TODO: aerosol properties and land cover are dummy values for now.
@@ -186,6 +226,7 @@ contains
          atm(i_profile)%Aerosol(1)%Type = DUST_AEROSOL
          atm(i_profile)%Aerosol(1)%Effective_Radius = Reff_aerosol(i_profile,:,1)
          atm(i_profile)%Aerosol(1)%Concentration    = mr_aerosol(i_profile,:,1)
+#endif         
          !!! assign surface properties
          sfc(i_profile)%Land_Coverage   =  surface_type(i_profile,1)
          sfc(i_profile)%Water_Coverage  =  surface_type(i_profile,2)
@@ -211,22 +252,22 @@ contains
       !-----------------
       ! forward calculation
 ! For debug use
-!      call CRTM_Atmosphere_Inspect(atm)
-!      call CRTM_Surface_Inspect(sfc(1))
-!      call CRTM_Geometry_Inspect(geo(1))
-!      call CRTM_ChannelInfo_Inspect(chinfo(1))
+do i_profile = 1, n_profiles
+!  print *, "i_profile", i_profile 
+!      call CRTM_Atmosphere_Inspect(atm(i_profile:i_profile))
+!      call CRTM_Surface_Inspect(sfc(i_profile))
+!      call CRTM_Geometry_Inspect(geo(i_profile))
+!      call CRTM_ChannelInfo_Inspect(chinfo)
 
-      err_stat = CRTM_Forward(atm, sfc, geo, chinfo(1:1),rts)
-      
+      err_stat = CRTM_Forward(atm(i_profile:i_profile), sfc(i_profile:i_profile), geo(i_profile:i_profile), chinfo(1:1),rts(:,i_profile:i_profile))
+      !err_stat = CRTM_Forward(atm, sfc, geo, chinfo(1:1),rts)
+end do
 !call CRTM_RTSolution_Inspect(rts)
       
       if (err_stat .NE. SUCCESS) then
         print *,'CRTM_Forward not successful'
 
       end if
-
-      print *, err_stat, SUCCESS
-
       ! obtain brightness temperatures from RTSolution structure
       tbs = rts%Brightness_temperature
 ! For debug use

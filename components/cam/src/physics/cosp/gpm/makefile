@@ -18,7 +18,7 @@ DEBUGFLAGS := -free  -convert big_endian -assume byterecl -ftz -traceback -assum
 OBJS = gpm.o  gpm_crtm_sensor.o   \
    			gpm_crtm.o gpm_crtm_simulator.o \
 				gpm_crtm_constants.o \
-				gpm_utility.o  gpmsimulator_intr.o
+				gpm_utility.o gpm_types.o
 
 gpm.exe : $(OBJS)
 	ftn $(OBJS)  $(DEBUGFLAGS)  -o gpm.exe $(CRTMFLAGS) $(CRTMLINKS)  
@@ -26,7 +26,7 @@ gpm.exe : $(OBJS)
 %.o: %.F90
 	ftn $(CRTMFLAGS) $(DEBUGFLAGS)  -c $<
 
-gpm.o :  gpm_crtm_sensor.o gpm_crtm.o gpm_crtm_simulator.o gpm_utility.o gpmsimulator_intr.o
+gpm.o :  gpm_crtm_sensor.o gpm_crtm.o gpm_crtm_simulator.o gpm_utility.o gpmsimulator_intr.o gpm_types.o
 gpm_crtm_sensor.o: gpm_crtm_constants.o
 gpm_crtm_simulator.o: gpm_crtm_result.o gpm_crtm.o
 gpmsimulator_intr.o: gpm_utility.o gpm_crtm_sensor.o

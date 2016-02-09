@@ -143,6 +143,11 @@ module cospsimulator_intr
    real(r8),allocatable :: htsr_srmid_cosp(:)            ! (nht_cosp*nsr_cosp)
    real(r8),allocatable:: htmlscol_htmlmid_cosp(:)       ! (nhtml_cosp*nscol_cosp)
    real(r8),allocatable :: htmlscol_scol_cosp(:)         ! (nhtml_cosp*nscol_cosp)
+#ifdef GPM_GMI2
+   integer, parameter :: n_gmi_ch = 13
+   integer, parameter :: gmi_chidx(n_gmi_ch)  =&         ! GPM GMI channel index
+            (/1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13/)
+#endif
 
 !! The CAM and COSP namelists defaults are set below.  Some of the COSP namelist 
 !! variables are part of the CAM namelist - they all begin with "cosp_" to keep their 
@@ -169,6 +174,9 @@ module cospsimulator_intr
 #ifdef GPM_KA
    logical :: cosp_gpmka_sim = .false.      ! +YLu
 #endif
+#ifdef GPM_GMI2
+   logical :: cosp_gpmgmi_sim = .false.
+#endif
    logical :: cosp_llidar_sim = .false.      ! CAM namelist variable default
    logical :: cosp_lisccp_sim = .false.      ! CAM namelist variable default
    logical :: cosp_lmisr_sim = .false.       ! CAM namelist variable default
@@ -193,6 +201,9 @@ module cospsimulator_intr
 #endif
 #ifdef GPM_KA
    logical :: lgpmka_sim = .false.             ! GPM Ka band radar simulator   ! +YLu
+#endif
+#ifdef GPM_GMI2
+   logical :: lgpmgmi_sim = .false.
 #endif
 
 
@@ -241,6 +252,9 @@ module cospsimulator_intr
 #ifdef GPM_KA
    logical :: lcfad_dbzegpmka = .false.
    logical :: ldbzegpmka = .false.    ! GPM Ka dBz      ! +YLu
+#endif
+#ifdef GPM_GMI2
+   logical :: ltbgpmgmi = .false.
 #endif
    logical :: ltauisccp = .false.
    logical :: ltclisccp = .false.
@@ -566,6 +580,8 @@ subroutine setcospvalues(Nlr_in,use_vgrid_in,csat_vgrid_in,Ncolumns_in,docosp_in
       htmisrtau_htmisrmid_cosp(ntau_cosp*(k-1)+1:k*ntau_cosp)=htmisrmid_cosp(k)
    enddo
 
+
+
 end subroutine setcospvalues
 
 !------------------------------------------------------------------------------
@@ -656,6 +672,10 @@ subroutine cospsimulator_intr_readnl(nlfile)
 #ifdef GPM_KA
    call mpibcast(cosp_gpmka_sim,      1,  mpilog, 0, mpicom)  ! +YLu
 #endif
+#ifdef GPM_GMI2
+   call mpibcast(cosp_gpmgmi_sim,     1,  mpilog, 0, mpicom)
+#endif
+
 #endif
 
    !! reset COSP namelist variables based on input from cam namelist variables
@@ -705,6 +725,11 @@ subroutine cospsimulator_intr_readnl(nlfile)
    if (cosp_gpmka_sim) then   ! +YLu
       lgpmka_sim = .true.     ! +YLu
    end if                      ! +YLu
+#endif
+#ifdef GPM_GMI2
+   if (cosp_gpmgmi_sim) then
+      lgpmgmi_sim = .true.
+   endif
 #endif
    if (cosp_histfile_aux .and. cosp_histfile_aux_num == -1) then
       cosp_histfile_aux_num = cosp_histfile_num
@@ -763,7 +788,8 @@ subroutine cospsimulator_intr_readnl(nlfile)
       cosp_ncolumns = 10
       cosp_nradsteps = 3
    end if
-
+! FIXME: GPM flags follow that for radar simulator. Add their own namelist
+! variables in the future
 #ifdef GPM_KU
       if(lradar_sim) then
          lgpmku_sim = .true.
@@ -774,7 +800,11 @@ subroutine cospsimulator_intr_readnl(nlfile)
          lgpmka_sim = .true.
       endif
 #endif
-
+#ifdef GPM_GMI2
+   if (lradar_sim) then
+     lgpmgmi_sim = .true.
+   endif
+#endif
    !! reset COSP namelist variables based on input from cam namelist variables
    if (cosp_ncolumns .ne. ncolumns) then
       ncolumns = cosp_ncolumns
@@ -801,6 +831,12 @@ subroutine cospsimulator_intr_readnl(nlfile)
       ldbzegpmka = .true.                                    ! +YLu
    end if                                                   ! +YLu
 #endif
+#ifdef GPM_GMI2
+   if (lgpmgmi_sim) then
+      ltbgpmgmi = .true.
+   endif
+#endif
+
    if ((lradar_sim) .and. (llidar_sim)) then
       !! turn on the outputs that require both the radar and the lidar simulator
       lclcalipso2 = .true.
@@ -897,16 +933,14 @@ subroutine cospsimulator_intr_init
    use physics_buffer,  only: pbuf_get_index
 #ifdef USE_COSP
    use mod_cosp_constants,  only : R_UNDEF    
+#ifdef GPM_GMI2
+   use GPM_CRTM_sensor_mod, only: GPM_CRTM_sensor_add, GPM_CRTM_sensor_init, GPM_CRTM_sensor_add_byproperties
+#endif
 #else
    real(r8),parameter :: R_UNDEF = -1.0E30_r8
 #endif
-#ifdef GPM_GMI2
-   use gpmsimulator_intr_mod, only:gpmsimulator_intr_init
-#endif
-
    integer ncid,latid,lonid,did,hrid,minid,secid, istat
    !------------------------------------------------------------------------------
-
 #ifdef COSP_ATRAIN
 if (cosp_sample_atrain) then
 
@@ -958,10 +992,6 @@ endif
 
 #endif
 
-! Initialize GPM simulator if used
-#ifdef GPM_GMI2
-   call gpmsimulator_intr_init()
-#endif
 
 
 
@@ -1318,7 +1348,20 @@ endif
       call add_default('DBZEGPMKA_CS',cosp_histfile_num,' ')
    end if
 #endif
+#ifdef GPM_GMI2
+!!! GPM GMI simulator outputs 
+   if (lgpmgmi_sim) then
+    ! Add coordinates
+    call add_hist_coord('gmi_chidx',n_gmi_ch  ,'GPM GMI channel index', &
+                   '1',gmi_chidx)
+    ! add field
+    call addfld('GPM_GMI_TB_CS',(/'cosp_scol','gmi_chidx'/),'A','K',&
+                   'simulated GPM GMI brightness temperature',&
+                   flag_xyfill=.true., fill_value=R_UNDEF)
+    call add_default('GPM_GMI_TB_CS',cosp_histfile_num, ' ')
+   endif 
 
+#endif
 
 
 !!! MISR SIMULATOR OUTPUTS
@@ -1563,6 +1606,21 @@ endif
     first_run_cosp(begchunk:endchunk)=.true.
     allocate(run_cosp(1:pcols,begchunk:endchunk))
     run_cosp(1:pcols,begchunk:endchunk)=.false.
+
+    ! GPM GMI sensor information
+    
+  if (lgpmgmi_sim) then
+    ! Add GPM GMI sensor to senser list in GPM_CRTM_sensor_mod
+#ifdef USE_COSP
+    call GPM_CRTM_sensor_add('gpm-gmi-lowfreq')
+    call GPM_CRTM_sensor_add('gpm-gmi-highfreq')
+    ! initialize GPM GMI sensors
+    call GPM_CRTM_sensor_init()
+#endif
+  end if
+
+
+
 end subroutine cospsimulator_intr_init
 
 !------------------------------------------------------------------------------
@@ -1609,6 +1667,13 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
                                 cosp_radarstats,cosp_lidarstats
    use mod_cosp_modis_simulator,         only: construct_cosp_modis,free_cosp_modis,cosp_modis
    use mod_cosp,         only: cosp
+#ifdef GPM_GMI2
+   use GPM_CRTM_simulator_mod, only: GPM_CRTM_result_type,&
+                                     construct_GPM_CRTM_result,&
+                                     free_GPM_CRTM_result
+   use GPM_CRTM_sensor_mod,    only: n_sensors, chinfo_list
+   use CRTM_Module,            only: CRTM_ChannelInfo_n_Channels
+#endif
 #else
    real(r8),parameter :: R_UNDEF = -1.0E30_r8
 #endif
@@ -1772,6 +1837,9 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
 #ifdef GPM_KA
    type(cosp_sggpmdpr)    :: sggpmka
    type(cosp_gpmdprstats) :: stgpmka
+#endif
+#ifdef GPM_GMI2
+   type(GPM_CRTM_result_type), allocatable :: sggpmgmi(:)
 #endif
    type(cosp_modis)   :: modis                          ! Output from MODIS simulator (new in cosp v1.3)
    !!!type(cosp_rttov)   :: rttov                       ! Output from RTTOV (not using)
@@ -1982,6 +2050,12 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
 #ifdef GPM_KA
    real(r8) :: dbzegpmka(pcols,nscol_cosp,nhtml_cosp)  ! dbzegpmka(time,height_mlev,column,profile) ! +YLu
 #endif
+#ifdef GPM_GMI2
+   integer, parameter :: ngmichannels= 13
+   integer :: i_gmi_channel
+   real(r8) :: tbgpmgmi(pcols,nscol_cosp,ngmichannels)
+#endif
+
    real(r8) :: atb532(pcols,nscol_cosp,nhtml_cosp)      ! atb532 (time,height_mlev,column,profile)
    real(r8) :: clMISR(pcols,ntau_cosp,nhtmisr_cosp)     ! clMISR (time,tau,CTH_height_bin,profile)
    real(r8) :: frac_out(pcols,nscol_cosp,nhtml_cosp)    ! frac_out (time,height_mlev,column,profile)
@@ -2037,6 +2111,9 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    real(r8) :: cfad_dbzegpmka_cs(pcols,nht_cosp*ndbze_cosp)
    real(r8) :: dbzegpmka_cs(pcols,nhtml_cosp*nscol_cosp)
 #endif
+#ifdef GPM_GMI2
+   real(r8) :: tbgpmgmi_cs(pcols,ngmichannels*nscol_cosp)
+#endif
    real(r8) :: cltmodis(pcols)
    real(r8) :: clwmodis(pcols)
    real(r8) :: climodis(pcols)
@@ -2060,6 +2137,7 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    type(interp_type)  :: interp_wgts
    integer, parameter :: extrap_method = 1              ! sets extrapolation method to boundary value (1)
 
+   integer :: i_gmi_sensor
   !---------------- End of declaration of variables --------------
    !! find the chunk and ncol from the state vector
    lchnk = state%lchnk   !! state variable contains a number of columns, one chunk
@@ -2083,6 +2161,9 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
 #ifdef GPM_KA
    cfad_dbzegpmka(1:pcols,1:ndbze_cosp,1:nht_cosp)=R_UNDEF ! +YLu
    dbzegpmka(1:pcols,1:nscol_cosp,1:nhtml_cosp)=R_UNDEF    ! +YLu
+#endif
+#ifdef GPM_GMI2
+   tbgpmgmi(1:pcols,1:nscol_cosp,1:ngmichannels) = R_UNDEF
 #endif
    cfad_lidarsr532(1:pcols,1:nsr_cosp,1:nht_cosp)=R_UNDEF
    dbze94(1:pcols,1:nscol_cosp,1:nhtml_cosp)=R_UNDEF
@@ -2133,6 +2214,9 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
 #ifdef GPM_KA
    cfad_dbzegpmka_cs(1:pcols,1:nht_cosp*ndbze_cosp)=R_UNDEF
    dbzegpmka_cs(1:pcols,1:nhtml_cosp*nscol_cosp)=R_UNDEF
+#endif
+#ifdef GPM_GMI2
+   tbgpmgmi_cs(1:pcols,1:ngmichannels*nscol_cosp)=R_UNDEF
 #endif
    cldtot_calcs(1:pcols)=R_UNDEF
    cldtot_cs(1:pcols)=R_UNDEF
@@ -3007,6 +3091,15 @@ if (cosp_runall) then
    call construct_cosp_sggpmdpr(cfg,Npoints,ncolumns,Nlevels,nhydro,2,sggpmka)
    call construct_cosp_gpmdprstats(cfg,Npoints,ncolumns,vgrid%Nlvgrid,nhydro,2,stgpmka)
 #endif
+#ifdef GPM_GMI2
+   allocate(sggpmgmi(n_sensors))
+   do i_gmi_sensor = 1,n_sensors
+      call construct_gpm_crtm_result(Npoints, ncolumns,&
+                    CRTM_ChannelInfo_n_Channels(chinfo_list(i_gmi_sensor)), &
+                    sggpmgmi(i_gmi_sensor) )
+   end do
+#endif
+
    call construct_cosp_sglidar(cfg,Npoints,ncolumns,Nlevels,nhydro,PARASOL_NREFL,sglidar)
    call construct_cosp_lidarstats(cfg,Npoints,ncolumns,vgrid%Nlvgrid,nhydro,PARASOL_NREFL,stlidar)
    call construct_cosp_isccp(cfg,Npoints,ncolumns,Nlevels,isccp)
@@ -3067,6 +3160,9 @@ if (cosp_runall) then
 #ifdef GPM_KA
             ,sggpmka, stgpmka &
 #endif
+#ifdef GPM_GMI2
+            ,sggpmgmi &
+#endif
             )
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -3125,11 +3221,15 @@ if (cosp_runall) then
    !! GPM variables, if any
 #ifdef GPM_KU
    dbzegpmku(1:ncol,1:nscol_cosp,1:nhtml_cosp) = sggpmku%Ze_tot
-   cfad_dbzegpmku(1:ncol,1:nscol_cosp,1:nhtml_cosp) = stgpmku%cfad_ze
+   cfad_dbzegpmku(1:ncol,1:ndbze_cosp,1:nhtml_cosp) = stgpmku%cfad_ze
 #endif
 #ifdef GPM_KA
    dbzegpmka(1:ncol,1:nscol_cosp,1:nhtml_cosp) = sggpmka%Ze_tot
-   cfad_dbzegpmka(1:ncol,1:nscol_cosp,1:nhtml_cosp) = stgpmka%cfad_ze
+   cfad_dbzegpmka(1:ncol,1:ndbze_cosp,1:nhtml_cosp) = stgpmka%cfad_ze
+#endif
+#ifdef GPM_GMI2
+   tbgpmgmi(1:ncol,1:nscol_cosp,1:9) = sggpmgmi(1)%tbs
+   tbgpmgmi(1:ncol,1:nscol_cosp,10:13) = sggpmgmi(2)%tbs
 #endif
    !! modis variables
    cltmodis(1:ncol)=modis%Cloud_Fraction_Total_Mean
@@ -3217,6 +3317,14 @@ if (cosp_runall) then
         end do
         end do
 #endif
+#ifdef GPM_GMI2
+        do i_gmi_channel=1, ngmichannels
+          do isc=1,nscol_cosp
+            ihsc=(i_gmi_channel-1)*nscol_cosp+isc
+            tbgpmgmi_cs(i,ihsc) = tbgpmgmi(i, isc, i_gmi_channel)
+          end do
+        end do
+#endif
         ! CAM clMISR (time,tau,CTH_height_bin,profile)
         do ihm=1,nhtmisr_cosp
         do it=1,ntau_cosp
@@ -3262,6 +3370,12 @@ if (cosp_runall) then
 #ifdef GPM_KA
    call free_cosp_sggpmdpr(sggpmka)
    call free_cosp_gpmdprstats(stgpmka)
+#endif
+#ifdef GPM_GMI2
+   do i_gmi_sensor = 1,n_sensors
+      call free_gpm_crtm_result(sggpmgmi(i_gmi_sensor) )
+   end do
+   deallocate(sggpmgmi)
 #endif
    call free_cosp_sglidar(sglidar)
    call free_cosp_lidarstats(stlidar)
@@ -3641,6 +3755,9 @@ end do
 #endif
 #ifdef GPM_KA
             ,sggpmka, stgpmka &
+#endif
+#ifdef GPM_GMI2
+            ,sggpmgmi &
 #endif
             )
 
@@ -4396,6 +4513,9 @@ if (((.not.cosp_sample_atrain) .and. Natrain .gt. 0) .or. ((cosp_sample_atrain) 
 #ifdef GPM_KA
             ,sggpmka, stgpmka &
 #endif
+#ifdef GPM_GMI2
+            ,sggpmgmi &
+#endif
             )
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -5023,6 +5143,11 @@ end if  !!! END RUNNING COSP ONLY RADAR/LIDAR
 #ifdef GPM_KA
       if (lgpmka_sim) then
          call outfld('DBZEGPMKA_CS',dbzegpmka_cs, pcols, lchnk)
+      end if
+#endif
+#ifdef GPM_GMI2
+      if (lgpmgmi_sim) then
+         call outfld('GPM_GMI_TB_CS',tbgpmgmi_cs, pcols, lchnk)
       end if
 #endif
 

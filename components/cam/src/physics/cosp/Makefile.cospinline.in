@@ -56,7 +56,7 @@ OBJS =  cosp_radar.o cosp_types.o cosp_constants.o cosp_simulator.o \
 			  cosp_gpmdpr.o gpm_crtm_sensor.o   \
 	      gpm_crtm.o gpm_crtm_simulator.o \
         gpm_crtm_constants.o \
-        gpm_utility.o  gpmsimulator_intr.o
+        gpm_utility.o  
 
 libcosp.a: $(OBJS)
 	ar cr libcosp.a $(OBJS)
@@ -67,7 +67,7 @@ libcosp.a: $(OBJS)
 %.o: %.F90
 	$(F90) -I$(CAM_BLD) $(F90FLAGS) $(CRTMFLAGS) -c  $<
 
-cosp.o          : cosp_simulator.o cosp_types.o cosp_modis_simulator.o
+cosp.o          : cosp_simulator.o cosp_types.o cosp_modis_simulator.o gpm_crtm_simulator.o gpm_crtm_sensor.o
 cosp_lidar.o    : cosp_constants.o cosp_types.o
 cosp_radar.o    : cosp_constants.o cosp_types.o radar_simulator_types.o \
 	              array_lib.o atmos_lib.o format_input.o math_lib.o optics_lib.o
@@ -76,9 +76,10 @@ cosp_gpmdpr.o   : cosp_constants.o cosp_types.o radar_simulator_types.o \
 cosp_simulator.o: cosp_types.o cosp_radar.o cosp_lidar.o \
                   cosp_isccp_simulator.o cosp_misr_simulator.o \
                   cosp_modis_simulator.o cosp_stats.o \
-									cosp_gpmdpr.o gpmsimulator_intr.o
+									cosp_gpmdpr.o gpm_crtm_simulator.o 
 gpm_crtm_sensor.o: gpm_crtm_constants.o
 gpm_crtm_simulator.o:  gpm_crtm.o cosp_types.o cosp_constants.o
+gpm_crtm.o      : cosp_types.o
 gpmsimulator_intr.o: gpm_utility.o gpm_crtm_sensor.o gpm_crtm_simulator.o
 cosp_stats.o    : cosp_constants.o cosp_types.o llnl_stats.o lmd_ipsl_stats.o
 cosp_types.o    : cosp_constants.o cosp_utils.o radar_simulator_types.o \
