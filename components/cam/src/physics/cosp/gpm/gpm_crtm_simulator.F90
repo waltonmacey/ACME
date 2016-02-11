@@ -169,20 +169,20 @@ contains
       year = 2000
       month = 1
       day = 1
-print *, "-----debug mr_hydro values -----"
-print *, maxval(sgx%mr_hydro)
-print *, maxval(m_layer)
-print *, minval(m_layer)
-print *, maxval(gbx%pint), minval(gbx%pint)
-print *, gbx%pint(1,(n_layers+1):2:-1)
-print *, gbx%pint(1,n_layers:1:-1)
+!print *, "-----debug mr_hydro values -----"
+!print *, maxval(sgx%mr_hydro)
+!print *, maxval(m_layer)
+!print *, minval(m_layer)
+!print *, maxval(gbx%pint), minval(gbx%pint)
+!print *, gbx%pint(1,(n_layers+1):2:-1)
+!print *, gbx%pint(1,n_layers:1:-1)
 
   ! ------- calling crtm_multiprof() for each sensor ------
   ! prepare outputs
-print *, '--------- debug gpm_crtm_simulator.F90 -------'
-print *, 'sensor scan angle', scan_angle
-print *, 'sensor zenith angle', zenith_angle
-print *, 'n_sensors:', n_sensors
+!print *, '--------- debug gpm_crtm_simulator.F90 -------'
+!print *, 'sensor scan angle', scan_angle
+!print *, 'sensor zenith angle', zenith_angle
+!print *, 'n_sensors:', n_sensors
 !call CRTM_ChannelInfo_Inspect(chinfo(1))
 !call CRTM_ChannelInfo_Inspect(chinfo(2))
   do n=1, n_sensors
@@ -191,7 +191,7 @@ print *, 'n_sensors:', n_sensors
      allocate(tbs(n_channels, n_profiles))
       do i_column = 1, gbx%Ncolumns
 
-      print *, "i_sensor, i_column:", n, i_column
+!print *, "i_sensor, i_column:", n, i_column
       tbs = 0.0
       ! COSP effect radius is in meters. Convert to micros for CRTM
       Reff_hydro   = sgx%Reff(    :, i_column, n_layers:1:-1, :) * 1e6
@@ -225,18 +225,18 @@ print *, 'n_sensors:', n_sensors
       day,          & ! model day of month
       tbs           & ! brightness temperature [output]
       )
-!      print *, gpm_results(n)%tbs
+!print *, gpm_results(n)%tbs
 
 
-!      print *, 'in gpm_crtm_simulator'
-!      print *, tbs
+!print *, 'in gpm_crtm_simulator'
+!print *, tbs
       ! Need to reshape the results
       do i_channel = 1, n_channels
         gpm_results(n)%tbs(:,i_column,i_channel) = tbs(i_channel,:)
       end do
       end do ! i_column
-!      print *, "Maximum TB in sensor ", n, " is ", maxval(gpm_results(n)%tbs )
-      print *, "TB(1,1,1): ",gpm_results(n)%tbs(1,1,1)
+!print *, "Maximum TB in sensor ", n, " is ", maxval(gpm_results(n)%tbs )
+!print *, "TB(1,1,1): ",gpm_results(n)%tbs(1,1,1)
     deallocate(tbs)
   end do
    end subroutine gpm_crtm_simulator_run

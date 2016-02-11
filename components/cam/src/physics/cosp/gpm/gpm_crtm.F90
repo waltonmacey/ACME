@@ -109,9 +109,9 @@ contains
       endif
       !-------------------------------
       ! set values for atmosphere and surface structures
-print *, "in gpm_crtm.F90"
-print *, maxval(water_content)
-print *, maxval(T)
+!print *, "in gpm_crtm.F90"
+!print *, maxval(water_content)
+!print *, maxval(T)
       do i_profile = 1, n_profiles
          atm(i_profile)%Climatology         = US_STANDARD_ATMOSPHERE
          atm(i_profile)%Absorber_Id(1:2)    = (/H2O_ID                 ,  O3_ID/)

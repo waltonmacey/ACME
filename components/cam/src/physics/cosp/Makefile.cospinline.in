@@ -80,7 +80,6 @@ cosp_simulator.o: cosp_types.o cosp_radar.o cosp_lidar.o \
 gpm_crtm_sensor.o: gpm_crtm_constants.o
 gpm_crtm_simulator.o:  gpm_crtm.o cosp_types.o cosp_constants.o
 gpm_crtm.o      : cosp_types.o
-gpmsimulator_intr.o: gpm_utility.o gpm_crtm_sensor.o gpm_crtm_simulator.o
 cosp_stats.o    : cosp_constants.o cosp_types.o llnl_stats.o lmd_ipsl_stats.o
 cosp_types.o    : cosp_constants.o cosp_utils.o radar_simulator_types.o \
                   scale_LUTs_io.o radar_simulator_init.o
@@ -190,9 +189,6 @@ gpm_crtm_constants.o : $(GPM_PATH)/gpm_crtm_constants.F90
 	$(F90) -I$(CAM_BLD)  $(F90FLAGS) $(CRTMFLAGS) -c $<
 
 gpm_utility.o : $(GPM_PATH)/gpm_utility.F90
-	$(F90) $(F90FLAGS) $(CRTMFLAGS) -c $<
-
-gpmsimulator_intr.o : $(GPM_PATH)/gpmsimulator_intr.F90
 	$(F90) $(F90FLAGS) $(CRTMFLAGS) -c $<
 
 MISR_simulator.o : $(MISR_PATH)/MISR_simulator.f90

@@ -57,8 +57,8 @@ module cospsimulator_intr
    public :: &
         cospsimulator_intr_readnl,    &
         cospsimulator_intr_init,    &
-        cospsimulator_intr_run
-
+        cospsimulator_intr_run,     &
+        gpmsimulator_intr_finalize
    logical, public :: docosp = .false.  ! whether to do COSP calcs and I/O, default is false
                                         ! if docosp is specified in the atm_in namelist,
                                         ! this value is overwritten and cosp is run
@@ -1355,7 +1355,7 @@ endif
     call add_hist_coord('gmi_chidx',n_gmi_ch  ,'GPM GMI channel index', &
                    '1',gmi_chidx)
     ! add field
-    call addfld('GPM_GMI_TB_CS',(/'cosp_scol','gmi_chidx'/),'A','K',&
+    call addfld('GPM_GMI_TB_CS',(/'cosp_scol','gmi_chidx'/),'I','K',&
                    'simulated GPM GMI brightness temperature',&
                    flag_xyfill=.true., fill_value=R_UNDEF)
     call add_default('GPM_GMI_TB_CS',cosp_histfile_num, ' ')
@@ -3014,7 +3014,8 @@ if (cosp_runall) then
    gbx%latitude = lat_cosp(1:ncol)                              ! lat (degrees_north)
 ! look at cosp_types.F90 in v1.3 for information on how these should be defined.
    gbx%p = state%pmid(1:ncol,pver:1:-1)                         ! Pressure at full model levels [Pa] (at model levels per yuying)
-#ifdef GPM_GMI
+   
+#ifdef GPM_GMI2
    gbx%pint = state%pint(1:ncol,pverp:1:-1)
 #endif
    gbx%ph = pbot(1:ncol,1:pver)                                 ! Pressure at half model levels [Pa] (Bottom of model layer,flipped above)
@@ -5168,6 +5169,31 @@ end if  !!! END RUNNING COSP ONLY RADAR/LIDAR
 
 
 end subroutine cospsimulator_intr_run
+
+!#######################################################################
+subroutine gpmsimulator_intr_finalize()
+#ifdef GPM_GMI2
+  !------------------
+  ! Environment setup
+  !------------------
+  ! Module use
+  use GPM_CRTM_sensor_mod, only: GPM_CRTM_sensor_destroy, l_initialized
+  ! Disable implicit typing
+  implicit none
+  character(len=*),  parameter :: subroutinename = &
+            'gpmsimulator_intr_finalize'   
+  ! destroy the sensor structures
+  if (lgpmgmi_sim) then
+    call GPM_CRTM_sensor_destroy() 
+    lgpmgmi_sim  = .FALSE.
+  end if
+
+!  if (lgpmdpr_sim) then
+!    lgpmdpr_sim  = .FALSE.
+!  end if
+  ! reset initialization flag and instrument flag
+#endif
+end subroutine gpmsimulator_intr_finalize
 
 !#######################################################################
 

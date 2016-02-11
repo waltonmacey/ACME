@@ -1220,6 +1220,7 @@ subroutine phys_final( phys_state, phys_tend, pbuf2d )
     use chemistry, only : chem_final
     use carma_intr, only : carma_final
     use wv_saturation, only : wv_sat_final
+    use cospsimulator_intr, only: docosp, gpmsimulator_intr_finalize
     !----------------------------------------------------------------------- 
     ! 
     ! Purpose: 
@@ -1240,6 +1241,9 @@ subroutine phys_final( phys_state, phys_tend, pbuf2d )
     call chem_final
     call carma_final
     call wv_sat_final
+    if(docosp) then
+      call gpmsimulator_intr_finalize
+    end if
 
 end subroutine phys_final
 
