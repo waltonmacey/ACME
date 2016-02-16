@@ -20,15 +20,12 @@
 #  set paths to source code, build directory and run directory
 #
 set wdir =  ~/scratch1/preqx             # run directory
-set HOMME = ~/codes/acme-dev/components/homme                # HOMME svn checkout     
+set HOMME = ~/codes/acme/components/homme                # HOMME svn checkout     
 set input = $HOMME/test/jw_baroclinic    # input files for test case
 set vdir = $HOMME/test/vcoord            # vertical coordinate files
 set bld = $wdir/bld                      # cmake/build directory
 
-set MACH = $HOMME/cmake/machineFiles/redsky.cmake
-#set MACH = $HOMME/cmake/machineFiles/titan.cmake
-#set MACH = $HOMME/cmake/machineFiles/titan-cuda.cmake    # CMAKE file for Titan GPU support
-#set MACH = $HOMME/cmake/machineFiles/darwin.cmake
+set MACH = $HOMME/cmake/machineFiles/edison.cmake
 setenv CRAY_CUDA_PROXY 1
 
 
