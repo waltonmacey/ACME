@@ -16,9 +16,10 @@ find_library(NetcdfF_LIBRARY
              HINTS ${Netcdf_INCLUDE_DIR}/../lib
              NO_SYSTEM_ENVIRONMENT_PATH NO_CMAKE_SYSTEM_PATH)
 
+# adding additional path because IBM puts nc-config in an unusual directory
 find_path(Netcdf_NC_CONFIG_BIN
           NAMES nc-config
-          HINTS ${Netcdf_INCLUDE_DIR}/../bin
+          HINTS ${Netcdf_INCLUDE_DIR}/../bin ${Netcdf_INCLUDE_DIR}/../../../bin
           NO_SYSTEM_ENVIRONMENT_PATH NO_CMAKE_SYSTEM_PATH)
 
 find_file(NETCDF4_PAR_H netcdf_par.h
