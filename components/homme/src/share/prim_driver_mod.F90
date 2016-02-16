@@ -1617,7 +1617,6 @@ contains
     use fvm_mod,     only : fvm_test_type, IDEAL_TEST_BOOMERANG, IDEAL_TEST_SOLIDBODY
     use fvm_bsp_mod, only : get_boomerang_velocities_gll, get_solidbody_velocities_gll
     use prim_advance_mod, only : prim_advance_exp, overwrite_SEdensity
-    use prim_advection_mod, only : prim_advec_tracers_fvm
     use arch_switch_mod, only : prim_advec_tracers_remap, deriv
     use derivative_mod, only : subcell_integration
 #if defined(_SPELT)
@@ -1841,8 +1840,8 @@ contains
        endif
 #else
        call t_startf("PAT_fvm")
-       call Prim_Advec_Tracers_fvm(elem, fvm, deriv(hybrid%ithr),hvcoord,hybrid,&
-            dt_q,tl,nets,nete)
+!      call Prim_Advec_Tracers_fvm(elem, fvm, deriv(hybrid%ithr),hvcoord,hybrid,&
+!           dt_q,tl,nets,nete)
        call t_stopf("PAT_fvm")
        if (rstep.ne.rsplit) then
           !

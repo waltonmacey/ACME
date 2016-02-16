@@ -91,7 +91,6 @@ module prim_advection_mod
   save
   public :: Prim_Advec_Init1, Prim_Advec_Init2, prim_advec_init_deriv
   public :: Prim_Advec_Tracers_remap, Prim_Advec_Tracers_remap_rk2, Prim_Advec_Tracers_remap_ALE
-  public :: prim_advec_tracers_fvm
   public :: vertical_remap
   type (EdgeBuffer_t)    :: edgeAdv, edgeAdvp1, edgeAdvQminmax, edgeAdv1,  edgeveloc
   type (ghostBuffer3D_t) :: ghostbuf_tr
