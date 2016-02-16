@@ -94,6 +94,7 @@ SET(PREQX_SRCS_F90
   ${SRC_SHARE_DIR}/prim_si_ref_mod.F90 
   ${SRC_SHARE_DIR}/prim_advance_mod.F90 
   ${SRC_SHARE_DIR}/prim_advection_mod.F90 
+  ${SRC_SHARE_DIR}/vertremap_mod.F90
   ${SRC_DIR}/forcing_mod.F90 
   ${SRC_SHARE_DIR}/metis_mod.F90 
   ${SRC_SHARE_DIR}/prim_driver_mod.F90 
