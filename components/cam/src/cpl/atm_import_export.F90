@@ -1,9 +1,67 @@
 module atm_import_export
 
   use shr_kind_mod  , only: r8 => shr_kind_r8, cl=>shr_kind_cl
+
   implicit none
 
+  public :: dms_readnl
+
+  real(r8)          :: dms_emis_fact = 1.        ! tuning parameter for dms emissions
+
 contains
+
+  subroutine dms_readnl(nlfile)
+
+    use namelist_utils,  only: find_group_name
+    use units,           only: getunit, freeunit
+    use mpishorthand
+    use spmd_utils,      only: masterproc
+    use cam_abortutils,  only: endrun
+    use cam_logfile,     only: iulog
+
+    character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
+
+    ! Local variables
+    integer :: unitn, ierr
+    character(len=*), parameter :: subname = 'dms_readnl'
+    real(r8)          :: dms_emis_fact_nl
+
+    namelist /dms_nl/ dms_emis_fact
+
+    !-----------------------------------------------------------------------------
+
+    ! Initialize
+    dms_emis_fact_nl = dms_emis_fact
+
+    ! Read namelist
+    if (masterproc) then
+       unitn = getunit()
+       open( unitn, file=trim(nlfile), status='old' )
+       call find_group_name(unitn, 'dms_nl', status=ierr)
+       if (ierr == 0) then
+          read(unitn, dms_nl, iostat=ierr)
+          if (ierr /= 0) then
+             call endrun(subname // ':: ERROR reading namelist')
+          end if
+       end if
+       close(unitn)
+       call freeunit(unitn)
+    end if
+
+#ifdef SPMD
+    ! Broadcast namelist variables
+    call mpibcast(dms_emis_fact, 1,                   mpir8,   0, mpicom)
+#endif
+
+    ! Update module variables with user settings.
+    dms_emis_fact = dms_emis_fact_nl
+
+    ! Log output for debugging
+    if (masterproc) then
+       write(iulog,*) 'dms_emis_fact: ', dms_emis_fact
+    end if
+
+  end subroutine dms_readnl
 
   subroutine atm_import( x2a, cam_in, restart_init )
 
@@ -36,6 +94,7 @@ contains
     integer, pointer   :: dst_a5_ndx, dst_a7_ndx
     integer, pointer   :: dst_a1_ndx, dst_a3_ndx
     logical :: overwrite_flds
+
     !-----------------------------------------------------------------------
     overwrite_flds = .true.
     ! don't overwrite fields if invoked during the initialization phase 
@@ -112,7 +171,7 @@ contains
              cam_in(c)%fco2_ocn(i) = -x2a(index_x2a_Faoo_fco2_ocn,ig)
           end if
           if (index_x2a_Faoo_fdms_ocn /= 0) then
-             cam_in(c)%fdms(i)     = -x2a(index_x2a_Faoo_fdms_ocn,ig)
+             cam_in(c)%fdms(i)     = dms_emis_fact * -x2a(index_x2a_Faoo_fdms_ocn,ig)
           end if
 
           ig=ig+1

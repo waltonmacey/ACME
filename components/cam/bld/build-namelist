@@ -3780,6 +3780,11 @@ if ($chem =~ /_mam/ or $chem =~ /_bam/ or $chem =~ /trop_/) {
     }
 }
 
+# DMS emissions tuning factor
+#if ($chem =~ /_mam/ or $chem =~ /_bam/ or $chem =~ /trop_/) {
+add_default($nl, 'dms_emis_fact');
+#}
+
 # Gravity wave drag settings
 if ($waccm_phys or $cfg->get('nlev') >= 60) {
     # Spectral gravity waves are part of WACCM physics, and also drive the

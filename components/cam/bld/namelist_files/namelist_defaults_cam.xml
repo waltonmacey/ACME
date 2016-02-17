@@ -902,6 +902,8 @@
 
 <dust_emis_fact dyn="se" unicon="1"                  >1.38D0</dust_emis_fact>
 
+<!-- dust emission tuning factor -->
+<dms_emis_fact                                                         >1.0D0</dms_emis_fact>
 
 <!-- Sea Salt tuning option for scavenging mods by PNNL -->
 <ssalt_tuning>.false.</ssalt_tuning>

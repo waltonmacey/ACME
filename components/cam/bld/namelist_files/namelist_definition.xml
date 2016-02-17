@@ -4195,6 +4195,12 @@ Tuning parameter for dust emissions.
 Default: set by build-namelist.
 </entry>
 
+<entry id="dms_emis_fact" type="real" category="cam_chem"
+       group="dms_nl" valid_values="" >
+Tuning parameter for dms emissions.
+Default: set by build-namelist.
+</entry>
+
 <!-- sea salt tuning flag for polar project -->
 <entry id="ssalt_tuning"  type="logical" category="cam_chem"
        group="phys_ctl_nl" valid_values="" >
