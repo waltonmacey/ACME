@@ -2487,7 +2487,6 @@ end if
 ! I can reference these as is, e.g., cam_in%ts.  
    !cam_in%ts                   ! skt - Skin temperature (K)
    !cam_in%landfrac             ! land fraction, used to define a landmask (0 or 1) for COSP input
-
 ! 3) radiative constituent interface variables:
 ! specific humidity (q), 03, CH4,C02, N20 mass mixing ratio
 ! Note: these all have dims (pcol,pver) but the values don't change much for the well-mixed gases.
@@ -3095,6 +3094,32 @@ if (cosp_runall) then
    call construct_cosp_gpmdprstats(cfg,Npoints,ncolumns,vgrid%Nlvgrid,nhydro,2,stgpmka)
 #endif
 #ifdef GPM_GMI2
+! Propagate surface properties from cam_in to gpm_surface
+   ! FIXME: The surface fraction should be treated in more details (e.g., lakes)
+   gbx%gpmsurface%land_coverage  = cam_in%landfrac
+   gbx%gpmsurface%water_coverage = cam_in%ocnfrac
+   gbx%gpmsurface%ice_coverage   = 1- cam_in%landfrac - cam_in%ocnfrac
+   
+   ! land surface properties
+   gbx%gpmsurface%land_temperature  = gbx%skt !gbx%T(:,1) !cam_in%ts(1:Npoints)
+   gbx%gpmsurface%soil_temperature  = gbx%skt !gbx%T(:,1)
+
+   ! water surface properties
+   gbx%gpmsurface%water_temperature = gbx%skt !gbx%T(:,1) !cam_in%sst(1:Npoints)
+   gbx%gpmsurface%wind_Speed        = SQRT(gbx%u_wind*gbx%u_wind+gbx%v_wind*gbx%v_wind)
+   gbx%gpmsurface%wind_direction    = ATAN2(gbx%u_wind,gbx%v_wind)*180._r8/pi
+   where (gbx%gpmsurface%wind_direction < 0.0)
+      gbx%gpmsurface%wind_direction = gbx%gpmsurface%wind_direction + 360
+   end where
+   ! Snow surface properties
+   gbx%gpmsurface%snow_temperature  =  gbx%skt !gbx%T(:,1) !cam_in%sst(1:Npoints)
+
+   ! Ice surface properties
+   gbx%gpmsurface%ice_temperature   =  gbx%skt !gbx%T(:,1) !cam_in%sst(1:Npoints)
+
+
+
+   ! allocate gpm output structures
    allocate(sggpmgmi(n_sensors))
    do i_gmi_sensor = 1,n_sensors
       call construct_gpm_crtm_result(Npoints, ncolumns,&

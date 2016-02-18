@@ -7,7 +7,7 @@
 
 module gpm_crtm_simulator_mod
    use MOD_COSP_TYPES, only: cosp_gridbox, cosp_sghydro
-   use CRTM_Module, only: crtm_channelInfo_type, CRTM_ChannelInfo_n_Channels 
+   use CRTM_Module, only: crtm_channelInfo_type, CRTM_ChannelInfo_n_Channels
    use GPM_CRTM_mod, only: crtm_multiprof 
 !   use GPM_CRTM_result_mod, only: GPM_CRTM_result_type, GPM_CRTM_result_init, &
 !                                  GPM_CRTM_result_destroy, GPM_CRTM_result_inquire, &
@@ -102,7 +102,6 @@ contains
       real, allocatable :: Reff_aerosol(:,:,:) ! [n_profiles x n_layers x n_aerosols]
       real, allocatable :: mr_aerosol(:,:,:)   ! [n_profiles x n_layers x n_aerosols]
       real, allocatable :: o3(:,:)             ! [n_profiles x n_layers]
-      real, allocatable :: surface_type(:,:)   ! [n_profiles x 4]
       real, allocatable :: latitude(:)         ! [n_profiles]
       real, allocatable :: longitude(:)        ! [n_profiles]         
       real :: year                ! [1]         
@@ -136,8 +135,6 @@ contains
       allocate(Reff_aerosol(n_profiles, n_layers, n_aerosols), &
                  mr_aerosol(n_profiles, n_layers, n_aerosols) )
 
-      allocate(surface_type(n_profiles, n_surfacetypes) )
-
       allocate(latitude(n_profiles), &
                longitude(n_profiles) )
 
@@ -157,10 +154,6 @@ contains
       mr_aerosol   = 0
       !FIXME: add surface type properties
       ! now all water surface
-      surface_type(:,1) = 0
-      surface_type(:,2) = 1
-      surface_type(:,3) = 0
-      surface_type(:,4) = 0
       !
       latitude  = gbx%latitude
       longitude = gbx%longitude
@@ -215,7 +208,7 @@ contains
       mr_aerosol,   & ! mixing ratio of aerosol [kg/m^2]
       o3,           & ! ozone mixing ratio [ppmv]
       chinfo(n:n),  & ! channel info [type: CRTM_ChannelInfo_type][input][1x1 vector]
-      surface_type, & ! surface type [land/water/snow/ice coverage]
+      gbx%gpmsurface,  & ! CRTM surface properties
       latitude,     & ! latitude
       longitude,    & ! longitude
       scan_angle(n),   & ! sensor scan angle

@@ -27,7 +27,9 @@ MODULE MOD_COSP_TYPES
     USE MOD_COSP_UTILS
 
     use radar_simulator_types, only: class_param, nd, mt_nd, dmax, dmin
-
+#ifdef GPM_GMI2
+    use CRTM_Module, only: CRTM_Surface_type
+#endif
     IMPLICIT NONE
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -368,7 +370,7 @@ MODULE MOD_COSP_TYPES
     real,dimension(:,:),pointer :: dlev ! Depth of model levels  [m]
     real,dimension(:,:),pointer :: p  ! Pressure at full model levels [Pa]
     real,dimension(:,:),pointer :: ph ! Pressure at half model levels [Pa]
-#ifdef GPM_GMI
+#ifdef GPM_GMI2
     real,dimension(:,:),pointer :: pint ! pressure level at model interface
 #endif
     real,dimension(:,:),pointer :: T ! Temperature at model levels [K]
@@ -466,6 +468,9 @@ MODULE MOD_COSP_TYPES
     real,    dimension(:), pointer :: Surfem  ! Surface emissivity
     real    :: ZenAng ! Satellite Zenith Angles
     real :: co2,ch4,n2o,co ! Mixing ratios of trace gases
+
+    ! surface properties used in CRTM 
+    type(CRTM_Surface_type), allocatable :: gpmsurface(:)
 
   END TYPE COSP_GRIDBOX
  
@@ -1307,10 +1312,12 @@ CONTAINS
     allocate(y%mr_hydro_gpm(Npoints,Nlevels,Nhydro), &
              y%Np_gpm(Npoints,Nlevels,Nhydro) )
 #endif 
-#ifdef GPM_GMI
+#ifdef GPM_GMI2
     ! second dimension of pint should be Nlevels +1, because pint is the
     ! pressure at model interface, and Nlevels is the number of model levels.
     allocate(y%pint(Npoints,Nlevels+1))
+    ! allocate surface properties for CRTM calculations
+    allocate(y%gpmsurface(Npoints))
 #endif
     ! RTTOV parameters
     y%ichan   =  ichan
@@ -1322,7 +1329,7 @@ CONTAINS
     y%dlev      = 0.0
     y%p         = 0.0
     y%ph        = 0.0
-#ifdef GPM_GMI
+#ifdef GPM_GMI2
     y%pint      = 0.0
 #endif
     y%T         = 0.0
@@ -1364,13 +1371,11 @@ CONTAINS
     y%Np_gpm = 0.0
 #endif
 
-
     ! Others
     y%dist_prmts_hydro = 0.0 ! (Nprmts_max_hydro,Nhydro)
     y%conc_aero        = 0.0 ! (Npoints,Nlevels,Naero)
     y%dist_type_aero   = 0   ! (Naero)
     y%dist_prmts_aero  = 0.0 ! (Npoints,Nlevels,Nprmts_max_aero,Naero)
-
 
     ! NOTE: This location use to contain initialization of some radar simulator variables
     ! this initialization (including use of the variable "dist_prmts_hydro" - now obselete) 
@@ -1511,8 +1516,10 @@ END SUBROUTINE CONSTRUCT_COSP_GRIDBOX
 #ifdef GPM_TWO_MOMENT
     deallocate(y%mr_hydro_gpm, y%Np_gpm)
 #endif
-#ifdef GPM_GMI
+
+#ifdef GPM_GMI2
     deallocate(y%pint)
+    deallocate(y%gpmsurface)
 #endif
   END SUBROUTINE FREE_COSP_GRIDBOX
 
@@ -1619,6 +1626,10 @@ SUBROUTINE COSP_GRIDBOX_CPSECTION(ix,iy,x,y)
 #endif
     ! 4D
     y%dist_prmts_aero(iy(1):iy(2),:,:,:) = x%dist_prmts_aero(ix(1):ix(2),:,:,:)
+#ifdef GPM_GMI2
+    y%pint(iy(1):iy(2),:) = x%pint(ix(1):ix(2),:)
+    y%gpmsurface(iy(1):iy(2)) = x%gpmsurface(ix(1):ix(2))
+#endif
 
 END SUBROUTINE COSP_GRIDBOX_CPSECTION
  

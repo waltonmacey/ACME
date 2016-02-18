@@ -31,7 +31,7 @@ contains
       mr_aerosol,   & ! mixing ratio of aerosol
       o3,           & ! ozone mixing ratio [ppmv]
       chinfo,       & ! channel info [type: CRTM_ChannelInfo_type][input][1x1 vector]
-      surface_type, & ! surface type [land/water/snow/ice coverage]
+      sfc,          & ! CRTM surface properties
       latitude,     & ! latitude
       longitude,    & ! longitude
       scan_angle,   & ! sensor scan angle
@@ -58,7 +58,7 @@ contains
       real, intent(in) :: mr_aerosol(:,:,:)   ! [n_profiles x n_layers x n_aerosols]
       real, intent(in) :: o3(:,:)             ! [n_profiles x n_layers]
       type(CRTM_ChannelInfo_type), intent(in) :: chinfo(:)  ! [1 x 1]
-      real, intent(in) :: surface_type(:,:)   ! [n_profiles x n_surfacetypes(4)]
+      type(CRTM_Surface_type),     intent(in) :: sfc(:)   ! [n_profiles]
       real, intent(in) :: latitude(:)         ! [n_profiles]
       real, intent(in) :: longitude(:)        ! [n_profiles]         
       real, intent(in) :: scan_angle          ! [1]         
@@ -79,7 +79,6 @@ contains
       type(CRTM_RTSolution_type), allocatable :: rts(:,:) ! RTsolution
       ! variable associated with atmosphere state. length: n_profile
       type(CRTM_Atmosphere_type), allocatable :: atm(:) ! atmosphere
-      type(CRTM_Surface_type),    allocatable :: sfc(:) ! surface
 
       integer :: n_channels  ! number of channels
       !---------------
@@ -98,7 +97,7 @@ contains
       
       ! allocate structures used in this calculation
       !FIXME: add check for allocation success
-      allocate(atm(n_profiles), sfc(n_profiles))
+      allocate(atm(n_profiles))
 
       ! create atmosphere profile
       call CRTM_Atmosphere_Create(atm, n_layers, n_absorbers, n_clouds, &
@@ -227,11 +226,6 @@ contains
          atm(i_profile)%Aerosol(1)%Effective_Radius = Reff_aerosol(i_profile,:,1)
          atm(i_profile)%Aerosol(1)%Concentration    = mr_aerosol(i_profile,:,1)
 #endif         
-         !!! assign surface properties
-         sfc(i_profile)%Land_Coverage   =  surface_type(i_profile,1)
-         sfc(i_profile)%Water_Coverage  =  surface_type(i_profile,2)
-         sfc(i_profile)%Snow_Coverage   =  surface_type(i_profile,3)
-         sfc(i_profile)%Ice_Coverage    =  surface_type(i_profile,4)
       end do ! i_profile
       !---------------------
       ! geometry and option structures
@@ -255,7 +249,6 @@ contains
 do i_profile = 1, n_profiles
 !  print *, "i_profile", i_profile 
 !      call CRTM_Atmosphere_Inspect(atm(i_profile:i_profile))
-!      call CRTM_Surface_Inspect(sfc(i_profile))
 !      call CRTM_Geometry_Inspect(geo(i_profile))
 !      call CRTM_ChannelInfo_Inspect(chinfo)
 
@@ -285,7 +278,6 @@ end do
       call CRTM_Options_Destroy(   opt)
       call CRTM_RTSolution_Destroy(rts)
       call CRTM_Atmosphere_Destroy(atm)
-      !FIXME: check if sfc structure needs to be destroyed
 
    end subroutine crtm_multiprof
 
