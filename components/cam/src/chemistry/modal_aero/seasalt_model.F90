@@ -691,7 +691,7 @@ add_om_species: if ( has_mam_mom ) then
              write(iulog,"(A30,A10,I3)") "Constituent name and number: ", trim(seasalt_names(nslt+m_om)), mm ! for debugging
           endif
           ! add mass tracers
-!          om_type_loop: do n=1,n_org
+          om_type_loop: do n=1,n_org
              section_loop_OM_mass: do i=1, nsections
              if (Dg(i).ge.sst_sz_range_lo(nslt+m_om) .and. Dg(i).lt.sst_sz_range_hi(nslt+m_om)) then
                 cflx_help2(:ncol)=fi(:ncol,i)*ocnfrc(:ncol)*emis_scale &
@@ -703,14 +703,14 @@ add_om_species: if ( has_mam_mom ) then
                    ! Mixing state 2: internal mixture, replace mass with OM,
                    !                 total number not modified
                    cflx(:ncol,mm) = cflx(:ncol,mm) + cflx_help2(:ncol) &
-!                        * mass_frac_bub_section(:ncol, n, i)
-                        * om_ssa(:ncol, i)
+                        * mass_frac_bub_section(:ncol, n, i)
+!                        * om_ssa(:ncol, i)
                 else if ( ( mixing_state == 1 ) .or. ( mixing_state == 3 ) ) then
                    ! Mixing state 1: external mixture, add OM to mass and number
                    ! Mixing state 3: internal mixture, add OM to mass and number
                    where (om_ssa(:ncol, i) .gt. 0.0_r8) ! avoid division by zero
                       cflx(:ncol,mm) = cflx(:ncol,mm) + cflx_help2(:ncol) &
-!                           * mass_frac_bub_section(:ncol, n, i) / om_ssa(:ncol, i) &
+                           * mass_frac_bub_section(:ncol, n, i) / om_ssa(:ncol, i) &
                            * (1._r8 / (1._r8 - om_ssa(:ncol, i)) - 1._r8)
                    elsewhere
                       cflx(:ncol,mm) = cflx(:ncol,mm)
@@ -722,7 +722,7 @@ add_om_species: if ( has_mam_mom ) then
                 endif
              endif
           enddo section_loop_OM_mass
-!       end do om_type_loop
+       end do om_type_loop
     endif
 
     if (debug_mam_mom) then
