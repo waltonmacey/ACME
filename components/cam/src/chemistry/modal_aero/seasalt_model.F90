@@ -89,13 +89,13 @@ module seasalt_model
 
   ! Settings for marine organics code
 
-  real(r8), parameter :: small_oceanorg = 1.0e-6 ! smallest ocean organic concentration allowed
+  real(r8), parameter :: small_oceanorg = 1.0e-30 ! smallest ocean organic concentration allowed
 
   integer :: seasalt_indices(seasalt_nbin+seasalt_nnum)
 
   logical :: seasalt_active = .false.
 
-  logical :: debug_mam_mom = .false.
+  logical :: debug_mam_mom = .true.
 
 ! Parameters for organic sea salt emissions
     real(r8), parameter :: Aw_carbon = 12.0107_r8       ! Atomic weight oc carbon
@@ -493,7 +493,7 @@ end subroutine ocean_data_readnl
           end select
        end do fldloop
 
-    mass_frac_bub_section(:,:,:) = 0.0_r8
+    mass_frac_bub_section(:ncol,:,:) = 0.0_r8
     om_ssa(:ncol,:) = 0.0_r8
     F_eff(:ncol) = 0.0_r8
 
@@ -649,9 +649,9 @@ add_om_species: if ( has_mam_mom ) then
           cflx(:ncol,mn)=0.0_r8
           ! add number tracers for organics-only modes
           if (emit_this_mode(m_om)) then
-             if(masterproc .and. debug_mam_mom) then
-                write(iulog,"(A30,A10,I3)") "Constituent name and number: ", trim(seasalt_names(nslt+m_om)), mn ! for debugging
-             endif
+!             if(masterproc .and. debug_mam_mom) then
+!                write(iulog,"(A30,A10,I3)") "Constituent name and number: ", trim(seasalt_names(nslt+m_om)), mn ! for debugging
+!             endif
              section_loop_OM_num: do i=1, nsections
                 cflx_help2(:ncol) = 0.0_r8
                 if (Dg(i).ge.sst_sz_range_lo(nslt+m_om) .and. Dg(i).lt.sst_sz_range_hi(nslt+m_om)) then
@@ -687,9 +687,11 @@ add_om_species: if ( has_mam_mom ) then
 
        cflx(:ncol,mm)=0.0_r8
        if (emit_this_mode(m_om)) then
-!          write(iulog,"(A30,A10,I3)") "Constituent name and number: ", trim(seasalt_names(nslt+m_om)), mm ! for debugging
+          if(masterproc .and. debug_mam_mom) then
+             write(iulog,"(A30,A10,I3)") "Constituent name and number: ", trim(seasalt_names(nslt+m_om)), mm ! for debugging
+          endif
           ! add mass tracers
-          om_type_loop: do n=1,n_org
+!          om_type_loop: do n=1,n_org
              section_loop_OM_mass: do i=1, nsections
              if (Dg(i).ge.sst_sz_range_lo(nslt+m_om) .and. Dg(i).lt.sst_sz_range_hi(nslt+m_om)) then
                 cflx_help2(:ncol)=fi(:ncol,i)*ocnfrc(:ncol)*emis_scale &
@@ -701,14 +703,15 @@ add_om_species: if ( has_mam_mom ) then
                    ! Mixing state 2: internal mixture, replace mass with OM,
                    !                 total number not modified
                    cflx(:ncol,mm) = cflx(:ncol,mm) + cflx_help2(:ncol) &
-                        * mass_frac_bub_section(:ncol, n, i)
+!                        * mass_frac_bub_section(:ncol, n, i)
+                        * om_ssa(:ncol, i)
                 else if ( ( mixing_state == 1 ) .or. ( mixing_state == 3 ) ) then
                    ! Mixing state 1: external mixture, add OM to mass and number
                    ! Mixing state 3: internal mixture, add OM to mass and number
                    where (om_ssa(:ncol, i) .gt. 0.0_r8) ! avoid division by zero
                       cflx(:ncol,mm) = cflx(:ncol,mm) + cflx_help2(:ncol) &
-                           * mass_frac_bub_section(:ncol, n, i) / om_ssa(:ncol, i) * &
-                           (1._r8 / (1._r8 - om_ssa(:ncol, i)) - 1._r8)
+!                           * mass_frac_bub_section(:ncol, n, i) / om_ssa(:ncol, i) &
+                           * (1._r8 / (1._r8 - om_ssa(:ncol, i)) - 1._r8)
                    elsewhere
                       cflx(:ncol,mm) = cflx(:ncol,mm)
                    end where
@@ -719,7 +722,7 @@ add_om_species: if ( has_mam_mom ) then
                 endif
              endif
           enddo section_loop_OM_mass
-       end do om_type_loop
+!       end do om_type_loop
     endif
 
     if (debug_mam_mom) then
@@ -863,7 +866,7 @@ add_om_species: if ( has_mam_mom ) then
  end subroutine calc_om_ssa_gantt
 
  subroutine calc_om_ssa_burrows(ncol, mpoly_in, mprot_in, mlip_in, &
-                                mass_frac_bub_section, mass_frac_bub_tot, F_eff, lchnk)
+                                mass_frac_bub_section, om_ssa, F_eff, lchnk)
 
    !----------------------------------------------------------------------- 
    ! Purpose:
@@ -885,6 +888,7 @@ add_om_species: if ( has_mam_mom ) then
    !
    ! Output variables
    real(r8), intent(inout) :: mass_frac_bub_section(:,:,:)
+   real(r8), intent(inout) :: om_ssa(:,:)
    real(r8), intent(inout) :: F_eff(:) ! optional diagnostic output
    !
    ! Local variables
@@ -897,7 +901,7 @@ add_om_species: if ( has_mam_mom ) then
    ! OMF maximum and minimum values -- max from Rinaldi et al. (2013)
    real(r8), parameter :: omfrac_max = 0.78
    !
-   integer  :: i
+   integer  :: i, nsection
    integer  :: lchnk
    !
    !-----------------------------------------------------------------------
@@ -986,6 +990,8 @@ add_om_species: if ( has_mam_mom ) then
 
 ! Distribute mass fraction evenly into Aitken and accumulation modes
 
+   call omfrac_accu_aitk(mass_frac_bub_tot(:), om_ssa(:,:))
+
 !  mass_frac_bub_section(pcols, n_org_max, nsections) -- org classes in dim 2, size nsections in dim 3
    mass_frac_bub_section(:, :, :)   = 0.0_r8
 
@@ -997,9 +1003,9 @@ add_om_species: if ( has_mam_mom ) then
       call outfld('mass_frac_bub_poly',mass_frac_bub(:,1),pcols,lchnk)
       call outfld('mass_frac_bub_prot',mass_frac_bub(:,2),pcols,lchnk)
       call outfld('mass_frac_bub_lip',mass_frac_bub(:,3),pcols,lchnk)
-      call outfld('omf_bub_section_mpoly',mass_frac_bub_section(:,1,:),pcols,lchnk)
-      call outfld('omf_bub_section_mprot',mass_frac_bub_section(:,2,:),pcols,lchnk)
-      call outfld('omf_bub_section_mlip', mass_frac_bub_section(:,3,:),pcols,lchnk)
+      call outfld('omf_bub_section_mpoly',mass_frac_bub_section(:,1,1),pcols,lchnk)
+      call outfld('omf_bub_section_mprot',mass_frac_bub_section(:,2,1),pcols,lchnk)
+      call outfld('omf_bub_section_mlip', mass_frac_bub_section(:,3,1),pcols,lchnk)
    endif
 
  end subroutine calc_om_ssa_burrows
@@ -1221,13 +1227,13 @@ subroutine init_ocean_data()
           call add_default ('cflx_'//trim(seasalt_names(m))//'_debug', 1, ' ')
        enddo om_mode_loop
 
-       call addfld('omf_bub_section_mpoly', (/ 'ilev' /), 'A',' ', 'omf poly' ) 
+       call addfld('omf_bub_section_mpoly', horiz_only, 'A',' ', 'omf poly' ) 
        call add_default ('omf_bub_section_mpoly', 1, ' ')
 
-       call addfld('omf_bub_section_mprot', (/ 'ilev' /), 'A',' ', 'omf prot' ) 
+       call addfld('omf_bub_section_mprot', horiz_only, 'A',' ', 'omf prot' ) 
        call add_default ('omf_bub_section_mprot', 1, ' ')
 
-       call addfld('omf_bub_section_mlip', (/ 'ilev' /), 'A',' ', 'omf lip' ) 
+       call addfld('omf_bub_section_mlip', horiz_only, 'A',' ', 'omf lip' ) 
        call add_default ('omf_bub_section_mlip', 1, ' ')
 
     endif debug
