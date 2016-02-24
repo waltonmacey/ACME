@@ -119,9 +119,9 @@ contains
     end do    ! icycle
     
     if ( size(buffer%moveptr).ne.omp_get_num_threads() ) then
-       print *,'size of moveptr: ',size(buffer%moveptr)
-       print *,'active omp threads:  ',omp_get_num_threads()
-       call abortmp('edgebuffer threads does not match number of active threads')
+       print *,'bndry_exchangeV_core:size of moveptr: ',size(buffer%moveptr)
+       print *,'bndry_exchangeV_core:active omp threads:',omp_get_num_threads()
+       call abortmp('bndry_exchangeV_core:edgebuffer threads does not match number of active threads')
     endif
 
     call MPI_Waitall(nSendCycles,buffer%Srequest,buffer%status,ierr)
@@ -213,6 +213,8 @@ contains
     end do    ! icycle
     
     if ( size(buffer%moveptr).ne.omp_get_num_threads() ) then
+       print *,'bndry_exchangeS_core:size of moveptr: ',size(buffer%moveptr)
+       print *,'bndry_exchangeS_core:active omp threads:',omp_get_num_threads()
        call abortmp('edgebuffer threads does not match number of active threads')
     endif
 
@@ -339,6 +341,8 @@ contains
     nRecvCycles = pSchedule%nRecvCycles
 
     if ( size(buffer%moveptr).ne.omp_get_num_threads() ) then
+       print *,'bndry_exchangeS_core_finish:size of moveptr: ',size(buffer%moveptr)
+       print *,'bndry_exchangeS_core_finish:active omp threads:',omp_get_num_threads()
        call abortmp('edgebuffer threads does not match number of active threads')
     endif
 
