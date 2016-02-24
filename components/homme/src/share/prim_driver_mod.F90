@@ -61,7 +61,7 @@ contains
 
     ! --------------------------------
     use thread_mod, only : nthreads, omp_get_thread_num, omp_set_num_threads, &
-                           vert_num_threads
+                           vert_num_threads, hthreads
     ! --------------------------------
     use control_mod, only : runtype, restartfreq, filter_counter, integration, topology, &
          partmethod, while_iter, use_semi_lagrange_transport
@@ -359,7 +359,7 @@ contains
     ! Set number of domains (for 'decompose') equal to number of threads
     !  for OpenMP across elements, equal to 1 for OpenMP within element
     ! =================================================================
-    n_domains = min(Nthreads,nelemd)
+    n_domains = min(hthreads,nelemd)
 
     ! =================================================================
     ! Initialize shared boundary_exchange and reduction buffers
@@ -529,14 +529,14 @@ contains
     deallocate(TailPartition)
     deallocate(HeadPartition)
 
-    n_domains = min(Nthreads,nelemd)
+    n_domains = min(hthreads,nelemd)
     call omp_set_num_threads(n_domains)
 
     ! =====================================
     ! Set number of threads...
     ! =====================================
     if(par%masterproc) then
-       write(iulog,*) "Main:NThreads=",NThreads
+       write(iulog,*) "Main:HThreads=",hthreads
        write(iulog,*) "Main:n_domains = ",n_domains
     endif
 
