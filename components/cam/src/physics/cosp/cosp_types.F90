@@ -24,6 +24,20 @@
 #include "cosp_gpm_debugflag.F90"
 MODULE MOD_COSP_TYPES
     USE MOD_COSP_CONSTANTS
+#ifdef GPM_TWO_MOMENT
+! Renaming parameters in mod_cosp_constants when GPM_TWO_MOMENT is defined to
+! provide consistant interface for GPM radar simulators.
+    USE MOD_COSP_CONSTANTS, HCLASS_TYPE   =>  GPM_HCLASS_TYPE  ,  &
+                            HCLASS_PHASE  =>  GPM_HCLASS_PHASE ,  &
+                            HCLASS_DMIN   =>  GPM_HCLASS_DMIN  ,  &
+                            HCLASS_DMAX   =>  GPM_HCLASS_DMAX  ,  &
+                            HCLASS_APM    =>  GPM_HCLASS_APM   ,  &
+                            HCLASS_BPM    =>  GPM_HCLASS_BPM   ,  &
+                            HCLASS_RHO    =>  GPM_HCLASS_RHO   ,  &
+                            HCLASS_P1     =>  GPM_HCLASS_P1    ,  &
+                            HCLASS_P2     =>  GPM_HCLASS_P2    ,  &
+                            HCLASS_P3     =>  GPM_HCLASS_P3 
+#endif
     USE MOD_COSP_UTILS
 
     use radar_simulator_types, only: class_param, nd, mt_nd, dmax, dmin
@@ -286,11 +300,6 @@ MODULE MOD_COSP_TYPES
                                                 ! (Npoints,Ncolumns,Nlevels,Nhydro) [#/kg]
                                                 ! Np = Ntot / rho_a  = [#/m^3] / [kg/m^3) 
                                                 ! added by Roj with Quickbeam V3
-#ifdef GPM_TWO_MOMENT
-    real,dimension(:,:,:,:),pointer :: mr_hydro_gpm ! Mixing ratio of each hydrometeor used for GPM simulator
-                                                    ! (Npoints,Ncolumns,Nlevels,Nhydro) [kg/kg]
-    real,dimension(:,:,:,:),pointer :: Np_gpm
-#endif
   END TYPE COSP_SGHYDRO
   
   ! Input data for simulator. Gridbox scale.
@@ -1114,12 +1123,6 @@ CONTAINS
     y%mr_hydro = 0.0
     y%Reff     = 0.0
     y%Np       = 0.0                    ! added by roj with Quickbeam V3
-#ifdef GPM_TWO_MOMENT
-    allocate(y%mr_hydro_gpm(Npoints,Ncolumns,Nlevels,Nhydro),&
-             y%Np_gpm(Npoints,Ncolumns,Nlevels,Nhydro) )
-    y%mr_hydro_gpm = 0.0
-    y%Np_gpm       = 0.0
-#endif
   END SUBROUTINE CONSTRUCT_COSP_SGHYDRO
 
  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1130,9 +1133,6 @@ CONTAINS
     
     ! --- Deallocate arrays ---
     deallocate(y%mr_hydro, y%Reff, y%Np)        ! added by Roj with Quickbeam V3
-#ifdef GPM_TWO_MOMENT
-    deallocate(y%mr_hydro_gpm, y%Np_gpm)
-#endif    
   END SUBROUTINE FREE_COSP_SGHYDRO
  
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1413,39 +1413,6 @@ CONTAINS
                       .false., &
                       LUT_file_name, &
                       y%hp)
-#ifdef GPM_TWO_MOMENT
-
-#ifdef GPM_KU
-    call radar_simulator_init(gpmku_radar_freq,gpmku_k2, &
-                      gpmku_use_gas_abs,gpmku_do_ray,R_UNDEF, &
-                      y%Nhydro, &
-                      GPM_HCLASS_TYPE,GPM_HCLASS_PHASE, &
-                      GPM_HCLASS_DMIN,GPM_HCLASS_DMAX, &
-                      GPM_HCLASS_APM,GPM_HCLASS_BPM,GPM_HCLASS_RHO, &
-                      GPM_HCLASS_P1,GPM_HCLASS_P2,GPM_HCLASS_P3, &
-                      local_load_LUT,    &
-                      .false., &
-                      LUT_file_name, &
-                      y%hp_gpmku)
-
-#endif
-#ifdef GPM_KA
-    call radar_simulator_init(gpmka_radar_freq,gpmka_k2, &
-                      gpmka_use_gas_abs,gpmka_do_ray,R_UNDEF, &
-                      y%Nhydro, &
-                      GPM_HCLASS_TYPE,GPM_HCLASS_PHASE, &
-                      GPM_HCLASS_DMIN,GPM_HCLASS_DMAX, &
-                      GPM_HCLASS_APM,GPM_HCLASS_BPM,GPM_HCLASS_RHO, &
-                      GPM_HCLASS_P1,GPM_HCLASS_P2,GPM_HCLASS_P3, &
-                      local_load_LUT,    &
-                      .false., &
-                      LUT_file_name, &
-                      y%hp_gpmka)
-
-#endif
-
-#else 
-! else, when GPM_TWO_MOMENT is not defined
 #ifdef GPM_KU
     call radar_simulator_init(gpmku_radar_freq,gpmku_k2, &
                       gpmku_use_gas_abs,gpmku_do_ray,R_UNDEF, &
@@ -1476,7 +1443,6 @@ CONTAINS
 #endif
 
 
-#endif
 
 END SUBROUTINE CONSTRUCT_COSP_GRIDBOX
 
@@ -2107,11 +2073,6 @@ SUBROUTINE COSP_SGHYDRO_PRINT(x)
     print *, x%Nhydro
     
     print *, 'shape(x%mr_hydro): ',shape(x%mr_hydro)
-#ifdef GPM_TWO_MOMENT
-    print *, 'shape(x%mr_hydro_gpm): ',shape(x%mr_hydro_gpm)
-    print *, 'shape(x%Np_gpm): ',shape(x%Np_gpm)         ! added by roj with Quickbeam V3
-#endif
-
     print *, 'shape(x%Reff): ',shape(x%Reff)
     print *, 'shape(x%Np): ',shape(x%Np)         ! added by roj with Quickbeam V3
 END SUBROUTINE COSP_SGHYDRO_PRINT

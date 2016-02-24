@@ -164,7 +164,7 @@ SUBROUTINE COSP_GPMDPR(gbx,sgx,sghydro,idx,z)
             hm_matrix(i,:,:) = sghydro%mr_hydro(:,pr,:,i)*1000.0 ! Units from kg/kg to g/kg
 #ifdef GPM_TWO_MOMENT
             if (i==I_LSCLIQ .OR. i==I_LSCICE .OR. i==I_LSRAIN .OR. i==I_LSSNOW) then
-               hm_matrix(i,:,:) = sghydro%mr_hydro_gpm(:,pr,:,i)*1000.0 ! Units from kg/kg to g/kg
+               hm_matrix(i,:,:) = sghydro%mr_hydro(:,pr,:,i)*1000.0 ! Units from kg/kg to g/kg
                Np_matrix(i,:,:) = sghydro%Np(:,pr,:,i)
             endif
 #endif

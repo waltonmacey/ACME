@@ -589,8 +589,17 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
                                                                      ! Levels are from SURFACE to TOA
   real,dimension(:,:),allocatable :: rho ! (Npoints, Nlevels). Atmospheric density
   type(cosp_sghydro) :: sghydro   ! Subgrid info for hydrometeors en each iteration
+#ifdef GPM_TWO_MOMENT
+  ! In two-moment physics, both mixing ratio and number concentration is
+  ! provided. There is no need to estimate mixing ratio based on precipitation
+  ! fluxes. 
+  !
+  ! The mixing ratio and number concentration of hydrometeors are distributed
+  ! to sub-columns as is done for precipitation fluxes in original prec_scops.
 
-  
+  type(cosp_sghydro) :: sghydro_2mo ! Subgrid info for hydrometeors in each
+                                    ! iteration, if two-moment physics is used
+#endif
   !++++++++++ Dimensions ++++++++++++
   Npoints  = gbx%Npoints
   Ncolumns = gbx%Ncolumns
@@ -683,6 +692,9 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
 
         ! Populate the subgrid arrays
         call construct_cosp_sghydro(Npoints,Ncolumns,Nlevels,Nhydro,sghydro)
+#ifdef GPM_TWO_MOMENT
+        call construct_cosp_sghydro(Npoints,Ncolumns,Nlevels,Nhydro,sghydro_2mo)
+#endif        
         do k=1,Ncolumns
             !--------- Mixing ratios for clouds and Reff for Clouds and precip -------
             column_frac_out => sgx%frac_out(:,k,:)
@@ -699,11 +711,16 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
 ! if two moment microphysics scheme is used for GPM simulation, use mixing ratio
 ! and particle size distribution obtained from microphysics schemes for stratus
 ! clouds (cloud liquid/ice, rain, and snow)
-                sghydro%mr_hydro_gpm(:,k,:,I_LSCLIQ) = gbx%mr_hydro_gpm(:,:,I_LSCLIQ)
-                sghydro%mr_hydro_gpm(:,k,:,I_LSCICE) = gbx%mr_hydro_gpm(:,:,I_LSCICE)
 
-                sghydro%Np_gpm(:,k,:,I_LSCLIQ) = gbx%Np_gpm(:,:,I_LSCLIQ)
-                sghydro%Np_gpm(:,k,:,I_LSCICE) = gbx%Np_gpm(:,:,I_LSCICE)
+! Fixme: The effective radius is set to zero for now.
+                sghydro_2mo%mr_hydro(:,k,:,I_LSCLIQ) = gbx%mr_hydro_gpm(:,:,I_LSCLIQ)
+                sghydro_2mo%mr_hydro(:,k,:,I_LSCICE) = gbx%mr_hydro_gpm(:,:,I_LSCICE)
+
+                sghydro_2mo%Reff(:,k,:,I_LSCLIQ)  = 0
+                sghydro_2mo%Reff(:,k,:,I_LSCICE)  = 0
+
+                sghydro_2mo%Np(:,k,:,I_LSCLIQ) = gbx%Np_gpm(:,:,I_LSCLIQ)
+                sghydro_2mo%Np(:,k,:,I_LSCICE) = gbx%Np_gpm(:,:,I_LSCICE)
 #endif
             elsewhere (column_frac_out == I_CVC) !+++++++++++ CONV clouds ++++++++
                 sghydro%mr_hydro(:,k,:,I_CVCLIQ) = gbx%mr_hydro(:,:,I_CVCLIQ)
@@ -716,11 +733,18 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
                 sghydro%Np(:,k,:,I_CVCICE)     = gbx%Np(:,:,I_CVCICE)
 
 #ifdef GPM_TWO_MOMENT
-! for convective cloud, GPM simulator use the same treatment as is in the
-! original COSP implementations for now.
-                
+! FIXME: for convective cloud, GPM simulator use the same treatment as is in the
+! original COSP implementations for now. However, it still need to be set. In
+! this function, it just take the values from gbx%(??)_gpm and set the values
+! in previous steps.
+                sghydro_2mo%mr_hydro(:,k,:,I_CVCLIQ) = gbx%mr_hydro_gpm(:,:,I_CVCLIQ)
+                sghydro_2mo%mr_hydro(:,k,:,I_CVCICE) = gbx%mr_hydro_gpm(:,:,I_CVCICE)
 
+                sghydro_2mo%Reff(:,k,:,I_CVCLIQ)  = 0
+                sghydro_2mo%Reff(:,k,:,I_CVCICE)  = 0
 
+                sghydro_2mo%Np(:,k,:,I_CVCLIQ) = gbx%Np_gpm(:,:,I_CVCLIQ)
+                sghydro_2mo%Np(:,k,:,I_CVCICE) = gbx%Np_gpm(:,:,I_CVCICE)
 #endif
             end where
             column_prec_out => sgx%prec_frac(:,k,:)
@@ -734,11 +758,18 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
                 sghydro%Np(:,k,:,I_LSSNOW)     = gbx%Np(:,:,I_LSSNOW)
                 sghydro%Np(:,k,:,I_LSGRPL)     = gbx%Np(:,:,I_LSGRPL)
 #ifdef GPM_TWO_MOMENT
-                sghydro%mr_hydro_gpm(:,k,:,I_LSRAIN) = gbx%mr_hydro_gpm(:,:,I_LSRAIN)
-                sghydro%mr_hydro_gpm(:,k,:,I_LSSNOW) = gbx%mr_hydro_gpm(:,:,I_LSSNOW)
+! LS rain/snow/graupel
+                sghydro_2mo%mr_hydro(:,k,:,I_LSRAIN) = gbx%mr_hydro_gpm(:,:,I_LSRAIN)
+                sghydro_2mo%mr_hydro(:,k,:,I_LSSNOW) = gbx%mr_hydro_gpm(:,:,I_LSSNOW)
+                sghydro_2mo%mr_hydro(:,k,:,I_LSGRPL) = gbx%mr_hydro_gpm(:,:,I_LSGRPL)
 
-                sghydro%Np_gpm(:,k,:,I_LSRAIN) = gbx%Np_gpm(:,:,I_LSRAIN)
-                sghydro%Np_gpm(:,k,:,I_LSSNOW) = gbx%Np_gpm(:,:,I_LSSNOW)
+                sghydro_2mo%mr_hydro(:,k,:,I_LSRAIN) = 0
+                sghydro_2mo%mr_hydro(:,k,:,I_LSSNOW) = 0
+                sghydro_2mo%mr_hydro(:,k,:,I_LSGRPL) = 0
+
+                sghydro_2mo%Np(:,k,:,I_LSRAIN) = gbx%Np_gpm(:,:,I_LSRAIN)
+                sghydro_2mo%Np(:,k,:,I_LSSNOW) = gbx%Np_gpm(:,:,I_LSSNOW)
+                sghydro_2mo%Np(:,k,:,I_LSGRPL) = gbx%Np_gpm(:,:,I_LSGRPL)
 #endif
             elsewhere ((column_prec_out == 2) .or. (column_prec_out == 3)) !++++ CONV precip ++++
                 sghydro%Reff(:,k,:,I_CVRAIN) = gbx%Reff(:,:,I_CVRAIN)
@@ -746,6 +777,16 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
 
                 sghydro%Np(:,k,:,I_CVRAIN)     = gbx%Np(:,:,I_CVRAIN)
                 sghydro%Np(:,k,:,I_CVSNOW)     = gbx%Np(:,:,I_CVSNOW)
+#ifdef GPM_TWO_MOMENT
+                sghydro_2mo%mr_hydro(:,k,:,I_CVRAIN) = gbx%mr_hydro_gpm(:,:,I_CVRAIN)
+                sghydro_2mo%mr_hydro(:,k,:,I_CVSNOW) = gbx%mr_hydro_gpm(:,:,I_CVSNOW)
+
+                sghydro_2mo%mr_hydro(:,k,:,I_CVRAIN) = 0
+                sghydro_2mo%mr_hydro(:,k,:,I_CVSNOW) = 0
+
+                sghydro_2mo%Np(:,k,:,I_CVRAIN) = gbx%Np_gpm(:,:,I_CVRAIN)
+                sghydro_2mo%Np(:,k,:,I_CVSNOW) = gbx%Np_gpm(:,:,I_CVSNOW)
+#endif
             end where
             !--------- Precip -------
             if (.not. gbx%use_precipitation_fluxes) then
@@ -768,18 +809,25 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
                     sghydro%mr_hydro(j,:,k,I_LSCLIQ) = sghydro%mr_hydro(j,:,k,I_LSCLIQ)/frac_ls(j,k)
                     sghydro%mr_hydro(j,:,k,I_LSCICE) = sghydro%mr_hydro(j,:,k,I_LSCICE)/frac_ls(j,k)
 #ifdef GPM_TWO_MOMENT
-                    sghydro%mr_hydro_gpm(j,:,k,I_LSCLIQ) = sghydro%mr_hydro_gpm(j,:,k,I_LSCLIQ)/frac_ls(j,k)
-                    sghydro%mr_hydro_gpm(j,:,k,I_LSCICE) = sghydro%mr_hydro_gpm(j,:,k,I_LSCICE)/frac_ls(j,k)
-
-! I think the number concentration should also be converted to the
+!FIXME:  I think the number concentration should also be converted to the
 ! fraction-based values
-                    sghydro%Np_gpm(j,:,k,I_LSCLIQ) = sghydro%Np_gpm(j,:,k,I_LSCLIQ)/frac_ls(j,k)
-                    sghydro%Np_gpm(j,:,k,I_LSCICE) = sghydro%Np_gpm(j,:,k,I_LSCICE)/frac_ls(j,k)
+                    sghydro_2mo%mr_hydro(j,:,k,I_LSCLIQ) = sghydro_2mo%mr_hydro(j,:,k,I_LSCLIQ)/frac_ls(j,k)
+                    sghydro_2mo%mr_hydro(j,:,k,I_LSCICE) = sghydro_2mo%mr_hydro(j,:,k,I_LSCICE)/frac_ls(j,k)
+
+                    sghydro_2mo%Np(j,:,k,I_LSCLIQ) = sghydro_2mo%Np(j,:,k,I_LSCLIQ)/frac_ls(j,k)
+                    sghydro_2mo%Np(j,:,k,I_LSCICE) = sghydro_2mo%Np(j,:,k,I_LSCICE)/frac_ls(j,k)
 #endif
                 endif
                 if (frac_cv(j,k) .ne. 0.) then
                     sghydro%mr_hydro(j,:,k,I_CVCLIQ) = sghydro%mr_hydro(j,:,k,I_CVCLIQ)/frac_cv(j,k)
                     sghydro%mr_hydro(j,:,k,I_CVCICE) = sghydro%mr_hydro(j,:,k,I_CVCICE)/frac_cv(j,k)
+#ifdef GPM_TWO_MOMENT
+                    sghydro_2mo%mr_hydro(j,:,k,I_CVCLIQ) = sghydro_2mo%mr_hydro(j,:,k,I_CVCLIQ)/frac_ls(j,k)
+                    sghydro_2mo%mr_hydro(j,:,k,I_CVCICE) = sghydro_2mo%mr_hydro(j,:,k,I_CVCICE)/frac_ls(j,k)
+
+                    sghydro_2mo%Np(j,:,k,I_CVCLIQ) = sghydro_2mo%Np(j,:,k,I_CVCLIQ)/frac_ls(j,k)
+                    sghydro_2mo%Np(j,:,k,I_CVCICE) = sghydro_2mo%Np(j,:,k,I_CVCICE)/frac_ls(j,k)
+#endif
                 endif
                 !--------- Precip -------
                 if (gbx%use_precipitation_fluxes) then
@@ -805,23 +853,25 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
                 endif 
 #ifdef GPM_TWO_MOMENT
                     if (prec_ls(j,k) .ne. 0.) then
-                        sghydro%mr_hydro_gpm(j,:,k,I_LSRAIN) = sghydro%mr_hydro_gpm(j,:,k,I_LSRAIN)/prec_ls(j,k)
-                        sghydro%mr_hydro_gpm(j,:,k,I_LSSNOW) = sghydro%mr_hydro_gpm(j,:,k,I_LSSNOW)/prec_ls(j,k)
+                        sghydro_2mo%mr_hydro(j,:,k,I_LSRAIN) = sghydro_2mo%mr_hydro(j,:,k,I_LSRAIN)/prec_ls(j,k)
+                        sghydro_2mo%mr_hydro(j,:,k,I_LSSNOW) = sghydro_2mo%mr_hydro(j,:,k,I_LSSNOW)/prec_ls(j,k)
+                        sghydro_2mo%mr_hydro(j,:,k,I_LSGRPL) = sghydro_2mo%mr_hydro(j,:,k,I_LSGRPL)/prec_ls(j,k)
 
-                        sghydro%Np_gpm(j,:,k,I_LSRAIN) = sghydro%Np_gpm(j,:,k,I_LSRAIN)/prec_ls(j,k)
-                        sghydro%Np_gpm(j,:,k,I_LSSNOW) = sghydro%Np_gpm(j,:,k,I_LSSNOW)/prec_ls(j,k)
+                        sghydro_2mo%Np(j,:,k,I_LSRAIN) = sghydro_2mo%Np(j,:,k,I_LSRAIN)/prec_ls(j,k)
+                        sghydro_2mo%Np(j,:,k,I_LSSNOW) = sghydro_2mo%Np(j,:,k,I_LSSNOW)/prec_ls(j,k)
+                        sghydro_2mo%Np(j,:,k,I_LSGRPL) = sghydro_2mo%Np(j,:,k,I_LSGRPL)/prec_ls(j,k)
                     endif
+                    if (prec_cv(j,k) .ne. 0.) then
+                        sghydro_2mo%mr_hydro(j,:,k,I_CVRAIN) = sghydro_2mo%mr_hydro(j,:,k,I_CVRAIN)/prec_ls(j,k)
+                        sghydro_2mo%mr_hydro(j,:,k,I_CVSNOW) = sghydro_2mo%mr_hydro(j,:,k,I_CVSNOW)/prec_ls(j,k)
 
-
+                        sghydro_2mo%Np(j,:,k,I_CVRAIN) = sghydro_2mo%Np(j,:,k,I_CVRAIN)/prec_ls(j,k)
+                        sghydro_2mo%Np(j,:,k,I_CVSNOW) = sghydro_2mo%Np(j,:,k,I_CVSNOW)/prec_ls(j,k)
+                    end if
 #endif
             enddo !k
         enddo !j
         deallocate(frac_ls,prec_ls,frac_cv,prec_cv)
-#ifdef GPM_TWO_MOMENT
-      !  print *, 'Yes, GPM_DUMMY is set'
-!        sghydro%Np(:,:,:,I_LSCLIQ) = 1
-!        sghydro%Np(:,:,:,I_CVCLIQ) = 1
-#endif
         
         if (gbx%use_precipitation_fluxes) then
         
@@ -908,6 +958,9 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
 
     ! Deallocate subgrid arrays
     call free_cosp_sghydro(sghydro)
+#ifdef GPM_TWO_MOMENT
+    call free_cosp_sghydro(sghydro_2mo)
+#endif
 END SUBROUTINE COSP_ITER
 
 END MODULE MOD_COSP
