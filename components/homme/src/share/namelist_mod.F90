@@ -105,7 +105,7 @@ module namelist_mod
 #endif
 
   !-----------------
-  use thread_mod, only : nthreads, nthreads_accel, omp_set_num_threads, omp_get_max_threads, vert_num_threads
+  use thread_mod, only : nthreads, nthreads_accel, omp_set_num_threads, omp_get_max_threads, vert_num_threads, hthreads, vthreads
   !-----------------
   use dimensions_mod, only : ne, np, npdg, nnodes, nmpi_per_node, npart, ntrac, ntrac_d, qsize, qsize_d, set_mesh_dimensions
   !-----------------
@@ -411,6 +411,8 @@ module namelist_mod
     se_nsplit = 1
     qsize = qsize_d
     nthreads = 1
+    hthreads = 1
+    vthreads = 1
 #else
     ndays         = 0
     nmax          = 12
@@ -771,6 +773,8 @@ module namelist_mod
     limiter_option  = se_limiter_option
     nsplit = se_nsplit
     call MPI_bcast(nthreads  ,1,MPIinteger_t,par%root,par%comm,ierr)
+    call MPI_bcast(hthreads  ,1,MPIinteger_t,par%root,par%comm,ierr)
+    call MPI_bcast(vthreads  ,1,MPIinteger_t,par%root,par%comm,ierr)
 #else
     call MPI_bcast(omega     ,1,MPIreal_t   ,par%root,par%comm,ierr)
     call MPI_bcast(pertlim   ,1,MPIreal_t   ,par%root,par%comm,ierr)
@@ -1144,6 +1148,8 @@ module namelist_mod
        write(iulog,*)"readnl: partmethod    = ",PARTMETHOD
        write(iulog,*)'readnl: nmpi_per_node = ',nmpi_per_node
        write(iulog,*)"readnl: nthreads      = ",nthreads
+       write(iulog,*)"readnl: hthreads      = ",hthreads
+       write(iulog,*)"readnl: vthreads      = ",vthreads
        write(iulog,*)'readnl: multilevel    = ',multilevel
        write(iulog,*)'readnl: useframes     = ',useframes
        write(iulog,*)'readnl: nnodes        = ',nnodes
