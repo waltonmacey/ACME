@@ -6,7 +6,7 @@ Module dyn_comp
   use time_mod, only : TimeLevel_t, se_nsplit=>nsplit
   use hybvcoord_mod, only : hvcoord_t
   use hybrid_mod, only : hybrid_t
-  use thread_mod, only: nthreads, omp_get_max_threads, omp_get_thread_num
+  use thread_mod, only: nthreads, hthreads, vthreads, omp_get_max_threads, omp_get_thread_num
   use perf_mod, only: t_startf, t_stopf
   use cam_logfile, only : iulog
   use time_manager, only: is_first_step
@@ -94,7 +94,7 @@ CONTAINS
 
     use dimensions_mod,   only: globaluniquecols, nelem, nelemd, nelemdmax
     use prim_driver_mod,  only: prim_init1
-    use parallel_mod,     only: par, initmp
+    use parallel_mod,     only: par, initmp, haltmp
     use namelist_mod,     only: readnl
     use control_mod,      only: runtype, qsplit, rsplit
     use time_mod,         only: tstep
@@ -145,6 +145,7 @@ CONTAINS
     fullgrid=.true.
 
 #ifdef _OPENMP    
+!   Maximum number of threads is set by driver
     avail_threads = omp_get_max_threads()
     if(par%masterproc) then
        write(iulog,*) " "
@@ -158,13 +159,13 @@ CONTAINS
        write(iulog,*) "dyn_init1: hthreads=",hthreads,"vthreads=",vthreads
        write(iulog,*) " "
     endif
+    if (hthreads * vthreads /= nthreads) then
+       call haltmp("Namelist vars hthreads/vthreads are incorrect: hthreads*vthreads must equal NTHRDS_ATM")
+    endif
     call omp_set_nested(.true.)
-#ifndef __bg__
-   if (.not. omp_get_nested()) then
-     call haltmp("Nested threading required but not available. Set OMP_NESTED=true")
-   endif
 #endif
-#endif
+    ! horizontal threading only
+    hthreads = nthreads
 #else
     nthreads = 1
     if(par%masterproc) then
