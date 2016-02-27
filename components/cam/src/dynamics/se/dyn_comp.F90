@@ -163,9 +163,10 @@ CONTAINS
        call haltmp("Namelist vars hthreads/vthreads are incorrect: hthreads*vthreads must equal NTHRDS_ATM")
     endif
     call omp_set_nested(.true.)
-#endif
+#else
     ! horizontal threading only
     hthreads = nthreads
+#endif
 #else
     nthreads = 1
     if(par%masterproc) then
