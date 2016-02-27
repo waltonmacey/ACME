@@ -34,7 +34,7 @@ module CNEcosystemDynBetrMod
   use EnergyFluxType            , only : energyflux_type
   use SoilHydrologyType         , only : soilhydrology_type
   use FrictionVelocityType      , only : frictionvel_type
-  use PlantSoilnutrientFluxType , only : plantsoilnutrientflux_type
+  use PlantSoilBGCMod           , only : plant_soilbgc_type
   use tracerfluxType            , only : tracerflux_type
   use tracerstatetype           , only : tracerstate_type
   use BetrTracerType            , only : betrtracer_type
@@ -116,14 +116,14 @@ module CNEcosystemDynBetrMod
     use CropType                  , only: crop_type
     use dynHarvestMod             , only: CNHarvest
     use clm_varpar                , only: crop_prog
-    use PlantSoilnutrientFluxType , only : plantsoilnutrientflux_type
+    use PlantSoilBGCMod           , only : plant_soilbgc_type
     use CNVerticalProfileMod      , only : decomp_vertprofiles
     use CNNStateUpdate3Mod        , only : NStateUpdate3
     use EcophysConType            , only : ecophyscon_type
     use PDynamicsMod              , only: PDeposition, PWeathering
     use PStateUpdate1Mod       , only: PStateUpdate1
     use PStateUpdate2Mod       , only: PStateUpdate2
-    use PStateUpdate3Mod       , only: PStateUpdate3            
+    use PStateUpdate3Mod       , only: PStateUpdate3
     implicit none
     !
     ! !ARGUMENTS:
@@ -155,7 +155,7 @@ module CNEcosystemDynBetrMod
     type(photosyns_type)             , intent(in)    :: photosyns_vars
     type(soilhydrology_type)         , intent(in)    :: soilhydrology_vars
     type(energyflux_type)            , intent(in)    :: energyflux_vars
-    type(plantsoilnutrientflux_type) , intent(inout) :: plantsoilnutrientflux_vars
+    type(plant_soilbgc_type)         , intent(inout) :: plant_soilbgc
     type(phosphorusflux_type)        , intent(inout) :: phosphorusflux_vars
     type(phosphorusstate_type)       , intent(inout) :: phosphorusstate_vars
     type(ecophyscon_type)            , intent(in)    :: ecophyscon_vars
@@ -272,8 +272,16 @@ module CNEcosystemDynBetrMod
          carbonflux_vars)
 
     call carbonflux_vars%summary_rr(bounds,num_soilp, filter_soilp, num_soilc, filter_soilc)
-    call t_stopf('CNGResp')
 
+    if( use_c13 )then
+      call c13_carbonflux_vars%summary_rr(bounds,num_soilp, filter_soilp, num_soilc, filter_soilc)
+    endif
+
+    if( use_c14 )then
+      call c14_carbonflux_vars%summary_rr(bounds,num_soilp, filter_soilp, num_soilc, filter_soilc)
+    endif
+
+    call t_stopf('CNGResp')
 
     !--------------------------------------------
     ! CNUpdate0
@@ -530,7 +538,7 @@ module CNEcosystemDynBetrMod
     use CropType                  , only: crop_type
     use dynHarvestMod             , only: CNHarvest
     use clm_varpar                , only: crop_prog
-    use PlantSoilnutrientFluxType , only: plantsoilnutrientflux_type
+    use PlantSoilBGCMod           , only: plant_soilbgc_type
     use CNPrecisionControlMod     , only: CNPrecisionControl
     implicit none
     !
@@ -563,7 +571,7 @@ module CNEcosystemDynBetrMod
     type(photosyns_type)             , intent(in)    :: photosyns_vars
     type(soilhydrology_type)         , intent(in)    :: soilhydrology_vars
     type(energyflux_type)            , intent(in)    :: energyflux_vars
-    type(plantsoilnutrientflux_type) , intent(in)    :: plantsoilnutrientflux_vars
+    type(plant_soilbgc_type)         , intent(in)    :: plantsoilnutrientflux_vars
     type(phosphorusstate_type)       , intent(inout) :: phosphorusstate_vars
 
 
@@ -633,7 +641,7 @@ module CNEcosystemDynBetrMod
     !
     ! DESCRIPTION
     ! calculate gpp downregulation factor
-    use PlantSoilnutrientFluxType, only : plantsoilnutrientflux_type
+    use PlantSoilBGCMod          , only : plant_soilbgc_type
     use clm_time_manager         , only : get_step_size
     implicit none
     type(bounds_type)        , intent(in)    :: bounds
