@@ -2421,6 +2421,18 @@ Coefficient for downdraft entrainment (m^2/K kg)
 Default: set by build-namelist
 </entry>
 
+<entry id="csconv_wcbmax" type="real" category="conv"
+       group="csconv_nl" valid_values="" >
+Maximum value of updraft velocity at cloud base (m/s)
+Default: set by build-namelist
+</entry>
+
+<entry id="csconv_tauz" type="real" category="conv"
+       group="csconv_nl" valid_values="" >
+E-folding height to drag updraft velocity (m)
+Default: set by build-namelist
+</entry>
+
 <!-- Cloud sedimentation -->
 
 <entry id="cldsed_ice_stokes_fac" type="real" category="cldsed"

@@ -1127,6 +1127,8 @@
 <csconv_alp0                                                          > 8.0D7 </csconv_alp0>
 <csconv_taud                                                          > 1.0D3 </csconv_taud>
 <csconv_rddr                                                          > 5.0D-4 </csconv_rddr>
+<csconv_wcbmax                                                        > 1.4D0 </csconv_wcbmax>
+<csconv_tauz                                                          > 1.0D4 </csconv_tauz>
 
 <!-- Cloud sedimentation -->
 
