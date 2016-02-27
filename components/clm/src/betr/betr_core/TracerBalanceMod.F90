@@ -12,6 +12,7 @@ module TracerBalanceMod
   use ColumnType         , only : col
   use clm_time_manager   , only : get_nstep
   use clm_varctl         , only : iulog
+  use betr_instMod       , only : betrtracer_vars, tracerstate_vars, tracerflux_vars
 implicit none
   save
   private
@@ -25,16 +26,14 @@ implicit none
 
 
     !--------------------------------------------------------------------------------
-    subroutine begin_betr_tracer_massbalance(bounds, lbj, ubj, numf, filter, &
-         betrtracer_vars, tracerstate_vars, tracerflux_vars)
+    subroutine begin_betr_tracer_massbalance(bounds, lbj, ubj, numf, filter )
       !
       ! !DESCRIPTION:
       ! Preparing for tracer mass balance check
       !
       ! !USES:
-      use tracerstatetype       , only : tracerstate_type
       use clm_varpar            , only : nlevtrc_soil
-      use tracerfluxType        , only : tracerflux_type
+
 
       implicit none
       ! !ARGUMENTS:
@@ -42,9 +41,7 @@ implicit none
       integer,                intent(in)    :: lbj, ubj
       integer,                intent(in)    :: numf                        ! number of columns in column filter
       integer,                intent(in)    :: filter(:)                   ! column filter
-      type(betrtracer_type),  intent(in)    :: betrtracer_vars             ! betr configuration information
-      type(tracerstate_type), intent(inout) :: tracerstate_vars            ! tracer state variables data structure
-      type(tracerflux_type) , intent(inout) :: tracerflux_vars
+
 
       ! !LOCAL VARIABLES:
       character(len=256) :: subname='begin_betr_tracer_massbalance'
@@ -58,7 +55,7 @@ implicit none
     end subroutine begin_betr_tracer_massbalance
 
     !--------------------------------------------------------------------------------
-    subroutine betr_tracer_massbalance_check(bounds, lbj, ubj, numf, filter, betrtracer_vars, tracerstate_vars,  tracerflux_vars)
+    subroutine betr_tracer_massbalance_check(bounds, lbj, ubj, numf, filter)
       !
       ! !DESCRIPTION:
       ! do mass balance check for betr tracers
@@ -70,8 +67,7 @@ implicit none
       ! mass budget, and by assuming equilibrium partitioning, the chemical source/sink for ice is not tracked explicitly.
       !
       ! !USES:
-      use tracerfluxType        , only : tracerflux_type
-      use tracerstatetype       , only : tracerstate_type
+
       use abortutils            , only : endrun
       use clm_varctl            , only : iulog
       use clm_time_manager      , only : get_step_size,get_nstep
@@ -83,9 +79,7 @@ implicit none
       integer,                intent(in)    :: lbj, ubj
       integer,                intent(in)    :: numf             ! number of columns in column filter
       integer,                intent(in)    :: filter(:)        ! column filter
-      type(betrtracer_type),  intent(in)    :: betrtracer_vars  ! betr configuration information
-      type(tracerflux_type),  intent(inout) :: tracerflux_vars
-      type(tracerstate_type), intent(inout) :: tracerstate_vars ! tracer state variables data structure
+
       ! !LOCAL VARIABLES:
       integer  :: jj, fc, c, kk
       real(r8) :: dtime
@@ -167,7 +161,7 @@ implicit none
       ! !USES:
       use tracerstatetype       , only : tracerstate_type
       use clm_varpar            , only : nlevtrc_soil
-      use MathfuncMod           , only : dot_sum
+
 
       implicit none
       ! !ARGUMENTS:
@@ -176,7 +170,7 @@ implicit none
       integer,                intent(in)    :: numf                        ! number of columns in column filter
       integer,                intent(in)    :: filter(:)                   ! column filter
       type(betrtracer_type) , intent(in)    :: betrtracer_vars             ! betr configuration information
-      type(tracerstate_type), intent(inout) :: tracerstate_vars            ! tracer state variables data structure
+      class(tracerstate_type), intent(inout) :: tracerstate_vars            ! tracer state variables data structure
       real(r8)              , intent(inout) :: tracer_molarmass_col(bounds%begc:bounds%endc, 1:betrtracer_vars%ntracers)
       ! !LOCAL VARIABLES:
       integer :: jj, fc, c, kk
@@ -200,16 +194,16 @@ implicit none
            do fc = 1, numf
               c = filter(fc)
 
-              tracer_molarmass_col(c,jj) = dot_sum(tracer_conc_mobile(c,1:nlevtrc_soil,jj), dz(c,1:nlevtrc_soil))
+              tracer_molarmass_col(c,jj) = tracerstate_vars%int_mass_mobile_col(1,nlevtrc_soil,c,jj,dz(c,1:nlevtrc_soil))
 
               if(is_adsorb(jj))then
                  tracer_molarmass_col(c,jj) = tracer_molarmass_col(c,jj) + &
-                      dot_sum(tracer_conc_solid_equil(c,1:nlevtrc_soil,adsorbid(jj)),dz(c,1:nlevtrc_soil))
+                      tracerstate_vars%int_mass_adsorb_col(1,nlevtrc_soil,c,adsorbid(jj),dz(c,1:nlevtrc_soil))
               endif
               if(is_frozen(jj))then
                  tracer_molarmass_col(c,jj) = tracer_molarmass_col(c,jj) + &
-                      dot_sum(tracer_conc_frozen(c,1:nlevtrc_soil,frozenid(jj)),dz(c,1:nlevtrc_soil))
-              endif             
+                      tracerstate_vars%int_mass_frozen_col(1,nlevtrc_soil,c,frozenid(jj),dz(c,1:nlevtrc_soil))
+              endif
            enddo
         enddo
 
@@ -217,7 +211,7 @@ implicit none
            kk = jj + ngwmobile_tracers
            do fc = 1, numf
               c = filter(fc)
-              tracer_molarmass_col(c,kk) = dot_sum(tracer_conc_solid_passive(c,1:nlevtrc_soil,jj), dz(c,1:nlevtrc_soil))
+              tracer_molarmass_col(c,kk) = tracerstate_vars%int_mass_solid_col(1,nlevtrc_soil,c,jj, dz(c,1:nlevtrc_soil))
            enddo
         enddo
       end associate

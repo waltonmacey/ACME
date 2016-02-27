@@ -52,6 +52,7 @@ module BeTRTracerType
    integer :: id_trc_doc                                         ! tag for generic dissolved organic carbon, used for testing single carbon pool model
    integer :: id_trc_p_sol                                       ! tag for soluble inorganic P, this includes P in equilibrium adsorption
 
+   integer :: id_trc_blk_h2o                                     ! tag for bulk water, including all water and its isotopologues. 
    integer :: id_trc_o18_h2o                                     ! tag for H2O(18)
    integer :: id_trc_o17_h2o                                     ! tag for H2O(17)
    integer :: id_trc_o18_h2o_ice                                 ! tag for H2O(18) in ice
@@ -92,6 +93,7 @@ module BeTRTracerType
    integer, pointer :: solid_passive_tracer_groupid(:,:)
    integer, pointer :: tracer_group_memid(:,:)                   !grp, gmem
    character(len=36),pointer :: tracernames(:)                   !array with tracer names
+   character(len=36),pointer :: units(:)
    real(r8),pointer :: gram_mole_wt(:)                           !molecular weight of the master species, [g/mol]
    real(r8),pointer :: vtrans_scal(:)                            !scaling factor for plant tracer uptake through transpiration, for non-water neutral aqueous tracers
 
@@ -100,6 +102,7 @@ module BeTRTracerType
      procedure, public  :: init_scalars
      procedure, public  :: set_tracer
      procedure, private :: InitAllocate
+     procedure, public  :: is_solidtransport
   end type BeTRtracer_type
 
 
@@ -187,7 +190,7 @@ module BeTRTracerType
   allocate(this%is_volatile        (this%ngwmobile_tracers));    this%is_volatile(:)     = .false.
   allocate(this%is_adsorb          (this%ngwmobile_tracers));    this%is_adsorb(:)       = .false.
   allocate(this%is_advective       (this%ntracers));             this%is_advective(:)    = .false.
-  allocate(this%is_diffusive       (this%ntracers));             this%is_diffusive(:)    = .false.
+  allocate(this%is_diffusive       (this%ntracers));             this%is_diffusive(:)    = .true.
   allocate(this%is_mobile          (this%ntracers));             this%is_mobile(:)       = .false.
   allocate(this%is_h2o             (this%ngwmobile_tracers));    this%is_h2o(:)          = .false.
   allocate(this%is_co2tag          (this%ngwmobile_tracers));    this%is_co2tag(:)       = .false.
@@ -201,8 +204,8 @@ module BeTRTracerType
   allocate(this%volatilegroupid    (this%ngwmobile_tracers));    this%volatilegroupid(:) = nanid
   allocate(this%h2oid              (this%nh2o_tracers));         this%h2oid(:)           = nanid
   allocate(this%frozenid           (this%ngwmobile_tracers));    this%frozenid(:)        = nanid
-  allocate(this%id_trc_h2o_tags    (this%nh2o_tracers));         this%id_trc_h2o_tags(:) = nanid
   allocate(this%tracernames        (this%ntracers));             this%tracernames(:)     = ''
+  allocate(this%units              (this%ntracers));             this%units(:)           = 'mol m-3'
   allocate(this%vtrans_scal        (this%ngwmobile_tracers));    this%vtrans_scal(:)     = 0._r8   !no transport through xylem transpiration
 
   allocate(this%tracer_solid_passive_diffus_scal_group(this%nsolid_passive_tracer_groups));
@@ -259,7 +262,9 @@ subroutine set_tracer(this, trc_id, trc_name, is_trc_mobile, is_trc_advective, t
   this%tracer_group_memid(trc_group_id,trc_group_mem) = trc_id
   this%is_advective     (trc_id)    = is_trc_advective
 
-  if(present(is_trc_diffusive)) this%is_diffusive (trc_id) = is_trc_diffusive
+  if(present(is_trc_diffusive)) then
+    this%is_diffusive (trc_id) = is_trc_diffusive
+  endif
   if(present(is_trc_volatile))then
     this%is_volatile      (trc_id)    = is_trc_volatile
     if(this%is_volatile   (trc_id)) then
@@ -317,5 +322,16 @@ end subroutine set_tracer
 
 
 
+!--------------------------------------------------------------------------------
+function is_solidtransport(this)result(yesno)
+
+! !ARGUMENTS:
+class(BeTRtracer_type) :: this
+
+logical :: yesno
+
+yesno = (this%nsolid_passive_tracer_groups > 0)
+
+end function is_solidtransport
 
 end module BeTRTracerType
