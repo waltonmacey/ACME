@@ -5,7 +5,7 @@ module CNEcosystemDynBetrMod
   ! betr based aboveground belowground coupling
   !
   ! Created by Jinyun Tang
-  ! Now it is only for generic carbon coupling no isotope is attempted below, but will
+  ! Now it is only for generic carbon coupling, no isotope is attempted below, but will
   ! be enabled gradually.
   use shr_kind_mod              , only : r8 => shr_kind_r8
   use shr_sys_mod               , only : shr_sys_flush
@@ -30,14 +30,9 @@ module CNEcosystemDynBetrMod
   use CanopyStateType           , only : canopystate_type
   use TemperatureType           , only : temperature_type
   use PhotosynthesisType        , only : photosyns_type
-  use ch4Mod                    , only : ch4_type
   use EnergyFluxType            , only : energyflux_type
   use SoilHydrologyType         , only : soilhydrology_type
   use FrictionVelocityType      , only : frictionvel_type
-  use PlantSoilBGCMod           , only : plant_soilbgc_type
-  use tracerfluxType            , only : tracerflux_type
-  use tracerstatetype           , only : tracerstate_type
-  use BetrTracerType            , only : betrtracer_type
   use PhosphorusFluxType        , only : phosphorusflux_type
   use PhosphorusStateType       , only : phosphorusstate_type
 
@@ -88,7 +83,6 @@ module CNEcosystemDynBetrMod
        atm2lnd_vars, waterstate_vars, waterflux_vars,                  &
        canopystate_vars, soilstate_vars, temperature_vars, crop_vars,  &
        dgvs_vars, photosyns_vars, soilhydrology_vars, energyflux_vars, &
-       plantsoilnutrientflux_vars,                                     &
        phosphorusflux_vars, phosphorusstate_vars, ecophyscon_vars)
 
     !
@@ -116,14 +110,14 @@ module CNEcosystemDynBetrMod
     use CropType                  , only: crop_type
     use dynHarvestMod             , only: CNHarvest
     use clm_varpar                , only: crop_prog
-    use PlantSoilBGCMod           , only : plant_soilbgc_type
     use CNVerticalProfileMod      , only : decomp_vertprofiles
     use CNNStateUpdate3Mod        , only : NStateUpdate3
     use EcophysConType            , only : ecophyscon_type
     use PDynamicsMod              , only: PDeposition, PWeathering
-    use PStateUpdate1Mod       , only: PStateUpdate1
-    use PStateUpdate2Mod       , only: PStateUpdate2
-    use PStateUpdate3Mod       , only: PStateUpdate3
+    use PStateUpdate1Mod          , only: PStateUpdate1
+    use PStateUpdate2Mod          , only: PStateUpdate2
+    use PStateUpdate3Mod          , only: PStateUpdate3
+    use betr_alm_cpl              , only : betr_alm_plant_soil_bgc_send
     implicit none
     !
     ! !ARGUMENTS:
@@ -155,10 +149,10 @@ module CNEcosystemDynBetrMod
     type(photosyns_type)             , intent(in)    :: photosyns_vars
     type(soilhydrology_type)         , intent(in)    :: soilhydrology_vars
     type(energyflux_type)            , intent(in)    :: energyflux_vars
-    type(plant_soilbgc_type)         , intent(inout) :: plant_soilbgc
     type(phosphorusflux_type)        , intent(inout) :: phosphorusflux_vars
     type(phosphorusstate_type)       , intent(inout) :: phosphorusstate_vars
     type(ecophyscon_type)            , intent(in)    :: ecophyscon_vars
+
     ! --------------------------------------------------
     ! zero the column-level C and N fluxes
     ! --------------------------------------------------
@@ -228,17 +222,20 @@ module CNEcosystemDynBetrMod
     call t_stopf('PDeposition')
 
     !calculate vertical profiles to destribute various variables, this could also pet put outside this block of codes
+    !this is now used majorly for distributing below ground exudates
     call decomp_vertprofiles(bounds,  num_soilc, filter_soilc, num_soilp, filter_soilp,  &
          soilstate_vars, canopystate_vars, cnstate_vars)
 
+!   the following will be removed, because betr will use active nutrient uptake and
+!   flexible stoichiometry update
 !    call calc_plant_nutrient_demand(bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, &
 !         photosyns_vars, crop_vars, canopystate_vars,                                         &
 !         cnstate_vars, carbonstate_vars, carbonflux_vars,                                     &
 !         c13_carbonflux_vars, c14_carbonflux_vars,                                            &
-!         nitrogenstate_vars,  nitrogenflux_vars, plantsoilnutrientflux_vars )
+!         nitrogenstate_vars,  nitrogenflux_vars, plant_soilbgc )
 
 !    call calc_fpg(bounds, num_soilc, filter_soilc,                                      &
-!         plantsoilnutrientflux_vars%plant_totn_demand_flx_col(bounds%begc:bounds%endc), &
+!         plant_soilbgc%plant_totn_demand_flx_col(bounds%begc:bounds%endc), &
 !         nitrogenstate_vars%plant_nbuffer_col(bounds%begc:bounds%endc),                 &
 !         cnstate_vars%fpg_col(bounds%begc:bounds%endc))
 
@@ -270,7 +267,10 @@ module CNEcosystemDynBetrMod
     call t_startf('CNGResp')
     call CNGResp(num_soilp, filter_soilp, &
          carbonflux_vars)
+    call t_stopf('CNGResp')
 
+    call t_startf('summary_rr')
+    !root autotrophic respiation
     call carbonflux_vars%summary_rr(bounds,num_soilp, filter_soilp, num_soilc, filter_soilc)
 
     if( use_c13 )then
@@ -280,8 +280,7 @@ module CNEcosystemDynBetrMod
     if( use_c14 )then
       call c14_carbonflux_vars%summary_rr(bounds,num_soilp, filter_soilp, num_soilc, filter_soilc)
     endif
-
-    call t_stopf('CNGResp')
+    call t_stopf('summary_rr')
 
     !--------------------------------------------
     ! CNUpdate0
@@ -496,9 +495,9 @@ module CNEcosystemDynBetrMod
          cnstate_vars,phosphorusflux_vars, phosphorusstate_vars)
     call t_stopf('PUpdate3')
 
-    call plantsoilnutrientflux_vars%init_plant_soil_feedback(bounds, num_soilc, &
-             filter_soilc,  carbonstate_vars%frootc_patch, cnstate_vars, &
-             soilstate_vars,  waterflux_vars, ecophyscon_vars)
+    !here calculate setup input profiles
+    call betr_alm_plant_soil_bgc_send(bounds, num_soilc, &
+             filter_soilc)
 
   end subroutine CNEcosystemDynBetrVeg
 
@@ -514,7 +513,7 @@ module CNEcosystemDynBetrMod
        atm2lnd_vars, waterstate_vars, waterflux_vars,                  &
        canopystate_vars, soilstate_vars, temperature_vars, crop_vars,  &
        dgvs_vars, photosyns_vars, soilhydrology_vars, energyflux_vars, &
-       plantsoilnutrientflux_vars, phosphorusstate_vars)
+       phosphorusstate_vars)
     !
     ! this goes after leaching is done
     ! !USES:
@@ -538,7 +537,6 @@ module CNEcosystemDynBetrMod
     use CropType                  , only: crop_type
     use dynHarvestMod             , only: CNHarvest
     use clm_varpar                , only: crop_prog
-    use PlantSoilBGCMod           , only: plant_soilbgc_type
     use CNPrecisionControlMod     , only: CNPrecisionControl
     implicit none
     !
@@ -571,18 +569,14 @@ module CNEcosystemDynBetrMod
     type(photosyns_type)             , intent(in)    :: photosyns_vars
     type(soilhydrology_type)         , intent(in)    :: soilhydrology_vars
     type(energyflux_type)            , intent(in)    :: energyflux_vars
-    type(plant_soilbgc_type)         , intent(in)    :: plantsoilnutrientflux_vars
     type(phosphorusstate_type)       , intent(inout) :: phosphorusstate_vars
 
-
-    call nitrogenstate_vars%nbuffer_update(bounds, num_soilc, filter_soilc,                   &
-         plantsoilnutrientflux_vars%plant_minn_active_yield_flx_col(bounds%begc:bounds%endc), &
-         plantsoilnutrientflux_vars%plant_minn_passive_yield_flx_col(bounds%begc:bounds%endc))
-
-    call t_startf('CNsum')
+    call t_startf('CNPrecisionControl')
     call CNPrecisionControl(num_soilc, filter_soilc, num_soilp, filter_soilp,                 &
          carbonstate_vars, c13_carbonstate_vars, c14_carbonstate_vars, nitrogenstate_vars,    &
          phosphorusstate_vars)
+
+    call t_stopf('CNPrecisionControl')
 
   end subroutine CNEcosystemDynBetrSummary
 
@@ -592,8 +586,7 @@ module CNEcosystemDynBetrMod
        carbonflux_vars, carbonstate_vars,                            &
        c13_carbonflux_vars, c13_carbonstate_vars,                    &
        c14_carbonflux_vars, c14_carbonstate_vars,                    &
-       nitrogenflux_vars, nitrogenstate_vars,                        &
-       betrtracer_vars, tracerflux_vars, tracerstate_vars)
+       nitrogenflux_vars, nitrogenstate_vars)
     !
     ! DESCRIPTION
     ! summarize all fluxes and state varaibles, prepare for mass balance analysis
@@ -612,9 +605,6 @@ module CNEcosystemDynBetrMod
     type(carbonstate_type)   , intent(inout) :: c14_carbonstate_vars !
     type(nitrogenflux_type)  , intent(inout) :: nitrogenflux_vars    !
     type(nitrogenstate_type) , intent(inout) :: nitrogenstate_vars   !
-    type(betrtracer_type)    , intent(in)    :: betrtracer_vars      ! betr configuration information
-    type(tracerstate_type)   , intent(in)    :: tracerstate_vars     !
-    type(tracerflux_type)    , intent(in)    :: tracerflux_vars      !
 
     call carbonflux_vars%Summary(bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, 'bulk')
 
@@ -636,43 +626,5 @@ module CNEcosystemDynBetrMod
 
   end subroutine CNFluxStateBetrSummary
 
-  !-----------------------------------------------------------------------
-  subroutine calc_fpg(bounds, num_soilc, filter_soilc, plant_totn_demand_flx, plant_nbuffer, fpg)
-    !
-    ! DESCRIPTION
-    ! calculate gpp downregulation factor
-    use PlantSoilBGCMod          , only : plant_soilbgc_type
-    use clm_time_manager         , only : get_step_size
-    implicit none
-    type(bounds_type)        , intent(in)    :: bounds
-    integer                  , intent(in)    :: num_soilc                                      ! number of soil columns in filter
-    integer                  , intent(in)    :: filter_soilc(:)                                ! filter for soil columns
-    real(r8)                 , intent(inout) :: plant_totn_demand_flx(bounds%begc:bounds%endc) !
-    real(r8)                 , intent(inout) :: plant_nbuffer(bounds%begc:bounds%endc)         !
-    real(r8)                 , intent(inout) :: fpg(bounds%begc:bounds%endc)                   !
-
-    integer :: fc, c
-    real(r8) :: dtime
-
-    dtime =  get_step_size()
-
-    do fc=1,num_soilc
-       c = filter_soilc(fc)
-       ! calculate the fraction of potential growth that can be
-       ! acheived with the N available to plants
-       ! now a silly question here is does plant take more than necessary?
-       if (plant_totn_demand_flx(c) > 0.0_r8) then
-          fpg(c) = min(plant_nbuffer(c) / (plant_totn_demand_flx(c)*dtime),1._r8)
-          if(fpg(c)<1._r8)then
-             plant_nbuffer(c) = 0._r8
-          else
-             plant_nbuffer(c) = plant_nbuffer(c)-plant_totn_demand_flx(c)*dtime
-          endif
-          !plant_totn_demand_flx(c) = plant_totn_demand_flx(c)* (1._r8-fpg(c))
-       else
-          fpg(c) = 1.0_r8
-       end if
-    enddo
-  end subroutine calc_fpg
 
 end module CNEcosystemDynBetrMod
