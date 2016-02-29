@@ -15,7 +15,7 @@ module CNCStateUpdate2Mod
   use PatchType        , only : pft
   use pftvarcon        , only : npcropmin
   use clm_varctl       , only : use_pflotran, pf_cmode
-  use PatchType           , only : pft
+  use PatchType        , only : pft
   !
   implicit none
   save
