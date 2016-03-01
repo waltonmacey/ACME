@@ -1941,7 +1941,6 @@ subroutine tphysbc (ztodt,               &
     ifld = pbuf_get_index('CLD')
     call pbuf_get_field(pbuf, ifld, cld, (/1,1,itim_old/),(/pcols,pver,1/))
 
-    if (masterproc) write(iulog,*) 'deep_scheme: ',deep_scheme
     if ( deep_scheme .ne. 'CS' ) then
 #ifdef USE_UNICON
 #else
