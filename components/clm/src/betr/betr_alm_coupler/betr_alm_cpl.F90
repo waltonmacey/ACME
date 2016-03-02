@@ -67,8 +67,6 @@ contains
      type(carbonflux_type)            , intent(in)    :: carbonflux_vars
      type(waterflux_type)             , intent(inout) :: waterflux_vars
 
-
-
      !temporary variables
      type(betr_cnstate_type)        :: betr_cnstate_vars
      type(betr_carbonflux_type)     :: betr_carbonflux_vars
@@ -135,6 +133,10 @@ contains
   subroutine run_betr_one_step_with_drainage_alm(bounds, lbj, ubj, num_soilc, filter_soilc, &
        jtops, waterflux_vars, col)
 
+  !
+  ! DESCRIPTION
+  ! do drainage tracer transport
+  !
   ! !USES:
 
   use BetrBGCMod            , only : run_betr_one_step_with_drainage
@@ -221,7 +223,7 @@ contains
   integer                   , intent(in)   :: num_soilc
   integer                   , intent(in)   :: filter_soilc(:)
 
-  call bgc_reaction%betr_lsm_flux_state_sendback(bounds, &
+  call bgc_reaction%lsm_betr_flux_state_receive(bounds, &
        num_soilc, filter_soilc,                    &
        tracerstate_vars, tracerflux_vars,  betrtracer_vars)
 

@@ -3,7 +3,7 @@ module readParamsMod
   !-----------------------------------------------------------------------
   !
   ! Read parameters
-  ! module used to read parameters for individual modules and/or for some 
+  ! module used to read parameters for individual modules and/or for some
   ! well defined functionality (eg. ED).
   !
   use clm_varctl   , only: use_cn, use_century_decomp, use_nitrif_denitrif, &
@@ -14,7 +14,7 @@ module readParamsMod
   !
   public :: readSharedParameters
   public :: readPrivateParameters
-  
+
   !-----------------------------------------------------------------------
 
 contains
@@ -35,7 +35,7 @@ contains
     !
     ! read ED shared parameters
     !
-    use EDParamsMod             , only : EDParamsRead 
+    use EDParamsMod             , only : EDParamsRead
     use SFParamsMod             , only : SFParamsRead
     use clm_varctl              , only : paramfile, iulog, use_ed
     use spmdMod                 , only : masterproc
@@ -61,8 +61,8 @@ contains
 
     call getfil (paramfile, locfn, 0)
     call ncd_pio_openfile (ncid, trim(locfn), 0)
-    call ncd_inqdid(ncid,'pft',dimid) 
-    call ncd_inqdlen(ncid,dimid,npft) 
+    call ncd_inqdid(ncid,'pft',dimid)
+    call ncd_inqdlen(ncid,dimid,npft)
 
     if ( use_ed ) then
        call EDParamsRead(ncid)
@@ -87,7 +87,7 @@ contains
     use spmdMod                 , only : masterproc
     use fileutils               , only : getfil
     use ncdio_pio               , only : ncd_pio_closefile, ncd_pio_openfile, &
-                                         file_desc_t, ncd_inqdid, ncd_inqdlen                                       
+                                         file_desc_t, ncd_inqdid, ncd_inqdlen
     !
     ! !ARGUMENTS:
     implicit none
@@ -107,8 +107,8 @@ contains
 
     call getfil (paramfile, locfn, 0)
     call ncd_pio_openfile (ncid, trim(locfn), 0)
-    call ncd_inqdid(ncid,'pft',dimid) 
-    call ncd_inqdlen(ncid,dimid,npft) 
+    call ncd_inqdid(ncid,'pft',dimid)
+    call ncd_inqdlen(ncid,dimid,npft)
 
     !
     ! some parameters (eg. organic_max) are used in non-CN, non-BGC cases
@@ -123,14 +123,14 @@ contains
     ! read CN and BGC shared parameters
     !
     use CNAllocationBetrMod     , only : readCNAllocBetrParams
-    use CNAllocationMod         , only : readCNAllocParams    
+    use CNAllocationMod         , only : readCNAllocParams
     use CNDecompMod             , only : readCNDecompParams
     use CNDecompCascadeBGCMod   , only : readCNDecompBgcParams
     use CNDecompCascadeCNMod    , only : readCNDecompCnParams
     use CNPhenologyMod          , only : readCNPhenolParams
     use CNMRespMod              , only : readCNMRespParams
     use CNNDynamicsMod          , only : readCNNDynamicsParams
-    use CNGapMortalityMod       , only : readCNGapMortParams 
+    use CNGapMortalityMod       , only : readCNGapMortParams
     use CNNitrifDenitrifMod     , only : readCNNitrifDenitrifParams
     use CNSoilLittVertTranspMod , only : readCNSoilLittVertTranspParams
     use ch4Mod                  , only : readCH4Params
@@ -139,9 +139,9 @@ contains
     use fileutils               , only : getfil
     use ncdio_pio               , only : ncd_pio_closefile, ncd_pio_openfile, &
                                          file_desc_t, ncd_inqdid, ncd_inqdlen
-    use tracer_varcon           , only : is_active_betr_bgc                                         
-    use betr_initializeMod      , only : bgc_reaction, betrtracer_vars
-    
+    use tracer_varcon           , only : is_active_betr_bgc
+    use betr_alm_cpl            , only : betr_alm_readParams
+
     !
     ! !ARGUMENTS:
     implicit none
@@ -161,20 +161,20 @@ contains
 
     call getfil (paramfile, locfn, 0)
     call ncd_pio_openfile (ncid, trim(locfn), 0)
-    call ncd_inqdid(ncid,'pft',dimid) 
+    call ncd_inqdid(ncid,'pft',dimid)
     call ncd_inqdlen(ncid,dimid,npft)
-    
+
     if(use_betr)then
-      call bgc_reaction%readParams(ncid, betrtracer_vars)   
+      call betr_alm_readParams(ncid)
     endif
-    
+
     if (use_cn) then
        !
        ! populate each module with private parameters
-       !       
+       !
        if (is_active_betr_bgc)then
 
-          call readCNAllocBetrParams(ncid) 
+          call readCNAllocBetrParams(ncid)
 
        else
           call readCNAllocParams(ncid)
@@ -195,7 +195,7 @@ contains
             call readCH4Params (ncid)
           end if
        endif
-       
+
        call readCNPhenolParams(ncid)
        call readCNMRespParams (ncid)
        call readCNNDynamicsParams (ncid)

@@ -117,27 +117,17 @@ module clm_driver
   use clm_initializeMod      , only : EDbio_vars
   use clm_initializeMod      , only : soil_water_retention_curve
   use clm_initializeMod      , only : chemstate_vars
-  use betr_initializeMod     , only : betrtracer_vars
-  use betr_initializeMod     , only : tracercoeff_vars
-  use betr_initializeMod     , only : tracerflux_vars
-  use betr_initializeMod     , only : tracerState_vars
-  use betr_initializeMod     , only : tracerboundarycond_vars
-  use betr_initializeMod     , only : bgc_reaction
-  use betr_initializeMod     , only : plantsoilnutrientflux_vars
-  use BetrBGCMod             , only : run_betr_one_step_without_drainage
-  use BetrBGCMod             , only : run_betr_one_step_with_drainage
+  use betr_alm_cpl
   use TracerBalanceMod       , only : betr_tracer_massbalance_check
   use TracerBalanceMod       , only : begin_betr_tracer_massbalance
-  use tracer_varcon          , only : is_active_betr_bgc, do_betr_leaching
+  use tracer_varcon          , only : is_active_betr_bgc
   use CNEcosystemDynBetrMod  , only : CNEcosystemDynBetrVeg, CNEcosystemDynBetrSummary, CNFluxStateBetrSummary
   use EcophysConType         , only : ecophyscon         ! Constants
   use GridcellType           , only : grc
   use LandunitType           , only : lun
   use ColumnType             , only : col
   use PatchType              , only : pft
-  use TracerParamsMod        , only : diagnose_dtracer_freeze_thaw
-  use TracerParamsMod        , only : pre_diagnose_dtracer_freeze_thaw
-
+  use TracerParamsMod        , only : pre_diagnose_soilcol_water_flux
   !!----------------------------------------------------------------------------
   !! bgc interface & pflotran:
   use clm_varctl             , only : use_bgc_interface
@@ -292,11 +282,10 @@ contains
     do nc = 1,nclumps
        call get_clump_bounds(nc, bounds_clump)
 
-       if (use_betr .and. (.not. do_betr_leaching)) then
+       if (use_betr) then
 
           call begin_betr_tracer_massbalance(bounds_clump, 1, nlevtrc_soil, &
-               filter(nc)%num_soilc, filter(nc)%soilc, betrtracer_vars  , &
-               tracerstate_vars, tracerflux_vars)
+               filter(nc)%num_soilc, filter(nc)%soilc)
 
        endif
 
@@ -575,7 +564,7 @@ contains
        ! Determine temperatures
        ! ============================================================================
        if(use_betr)then
-         call pre_diagnose_dtracer_freeze_thaw(bounds_clump, filter(nc)%num_nolakec, &
+         call pre_diagnose_soilcol_water_flux(bounds_clump, filter(nc)%num_nolakec, &
           filter(nc)%nolakec, waterstate_vars )
        endif
 
@@ -599,8 +588,8 @@ contains
        call t_stopf('soiltemperature')
 
        if(use_betr)then
-         call diagnose_dtracer_freeze_thaw(bounds_clump, filter(nc)%num_nolakec, filter(nc)%nolakec, lun, &
-           waterstate_vars, betrtracer_vars, tracerstate_vars)
+         call diagnose_dtracer_freeze_thaw_alm(bounds_clump, filter(nc)%num_nolakec, &
+           filter(nc)%nolakec, col, lun, waterstate_vars)
        endif
        ! ============================================================================
        ! update surface fluxes for new ground temperature.
@@ -751,15 +740,13 @@ contains
          !do belowground bgc and transport
          call t_startf('betr_nodrain')
 
-         call run_betr_one_step_without_drainage(bounds_clump, 1, nlevtrc_soil,      &
+         call run_betr_one_step_without_drainage_alm(bounds_clump, 1, nlevtrc_soil,      &
               filter(nc)%num_soilc, filter(nc)%soilc,                                &
               filter(nc)%num_soilp, filter(nc)%soilp,                                &
               col, atm2lnd_vars,                                                     &
               soilhydrology_vars, soilstate_vars, waterstate_vars, temperature_vars, &
               waterflux_vars, chemstate_vars, cnstate_vars, canopystate_vars,        &
-              carbonflux_vars,  betrtracer_vars, bgc_reaction,                       &
-              tracerboundarycond_vars, tracercoeff_vars, tracerstate_vars,           &
-              tracerflux_vars, plantsoilnutrientflux_vars)
+              carbonflux_vars)
 
          call t_stopf('betr_nodrain')
 
@@ -980,24 +967,19 @@ contains
        if (use_betr) then
 
           call t_startf('betr drainage')
-          call run_betr_one_step_with_drainage(bounds_clump, 1, nlevtrc_soil,                         &
+          call run_betr_one_step_with_drainage_alm(bounds_clump, 1, nlevtrc_soil,                         &
                filter(nc)%num_soilc, filter(nc)%soilc,                                                &
                tracerboundarycond_vars%jtops_col(bounds_clump%begc:bounds_clump%endc),                &
-               waterflux_vars%qflx_drain_vr_col(bounds_clump%begc:bounds_clump%endc, 1:nlevtrc_soil), &
-               col, betrtracer_vars , tracercoeff_vars, tracerstate_vars,  tracerflux_vars)
+               waterflux_vars, col)
           call t_stopf('betr drainage')
 
           call t_startf('betr balchk')
           call betr_tracer_massbalance_check(bounds_clump, 1, nlevtrc_soil, &
-            filter(nc)%num_soilc, filter(nc)%soilc,  betrtracer_vars,       &
-            tracerstate_vars,  tracerflux_vars)
+            filter(nc)%num_soilc, filter(nc)%soilc)
           call t_stopf('betr balchk')
 
-          call bgc_reaction%betr_lsm_flux_statevar_feedback(bounds_clump,   &
-               filter(nc)%num_soilc, filter(nc)%soilc,                      &
-               carbonstate_vars, nitrogenstate_vars, nitrogenflux_vars,     &
-               phosphorusstate_vars, phosphorusflux_vars, tracerstate_vars, &
-               tracerflux_vars,  betrtracer_vars)
+          call alm_betr_flux_state_receive(bounds_clump, &
+               filter(nc)%num_soilc, filter(nc)%soilc)
        endif
 
        ! ============================================================================
