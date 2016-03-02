@@ -5,10 +5,6 @@
 
 module derivative_mod
   use derivative_mod_base
-  use derivative_mod_base, only: laplace_sphere_wk_base => laplace_sphere_wk, &
-                                 divergence_sphere_wk_base => divergence_sphere_wk, &
-                                 gradient_sphere_base => gradient_sphere, &
-                                 divergence_sphere_base => divergence_sphere
   use kinds, only : real_kind, longdouble_kind
   use dimensions_mod, only : np, nc, npdg, nep, nelemd, nlev
   use quadrature_mod, only : quadrature_t, gauss, gausslobatto,legendre, jacobi

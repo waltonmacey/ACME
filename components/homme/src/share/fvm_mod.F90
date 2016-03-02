@@ -1430,7 +1430,7 @@ contains
   !-----------------------------------------------------------------------------------!
   subroutine fvm_mcgregor(elem, deriv, tstep, vhat, vstar,order)
     use element_mod, only : element_t
-    use derivative_mod, only : derivative_t, gradient_sphere, ugradv_sphere, vorticity_sphere
+    use derivative_mod, only : derivative_t, ugradv_sphere, vorticity_sphere
     implicit none
     
     type (element_t), intent(in)                                :: elem

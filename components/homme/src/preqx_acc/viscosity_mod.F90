@@ -5,8 +5,6 @@
 
 module viscosity_mod
   use viscosity_mod_base
-! use viscosity_mod_base, only: neighbor_minmax_base => neighbor_minmax, &
-!                               biharmonic_wk_scalar_base => biharmonic_wk_scalar
   use thread_mod, only : omp_get_num_threads
   use kinds, only : real_kind, iulog
   use dimensions_mod, only : np, nc, nlev,qsize,nelemd, ntrac

@@ -7,13 +7,7 @@
 #endif
 
 module prim_advection_mod
-  use prim_advection_mod_base
-  use prim_advection_mod_base, only: Prim_Advec_Tracers_remap_base => Prim_Advec_Tracers_remap, &
-                                     prim_advec_init1_base => prim_advec_init1, &
-                                     prim_advec_init2_base => prim_advec_init2, &
-                                     prim_advec_init_deriv_base => prim_advec_init_deriv, &
-                                     deriv_base => deriv, &
-                                     Prim_Advec_Tracers_remap_rk2_base => Prim_Advec_Tracers_remap_rk2
+  use prim_advection_mod_base, only: vertical_remap, prim_advec_tracers_fvm
   use kinds, only              : real_kind
   use dimensions_mod, only     : nlev, nlevp, np, qsize, ntrac, nc, nep, nelemd
   use physical_constants, only : rgas, Rwater_vapor, kappa, g, rearth, rrearth, cp
@@ -821,8 +815,8 @@ contains
     ! ps is only used when advecting Q instead of Qdp
     ! so ps should be at one timelevel behind Q
     implicit none
-    real (kind=real_kind), intent(inout) :: Qdp(np,np,nlev,qsize,tdim,nelemd)
     integer              , intent(in   ) :: tdim
+    real (kind=real_kind), intent(inout) :: Qdp(np,np,nlev,qsize,tdim,nelemd)
     integer              , intent(in   ) :: tl
     ! local
     real (kind=real_kind) :: mass,mass_new
