@@ -1,5 +1,5 @@
+#include "../../../cam/src/physics/cosp/cosp_gpm_debugflag.F90"
 module clm_driver
-
   !-----------------------------------------------------------------------
   ! !DESCRIPTION:
   ! This module provides the main CLM driver physics calling sequence.  Most
@@ -73,6 +73,9 @@ module clm_driver
   !
   use atm2lndMod             , only : downscale_forcings
   use lnd2atmMod             , only : lnd2atm
+#ifdef GPM_GMI2
+  use lnd2atmMod             , only : lnd2atm_GPMGMI
+#endif
   use lnd2glcMod             , only : lnd2glc_type
   !
   use seq_drydep_mod         , only : n_drydep, drydep_method, DD_XLND
@@ -1139,7 +1142,12 @@ contains
          atm2lnd_vars, surfalb_vars, temperature_vars, frictionvel_vars, &
          waterstate_vars, waterflux_vars, energyflux_vars,               &
          solarabs_vars, carbonflux_vars, drydepvel_vars,                 &
-         vocemis_vars, dust_vars, ch4_vars, lnd2atm_vars) 
+         vocemis_vars, dust_vars, ch4_vars, lnd2atm_vars)
+#ifdef GPM_GMI2
+    call lnd2atm_GPMGMI(bounds_proc,                                     &
+         temperature_vars, waterstate_vars, canopystate_vars,            &
+         soilstate_vars, lnd2atm_vars) 
+#endif
     call t_stopf('lnd2atm')
 
     ! ============================================================================

@@ -1,3 +1,4 @@
+#include "../../../cam/src/physics/cosp/cosp_gpm_debugflag.F90"
 module clm_cpl_indices
   !-----------------------------------------------------------------------
   ! !DESCRIPTION:
@@ -42,6 +43,17 @@ module clm_cpl_indices
   integer, public ::index_l2x_Sl_fv           ! friction velocity  
   integer, public ::index_l2x_Sl_ram1         ! aerodynamical resistance
   integer, public ::index_l2x_Sl_soilw        ! volumetric soil water
+#ifdef GPM_GMI2
+  integer, public ::index_l2x_Sl_unisoilw     ! volumetric soil water content averaged uniformly over non-lake columns
+  integer, public ::index_l2x_Sl_vegfrac      ! vegetation fraction
+  integer, public ::index_l2x_Sl_soiltemp     ! soil temperature
+  integer, public ::index_l2x_Sl_lai          ! leaf area index
+  integer, public ::index_l2x_Sl_sandfrac     ! sand fraction
+  integer, public ::index_l2x_Sl_clayfrac     ! clay fraction
+  integer, public ::index_l2x_Sl_vegrho       ! vegetation specific density
+  integer, public ::index_l2x_Sl_vegmge       ! vegetation water content
+  integer, public ::index_l2x_Sl_landfrac     ! non-lake land fraction 
+#endif
   integer, public ::index_l2x_Fall_taux       ! wind stress, zonal
   integer, public ::index_l2x_Fall_tauy       ! wind stress, meridional
   integer, public ::index_l2x_Fall_lat        ! latent          heat flux
@@ -185,7 +197,17 @@ contains
     else
        index_l2x_Sl_ddvel = 0
     end if
-
+#ifdef GPM_GMI2
+    index_l2x_Sl_unisoilw   = mct_avect_indexra(l2x,'Sl_unisoilv')
+    index_l2x_Sl_vegfrac    = mct_avect_indexra(l2x,'Sl_vegfrac')
+    index_l2x_Sl_soiltemp   = mct_avect_indexra(l2x,'Sl_soiltemp')
+    index_l2x_Sl_lai        = mct_avect_indexra(l2x,'Sl_lai')
+    index_l2x_Sl_sandfrac   = mct_avect_indexra(l2x,'Sl_sandfrac')
+    index_l2x_Sl_clayfrac   = mct_avect_indexra(l2x,'Sl_clayfrac')
+    index_l2x_Sl_vegrho     = mct_avect_indexra(l2x,'Sl_vegrho')
+    index_l2x_Sl_vegmge     = mct_avect_indexra(l2x,'Sl_vegmge')
+    index_l2x_Sl_landfrac   = mct_avect_indexra(l2x,'Sl_landfrac')
+#endif
     index_l2x_Fall_taux     = mct_avect_indexra(l2x,'Fall_taux')
     index_l2x_Fall_tauy     = mct_avect_indexra(l2x,'Fall_tauy')
     index_l2x_Fall_lat      = mct_avect_indexra(l2x,'Fall_lat')

@@ -1,3 +1,4 @@
+#include "../physics/cosp/cosp_gpm_debugflag.F90"
 module atm_import_export
 
   use shr_kind_mod  , only: r8 => shr_kind_r8, cl=>shr_kind_cl
@@ -72,8 +73,19 @@ contains
           cam_in(c)%qref(i)      =  x2a(index_x2a_Sx_qref,  ig)
           cam_in(c)%u10(i)       =  x2a(index_x2a_Sx_u10,   ig)
           cam_in(c)%icefrac(i)   =  x2a(index_x2a_Sf_ifrac, ig)  
-          cam_in(c)%ocnfrac(i)   =  x2a(index_x2a_Sf_ofrac, ig)
-	  cam_in(c)%landfrac(i)  =  x2a(index_x2a_Sf_lfrac, ig)
+          cam_in(c)%ocnfrac(i)   =  x2a(index_x2a_Sf_ofrac, ig) 
+          cam_in(c)%landfrac(i)  =  x2a(index_x2a_Sf_lfrac, ig)
+#ifdef GPM_GMI2
+          cam_in(c)%gpm_unisoilw(i)  =  x2a(index_x2a_sl_unisoilw, ig)
+          cam_in(c)%gpm_vegfrac (i)  =  x2a(index_x2a_sl_vegfrac,  ig)
+          cam_in(c)%gpm_soiltemp(i)  =  x2a(index_x2a_sl_soiltemp, ig)
+          cam_in(c)%gpm_lai(i)       =  x2a(index_x2a_sl_lai, ig)
+          cam_in(c)%gpm_sandfrac(i)  =  x2a(index_x2a_sl_sandfrac, ig)
+          cam_in(c)%gpm_clayfrac(i)  =  x2a(index_x2a_sl_clayfrac, ig)
+          cam_in(c)%gpm_vegrho(i)    =  x2a(index_x2a_sl_vegrho, ig)
+          cam_in(c)%gpm_vegmge(i)    =  x2a(index_x2a_sl_vegmge, ig)
+          cam_in(c)%gpm_landfrac(i)  =  x2a(index_x2a_sl_landfrac, ig)
+#endif          
           if ( associated(cam_in(c)%ram1) ) &
                cam_in(c)%ram1(i) =  x2a(index_x2a_Sl_ram1 , ig)
           if ( associated(cam_in(c)%fv) ) &

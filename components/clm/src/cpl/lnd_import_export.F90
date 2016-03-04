@@ -1,3 +1,4 @@
+#include "../../../cam/src/physics/cosp/cosp_gpm_debugflag.F90"
 module lnd_import_export
 
   use shr_kind_mod , only: r8 => shr_kind_r8, cl=>shr_kind_cl
@@ -1044,8 +1045,19 @@ contains
        if (index_l2x_Fall_flxdst2 /= 0 )  l2x(index_l2x_Fall_flxdst2,i)= -lnd2atm_vars%flxdst_grc(g,2)
        if (index_l2x_Fall_flxdst3 /= 0 )  l2x(index_l2x_Fall_flxdst3,i)= -lnd2atm_vars%flxdst_grc(g,3)
        if (index_l2x_Fall_flxdst4 /= 0 )  l2x(index_l2x_Fall_flxdst4,i)= -lnd2atm_vars%flxdst_grc(g,4)
+#ifdef GPM_GMI2
+       ! fields for GPM simulator
+       if (index_l2x_Sl_unisoilw  /= 0 )  l2x(index_l2x_Sl_unisoilw,i) =  lnd2atm_vars%unisoilw(g)
+       if (index_l2x_Sl_vegfrac   /= 0 )  l2x(index_l2x_Sl_vegfrac ,i) =  lnd2atm_vars%vegfrac_grc(g)
+       if (index_l2x_Sl_soiltemp  /= 0 )  l2x(index_l2x_Sl_soiltemp,i) =  lnd2atm_vars%soiltemp_grc(g)
+       if (index_l2x_Sl_lai       /= 0 )  l2x(index_l2x_Sl_lai     ,i) =  lnd2atm_vars%lai_grc(g)
+       if (index_l2x_Sl_sandfrac  /= 0 )  l2x(index_l2x_Sl_landfrac,i) =  lnd2atm_vars%landfrac(g)
+       if (index_l2x_Sl_clayfrac  /= 0 )  l2x(index_l2x_Sl_clayfrac,i) =  lnd2atm_vars%clayfrac(g)
+       if (index_l2x_Sl_vegrho    /= 0 )  l2x(index_l2x_Sl_vegrho  ,i) =  lnd2atm_vars%vegrho(g)
+       if (index_l2x_Sl_vegmge    /= 0 )  l2x(index_l2x_Sl_vegmge  ,i) =  lnd2atm_vars%vegmge(g)
+       if (index_l2x_Sl_landfrac  /= 0 )  l2x(index_l2x_Sl_landfrac,i) =  lnd2atm_vars%landfrac(g)
 
-
+#endif
        ! for dry dep velocities
        if (index_l2x_Sl_ddvel     /= 0 )  then
           l2x(index_l2x_Sl_ddvel:index_l2x_Sl_ddvel+n_drydep-1,i) = &

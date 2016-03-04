@@ -1,5 +1,5 @@
+#include "../../../cam/src/physics/cosp/cosp_gpm_debugflag.F90"
 module lnd2atmType
-
   !-----------------------------------------------------------------------
   ! !DESCRIPTION:
   ! Handle atm2lnd, lnd2atm mapping
@@ -49,6 +49,19 @@ module lnd2atmType
      real(r8), pointer :: ddvel_grc          (:,:) => null() ! dry deposition velocities
      real(r8), pointer :: flxvoc_grc         (:,:) => null() ! VOC flux (size bins)
      real(r8), pointer :: flux_ch4_grc       (:)   => null() ! net CH4 flux (kg C/m**2/s) [+ to atm]
+
+#ifdef GPM_GMI2
+     real(r8), pointer :: unisoilw           (:)   => null() ! volumetric soil moisture content averaged over non-lake columns (%, 0 to 1)
+     real(r8), pointer :: vegfrac_grc        (:)   => null() ! vegetaton fraction (%, 0 to 1)
+     real(r8), pointer :: soiltemp_grc       (:)   => null() ! soil temperature (Kelvin)
+     real(r8), pointer :: lai_grc            (:)   => null() ! leaf area index (m^2/m^2)
+     real(r8), pointer :: sandfrac_grc       (:)   => null() ! sand fraction (%, 0 to 1)
+     real(r8), pointer :: clayfrac_grc       (:)   => null() ! clay fraction (%, 0 to 1)
+     real(r8), pointer :: vegrho_grc         (:)   => null() ! vegetation specific density 
+     real(r8), pointer :: vegmge_grc         (:)   => null() ! vegetation water content
+     real(r8), pointer :: landfrac_grc       (:)   => null() ! land fraction, excluding lakes (%, 0 to 1)
+#endif
+
      ! lnd->rof
      real(r8), pointer :: qflx_rofliq_grc    (:)   => null() ! rof liq forcing
      real(r8), pointer :: qflx_rofliq_qsur_grc(:)  => null() ! rof liq -- surface runoff component
@@ -121,6 +134,17 @@ contains
     allocate(this%qflx_rofliq_qsub_grc(begg:endg))           ; this%qflx_rofliq_qsub_grc(:)  =ival
     allocate(this%qflx_rofliq_qgwl_grc(begg:endg))           ; this%qflx_rofliq_qgwl_grc(:)  =ival
     allocate(this%qflx_rofice_grc    (begg:endg))            ; this%qflx_rofice_grc    (:)   =ival
+#ifdef GPM_GMI2
+    allocate(unisoilw_grc            (begg:endg))            ; this%soil_moist_content (:)   =ival
+    allocate(vegfrac_grc             (begg:endg))            ; this%vegetation_frac    (:)   =ival
+    allocate(soiltemp_grc            (begg:endg))            ; this%soil_temperature   (:)   =ival
+    allocate(lai_grc                 (begg:endg))            ; this%lai                (:)   =ival
+    allocate(sandfrac_grc            (begg:endg))            ; this%sand_frac          (:)   =ival
+    allocate(clayfrac_grc            (begg:endg))            ; this%clay_frac          (:)   =ival
+    allocate(vegrho_grc              (begg:endg))            ; this%veg_rho            (:)   =ival
+    allocate(vegmge_grc              (begg:endg))            ; this%veg_mge            (:)   =ival
+    allocate(landfrac_grc            (begg:endg))            ; this%land_frac          (:)   =ival
+#endif
 
     if (shr_megan_mechcomps_n>0) then
        allocate(this%flxvoc_grc(begg:endg,1:shr_megan_mechcomps_n));  this%flxvoc_grc(:,:)=ival

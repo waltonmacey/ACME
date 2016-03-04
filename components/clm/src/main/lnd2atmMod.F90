@@ -1,5 +1,5 @@
+#include "../../../cam/src/physics/cosp/cosp_gpm_debugflag.F90"
 module lnd2atmMod
-
   !-----------------------------------------------------------------------
   ! !DESCRIPTION:
   ! Handle lnd2atm mapping
@@ -40,6 +40,9 @@ module lnd2atmMod
   ! !PUBLIC MEMBER FUNCTIONS:
   public :: lnd2atm
   public :: lnd2atm_minimal
+#ifdef GPM_GMI2
+  public :: lnd2atm_GPMGMI
+#endif
   !------------------------------------------------------------------------
 
 contains
@@ -319,5 +322,171 @@ contains
     enddo
 
   end subroutine lnd2atm
+#ifdef GPM_GMI2
+  !------------------------------------------------------------------------
+  subroutine lnd2atm_GPMGMI(bounds, &
+       temperature_vars, &
+       waterstate_vars,  &
+       canopystate_vars, &
+       soilstate_vars,   &
+       lnd2atm_vars) 
+    !
+    ! !DESCRIPTION:
+    ! Compute lnd2atm_vars component of gridcell derived type for GPM surface
+    ! property calculations
+    !
+    ! !USES:
+    use CanopystateType,  only : canopystate_type
+    use SoilstateType,    only : soilstate_type
+    use PatchType,        only : pft
+    use ColumnType,       only : col
+    !
+    ! !ARGUMENTS:
+    type(bounds_type)      , intent(in)     :: bounds  
+    type(temperature_type) , intent(in)     :: temperature_vars
+    type(waterstate_type)  , intent(in)     :: waterstate_vars
+    type(canopystate_type) , intent(in)     :: canopystate_vars
+    type(soilstate_type)   , intent(in)     :: soilstate_vars
+    type(lnd2atm_type)     , intent(inout)  :: lnd2atm_vars 
+    !
+    ! Parameters used to convert PFT types to vegetation density and water
+    ! content. It is copied from CRTM NESDIS_LandEM_Module.f90 
+! Specific Density
+    REAL(fp), PARAMETER, dimension(0:13) :: veg_rho  = (/ 0.33_fp,     &
+                          0.40_fp, 0.40_fp, 0.40_fp, 0.40_fp, 0.40_fp, &
+                          0.25_fp, 0.25_fp, 0.40_fp, 0.40_fp, 0.40_fp, &
+                          0.40_fp, 0.33_fp, 0.33_fp            /)
+! MGE
+    REAL(fp), PARAMETER, dimension(0:13) :: veg_mge  = (/ 0.50_fp,     &
+                          0.45_fp, 0.45_fp, 0.45_fp, 0.40_fp, 0.40_fp, &
+                          0.30_fp, 0.35_fp, 0.30_fp, 0.30_fp, 0.40_fp, &
+                          0.30_fp, 0.50_fp, 0.40_fp            /)
+    ! parameters used to convert CLM PFT types to GFS vegetation types
+    integer, parameter, dimension(0:24) :: pft2gfs = &
+  (/ & ! -------------------------------------------------------- 
+    11 &  !   0  => not vegetated
+    4  &  !   1  => needleleaf evergreen temperate tree
+    4  &  !   2  => needleleaf evergreen boreal tree
+    5  &  !   3  => needleleaf deciduous boreal tree
+    1  &  !   4  => broadleaf evergreen tropical tree
+    1  &  !   5  => broadleaf evergreen temperate tree
+    2  &  !   6  => broadleaf deciduous tropical tree
+    2  &  !   7  => broadleaf deciduous temperate tree
+    2  &  !   8  => broadleaf deciduous boreal tree
+    8  &  !   9  => broadleaf evergreen shrub
+    9  &  !   10 => broadleaf deciduous temperate shrub
+   10  &  !   11 => broadleaf deciduous boreal shrub
+   10  &  !   12 => c3 arctic grass
+    7  &  !   13 => c3 non-arctic grass
+    6  &  !   14 => c4 grass
+   12  &  !   15 => c3_crop
+   12  &  !   16 => c3_irrigated
+   12  &  !   17 => corn
+   12  &  !   18 => irrigated corn
+   12  &  !   19 => spring temperate cereal
+   12  &  !   20 => irrigated spring temperate cereal
+   12  &  !   21 => winter temperate cereal
+   12  &  !   22 => irrigated winter temperate cereal
+   12  &  !   23 => soybean
+   12  &  !   24 => irrigated soybean
+  ! -------------------------------------------------------- 
+    ! !LOCAL VARIABLES:
+    integer :: p, c             ! index
+    real(r8), allocatable :: local_h2osoi_vol_col (:)
+    real(r8), allocatable :: local_vegfrac_patch  (:)
+    real(r8), allocatable :: local_soil_t_col     (:)
+    real(r8), allocatable :: local_lai_patch      (:)
+    real(r8), allocatable :: local_sandfrac_patch (:)
+    real(r8), allocatable :: local_clayfrac_patch (:)
+    real(r8), allocatable :: local_vegrho_patch   (:)
+    real(r8), allocatable :: local_vegmge_patch   (:)
+    real(r8), allocatable :: local_landfrac_patch (:)
 
+    !------------------------------------------------------------------------
+    ! allocate variables
+    allocate(local_h2osoi_vol_col(bounds%begc:bounds%endc))  ;    local_h2osoi_vol_col(bounds%begc:bounds%endc) = spval
+    allocate(local_soil_t_col    (bounds%begc:bounds%endc))  ;    local_soil_t_col    (bounds%begc:bounds%endc) = spval
+    allocate(local_landfrac_col  (bounds%begc:bounds%endc))  ;    local_landfrac_col  (bounds%begc:bounds%endc) = spval
+    
+    allocate(local_vegfrac_patch (bounds%begp:bounds%endp))  ;    local_vegfrac_patch (bounds%begp:bounds%endp) = spval
+    allocate(local_lai_patch     (bounds%begp:bounds%endp))  ;    local_lai_patch     (bounds%begp:bounds%endp) = spval
+    allocate(local_sandfrac_patch(bounds%begp:bounds%endp))  ;    local_sandfrac_patch(bounds%begp:bounds%endp) = spval
+    allocate(local_clayfrac_patch(bounds%begp:bounds%endp))  ;    local_clayfrac_patch(bounds%begp:bounds%endp) = spval
+    allocate(local_vegrho_patch  (bounds%begp:bounds%endp))  ;    local_vegrho_patch  (bounds%begp:bounds%endp) = spval
+    allocate(local_vegmge_patch  (bounds%begp:bounds%endp))  ;    local_vegmge_patch  (bounds%begp:bounds%endp) = spval
+
+    ! assign values to local variables based on column types at patch level
+    do p = bounds%begp, bounds%endp
+      if  ( col%itype(pft%column(p) ) /= istdlak )  then! not deep lake
+        if (pft%itype(p) /= 0)       then  ! not bare soil
+          local_vegfrac_patch (p) = 1
+          local_lai_patch     (p) = canopystate_vars%tlai_patch(p)
+          local_sandfrac_patch(p) = soilstate_vars%sandfrac_patch(p)
+          local_clayfrac_patch(p) = soilstate_vars%clayfrac_patch(p)
+          local_vegrho_patch  (p) = veg_rho(pft2gfs(pft%itype(p)))
+          local_vegmge_patch  (p) = veg_mge(pft2gfs(pft%itype(p)))
+        end if 
+      end if
+    end do !patch
+
+    ! assign values to local variables based on column types at column level
+    do c = bounds%begc, bounds%endc
+      if ( col%itype(c) /= istdlak ) then
+        local_landfrac_col  (c) = 1
+        local_h2osoi_vol_col(c) = waterstate_vars%h2osoi_vol_col(c,1) ! use the first layer water content
+        local_soil_t_col    (c) = temperature_vars%t_soil10cm_col(c)
+      end if
+    end do ! column
+
+    !----------------------------------------------------
+    ! lnd -> atm
+    !----------------------------------------------------
+    ! column level variables
+    call c2g(bounds, &
+         local_h2osoi_vol_col            (bounds%begc:bounds%endc), &
+         lnd2atm_vars%unisoilw_grc       (bounds%begg:bounds%endg), &
+         c2l_scale_type= 'unity', l2g_scale_type='unity')
+
+    call c2g(bounds, &
+         local_soil_t_col                (bounds%begc:bounds%endc), &
+         lnd2atm_vars%soiltemp_grc       (bounds%begg:bounds%endg), &
+         c2l_scale_type= 'unity', l2g_scale_type='unity')
+
+    call c2g(bounds, &
+         local_landfrac_col              (bounds%begc:bounds%endc), &
+         lnd2atm_vars%landfrac_grc       (bounds%begg:bounds%endg), &
+         c2l_scale_type= 'unity', l2g_scale_type='unity')
+    ! patch level variables
+    call p2g(bounds, &
+         local_vegfrac_patch             (bounds%begp:bounds%endp), &
+         lnd2atm_vars%vegfrac_grc        (bounds%begg:bounds%endg), &
+         p2c_scale_type='unity', c2l_scale_type= 'unity', l2g_scale_type='unity')
+
+    call p2g(bounds, &
+         local_lai_patch                 (bounds%begp:bounds%endp), &
+         lnd2atm_vars%lai_grc            (bounds%begg:bounds%endg), &
+         p2c_scale_type='unity', c2l_scale_type= 'unity', l2g_scale_type='unity')
+
+    call p2g(bounds, &
+         local_sandfrac_patch            (bounds%begp:bounds%endp), &
+         lnd2atm_vars%sandfrac_grc       (bounds%begg:bounds%endg), &
+         p2c_scale_type='unity', c2l_scale_type= 'unity', l2g_scale_type='unity')
+
+    call p2g(bounds, &
+         local_clayfrac_patch            (bounds%begp:bounds%endp), &
+         lnd2atm_vars%clayfrac_grc       (bounds%begg:bounds%endg), &
+         p2c_scale_type='unity', c2l_scale_type= 'unity', l2g_scale_type='unity')
+
+    call p2g(bounds, &
+         local_vegrho                    (bounds%begp:bounds%endp), &
+         lnd2atm_vars%vegrho_grc         (bounds%begg:bounds%endg), &
+         p2c_scale_type='unity', c2l_scale_type= 'unity', l2g_scale_type='unity')
+
+    call p2g(bounds, &
+         local_vegmge                    (bounds%begp:bounds%endp), &
+         lnd2atm_vars%vegmge_grc         (bounds%begg:bounds%endg), &
+         p2c_scale_type='unity', c2l_scale_type= 'unity', l2g_scale_type='unity')
+  end subroutine lnd2atm_GPMGMI
+
+#endif  
 end module lnd2atmMod

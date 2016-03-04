@@ -1,3 +1,4 @@
+#include "../physics/cosp/cosp_gpm_debugflag.F90"
 module camsrfexch
 !-----------------------------------------------------------------------
 !
@@ -112,6 +113,18 @@ module camsrfexch
      real(r8), pointer, dimension(:) :: ram1  !aerodynamical resistance (s/m) (pcols)
      real(r8), pointer, dimension(:) :: fv    !friction velocity (m/s) (pcols)
      real(r8), pointer, dimension(:) :: soilw !volumetric soil water (m3/m3)
+#ifdef GPM_GMI2
+     real(r8) :: gpm_unisoilw(pcols)     ! volumetric soil water content averaged uniformly over non-lake columns
+     real(r8) :: gpm_vegfrac(pcols)      ! vegetation fraction
+     real(r8) :: gpm_soiltemp(pcols)     ! soil temperature
+     real(r8) :: gpm_lai(pcols)          ! leaf area index
+     real(r8) :: gpm_sandfrac(pcols)     ! sand fraction
+     real(r8) :: gpm_clayfrac(pcols)     ! clay fraction
+     real(r8) :: gpm_vegrho(pcols)       ! vegetation specific density
+     real(r8) :: gpm_vegmge(pcols)       ! vegetation water content
+     real(r8) :: gpm_landfrac(pcols)     ! non-lake land fraction 
+#endif
+
      real(r8) :: cflx(pcols,pcnst)       ! constituent flux (emissions)
      real(r8) :: ustar(pcols)            ! atm/ocn saved version of ustar
      real(r8) :: re(pcols)               ! atm/ocn saved version of re
@@ -230,7 +243,17 @@ CONTAINS
        cam_in(c)%landfrac (:) = posinf
        cam_in(c)%icefrac  (:) = posinf
        cam_in(c)%ocnfrac  (:) = posinf
-
+#ifdef GPM_GMI2       
+       cam_in(c)%gpm_unisoilw(:) = 0._r8
+       cam_in(c)%gpm_vegfrac (:) = 0._r8
+       cam_in(c)%gpm_soiltemp(:) = 0._r8
+       cam_in(c)%gpm_lai     (:) = 0._r8
+       cam_in(c)%gpm_sandfrac(:) = 0._r8
+       cam_in(c)%gpm_clayfrac(:) = 0._r8
+       cam_in(c)%gpm_vegrho  (:) = 0._r8
+       cam_in(c)%gpm_vegmge  (:) = 0._r8
+       cam_in(c)%gpm_landfrac(:) = 0._r8
+#endif
        if (associated(cam_in(c)%ram1)) &
             cam_in(c)%ram1  (:) = 0.1_r8
        if (associated(cam_in(c)%fv)) &

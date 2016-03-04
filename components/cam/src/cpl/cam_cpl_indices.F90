@@ -1,3 +1,4 @@
+#include "../physics/cosp/cosp_gpm_debugflag.F90"
 module cam_cpl_indices
   
   use seq_flds_mod
@@ -62,6 +63,17 @@ module cam_cpl_indices
   integer :: index_x2a_Sl_fv           ! friction velocity
   integer :: index_x2a_Sl_ram1         ! aerodynamical resistance
   integer :: index_x2a_Sl_soilw        ! volumetric soil water
+#ifdef GPM_GMI2 
+  integer :: index_x2a_Sl_unisoilw     ! volumetric soil water content averaged uniformly over non-lake columns
+  integer :: index_x2a_Sl_vegfrac      ! vegetation fraction
+  integer :: index_x2a_Sl_soiltemp     ! soil temperature
+  integer :: index_x2a_Sl_lai          ! leaf area index
+  integer :: index_x2a_Sl_sandfrac     ! sand fraction
+  integer :: index_x2a_Sl_clayfrac     ! clay fraction
+  integer :: index_x2a_Sl_vegrho       ! vegetation specific density
+  integer :: index_x2a_Sl_vegmge       ! vegetation water content
+  integer :: index_x2a_Sl_landfrac     ! non-lake land fraction 
+#endif
   integer :: index_x2a_Faxx_taux       ! wind stress, zonal              
   integer :: index_x2a_Faxx_tauy       ! wind stress, meridional         
   integer :: index_x2a_Faxx_lat        ! latent          heat flux       
@@ -108,6 +120,18 @@ contains
     index_x2a_Sl_fv         = mct_avect_indexra(x2a,'Sl_fv')
     index_x2a_Sl_ram1       = mct_avect_indexra(x2a,'Sl_ram1')
     index_x2a_Sl_soilw      = mct_avect_indexra(x2a,'Sl_soilw',perrWith='quiet')
+    
+#ifdef GPM_GMI2
+    index_x2a_Sl_unisoilw   = mct_avect_indexra(x2a,'Sl_unisoilv')
+    index_x2a_Sl_vegfrac    = mct_avect_indexra(x2a,'Sl_vegfrac')
+    index_x2a_Sl_soiltemp   = mct_avect_indexra(x2a,'Sl_soiltemp')
+    index_x2a_Sl_lai        = mct_avect_indexra(x2a,'Sl_lai')
+    index_x2a_Sl_sandfrac   = mct_avect_indexra(x2a,'Sl_sandfrac')
+    index_x2a_Sl_clayfrac   = mct_avect_indexra(x2a,'Sl_clayfrac')
+    index_x2a_Sl_vegrho     = mct_avect_indexra(x2a,'Sl_vegrho')
+    index_x2a_Sl_vegmge     = mct_avect_indexra(x2a,'Sl_vegmge')
+    index_x2a_Sl_landfrac   = mct_avect_indexra(x2a,'Sl_landfrac')
+#endif
     
     index_x2a_Sx_tref       = mct_avect_indexra(x2a,'Sx_tref')
     index_x2a_Sx_qref       = mct_avect_indexra(x2a,'Sx_qref')
