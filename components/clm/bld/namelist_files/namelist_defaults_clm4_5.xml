@@ -77,7 +77,7 @@ attributes from the config_cache.xml file (with keys converted to upper-case).
 <!-- The default filenames are given relative to the root directory
      for the CLM2 data in the CESM distribution -->
 <!-- Plant function types (relative to {csmdata}) -->
-<paramfile                 >lnd/clm2/paramdata/clm_params.c150521.nc</paramfile>
+<paramfile                 >lnd/clm2/paramdata/clm_params.c160128.nc</paramfile>
 <paramfile use_ed=".true." >lnd/clm2/paramdata/clm_params.ED.c140115.nc</paramfile>
 <paramfile use_crop=".true." >lnd/clm2/paramdata/clm_params.c151111.nc</paramfile>
 
@@ -163,6 +163,10 @@ ic_tod="0" sim_year="2000" glc_nec="0" use_crop=".false." >lnd/clm2/initdata_map
 
 <finidat hgrid="ne30np4"   maxpft="17"  mask="oEC60to30" use_cn=".false." ic_ymd="18500101" more_vertlayers=".false."
 ic_tod="0" sim_year="2000" glc_nec="0" use_crop=".false." >lnd/clm2/initdata_map/clmi.ICRUCLM45.ne30_oEC.e61c667.clm2.r.0021-01-01-00000.nc
+</finidat>
+
+<finidat hgrid="ne30np4"   maxpft="17"  mask="oEC60to30" use_cn=".false." ic_ymd="18500101" more_vertlayers=".false."
+ic_tod="0" sim_year="1850" glc_nec="0" use_crop=".false." >lnd/clm2/initdata_map/clmi.I1850CLM45.ne30_oEC.e61c667.clm2.r.0021-01-01-00000.nc
 </finidat>
 
 

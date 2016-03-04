@@ -515,6 +515,7 @@ add_default($nl, 'config_revised_evp');
 add_default($nl, 'config_use_air_stress');
 add_default($nl, 'config_use_ocean_stress');
 add_default($nl, 'config_use_surface_tilt');
+add_default($nl, 'config_geostrophic_surface_tilt');
 
 #############################
 # Namelist group: advection #
@@ -776,6 +777,26 @@ add_default($nl, 'config_AM_pondDiagnostics_output_stream');
 add_default($nl, 'config_AM_pondDiagnostics_compute_on_startup');
 add_default($nl, 'config_AM_pondDiagnostics_write_on_startup');
 
+#####################################
+# Namelist group: AM_unitConversion #
+#####################################
+
+add_default($nl, 'config_AM_unitConversion_enable');
+add_default($nl, 'config_AM_unitConversion_compute_interval');
+add_default($nl, 'config_AM_unitConversion_output_stream');
+add_default($nl, 'config_AM_unitConversion_compute_on_startup');
+add_default($nl, 'config_AM_unitConversion_write_on_startup');
+
+#####################################
+# Namelist group: AM_pointwiseStats #
+#####################################
+
+add_default($nl, 'config_AM_pointwiseStats_enable');
+add_default($nl, 'config_AM_pointwiseStats_compute_interval');
+add_default($nl, 'config_AM_pointwiseStats_output_stream');
+add_default($nl, 'config_AM_pointwiseStats_compute_on_startup');
+add_default($nl, 'config_AM_pointwiseStats_write_on_startup');
+
 #################################
 # Namelist group: AM_icePresent #
 #################################
@@ -874,6 +895,8 @@ my @groups = qw(cice_model
                 am_miscellaneous
                 am_areavariables
                 am_ponddiagnostics
+                am_unitconversion
+                am_pointwisestats
                 am_icepresent
                 am_timeseriesstatsdaily
                 am_timeseriesstatsmonthly

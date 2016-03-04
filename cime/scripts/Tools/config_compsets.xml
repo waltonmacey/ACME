@@ -76,6 +76,14 @@ value of RUN_STARTDATE will be date2.
 <!-- SECTION: All possible supported compsets -->
 <!-- ================================================================================== -->
 
+<!-- ACME v1 science compsets -->
+<COMPSET sname="ACME_WCYCL2000"                alias="A_WCYCL2000" >2000_CAM5%AV1C_CLM45%SPBC_MPASCICE%SSMI_MPASO_MOSART_SGLC_SWAV</COMPSET>
+<COMPSET sname="ACME_WCYCL1850"                alias="A_WCYCL1850" >1850_CAM5%AV1C_CLM45%SPBC_MPASCICE%SSMI_MPASO_MOSART_SGLC_SWAV</COMPSET>
+<COMPSET sname="ACME_WCYCL20TR"                alias="A_WCYCL20TR" >20TR_CAM5%AV1C_CLM45%SPBC_MPASCICE%SSMI_MPASO_MOSART_SGLC_SWAV</COMPSET>
+
+<COMPSET sname="ACME_CRYO"                alias="A_CRYO" >2000_CAM5%AV1C_CLM45%SPBC_MPASCICE%SSMI_MPASO_RTM_MPASLIALB_SWAV</COMPSET>
+
+
 <!-- compset A assumes an rx1 grid -->
 <COMPSET sname="A2000"    alias="A"  grid="r%rx1">2000_DATM%NYF_DLND%NULL_DICE%SSMI_DOCN%DOM_DROF%NYF_SGLC_SWAV</COMPSET>
 <COMPSET sname="AIAF"    alias="AIAF"  grid="r%rx1">2000_DATM%IAF_SLND_DICE%SIAF_DOCN%IAF_DROF%IAF_SGLC_SWAV</COMPSET>
@@ -222,7 +230,9 @@ value of RUN_STARTDATE will be date2.
 <COMPSET sname="F_2000_CAM5_RESUS"          alias="FC5RESUS"        >2000_CAM5%MAM4%RESUS_CLM40%SP_CICE%PRES_DOCN%DOM_RTM_SGLC_SWAV</COMPSET>
 <COMPSET sname="F_2000_CAM5_ATMMOD"         alias="FC5ATMMOD"       >2000_CAM5%ATMMOD_CLM45%SPBC_CICE%PRES_DOCN%DOM_RTM_SGLC_SWAV</COMPSET>
 <COMPSET sname="F_2000_CAM5_AV1C"           alias="FC5AV1C"         >2000_CAM5%AV1C_CLM45%SPBC_CICE%PRES_DOCN%DOM_RTM_SGLC_SWAV</COMPSET>
+<COMPSET sname="F_2000_CAM5_AV1C-00"       alias="FC5AV1C-00"     >2000_CAM5%AV1C_CLM45%SPBC_CICE%PRES_DOCN%DOM_RTM_SGLC_SWAV</COMPSET>
 <COMPSET sname="F_2000_CAM5_AV1F"           alias="FC5AV1F"         >2000_CAM5%AV1F_CLM45%SPBC_CICE%PRES_DOCN%DOM_RTM_SGLC_SWAV</COMPSET>
+<COMPSET sname="F_2000_CAM5_AV1F-00"       alias="FC5AV1F-00"     >2000_CAM5%AV1F_CLM45%SPBC_CICE%PRES_DOCN%DOM_RTM_SGLC_SWAV</COMPSET>
 <COMPSET sname="F_2000_CAM5_ATMMODCOSP"     alias="FC5ATMMODCOSP"   >2000_CAM5%ATMMODCOSP_CLM45%SPBC_CICE%PRES_DOCN%DOM_RTM_SGLC_SWAV</COMPSET>
 <COMPSET sname="F_2000_CAM5_COSP"           alias="FC5COSP"         >2000_CAM5%COSP_CLM40%SP_CICE%PRES_DOCN%DOM_RTM_SGLC_SWAV</COMPSET>
 <COMPSET sname="F_2000_C5UNI"         alias="FC5UNI"     >2000_CAM5%UNI_CLM40%SP_CICE%PRES_DOCN%DOM_RTM_SGLC_SWAV</COMPSET>
@@ -717,7 +727,9 @@ GEOS => GEOS5 meteorology for "stand-alone" CAM
 <CAM_NML_USE_CASE compset="2000_CAM5%CLBMG2LINMAM4RESUS*">2000_cam5_linoz_plmod_plus_resus</CAM_NML_USE_CASE>
 <CAM_NML_USE_CASE compset="2000_CAM5.*ATMMOD*">2000_cam5_atmmod</CAM_NML_USE_CASE>
 <CAM_NML_USE_CASE compset="2000_CAM5.*AV1C"  >2000_cam5_av1c</CAM_NML_USE_CASE>
+<CAM_NML_USE_CASE compset="2000_CAM5.*AV1C-00">2000_cam5_av1c-00</CAM_NML_USE_CASE>
 <CAM_NML_USE_CASE compset="2000_CAM5.*AV1F"  >2000_cam5_av1f</CAM_NML_USE_CASE>
+<CAM_NML_USE_CASE compset="2000_CAM5.*AV1F-00">2000_cam5_av1f-00</CAM_NML_USE_CASE>
 <CAM_NML_USE_CASE compset="2000_CAM5%COSP"   >2000_cam5_cosp</CAM_NML_USE_CASE>
 <CAM_NML_USE_CASE compset="2000_CAM4%WCMX"   >waccmx_2000_cam4</CAM_NML_USE_CASE>
 <CAM_NML_USE_CASE compset="1996_CAM4%WCMX"   >waccmx_1996_cam4</CAM_NML_USE_CASE>
@@ -778,7 +790,9 @@ GEOS => GEOS5 meteorology for "stand-alone" CAM
 <desc compset="_CAM5.*RESUS" >CAM with polar mods, MAM4 and resuspension:</desc>
 <desc compset="_CAM5.*ATMMOD">CAM with all ACME atmosphere mods:</desc>
 <desc compset="_CAM5.*AV1C"  >CAM with complete set of ACME atmospheric mods for V1 (72 layers model):</desc>
+<desc compset="_CAM5.*AV1C-00"  >CAM with complete set of ACME atmospheric mods for V1 (72 layers model)- v00:</desc>
 <desc compset="_CAM5.*AV1F"  >CAM with familiar set of ACME atmospheric mods for V1 (72 Layers model):</desc>
+<desc compset="_CAM5.*AV1F-00"  >CAM with familiar set of ACME atmospheric mods for V1 (72 Layers model)- v00:</desc>
 <desc compset="_CAM5.*ATMMODCOSP">CAM with all ACME atmosphere mods and COSP:</desc>
 <desc compset="_CAM5%CLB"    >CAM CLUBB:</desc>
 <desc compset="_CAM5%MG2"    >CAM MG2:</desc>
@@ -897,8 +911,9 @@ CAM[45]%L60  => CAM with 60 layers and full gravity wave spectrum:
 <!-- CLM_BLDNML_OPTS is not additive, we must list all possible combinations -->
 <CLM_BLDNML_OPTS compset="%CNCR"                 >-ignore_ic_year</CLM_BLDNML_OPTS>  <!-- ERROR: Never matched, see bug 2025 -->
 <CLM_BLDNML_OPTS compset="_CLM45%[^_]*SP"        >-bgc sp</CLM_BLDNML_OPTS>
+<CLM_BLDNML_OPTS compset="_CLM45%[^_]*SP" grid="a%ne30np4_l%ne30np4_oi%oEC60to30_r%r05_m%oEC60to30_g%null_w%null">-bgc sp -mask oEC60to30</CLM_BLDNML_OPTS>
 <CLM_BLDNML_OPTS compset="_CLM45%[^_]*SPBC"      >-bgc sp -fsnowoptics lnd/clm2/snicardata/snicar_optics_5bnd_mam_c140303.nc</CLM_BLDNML_OPTS>
-<CLM_BLDNML_OPTS compset="_CLM45%[^_]*SPBC" mask="oEC60to30" >-bgc sp -fsnowoptics lnd/clm2/snicardata/snicar_optics_5bnd_mam_c140303.nc -mask oEC60to30</CLM_BLDNML_OPTS>
+<CLM_BLDNML_OPTS compset="_CLM45%[^_]*SPBC" grid="a%ne30np4_l%ne30np4_oi%oEC60to30_r%r05_m%oEC60to30_g%null_w%null" >-bgc sp -fsnowoptics lnd/clm2/snicardata/snicar_optics_5bnd_mam_c140303.nc -mask oEC60to30</CLM_BLDNML_OPTS>
 <CLM_BLDNML_OPTS compset="_CLM45%[^_]*CN"        >-bgc cn</CLM_BLDNML_OPTS>
 <CLM_BLDNML_OPTS compset="_CLM45%[^_]*BGC"       >-bgc bgc</CLM_BLDNML_OPTS>
 <CLM_BLDNML_OPTS compset="_CLM45%[^_]*CN-CROP"   >-bgc cn -crop</CLM_BLDNML_OPTS>
@@ -1758,7 +1773,7 @@ DOCN%COPY => docn copy mode
 <CPL_SEQ_OPTION compset="_DATM.*_DLND.*_DICE.*_DOCN">CESM1_MOD</CPL_SEQ_OPTION>
 <CPL_SEQ_OPTION compset="_XATM.*_XLND.*_XICE.*_XOCN">CESM1_MOD</CPL_SEQ_OPTION>
 <CPL_SEQ_OPTION compset="_SOCN"                     >CESM1_MOD</CPL_SEQ_OPTION>
-<CPL_SEQ_OPTION compset="_MPASO"                    >CESM1_MOD_TIGHT</CPL_SEQ_OPTION>
+<CPL_SEQ_OPTION compset="_MPASO"                    >CESM1_MOD</CPL_SEQ_OPTION>
 
 <ROF_NCPL compset=".+"  >8</ROF_NCPL> 
 <ROF_NCPL compset="_DATM.*_POP2"            >$ATM_NCPL</ROF_NCPL>

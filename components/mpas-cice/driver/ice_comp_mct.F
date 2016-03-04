@@ -704,9 +704,10 @@ contains
       character(len=strKIND), pointer :: xtime
 
       type (MPAS_Time_Type) :: currTime
-      character(len=StrKIND) :: timeStamp
+      character(len=StrKIND) :: timeStamp, streamName
       type (MPAS_timeInterval_type) :: timeStep
-      integer :: ierr
+      integer :: ierr, streamDirection
+      logical :: streamActive
       logical, pointer :: config_write_output_on_startup
       logical, save :: first=.true.
       character (len=StrKIND), pointer :: config_restart_timestamp_name
@@ -792,7 +793,13 @@ contains
         call cice_analysis_write(domain, ierr)
 
         ! Reset the restart alarm to prevent restart files being written without the coupler requesting it.
-        call mpas_stream_mgr_reset_alarms(domain % streamManager, streamID='restart', ierr=ierr)
+        call mpas_stream_mgr_begin_iteration(domain % streamManager)
+        do while ( mpas_stream_mgr_get_next_stream(domain % streamManager, streamID=streamName, &
+                   directionProperty=streamDirection, activeProperty=streamActive) )
+           if ( streamActive .and. streamDirection == MPAS_STREAM_INPUT_OUTPUT ) then
+              call mpas_stream_mgr_reset_alarms(domain % streamManager, streamID=streamName, ierr=ierr)
+           end if
+        end do
 
         call mpas_stream_mgr_write(domain % streamManager, streamID='output', ierr=ierr)
         call mpas_stream_mgr_reset_alarms(domain % streamManager, streamID='output', ierr=ierr)
@@ -806,14 +813,20 @@ contains
       ! Check if coupler wants us to write a restart file.
       ! We only write restart files at the end of a coupling interval
       if (seq_timemgr_RestartAlarmIsOn(EClock)) then
+         ! Write a restart file, because the coupler asked for it.
+         call mpas_stream_mgr_begin_iteration(domain % streamManager)
+         do while ( mpas_stream_mgr_get_next_stream(domain % streamManager, streamID=streamName, &
+                    directionProperty=streamDirection, activeProperty=streamActive) )
+            if ( streamActive .and. streamDirection == MPAS_STREAM_INPUT_OUTPUT ) then
+               call mpas_stream_mgr_write(domain % streamManager, forceWriteNow=.true., streamID=streamName, iErr=iErr)
+            end if
+         end do
+
          if ( domain % dminfo % my_proc_id == 0 ) then
             open(22, file=config_restart_timestamp_name, form='formatted', status='replace')
             write(22, *) trim(timeStamp)
             close(22)
          end if
-
-         ! Write a restart file, because the coupler asked for it.
-         call mpas_stream_mgr_write(domain % streamManager, forceWriteNow=.true., streamID='restart', ierr=ierr)
       end if
 
       ! Export state to coupler
@@ -1447,7 +1460,7 @@ contains
 
       do i = 1, nCellsSolve
         n = n + 1
-        seaSurfaceTemperature(i)       = x2i_i % rAttr(index_x2i_So_t, n) - Tffresh
+        seaSurfaceTemperature(i)       = x2i_i % rAttr(index_x2i_So_t, n)
         seaSurfaceSalinity(i)          = x2i_i % rAttr(index_x2i_So_s, n)
         uOceanVelocity(i)              = x2i_i % rAttr(index_x2i_So_u, n)
         vOceanVelocity(i)              = x2i_i % rAttr(index_x2i_So_v, n)

@@ -746,9 +746,10 @@ contains
 
       type (MPAS_Time_Type) :: currTime
       type (domain_type), pointer :: domain_ptr
-      character(len=StrKIND) :: timeStamp
+      character(len=StrKIND) :: timeStamp, streamName
       type (MPAS_timeInterval_type) :: timeStep
-      integer :: ierr
+      integer :: ierr, streamDirection
+      logical :: streamActive
       logical, pointer :: config_write_output_on_startup
       character (len=StrKIND), pointer :: config_restart_timestamp_name
 
@@ -841,8 +842,16 @@ contains
          call ocn_analysis_restart(domain_ptr, ierr) 
          call ocn_analysis_write(domain_ptr, ierr)
 
-         ! Reset the restart alarm to prevent restart files being written without the coupler requesting it.
-         call mpas_stream_mgr_reset_alarms(domain % streamManager, streamID='restart', ierr=ierr)
+         ! Reset any restart alarms to prevent restart files being written without the coupler requesting it.
+         call mpas_stream_mgr_begin_iteration(domain % streamManager)
+
+         do while ( mpas_stream_mgr_get_next_stream( domain % streamManager, streamID=streamName, &
+                    directionProperty=streamDirection, activeProperty=streamActive ) )
+
+            if ( streamActive .and. streamDirection == MPAS_STREAM_INPUT_OUTPUT ) then
+               call mpas_stream_mgr_reset_alarms(domain % streamManager, streamID=streamName, ierr=ierr)
+            end if
+         end do
 
          call mpas_stream_mgr_write(domain % streamManager, streamID='output', ierr=ierr)
          call mpas_stream_mgr_reset_alarms(domain % streamManager, streamID='output', ierr=ierr)
@@ -856,14 +865,22 @@ contains
       ! Check if coupler wants us to write a restart file.
       ! We only write restart files at the end of a coupling interval
       if (seq_timemgr_RestartAlarmIsOn(EClock)) then
+         ! Write a restart file, because the coupler asked for it.
+         call mpas_stream_mgr_begin_iteration(domain % streamManager)
+
+         do while ( mpas_stream_mgr_get_next_stream( domain % streamManager, streamID=streamName, &
+                    directionProperty=streamDirection, activeProperty=streamActive ) )
+
+            if ( streamActive .and. streamDirection == MPAS_STREAM_INPUT_OUTPUT ) then
+               call mpas_stream_mgr_write(domain % streamManager, forceWriteNow=.true., streamID=streamName, ierr=ierr)
+            end if
+         end do
+
          if ( domain_ptr % dminfo % my_proc_id == 0 ) then
             open(22, file=config_restart_timestamp_name, form='formatted', status='replace')
             write(22, *) trim(timeStamp)
             close(22)
          end if
-
-         ! Write a restart file, because the coupler asked for it.
-         call mpas_stream_mgr_write(domain % streamManager, forceWriteNow=.true., streamID='restart', ierr=ierr)
       end if
 
       ! Export state to coupler
@@ -1472,7 +1489,9 @@ contains
            riverRunoffFlux(i) = x2o_o % rAttr(index_x2o_Foxx_rofl, n)
         end if
         if ( iceRunoffFluxField % isActive ) then
-           iceRunoffFlux(i) = x2o_o % rAttr(index_x2o_Foxx_rofi, n)
+           ! DWJ 03/03/2016: Disable solid ice runoff temporarily to prevent large sea ice growth
+           !iceRunoffFlux(i) = x2o_o % rAttr(index_x2o_Foxx_rofi, n)
+           iceRunoffFlux(i) = 0.0_RKIND
            if(iceRunoffFlux(n) < 0.0_RKIND) then
                call shr_sys_abort ('Error: incoming rofi_F is negative')
            end if
@@ -1486,7 +1505,8 @@ contains
            rainFlux(i) = x2o_o % rAttr(index_x2o_Faxa_rain, n)
         end if
         if ( seaSurfacePressureField % isActive ) then
-           seaSurfacePressure(i) = x2o_o % rAttr(index_x2o_Sa_pslv, n)
+           seaSurfacePressure(i) = x2o_o % rAttr(index_x2o_Sa_pslv,   n) &
+                                 + x2o_o % rAttr(index_x2o_Si_bpress, n)
         end if
         if ( iceFractionField % isActive ) then
            iceFraction(i) = x2o_o % rAttr(index_x2o_Si_ifrac, n)
@@ -1740,6 +1760,7 @@ contains
    type (mpas_pool_type), pointer :: meshPool,             &
                                      forcingPool,          &
                                      statePool,            &
+                                     tracersPool,          &
                                      ecosysSeaIceCoupling, &
                                      DMSSeaIceCoupling,    &
                                      MacroMoleculesSeaIceCoupling
@@ -1759,7 +1780,7 @@ contains
  
    real (kind=RKIND), dimension(:,:), pointer :: avgTracersSurfaceValue, avgSurfaceVelocity, avgSSHGradient, &
                                                  oceanSurfacePhytoC, &
-                                                 oceanSurfaceDOC
+                                                 oceanSurfaceDOC, layerThickness
 
    logical, pointer :: frazilIceActive,          &
                        config_use_ecosysTracers, &
@@ -1781,6 +1802,8 @@ contains
      call mpas_pool_get_subpool(block_ptr % structs, 'forcing', forcingPool)
      call mpas_pool_get_subpool(block_ptr % structs, 'state', statePool)
 
+     call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
+
      call mpas_pool_get_dimension(meshPool, 'nCellsSolve', nCellsSolve)
 
      call mpas_pool_get_dimension(forcingPool, 'index_avgTemperatureSurfaceValue', index_temperatureSurfaceValue)
@@ -1789,6 +1812,8 @@ contains
      call mpas_pool_get_dimension(forcingPool, 'index_avgSurfaceVelocityMeridional', index_avgMeridionalSurfaceVelocity)
      call mpas_pool_get_dimension(forcingPool, 'index_avgSSHGradientZonal', index_avgZonalSSHGradient)
      call mpas_pool_get_dimension(forcingPool, 'index_avgSSHGradientMeridional', index_avgMeridionalSSHGradient)
+
+     call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, 1)
 
      call mpas_pool_get_array(forcingPool, 'avgTracersSurfaceValue', avgTracersSurfaceValue)
      call mpas_pool_get_array(forcingPool, 'avgSurfaceVelocity', avgSurfaceVelocity)
@@ -1839,6 +1864,11 @@ contains
        o2x_o % rAttr(index_o2x_So_dhdx, n) = avgSSHGradient(index_avgZonalSSHGradient, i)
        o2x_o % rAttr(index_o2x_So_dhdy, n) = avgSSHGradient(index_avgMeridionalSSHGradient, i)
        if ( frazilIceActive ) then
+          ! negative when frazil ice can be melted
+          seaIceEnergy(i) = min( rho_sw * cp_sw * layerThickness(1, i) * ( -1.8_RKIND + T0_Kelvin &
+                          - avgTracersSurfaceValue(index_temperatureSurfaceValue, i) ), 0.0_RKIND )
+           if ( accumulatedFrazilIceMass(i) > 0.0_RKIND ) seaIceEnergy(i) = 0
+
           o2x_o % rAttr(index_o2x_Fioo_meltp, n)  = seaIceEnergy(i) / ocn_cpl_dt
           o2x_o % rAttr(index_o2x_Fioo_frazil, n) = accumulatedFrazilIceMass(i) / ocn_cpl_dt
 

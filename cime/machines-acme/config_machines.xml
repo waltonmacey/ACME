@@ -778,7 +778,7 @@
          <DESC>ORNL XK6, os is CNL, 16 pes/node, batch system is PBS</DESC>
          <NODENAME_REGEX>titan</NODENAME_REGEX>
          <TESTS>acme_developer</TESTS>
-	 <COMPILERS>pgi,pgicuda,intel,cray</COMPILERS>
+	 <COMPILERS>pgi,pgi_acc,intel,cray</COMPILERS>
 	 <MPILIBS>mpich,mpi-serial</MPILIBS>
          <CESMSCRATCHROOT>$ENV{HOME}/acme_scratch/$PROJECT</CESMSCRATCHROOT>
          <RUNDIR>$ENV{MEMBERWORK}/$PROJECT/$CASE/run</RUNDIR>
@@ -915,6 +915,7 @@
 	</mpirun>
 	<GMAKE_J>4</GMAKE_J>
 	<MAX_TASKS_PER_NODE>24</MAX_TASKS_PER_NODE>
+	<PROJECT_REQUIRED>TRUE</PROJECT_REQUIRED>
 	<SUPPORTED_BY>jacobsen.douglas -at- gmail.com</SUPPORTED_BY>
 </machine>
 
@@ -967,7 +968,199 @@
 	</mpirun>
 	<GMAKE_J>4</GMAKE_J>
 	<MAX_TASKS_PER_NODE>16</MAX_TASKS_PER_NODE>
+	<PROJECT_REQUIRED>TRUE</PROJECT_REQUIRED>
 	<SUPPORTED_BY>jacobsen.douglas -at- gmail.com</SUPPORTED_BY>
+</machine>
+
+<machine MACH="mesabi">
+        <DESC>Mesabi batch queue</DESC>
+        <OS>LINUX</OS>
+        <COMPILERS>intel</COMPILERS>
+        <MPILIBS>openmpi</MPILIBS>
+        <RUNDIR>$CASEROOT/run</RUNDIR>                       
+<!-- complete path to the run directory -->
+        <EXEROOT>$CASEROOT/exedir</EXEROOT>                     
+<!-- complete path to the build directory -->
+        <DIN_LOC_ROOT>/home/reichpb/shared/cesm_inputdata</DIN_LOC_ROOT>           
+<!-- complete path to the inputdata directory -->
+
+        <DIN_LOC_ROOT_CLMFORC>/home/reichpb/shared/cesm_inputdata/atm/datm7</DIN_LOC_ROOT_CLMFORC>
+<!-- path to the optional forcing data for CLM (for CRUNCEP forcing) -->
+        <DOUT_S>FALSE</DOUT_S>                                            
+<!-- logical for short term archiving -->
+        <DOUT_S_ROOT>USERDEFINED_optional_run</DOUT_S_ROOT>               
+<!-- complete path to a short term archiving directory -->
+        <DOUT_L_MSROOT>USERDEFINED_optional_run</DOUT_L_MSROOT>           
+<!-- complete path to a long term archiving directory -->
+        <CCSM_BASELINE>USERDEFINED_optional_run</CCSM_BASELINE>           
+<!-- where the cesm testing scripts write and read baseline results -->
+        <CCSM_CPRNC>USERDEFINED_optional_test</CCSM_CPRNC>                
+<!-- path to the cprnc tool used to compare netcdf history files in testing -->
+        <BATCHQUERY>qstat -f</BATCHQUERY>
+        <BATCHSUBMIT>qsub -q mesabi</BATCHSUBMIT>
+        <SUPPORTED_BY>chen1718 at umn dot edu</SUPPORTED_BY>
+        <GMAKE_J>2</GMAKE_J>
+        <MAX_TASKS_PER_NODE>24</MAX_TASKS_PER_NODE>
+         <PROJECT_REQUIRED>TRUE</PROJECT_REQUIRED>
+         <batch_system type="pbs">
+            <queues>
+              <queue walltimemax="24:00" default="true">mesabi</queue>
+              <queue walltimemax="24:00">debug</queue>
+            </queues>
+            <walltimes> 
+              <walltime default="true">00:45:00</walltime>
+              <walltime ccsm_estcost="1">02:00:00</walltime>
+            </walltimes>
+         </batch_system>
+         <mpirun mpilib="default">
+           <executable>aprun</executable>
+             <arguments>
+                <arg name="num_tasks"> -n {{ num_tasks }}</arg>
+                <arg name="tasks_per_numa"> -S {{ tasks_per_numa }}</arg>
+                <arg name="tasks_per_node"> -N {{ tasks_per_node }}</arg>
+                <arg name="thread_count"> -d {{ thread_count }}</arg>
+             </arguments>
+         </mpirun>
+</machine>
+
+<machine MACH="itasca">
+        <DESC>Itasca batch queue</DESC>
+        <OS>LINUX</OS>
+        <COMPILERS>intel</COMPILERS>
+        <MPILIBS>openmpi</MPILIBS>
+        <RUNDIR>$CASEROOT/run</RUNDIR>                       
+<!-- complete path to the run directory -->
+        <EXEROOT>$CASEROOT/exedir</EXEROOT>                     
+<!-- complete path to the build directory -->
+        <DIN_LOC_ROOT>/home/reichpb/shared/cesm_inputdata</DIN_LOC_ROOT>           
+<!-- complete path to the inputdata directory -->
+
+        <DIN_LOC_ROOT_CLMFORC>/home/reichpb/shared/cesm_inputdata/atm/datm7</DIN_LOC_ROOT_CLMFORC>
+<!-- path to the optional forcing data for CLM (for CRUNCEP forcing) -->
+        <DOUT_S>FALSE</DOUT_S>                                            
+<!-- logical for short term archiving -->
+        <DOUT_S_ROOT>USERDEFINED_optional_run</DOUT_S_ROOT>               
+<!-- complete path to a short term archiving directory -->
+        <DOUT_L_MSROOT>USERDEFINED_optional_run</DOUT_L_MSROOT>           
+<!-- complete path to a long term archiving directory -->
+        <CCSM_BASELINE>USERDEFINED_optional_run</CCSM_BASELINE>           
+<!-- where the cesm testing scripts write and read baseline results -->
+        <CCSM_CPRNC>USERDEFINED_optional_test</CCSM_CPRNC>                
+<!-- path to the cprnc tool used to compare netcdf history files in testing -->
+        <BATCHQUERY>qstat -f</BATCHQUERY>
+        <BATCHSUBMIT>qsub -q batch</BATCHSUBMIT>
+        <SUPPORTED_BY>chen1718 at umn dot edu</SUPPORTED_BY>
+        <GMAKE_J>2</GMAKE_J>
+        <MAX_TASKS_PER_NODE>8</MAX_TASKS_PER_NODE>
+         <batch_system type="pbs">
+            <queues>
+              <queue walltimemax="24:00" default="true">batch</queue>
+              <queue walltimemax="24:00">debug</queue>
+            </queues>
+            <walltimes> 
+              <walltime default="true">00:45:00</walltime>
+              <walltime ccsm_estcost="1">02:00:00</walltime>
+            </walltimes>
+         </batch_system>
+         <mpirun mpilib="default">
+           <executable>aprun</executable>
+             <arguments>
+                <arg name="num_tasks"> -n {{ num_tasks }}</arg>
+                <arg name="tasks_per_numa"> -S {{ tasks_per_numa }}</arg>
+                <arg name="tasks_per_node"> -N {{ tasks_per_node }}</arg>
+                <arg name="thread_count"> -d {{ thread_count }}</arg>
+             </arguments>
+         </mpirun>
+</machine>
+
+<machine MACH="lawrencium-lr3">
+  <DESC>Lawrencium LR3 cluster at LBL, OS is Linux (intel), batch system is SLURM</DESC>
+  <OS>LINUX</OS>
+  <COMPILERS>intel</COMPILERS>
+  <MPILIBS>openmpi,mpi-serial</MPILIBS>
+  <CESMSCRATCHROOT>/global/scratch/$ENV{USER}</CESMSCRATCHROOT>
+  <RUNDIR>$CESMSCRATCHROOT/$CASE/run</RUNDIR>
+  <EXEROOT>$CESMSCRATCHROOT/$CASE/bld</EXEROOT>
+  <DIN_LOC_ROOT>/global/scratch/$ENV{USER}/cesm_input_datasets/</DIN_LOC_ROOT>
+  <DIN_LOC_ROOT_CLMFORC>/global/scratch/$ENV{USER}/cesm_input_datasets/atm/datm7</DIN_LOC_ROOT_CLMFORC>
+  <DOUT_S_ROOT>$CESMSCRATCHROOT/cesm_archive/$CASE</DOUT_S_ROOT>
+  <DOUT_L_MSROOT>csm/$CASE</DOUT_L_MSROOT>
+  <CCSM_BASELINE>$CESMSCRATCHROOT/cesm_baselines</CCSM_BASELINE>
+  <CCSM_CPRNC>/$CESMSCRATCHROOT/cesm_tools/cprnc/cprnc</CCSM_CPRNC>
+  <BATCHQUERY>squeue</BATCHQUERY>
+  <BATCHREDIRECT></BATCHREDIRECT>
+  <BATCHSUBMIT>sbatch</BATCHSUBMIT>
+  <SUPPORTED_BY>gbisht at lbl dot gov </SUPPORTED_BY>
+  <GMAKE_J>4</GMAKE_J>
+  <MAX_TASKS_PER_NODE>16</MAX_TASKS_PER_NODE>
+  <PROJECT_REQUIRED>TRUE</PROJECT_REQUIRED>
+  <batch_system type="slurm" version="2.0">
+    <queues>
+      <queue walltimemin="0" walltimemax="72:00:00" jobmin="0" jobmax="64" default="true">lr_normal</queue>
+    </queues>
+    <walltimes>
+      <walltime default="true">00:59:00</walltime>
+    </walltimes>
+  </batch_system>
+  <mpirun mpilib="mpi-serial">
+    <executable>mpirun</executable>
+    <arguments>
+      <arg name="num_tasks">-np {{ num_tasks }}</arg>
+      <arg name="tasks_per_node"> -npernode {{ tasks_per_node }}</arg>
+    </arguments>
+  </mpirun>
+  <mpirun mpilib="default">
+    <executable>mpirun</executable>
+    <arguments>
+      <arg name="num_tasks">-np {{ num_tasks }}</arg>
+      <arg name="tasks_per_node"> -npernode {{ tasks_per_node }}</arg>
+    </arguments>
+  </mpirun>
+</machine>
+
+<machine MACH="lawrencium-lr2">
+  <DESC>Lawrencium LR2 cluster at LBL, OS is Linux (intel), batch system is SLURM</DESC>
+  <OS>LINUX</OS>
+  <COMPILERS>intel</COMPILERS>
+  <MPILIBS>openmpi,mpi-serial</MPILIBS>
+  <CESMSCRATCHROOT>/global/scratch/$ENV{USER}</CESMSCRATCHROOT>
+  <RUNDIR>$CESMSCRATCHROOT/$CASE/run</RUNDIR>
+  <EXEROOT>$CESMSCRATCHROOT/$CASE/bld</EXEROOT>
+  <DIN_LOC_ROOT>/global/scratch/$ENV{USER}/cesm_input_datasets/</DIN_LOC_ROOT>
+  <DIN_LOC_ROOT_CLMFORC>/global/scratch/$ENV{USER}/cesm_input_datasets/atm/datm7</DIN_LOC_ROOT_CLMFORC>
+  <DOUT_S_ROOT>$CESMSCRATCHROOT/cesm_archive/$CASE</DOUT_S_ROOT>
+  <DOUT_L_MSROOT>csm/$CASE</DOUT_L_MSROOT>
+  <CCSM_BASELINE>$CESMSCRATCHROOT/cesm_baselines</CCSM_BASELINE>
+  <CCSM_CPRNC>/$CESMSCRATCHROOT/cesm_tools/cprnc/cprnc</CCSM_CPRNC>
+  <BATCHQUERY>squeue</BATCHQUERY>
+  <BATCHREDIRECT></BATCHREDIRECT>
+  <BATCHSUBMIT>sbatch</BATCHSUBMIT>
+  <SUPPORTED_BY>gbisht at lbl dot gov</SUPPORTED_BY>
+  <GMAKE_J>4</GMAKE_J>
+  <MAX_TASKS_PER_NODE>12</MAX_TASKS_PER_NODE>
+  <PROJECT_REQUIRED>TRUE</PROJECT_REQUIRED>
+  <batch_system type="slurm" version="2.0">
+    <queues>
+      <queue walltimemin="0" walltimemax="72:00:00" jobmin="0" jobmax="64" default="true">lr_normal</queue>
+    </queues>
+    <walltimes>
+      <walltime default="true">00:59:00</walltime>
+    </walltimes>
+  </batch_system>
+  <mpirun mpilib="mpi-serial">
+    <executable>mpirun</executable>
+    <arguments>
+      <arg name="num_tasks">-np {{ num_tasks }}</arg>
+      <arg name="tasks_per_node"> -npernode {{ tasks_per_node }}</arg>
+    </arguments>
+  </mpirun>
+  <mpirun mpilib="default">
+    <executable>mpirun</executable>
+    <arguments>
+      <arg name="num_tasks">-np {{ num_tasks }}</arg>
+      <arg name="tasks_per_node"> -npernode {{ tasks_per_node }}</arg>
+    </arguments>
+  </mpirun>
 </machine>
 
 <default_run_suffix>

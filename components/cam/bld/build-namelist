@@ -711,7 +711,7 @@ my $rad_prog_bcarb = (($prog_species =~ "BC"   or $aero_chem) and !($chem_rad_pa
 my $rad_prog_sulf  = (($prog_species =~ "SO4"  or $aero_chem or $chem =~ "super_fast_llnl") and !($chem_rad_passive));
 my $rad_prog_dust  = (($prog_species =~ "DST"  or $aero_chem) and !($chem_rad_passive));
 my $rad_prog_sslt  = (($prog_species =~ "SSLT" or $aero_chem) and !($chem_rad_passive));
-my $rad_prog_ozone = (($chem =~ "mozart" or $chem =~ "trop_strat" or $chem =~ "super_fast_llnl") and !($chem_rad_passive));
+my $rad_prog_ozone = (($chem =~ "mozart" or $chem =~ "trop_strat" or $chem =~ "super_fast_llnl" or $chem =~ "linoz") and !($chem_rad_passive));
 
 # Check for eruptive volcano emissions.  These will be radiatively active by default, but
 # only if using BAM and the camrt radiation package (cam4 physics)
@@ -2767,7 +2767,8 @@ if ($chem eq 'trop_mam4_mom' || $chem eq 'trop_mam4_resus_mom') {
     my @files = ('mam_mom_specifier', 'mam_mom_filename',
 		 'mam_mom_datapath', 'mam_mom_datatype',
 		 'mam_mom_cycle_yr', 'mam_mom_fixed_ymd',
-		 'mam_mom_fixed_tod' );
+		 'mam_mom_fixed_tod', 'mam_mom_bubble_thickness',
+                 'mam_mom_mixing_state', 'mam_mom_parameterization');
     foreach my $file (@files) {
         add_default($nl, $file);
     }

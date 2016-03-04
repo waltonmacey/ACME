@@ -508,6 +508,14 @@ Valid values: true or false
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_geostrophic_surface_tilt" type="logical"
+	category="velocity_solver" group="velocity_solver">
+MISSING DESCRIPTION
+
+Valid values: true or false
+Default: Defined in namelist_defaults.xml
+</entry>
+
 
 <!-- advection -->
 
@@ -1768,6 +1776,92 @@ Default: Defined in namelist_defaults.xml
 
 <entry id="config_AM_pondDiagnostics_write_on_startup" type="logical"
 	category="AM_pondDiagnostics" group="AM_pondDiagnostics">
+Logical flag determining if an analysis member write occurs on start-up.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+
+<!-- AM_unitConversion -->
+
+<entry id="config_AM_unitConversion_enable" type="logical"
+	category="AM_unitConversion" group="AM_unitConversion">
+If true, ocean analysis member unitConversion is called.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_unitConversion_compute_interval" type="char*1024"
+	category="AM_unitConversion" group="AM_unitConversion">
+Timestamp determining how often analysis member computation should be performed.
+
+Valid values: Any valid time stamp, 'dt', or 'output_interval'
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_unitConversion_output_stream" type="char*1024"
+	category="AM_unitConversion" group="AM_unitConversion">
+Name of the stream that the unitConversion analysis member should be tied to.
+
+Valid values: Any existing stream name or 'none'
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_unitConversion_compute_on_startup" type="logical"
+	category="AM_unitConversion" group="AM_unitConversion">
+Logical flag determining if an analysis member computation occurs on start-up.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_unitConversion_write_on_startup" type="logical"
+	category="AM_unitConversion" group="AM_unitConversion">
+Logical flag determining if an analysis member write occurs on start-up.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+
+<!-- AM_pointwiseStats -->
+
+<entry id="config_AM_pointwiseStats_enable" type="logical"
+	category="AM_pointwiseStats" group="AM_pointwiseStats">
+If true, ocean analysis member pointwiseStats is called.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_pointwiseStats_compute_interval" type="char*1024"
+	category="AM_pointwiseStats" group="AM_pointwiseStats">
+Timestamp determining how often analysis member computation should be performed.
+
+Valid values: Any valid time stamp, 'dt', or 'output_interval'
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_pointwiseStats_output_stream" type="char*1024"
+	category="AM_pointwiseStats" group="AM_pointwiseStats">
+Name of the stream that the pointwiseStats analysis member should be tied to.
+
+Valid values: Any existing stream name or 'none'
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_pointwiseStats_compute_on_startup" type="logical"
+	category="AM_pointwiseStats" group="AM_pointwiseStats">
+Logical flag determining if an analysis member computation occurs on start-up.
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_pointwiseStats_write_on_startup" type="logical"
+	category="AM_pointwiseStats" group="AM_pointwiseStats">
 Logical flag determining if an analysis member write occurs on start-up.
 
 Valid values: .true. or .false.
