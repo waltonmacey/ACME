@@ -51,7 +51,7 @@ module lnd2atmType
      real(r8), pointer :: flux_ch4_grc       (:)   => null() ! net CH4 flux (kg C/m**2/s) [+ to atm]
 
 #ifdef GPM_GMI2
-     real(r8), pointer :: unisoilw           (:)   => null() ! volumetric soil moisture content averaged over non-lake columns (%, 0 to 1)
+     real(r8), pointer :: unisoilw_grc       (:)   => null() ! volumetric soil moisture content averaged over non-lake columns (%, 0 to 1)
      real(r8), pointer :: vegfrac_grc        (:)   => null() ! vegetaton fraction (%, 0 to 1)
      real(r8), pointer :: soiltemp_grc       (:)   => null() ! soil temperature (Kelvin)
      real(r8), pointer :: lai_grc            (:)   => null() ! leaf area index (m^2/m^2)
@@ -135,15 +135,15 @@ contains
     allocate(this%qflx_rofliq_qgwl_grc(begg:endg))           ; this%qflx_rofliq_qgwl_grc(:)  =ival
     allocate(this%qflx_rofice_grc    (begg:endg))            ; this%qflx_rofice_grc    (:)   =ival
 #ifdef GPM_GMI2
-    allocate(unisoilw_grc            (begg:endg))            ; this%soil_moist_content (:)   =ival
-    allocate(vegfrac_grc             (begg:endg))            ; this%vegetation_frac    (:)   =ival
-    allocate(soiltemp_grc            (begg:endg))            ; this%soil_temperature   (:)   =ival
-    allocate(lai_grc                 (begg:endg))            ; this%lai                (:)   =ival
-    allocate(sandfrac_grc            (begg:endg))            ; this%sand_frac          (:)   =ival
-    allocate(clayfrac_grc            (begg:endg))            ; this%clay_frac          (:)   =ival
-    allocate(vegrho_grc              (begg:endg))            ; this%veg_rho            (:)   =ival
-    allocate(vegmge_grc              (begg:endg))            ; this%veg_mge            (:)   =ival
-    allocate(landfrac_grc            (begg:endg))            ; this%land_frac          (:)   =ival
+    allocate(this%unisoilw_grc       (begg:endg))            ; this%unisoilw_grc       (:)   =ival
+    allocate(this%vegfrac_grc        (begg:endg))            ; this%vegfrac_grc        (:)   =ival
+    allocate(this%soiltemp_grc       (begg:endg))            ; this%soiltemp_grc       (:)   =ival
+    allocate(this%lai_grc            (begg:endg))            ; this%lai_grc            (:)   =ival
+    allocate(this%sandfrac_grc       (begg:endg))            ; this%sandfrac_grc       (:)   =ival
+    allocate(this%clayfrac_grc       (begg:endg))            ; this%clayfrac_grc       (:)   =ival
+    allocate(this%vegrho_grc         (begg:endg))            ; this%vegrho_grc         (:)   =ival
+    allocate(this%vegmge_grc         (begg:endg))            ; this%vegmge_grc         (:)   =ival
+    allocate(this%landfrac_grc       (begg:endg))            ; this%landfrac_grc       (:)   =ival
 #endif
 
     if (shr_megan_mechcomps_n>0) then

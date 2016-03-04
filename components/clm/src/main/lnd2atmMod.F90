@@ -340,6 +340,7 @@ contains
     use SoilstateType,    only : soilstate_type
     use PatchType,        only : pft
     use ColumnType,       only : col
+    use landunit_varcon,  only : istdlak
     !
     ! !ARGUMENTS:
     type(bounds_type)      , intent(in)     :: bounds  
@@ -352,43 +353,44 @@ contains
     ! Parameters used to convert PFT types to vegetation density and water
     ! content. It is copied from CRTM NESDIS_LandEM_Module.f90 
 ! Specific Density
-    REAL(fp), PARAMETER, dimension(0:13) :: veg_rho  = (/ 0.33_fp,     &
-                          0.40_fp, 0.40_fp, 0.40_fp, 0.40_fp, 0.40_fp, &
-                          0.25_fp, 0.25_fp, 0.40_fp, 0.40_fp, 0.40_fp, &
-                          0.40_fp, 0.33_fp, 0.33_fp            /)
+    REAL(r8), PARAMETER, dimension(0:13) :: veg_rho  = (/ 0.33_r8,     &
+                          0.40_r8, 0.40_r8, 0.40_r8, 0.40_r8, 0.40_r8, &
+                          0.25_r8, 0.25_r8, 0.40_r8, 0.40_r8, 0.40_r8, &
+                          0.40_r8, 0.33_r8, 0.33_r8            /)
 ! MGE
-    REAL(fp), PARAMETER, dimension(0:13) :: veg_mge  = (/ 0.50_fp,     &
-                          0.45_fp, 0.45_fp, 0.45_fp, 0.40_fp, 0.40_fp, &
-                          0.30_fp, 0.35_fp, 0.30_fp, 0.30_fp, 0.40_fp, &
-                          0.30_fp, 0.50_fp, 0.40_fp            /)
+    REAL(r8), PARAMETER, dimension(0:13) :: veg_mge  = (/ 0.50_r8,     &
+                          0.45_r8, 0.45_r8, 0.45_r8, 0.40_r8, 0.40_r8, &
+                          0.30_r8, 0.35_r8, 0.30_r8, 0.30_r8, 0.40_r8, &
+                          0.30_r8, 0.50_r8, 0.40_r8            /)
     ! parameters used to convert CLM PFT types to GFS vegetation types
     integer, parameter, dimension(0:24) :: pft2gfs = &
   (/ & ! -------------------------------------------------------- 
-    11 &  !   0  => not vegetated
-    4  &  !   1  => needleleaf evergreen temperate tree
-    4  &  !   2  => needleleaf evergreen boreal tree
-    5  &  !   3  => needleleaf deciduous boreal tree
-    1  &  !   4  => broadleaf evergreen tropical tree
-    1  &  !   5  => broadleaf evergreen temperate tree
-    2  &  !   6  => broadleaf deciduous tropical tree
-    2  &  !   7  => broadleaf deciduous temperate tree
-    2  &  !   8  => broadleaf deciduous boreal tree
-    8  &  !   9  => broadleaf evergreen shrub
-    9  &  !   10 => broadleaf deciduous temperate shrub
-   10  &  !   11 => broadleaf deciduous boreal shrub
-   10  &  !   12 => c3 arctic grass
-    7  &  !   13 => c3 non-arctic grass
-    6  &  !   14 => c4 grass
-   12  &  !   15 => c3_crop
-   12  &  !   16 => c3_irrigated
-   12  &  !   17 => corn
-   12  &  !   18 => irrigated corn
-   12  &  !   19 => spring temperate cereal
-   12  &  !   20 => irrigated spring temperate cereal
-   12  &  !   21 => winter temperate cereal
-   12  &  !   22 => irrigated winter temperate cereal
-   12  &  !   23 => soybean
-   12  &  !   24 => irrigated soybean
+    11 ,&  !   0  => not vegetated
+    4  ,&  !   1  => needleleaf evergreen temperate tree
+    4  ,&  !   2  => needleleaf evergreen boreal tree
+    5  ,&  !   3  => needleleaf deciduous boreal tree
+    1  ,&  !   4  => broadleaf evergreen tropical tree
+    1  ,&  !   5  => broadleaf evergreen temperate tree
+    2  ,&  !   6  => broadleaf deciduous tropical tree
+    2  ,&  !   7  => broadleaf deciduous temperate tree
+    2  ,&  !   8  => broadleaf deciduous boreal tree
+    8  ,&  !   9  => broadleaf evergreen shrub
+    9  ,&  !   10 => broadleaf deciduous temperate shrub
+   10  ,&  !   11 => broadleaf deciduous boreal shrub
+   10  ,&  !   12 => c3 arctic grass
+    7  ,&  !   13 => c3 non-arctic grass
+    6  ,&  !   14 => c4 grass
+   12  ,&  !   15 => c3_crop
+   12  ,&  !   16 => c3_irrigated
+   12  ,&  !   17 => corn
+   12  ,&  !   18 => irrigated corn
+   12  ,&  !   19 => spring temperate cereal
+   12  ,&  !   20 => irrigated spring temperate cereal
+   12  ,&  !   21 => winter temperate cereal
+   12  ,&  !   22 => irrigated winter temperate cereal
+   12  ,&  !   23 => soybean
+   12   &  !   24 => irrigated soybean
+    /)
   ! -------------------------------------------------------- 
     ! !LOCAL VARIABLES:
     integer :: p, c             ! index
@@ -400,7 +402,7 @@ contains
     real(r8), allocatable :: local_clayfrac_patch (:)
     real(r8), allocatable :: local_vegrho_patch   (:)
     real(r8), allocatable :: local_vegmge_patch   (:)
-    real(r8), allocatable :: local_landfrac_patch (:)
+    real(r8), allocatable :: local_landfrac_col   (:)
 
     !------------------------------------------------------------------------
     ! allocate variables
@@ -434,7 +436,7 @@ contains
       if ( col%itype(c) /= istdlak ) then
         local_landfrac_col  (c) = 1
         local_h2osoi_vol_col(c) = waterstate_vars%h2osoi_vol_col(c,1) ! use the first layer water content
-        local_soil_t_col    (c) = temperature_vars%t_soil10cm_col(c)
+        local_soil_t_col    (c) = temperature_vars%t_soi10cm_col(c)
       end if
     end do ! column
 
@@ -478,12 +480,12 @@ contains
          p2c_scale_type='unity', c2l_scale_type= 'unity', l2g_scale_type='unity')
 
     call p2g(bounds, &
-         local_vegrho                    (bounds%begp:bounds%endp), &
+         local_vegrho_patch              (bounds%begp:bounds%endp), &
          lnd2atm_vars%vegrho_grc         (bounds%begg:bounds%endg), &
          p2c_scale_type='unity', c2l_scale_type= 'unity', l2g_scale_type='unity')
 
     call p2g(bounds, &
-         local_vegmge                    (bounds%begp:bounds%endp), &
+         local_vegmge_patch              (bounds%begp:bounds%endp), &
          lnd2atm_vars%vegmge_grc         (bounds%begg:bounds%endg), &
          p2c_scale_type='unity', c2l_scale_type= 'unity', l2g_scale_type='unity')
   end subroutine lnd2atm_GPMGMI

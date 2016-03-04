@@ -25,8 +25,8 @@ contains
       p,            & ! pressure at middle of levels [hPa]
       T,            & ! temperature [Kelvin]
       mr_vapor,     & ! water vapor mixing ratio [g/kg]
-      Reff_hydro,   & ! effective radius of hydrometer particle
-      water_content,     & ! mixing ratio of hydrometer
+      Reff_hydro,   & ! effective radius of hydrometer particle [um]
+      water_content,     & ! mixing ratio of hydrometer [kg/m^2]
       Reff_aerosol, & ! effective radius of aerosol
       mr_aerosol,   & ! mixing ratio of aerosol
       o3,           & ! ozone mixing ratio [ppmv]
@@ -158,10 +158,12 @@ contains
          ! conversion is implemented in gpm_crtm_simulator.F90.
          atm(i_profile)%Absorber(:,2)  = o3(i_profile,:)
 
-#ifdef GMI_DEBUG
+!#ifdef GMI_DEBUG
+if(.false.) then
          atm(i_profile)%Absorber(:,1) = 0
          atm(i_profile)%Absorber(:,2) = 0
-#endif
+end if
+!#endif
 
          ! assign cloud properties
          ! For now, the cloud types follow those in COSP. Each type of
@@ -172,7 +174,7 @@ contains
          ! while water content has unit kg/m^2
 
          
-#ifndef GMI_DEBUG
+!#ifndef GMI_DEBUG
          tmpint = I_LSCLIQ
          atm(i_profile)%Cloud(1)%Type = WATER_CLOUD
          atm(i_profile)%Cloud(1)%Effective_Radius = Reff_hydro(i_profile,:,tmpint)
@@ -225,7 +227,7 @@ contains
          atm(i_profile)%Aerosol(1)%Type = DUST_AEROSOL
          atm(i_profile)%Aerosol(1)%Effective_Radius = Reff_aerosol(i_profile,:,1)
          atm(i_profile)%Aerosol(1)%Concentration    = mr_aerosol(i_profile,:,1)
-#endif         
+!#endif         
       end do ! i_profile
       !---------------------
       ! geometry and option structures

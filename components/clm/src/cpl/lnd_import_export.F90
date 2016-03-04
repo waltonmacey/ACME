@@ -1047,15 +1047,15 @@ contains
        if (index_l2x_Fall_flxdst4 /= 0 )  l2x(index_l2x_Fall_flxdst4,i)= -lnd2atm_vars%flxdst_grc(g,4)
 #ifdef GPM_GMI2
        ! fields for GPM simulator
-       if (index_l2x_Sl_unisoilw  /= 0 )  l2x(index_l2x_Sl_unisoilw,i) =  lnd2atm_vars%unisoilw(g)
+       if (index_l2x_Sl_unisoilw  /= 0 )  l2x(index_l2x_Sl_unisoilw,i) =  lnd2atm_vars%unisoilw_grc(g)
        if (index_l2x_Sl_vegfrac   /= 0 )  l2x(index_l2x_Sl_vegfrac ,i) =  lnd2atm_vars%vegfrac_grc(g)
        if (index_l2x_Sl_soiltemp  /= 0 )  l2x(index_l2x_Sl_soiltemp,i) =  lnd2atm_vars%soiltemp_grc(g)
        if (index_l2x_Sl_lai       /= 0 )  l2x(index_l2x_Sl_lai     ,i) =  lnd2atm_vars%lai_grc(g)
-       if (index_l2x_Sl_sandfrac  /= 0 )  l2x(index_l2x_Sl_landfrac,i) =  lnd2atm_vars%landfrac(g)
-       if (index_l2x_Sl_clayfrac  /= 0 )  l2x(index_l2x_Sl_clayfrac,i) =  lnd2atm_vars%clayfrac(g)
-       if (index_l2x_Sl_vegrho    /= 0 )  l2x(index_l2x_Sl_vegrho  ,i) =  lnd2atm_vars%vegrho(g)
-       if (index_l2x_Sl_vegmge    /= 0 )  l2x(index_l2x_Sl_vegmge  ,i) =  lnd2atm_vars%vegmge(g)
-       if (index_l2x_Sl_landfrac  /= 0 )  l2x(index_l2x_Sl_landfrac,i) =  lnd2atm_vars%landfrac(g)
+       if (index_l2x_Sl_sandfrac  /= 0 )  l2x(index_l2x_Sl_landfrac,i) =  lnd2atm_vars%landfrac_grc(g)
+       if (index_l2x_Sl_clayfrac  /= 0 )  l2x(index_l2x_Sl_clayfrac,i) =  lnd2atm_vars%clayfrac_grc(g)
+       if (index_l2x_Sl_vegrho    /= 0 )  l2x(index_l2x_Sl_vegrho  ,i) =  lnd2atm_vars%vegrho_grc(g)
+       if (index_l2x_Sl_vegmge    /= 0 )  l2x(index_l2x_Sl_vegmge  ,i) =  lnd2atm_vars%vegmge_grc(g)
+       if (index_l2x_Sl_landfrac  /= 0 )  l2x(index_l2x_Sl_landfrac,i) =  lnd2atm_vars%landfrac_grc(g)
 
 #endif
        ! for dry dep velocities

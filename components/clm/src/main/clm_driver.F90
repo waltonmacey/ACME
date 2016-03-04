@@ -152,7 +152,6 @@ module clm_driver
   use clm_pflotran_interfaceMod   , only : clm_pf_run, clm_pf_write_restart
 !  use clm_pflotran_interfaceMod   , only : clm_pf_finalize
   !!----------------------------------------------------------------------------
-
   !
   ! !PUBLIC TYPES:
   implicit none
