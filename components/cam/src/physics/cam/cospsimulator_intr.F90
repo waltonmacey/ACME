@@ -3096,13 +3096,18 @@ if (cosp_runall) then
 #ifdef GPM_GMI2
 ! Propagate surface properties from cam_in to gpm_surface
    ! FIXME: The surface fraction should be treated in more details (e.g., lakes)
-   gbx%gpmsurface%land_coverage  = cam_in%landfrac
-   gbx%gpmsurface%water_coverage = cam_in%ocnfrac
-   gbx%gpmsurface%ice_coverage   = 1- cam_in%landfrac - cam_in%ocnfrac
+   gbx%gpmsurface%land_coverage  = cam_in%landfrac(1:Npoints) * cam_in%gpm_landfrac(1:Npoints) ! exclude deep lakes in land units
+   gbx%gpmsurface%water_coverage = cam_in%ocnfrac(1:Npoints) + cam_in%landfrac(1:Npoints) * (1 - cam_in%gpm_landfrac(1:Npoints)  )
+   gbx%gpmsurface%ice_coverage   = 1- cam_in%landfrac(1:Npoints) - cam_in%ocnfrac(1:Npoints)
    
    ! land surface properties
-   gbx%gpmsurface%land_temperature  = gbx%skt !gbx%T(:,1) !cam_in%ts(1:Npoints)
-   gbx%gpmsurface%soil_temperature  = gbx%skt !gbx%T(:,1)
+   gbx%gpmsurface%Land_Temperature  = gbx%skt !gbx%T(:,1) !cam_in%ts(1:Npoints)
+   gbx%gpmsurface%Soil_Moisture_Content = cam_in%gpm_unisoilw(1:Npoints)
+   gbx%gpmsurface%Vegetation_Fraction   = cam_in%gpm_vegfrac(1:Npoints)
+   gbx%gpmsurface%Soil_Temperature      = cam_in%gpm_soiltemp(1:Npoints) !gbx%T(:,1)
+   gbx%gpmsurface%LAI                   = cam_in%gpm_lai(1:Npoints)
+   gbx%gpmsurface%Soil_Type         = getGFSSoilType(      cam_in%gpm_sandfrac(1:Npoints), cam_in%gpm_clayfrac(1:Npoints))
+   gbx%gpmsurface%Vegetation_Type   = getGFSVegetationType(cam_in%gpm_vegrho(1:Npoints),   cam_in%gpm_vegmge(1:Npoints)  )
 
    ! water surface properties
    gbx%gpmsurface%water_temperature = gbx%skt !gbx%T(:,1) !cam_in%sst(1:Npoints)
@@ -5221,5 +5226,78 @@ subroutine gpmsimulator_intr_finalize()
 end subroutine gpmsimulator_intr_finalize
 
 !#######################################################################
+elemental function getGFSTypeHelper(param1, param2, ibeg, iend, value1, value2)
+  integer             :: getGFSTypeHelper 
+  real,    intent(in) :: param1(:)
+  real,    intent(in) :: param2(:)
+  integer, intent(in) :: ibeg ! first type considered
+  integer, intent(in) :: iend ! last  type considered
+  real,    intent(in) :: value1
+  real,    intent(in) :: value2
+  ! local variables
+  real    :: dist       
+  real    :: mindist   
+  integer :: i       
+  !
+  ! first index
+  mindist          = (param1(ibeg)-value1)**2 + (param2(ibeg)-value2)**2 
+  getGFSTypeHelper = ibeg
+  do i = ibeg+1, iend
+    dist =  (param1(i)-value1)**2 + (param2(i)-value2)**2 
+    if (dist < mindist) then
+      mindist = dist
+      getGFSTypeHelper = i
+    end if
+  end do
+end function getGFSTypeHelper
+!#######################################################################
+
+elemental function getGFSSoilType(sandfrac, clayfrac)
+! simple function to determine soil type based on sand fraction and clay
+! fraction, based on the "distance" between the input sand/clay fractions to
+! that of the pre-defined soil types.
+  integer          :: getGFSSoilType
+  real, intent(in) :: sandfrac
+  real, intent(in) :: clayfrac
+  ! parameters from CRTM
+  REAL(fp), PARAMETER, dimension(0:9) :: frac_sand = (/ 0.80_fp,     &
+                          0.92_fp, 0.10_fp, 0.20_fp, 0.51_fp, 0.50_fp, &
+                          0.35_fp, 0.60_fp, 0.42_fp,  0.92_fp  /)
+  REAL(fp), PARAMETER, dimension(0:9) :: frac_clay = (/ 0.20_fp,     &
+                          0.06_fp, 0.34_fp, 0.63_fp, 0.14_fp, 0.43_fp, &
+                          0.34_fp, 0.28_fp, 0.085_fp, 0.06_fp /)
+  integer, parameter :: ntype = 9
+  !
+  getGFSSoilType = getGFSTypeHelper(frac_sand, frac_clay, 1, ntype, sandfrac, clayfrac)
+end function getGFSSoilType
+
+
+!#######################################################################
+
+elemental function getGFSVegetationType(vegrho, vegmge)
+! simple function to determine soil type based on vegrho and vegmge,
+! based on the "distance" between the input sand/clay fractions to
+! that of the pre-defined soil types.
+  integer          :: getGFSVegetationType
+  real, intent(in) :: vegrho
+  real, intent(in) :: vegmge
+  ! parameters from CRTM
+! Specific Density
+    REAL(fp), PARAMETER, dimension(0:13) :: veg_rho  = (/ 0.33_fp,     &
+                          0.40_fp, 0.40_fp, 0.40_fp, 0.40_fp, 0.40_fp, &
+                          0.25_fp, 0.25_fp, 0.40_fp, 0.40_fp, 0.40_fp, &
+                          0.40_fp, 0.33_fp, 0.33_fp            /)
+! MGE
+    REAL(fp), PARAMETER, dimension(0:13) :: veg_mge  = (/ 0.50_fp,     &
+                          0.45_fp, 0.45_fp, 0.45_fp, 0.40_fp, 0.40_fp, &
+                          0.30_fp, 0.35_fp, 0.30_fp, 0.30_fp, 0.40_fp, &
+                          0.30_fp, 0.50_fp, 0.40_fp            /)
+  integer, parameter :: ntype = 13
+  !
+  getGFSVegetationType = getGFSTypeHelper(veg_rho, veg_mge, 1, ntype, vegrho, vegmge)
+end function getGFSVegetationType
+
+
+
 
 end module cospsimulator_intr
