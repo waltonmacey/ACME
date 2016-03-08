@@ -73,7 +73,8 @@ macro(createTestExec execName execType macroNP macroNC
   #IF (macroWITH_ENERGY)
   #ENDIF ()
 
-  TARGET_LINK_LIBRARIES(${execName} pio timing ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+  #ndk TARGET_LINK_LIBRARIES(${execName} pio timing ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+  TARGET_LINK_LIBRARIES(${execName} pio timing)  # ndk, remove bla/lapack for intel16 
 
   # Move the module files out of the way so the parallel build 
   # doesn't have a race condition
@@ -81,8 +82,8 @@ macro(createTestExec execName execType macroNP macroNC
                         PROPERTIES Fortran_MODULE_DIRECTORY ${EXEC_MODULE_DIR})
 
   IF (NOT HOMME_FIND_BLASLAPACK)
-    TARGET_LINK_LIBRARIES(${execName} lapack blas)
-    ADD_DEPENDENCIES(${execName} blas lapack)
+    #ndk TARGET_LINK_LIBRARIES(${execName} lapack blas)
+    #ndk ADD_DEPENDENCIES(${execName} blas lapack)
   ENDIF()
 
   IF (HAVE_EXTRAE)
