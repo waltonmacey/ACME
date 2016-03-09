@@ -548,6 +548,7 @@ contains
     use MultiPhysicsProbConstants   , only : COND_MASS_FLUX
     use MultiPhysicsProbConstants   , only : COND_MASS_RATE
     use MultiPhysicsProbConstants   , only : COND_DIRICHLET_FRM_OTR_GOVEQ
+    use MultiPhysicsProbConstants   , only : COND_SEEPAGE_BC
     use MultiPhysicsProbConstants   , only : VAR_BC_SS_CONDITION
     use SystemOfEquationsVSFMAuxType, only : sysofeqns_vsfm_auxvar_type
     !
@@ -608,7 +609,7 @@ contains
           case (COND_DIRICHLET, COND_MASS_RATE, COND_MASS_FLUX)
              ge_avars(sum_conn)%condition_value =  &
                   soe_avars(iconn + iauxvar_off)%condition_value
-          case (COND_DIRICHLET_FRM_OTR_GOVEQ)
+          case (COND_DIRICHLET_FRM_OTR_GOVEQ, COND_SEEPAGE_BC)
              ! Do nothing
           case default
              write(string,*) cur_cond%itype
@@ -900,6 +901,7 @@ contains
     use MultiPhysicsProbConstants , only : COND_MASS_FLUX
     use MultiPhysicsProbConstants , only : COND_MASS_RATE
     use MultiPhysicsProbConstants , only : COND_DIRICHLET_FRM_OTR_GOVEQ
+    use MultiPhysicsProbConstants , only : COND_SEEPAGE_BC
     !
     implicit none
     !
@@ -925,7 +927,7 @@ contains
        do iconn = 1, cur_conn_set%num_connections
           sum_conn = sum_conn + 1
           select case(cur_cond%itype)
-          case (COND_DIRICHLET)
+          case (COND_DIRICHLET, COND_SEEPAGE_BC)
              this%aux_vars_bc(sum_conn)%pressure = cur_cond%value(iconn)
           case (COND_MASS_RATE, COND_MASS_FLUX)
              ghosted_id = cur_conn_set%id_dn(iconn)
@@ -1773,6 +1775,10 @@ contains
                             dummy_var2                              &
                             )
 
+          if (cell_id_up <= this%mesh%ncells_local) &
+               lateral_cond%value(cell_id_up) = lateral_cond%value(cell_id_up) + flux*FMWH2O
+          if (cell_id_dn <= this%mesh%ncells_local) &
+               lateral_cond%value(cell_id_dn) = lateral_cond%value(cell_id_dn) - flux*FMWH2O
        enddo
 
        cur_conn_set => cur_conn_set%next
