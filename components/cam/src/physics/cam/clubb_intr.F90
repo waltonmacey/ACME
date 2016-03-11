@@ -845,7 +845,7 @@ end subroutine clubb_init_cnst
   !                                                                                 !
   ! =============================================================================== !
 
-   subroutine clubb_tend_cam( &
+   subroutine clubb_tend_cam( l_is_first_chunk, &
                               state,   ptend_all,   pbuf,     hdtime, &
                               cmfmc,   cam_in,   sgh30, & 
                               macmic_it, cld_macmic_num_steps,dlf, det_s, det_ice)
@@ -908,6 +908,7 @@ end subroutine clubb_init_cnst
    ! Input Auguments !
    ! --------------- !
 
+   logical :: l_is_first_chunk
    type(physics_state), intent(in)    :: state                    ! Physics state variables                 [vary]
    type(cam_in_t),      intent(in)    :: cam_in
    real(r8),            intent(in)    :: hdtime                   ! Host model timestep                     [s]
@@ -1364,7 +1365,7 @@ end subroutine clubb_init_cnst
    !  host time step divided by CLUBB time step  
    nadv = max(hdtime/dtime,1._r8)
  
-   if (masterproc) write(iulog,*) "---- hdt = ",hdtime," dtime = ",dtime,", nadv = ",nadv 
+   if (masterproc.and.l_is_first_chunk) write(iulog,"(1x,2(a,f10.2),a,i5)") "-- CLUBB: host dtime = ",hdtime," dtime = ",dtime,", nadv = ",nadv 
 
    !  Initialize forcings for transported scalars to zero
    

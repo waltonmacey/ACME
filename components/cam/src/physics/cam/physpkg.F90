@@ -920,6 +920,8 @@ subroutine phys_run1(phys_state, ztodt, phys_tend, pbuf2d,  cam_in, cam_out)
 #endif
     type(physics_buffer_desc), pointer :: phys_buffer_chunk(:)
 
+    logical :: l_is_first_chunk
+
     call t_startf ('physpkg_st1')
     nstep = get_nstep()
 
@@ -991,7 +993,8 @@ subroutine phys_run1(phys_state, ztodt, phys_tend, pbuf2d,  cam_in, cam_out)
           call diag_physvar_ic ( c,  phys_buffer_chunk, cam_out(c), cam_in(c) )
           call t_stopf ('diag_physvar_ic')
 
-          call tphysbc (ztodt, fsns(1,c), fsnt(1,c), flns(1,c), flnt(1,c), phys_state(c),        &
+          l_is_first_chunk =  (c == begchunk)
+          call tphysbc (l_is_first_chunk, ztodt, fsns(1,c), fsnt(1,c), flns(1,c), flnt(1,c), phys_state(c),        &
                        phys_tend(c), phys_buffer_chunk,  fsds(1,c), landm(1,c),          &
                        sgh(1,c), sgh30(1,c), cam_out(c), cam_in(c) )
 
@@ -1679,7 +1682,7 @@ end if ! l_ac_energy_chk
 
 end subroutine tphysac
 
-subroutine tphysbc (ztodt,               &
+subroutine tphysbc (l_is_first_chunk, ztodt,               &
        fsns,    fsnt,    flns,    flnt,    state,   &
        tend,    pbuf,     fsds,    landm,            &
        sgh, sgh30, cam_out, cam_in )
@@ -1750,6 +1753,7 @@ subroutine tphysbc (ztodt,               &
     !
     ! Arguments
     !
+    logical :: l_is_first_chunk
     real(r8), intent(in) :: ztodt                            ! 2 delta t (model time increment)
     real(r8), intent(inout) :: fsns(pcols)                   ! Surface solar absorbed flux
     real(r8), intent(inout) :: fsnt(pcols)                   ! Net column abs solar flux at model top
@@ -2259,9 +2263,9 @@ end if
              !    CLUBB call (PBL, shallow convection, macrophysics)
              ! =====================================================  
    
-             if (masterproc) write(iulog,*) "--- calling clubb_tend_cam"
+            !if (masterproc.and.l_is_first_chunk) write(iulog,*) "--- calling clubb_tend_cam"
 
-             call clubb_tend_cam(state,ptend,pbuf,cld_macmic_ztodt,&
+             call clubb_tend_cam(l_is_first_chunk,state,ptend,pbuf,cld_macmic_ztodt,&
                 cmfmc, cam_in, sgh30, macmic_it, cld_macmic_num_steps, & 
                 dlf, det_s, det_ice)
 
@@ -2338,7 +2342,7 @@ end if
              call physics_tend_dealloc(tend_sc)
              call physics_ptend_dealloc(ptend_sc)
           else
-             if (masterproc) write(iulog,*) "--- calling microp_driver_tend w/o subcol"
+            !if (masterproc.and.l_is_first_chunk) write(iulog,*) "--- calling microp_driver_tend w/o subcol"
              call microp_driver_tend(state, ptend, cld_macmic_ztodt, pbuf)
           end if
           ! combine aero and micro tendencies for the grid
