@@ -726,6 +726,15 @@ subroutine micro_mg_cam_init(pbuf2d)
    call addfld ('NSTEP_RAIN_SED', '1 ', 1, 'A', 'number of substeps for rain         sedimentation'    ,phys_decomp)
    call addfld ('NSTEP_SNOW_SED', '1 ', 1, 'A', 'number of substeps for snow         sedimentation'    ,phys_decomp)
 
+   call addfld ('CLIPRATIO_QC', '1 ', pver, 'A', 'process rate scaling factor for avoiding negative mixing ratio'    ,phys_decomp)
+   call addfld ('CLIPRATIO_NC', '1 ', pver, 'A', 'process rate scaling factor for avoiding negative mixing ratio'    ,phys_decomp)
+   call addfld ('CLIPRATIO_QR', '1 ', pver, 'A', 'process rate scaling factor for avoiding negative mixing ratio'    ,phys_decomp)
+   call addfld ('CLIPRATIO_NR', '1 ', pver, 'A', 'process rate scaling factor for avoiding negative mixing ratio'    ,phys_decomp)
+   call addfld ('CLIPRATIO_QI', '1 ', pver, 'A', 'process rate scaling factor for avoiding negative mixing ratio'    ,phys_decomp)
+   call addfld ('CLIPRATIO_NI', '1 ', pver, 'A', 'process rate scaling factor for avoiding negative mixing ratio'    ,phys_decomp)
+   call addfld ('CLIPRATIO_QS', '1 ', pver, 'A', 'process rate scaling factor for avoiding negative mixing ratio'    ,phys_decomp)
+   call addfld ('CLIPRATIO_NS', '1 ', pver, 'A', 'process rate scaling factor for avoiding negative mixing ratio'    ,phys_decomp)
+
    call addfld ('PRAO     ', 'kg/kg/s ', pver, 'A', 'Accretion of cloud water by rain'                        ,phys_decomp)
    call addfld ('PRCO     ', 'kg/kg/s ', pver, 'A', 'Autoconversion of cloud water'                           ,phys_decomp)
    call addfld ('MNUCCCO  ', 'kg/kg/s ', pver, 'A', 'Immersion freezing of cloud water'                       ,phys_decomp)
@@ -906,6 +915,15 @@ subroutine micro_mg_cam_init(pbuf2d)
       call add_default ('NSTEP_CLDI_SED ', budget_histfile, ' ')
       call add_default ('NSTEP_RAIN_SED ', budget_histfile, ' ')
       call add_default ('NSTEP_SNOW_SED ', budget_histfile, ' ')
+
+      call add_default ('CLIPRATIO_QC ', budget_histfile, ' ')
+      call add_default ('CLIPRATIO_NC ', budget_histfile, ' ')
+      call add_default ('CLIPRATIO_QR ', budget_histfile, ' ')
+      call add_default ('CLIPRATIO_NR ', budget_histfile, ' ')
+      call add_default ('CLIPRATIO_QI ', budget_histfile, ' ')
+      call add_default ('CLIPRATIO_NI ', budget_histfile, ' ')
+      call add_default ('CLIPRATIO_QS ', budget_histfile, ' ')
+      call add_default ('CLIPRATIO_NS ', budget_histfile, ' ')
 
       call add_default ('QIRESO   ', budget_histfile, ' ')
       call add_default ('QCRESO   ', budget_histfile, ' ')
@@ -1135,6 +1153,15 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
    real(r8), target :: nstep_rain_sed(state%psetcols)   ! number of substeps for rain sedimentation
    real(r8), target :: nstep_snow_sed(state%psetcols)   ! number of substeps for snow sedimentation
 
+   real(r8), target :: clipratio_qc(state%psetcols,pver)
+   real(r8), target :: clipratio_nc(state%psetcols,pver)
+   real(r8), target :: clipratio_qr(state%psetcols,pver)
+   real(r8), target :: clipratio_nr(state%psetcols,pver)
+   real(r8), target :: clipratio_qi(state%psetcols,pver)
+   real(r8), target :: clipratio_ni(state%psetcols,pver)
+   real(r8), target :: clipratio_qs(state%psetcols,pver)
+   real(r8), target :: clipratio_ns(state%psetcols,pver)
+
    real(r8), target :: prao(state%psetcols,pver)
    real(r8), target :: prco(state%psetcols,pver)
    real(r8), target :: mnuccco(state%psetcols,pver)
@@ -1263,6 +1290,15 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
    real(r8), allocatable, target :: packed_nstep_cldi_sed(:)
    real(r8), allocatable, target :: packed_nstep_rain_sed(:)
    real(r8), allocatable, target :: packed_nstep_snow_sed(:)
+
+   real(r8), allocatable, target :: packed_clipratio_qc(:,:)
+   real(r8), allocatable, target :: packed_clipratio_nc(:,:)
+   real(r8), allocatable, target :: packed_clipratio_qr(:,:)
+   real(r8), allocatable, target :: packed_clipratio_nr(:,:)
+   real(r8), allocatable, target :: packed_clipratio_qi(:,:)
+   real(r8), allocatable, target :: packed_clipratio_ni(:,:)
+   real(r8), allocatable, target :: packed_clipratio_qs(:,:)
+   real(r8), allocatable, target :: packed_clipratio_ns(:,:)
 
    real(r8), allocatable, target :: packed_umr(:,:)
    real(r8), allocatable, target :: packed_ums(:,:)
@@ -1862,6 +1898,32 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
    allocate(packed_nstep_snow_sed(mgncol))
    call post_proc%add_field(p(nstep_snow_sed), p(packed_nstep_snow_sed))
 
+
+   allocate(packed_clipratio_qc(mgncol,nlev))
+   call post_proc%add_field(p(clipratio_qc), p(packed_clipratio_qc))
+
+   allocate(packed_clipratio_nc(mgncol,nlev))
+   call post_proc%add_field(p(clipratio_nc), p(packed_clipratio_nc))
+
+   allocate(packed_clipratio_qr(mgncol,nlev))
+   call post_proc%add_field(p(clipratio_qr), p(packed_clipratio_qr))
+
+   allocate(packed_clipratio_nr(mgncol,nlev))
+   call post_proc%add_field(p(clipratio_nr), p(packed_clipratio_nr))
+
+   allocate(packed_clipratio_qi(mgncol,nlev))
+   call post_proc%add_field(p(clipratio_qi), p(packed_clipratio_qi))
+
+   allocate(packed_clipratio_ni(mgncol,nlev))
+   call post_proc%add_field(p(clipratio_ni), p(packed_clipratio_ni))
+
+   allocate(packed_clipratio_qs(mgncol,nlev))
+   call post_proc%add_field(p(clipratio_qs), p(packed_clipratio_qs))
+
+   allocate(packed_clipratio_ns(mgncol,nlev))
+   call post_proc%add_field(p(clipratio_ns), p(packed_clipratio_ns))
+
+
    allocate(packed_pra(mgncol,nlev))
    call post_proc%add_field(p(prao), p(packed_pra))
    allocate(packed_prc(mgncol,nlev))
@@ -2162,6 +2224,10 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
                  packed_qrsedten,        packed_qssedten,        &
                  packed_nstep_cldl_sed,  packed_nstep_cldi_sed,  &
                  packed_nstep_rain_sed,  packed_nstep_snow_sed,  &
+                 packed_clipratio_qc,    packed_clipratio_nc,    &
+                 packed_clipratio_qr,    packed_clipratio_nr,    &
+                 packed_clipratio_qi,    packed_clipratio_ni,    &
+                 packed_clipratio_qs,    packed_clipratio_ns,    &
                  packed_pra,             packed_prc,             &
                  packed_mnuccc,  packed_mnucct,  packed_msacwi,  &
                  packed_psacws,  packed_bergs,   packed_berg,    &
@@ -2937,6 +3003,15 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
    call outfld('NSTEP_CLDI_SED',  nstep_cldi_sed, psetcols, lchnk, avg_subcol_field=use_subcol_microp)
    call outfld('NSTEP_RAIN_SED',  nstep_rain_sed, psetcols, lchnk, avg_subcol_field=use_subcol_microp)
    call outfld('NSTEP_SNOW_SED',  nstep_snow_sed, psetcols, lchnk, avg_subcol_field=use_subcol_microp)
+
+   call outfld('CLIPRATIO_QC',  clipratio_qc, psetcols, lchnk, avg_subcol_field=use_subcol_microp)
+   call outfld('CLIPRATIO_NC',  clipratio_nc, psetcols, lchnk, avg_subcol_field=use_subcol_microp)
+   call outfld('CLIPRATIO_QR',  clipratio_qr, psetcols, lchnk, avg_subcol_field=use_subcol_microp)
+   call outfld('CLIPRATIO_NR',  clipratio_nr, psetcols, lchnk, avg_subcol_field=use_subcol_microp)
+   call outfld('CLIPRATIO_QI',  clipratio_qi, psetcols, lchnk, avg_subcol_field=use_subcol_microp)
+   call outfld('CLIPRATIO_NI',  clipratio_ni, psetcols, lchnk, avg_subcol_field=use_subcol_microp)
+   call outfld('CLIPRATIO_QS',  clipratio_qs, psetcols, lchnk, avg_subcol_field=use_subcol_microp)
+   call outfld('CLIPRATIO_NS',  clipratio_ns, psetcols, lchnk, avg_subcol_field=use_subcol_microp)
 
    call outfld('MNUCCDO',     mnuccdo,     psetcols, lchnk, avg_subcol_field=use_subcol_microp)
    call outfld('MNUCCDOhet',  mnuccdohet,  psetcols, lchnk, avg_subcol_field=use_subcol_microp)

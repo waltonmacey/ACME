@@ -358,6 +358,8 @@ subroutine micro_mg_tend ( &
      qcsedten,                     qisedten,                     &
      qrsedten,                     qssedten,                     &
      nstep_cldl,   nstep_cldi,   nstep_rain,   nstep_snow,       &
+     clipratio_qc, clipratio_nc, clipratio_qr, clipratio_nr,     &
+     clipratio_qi, clipratio_ni, clipratio_qs, clipratio_ns,     &
      pratot,                       prctot,                       &
      mnuccctot,          mnuccttot,          msacwitot,          &
      psacwstot,          bergstot,           bergtot,            &
@@ -509,6 +511,14 @@ subroutine micro_mg_tend ( &
   real(r8), intent(out) :: nstep_rain(:)  ! number of substeps for sedimentation
   real(r8), intent(out) :: nstep_snow(:)  ! number of substeps for sedimentation
 
+  real(r8), intent(out) :: clipratio_qc(:,:)  ! 
+  real(r8), intent(out) :: clipratio_nc(:,:)  ! 
+  real(r8), intent(out) :: clipratio_qr(:,:)  ! 
+  real(r8), intent(out) :: clipratio_nr(:,:)  ! 
+  real(r8), intent(out) :: clipratio_qi(:,:)  ! 
+  real(r8), intent(out) :: clipratio_ni(:,:)  ! 
+  real(r8), intent(out) :: clipratio_qs(:,:)  ! 
+  real(r8), intent(out) :: clipratio_ns(:,:)  ! 
 
   ! microphysical process rates for output (mixing ratio tendencies) (all have units of 1/s)
   real(r8), intent(out) :: pratot(:,:)          ! accretion of cloud by rain
@@ -924,6 +934,15 @@ subroutine micro_mg_tend ( &
   nstep_cldi = 0._r8
   nstep_rain = 0._r8
   nstep_snow = 0._r8
+
+  clipratio_qc = 1._r8
+  clipratio_nc = 1._r8
+  clipratio_qr = 1._r8
+  clipratio_nr = 1._r8
+  clipratio_qi = 1._r8
+  clipratio_ni = 1._r8
+  clipratio_qs = 1._r8
+  clipratio_ns = 1._r8
 
   pratot=0._r8
   prctot=0._r8
@@ -1535,6 +1554,8 @@ subroutine micro_mg_tend ( &
            bergs(i,k) = bergs(i,k)*ratio
            berg(i,k) = berg(i,k)*ratio
            qcrat(i,k) = ratio
+
+           clipratio_qc(i,k) = ratio
         else
            qcrat(i,k) = 1._r8
         end if
@@ -1594,6 +1615,8 @@ subroutine micro_mg_tend ( &
            nnucct(i,k) = nnucct(i,k)*ratio
            npsacws(i,k) = npsacws(i,k)*ratio
            nsubc(i,k)=nsubc(i,k)*ratio
+
+           clipratio_nc(i,k) = ratio
         end if
 
         mnuccri(i,k)=0._r8
@@ -1628,6 +1651,8 @@ subroutine micro_mg_tend ( &
            pracs(i,k)=pracs(i,k)*ratio
            mnuccr(i,k)=mnuccr(i,k)*ratio
            mnuccri(i,k)=mnuccri(i,k)*ratio
+
+           clipratio_qr(i,k) = ratio
         end if
 
      end do
@@ -1662,6 +1687,8 @@ subroutine micro_mg_tend ( &
            nnuccr(i,k)=nnuccr(i,k)*ratio
            nsubr(i,k)=nsubr(i,k)*ratio
            nnuccri(i,k)=nnuccri(i,k)*ratio
+
+           clipratio_nr(i,k) = ratio
         end if
 
      end do
@@ -1685,6 +1712,8 @@ subroutine micro_mg_tend ( &
               prci(i,k) = prci(i,k)*ratio
               prai(i,k) = prai(i,k)*ratio
               ice_sublim(i,k) = ice_sublim(i,k)*ratio
+
+              clipratio_qi(i,k) = ratio
            end if
 
         end do
@@ -1714,6 +1743,8 @@ subroutine micro_mg_tend ( &
               nprci(i,k) = nprci(i,k)*ratio
               nprai(i,k) = nprai(i,k)*ratio
               nsubi(i,k) = nsubi(i,k)*ratio
+
+              clipratio_ni(i,k) = ratio
            end if
 
         end do
@@ -1732,6 +1763,8 @@ subroutine micro_mg_tend ( &
                 (bergs(i,k)+psacws(i,k))*lcldm(i,k)+(pracs(i,k)+mnuccr(i,k))*precip_frac(i,k))/ &
                 precip_frac(i,k)/(-prds(i,k))*omsm
            prds(i,k)=prds(i,k)*ratio
+
+           clipratio_qs(i,k) = ratio
         end if
 
      end do
@@ -1752,6 +1785,8 @@ subroutine micro_mg_tend ( &
                 (-nsubs(i,k)-nsagg(i,k))*omsm
            nsubs(i,k)=nsubs(i,k)*ratio
            nsagg(i,k)=nsagg(i,k)*ratio
+
+           clipratio_ns(i,k) = ratio
         end if
 
      end do
