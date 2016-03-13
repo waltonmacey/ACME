@@ -720,6 +720,12 @@ subroutine micro_mg_cam_init(pbuf2d)
    call addfld ('VTRMI    ', 'm/s     ', pver, 'A', 'Mass-weighted cloud ice fallspeed'                       ,phys_decomp)
    call addfld ('QCSEDTEN ', 'kg/kg/s ', pver, 'A', 'Cloud water mixing ratio tendency from sedimentation'    ,phys_decomp)
    call addfld ('QISEDTEN ', 'kg/kg/s ', pver, 'A', 'Cloud ice mixing ratio tendency from sedimentation'      ,phys_decomp)
+
+   call addfld ('NSTEP_CLDL_SED', '1 ', 1, 'A', 'number of substeps for cloud liquid sedimentation'    ,phys_decomp)
+   call addfld ('NSTEP_CLDI_SED', '1 ', 1, 'A', 'number of substeps for cloud ice    sedimentation'    ,phys_decomp)
+   call addfld ('NSTEP_RAIN_SED', '1 ', 1, 'A', 'number of substeps for rain         sedimentation'    ,phys_decomp)
+   call addfld ('NSTEP_SNOW_SED', '1 ', 1, 'A', 'number of substeps for snow         sedimentation'    ,phys_decomp)
+
    call addfld ('PRAO     ', 'kg/kg/s ', pver, 'A', 'Accretion of cloud water by rain'                        ,phys_decomp)
    call addfld ('PRCO     ', 'kg/kg/s ', pver, 'A', 'Autoconversion of cloud water'                           ,phys_decomp)
    call addfld ('MNUCCCO  ', 'kg/kg/s ', pver, 'A', 'Immersion freezing of cloud water'                       ,phys_decomp)
@@ -895,6 +901,12 @@ subroutine micro_mg_cam_init(pbuf2d)
       call add_default ('QCSEVAP  ', budget_histfile, ' ')
       call add_default ('QISEDTEN ', budget_histfile, ' ')
       call add_default ('QCSEDTEN ', budget_histfile, ' ')
+
+      call add_default ('NSTEP_CLDL_SED ', budget_histfile, ' ')
+      call add_default ('NSTEP_CLDI_SED ', budget_histfile, ' ')
+      call add_default ('NSTEP_RAIN_SED ', budget_histfile, ' ')
+      call add_default ('NSTEP_SNOW_SED ', budget_histfile, ' ')
+
       call add_default ('QIRESO   ', budget_histfile, ' ')
       call add_default ('QCRESO   ', budget_histfile, ' ')
       if (micro_mg_version > 1) then
@@ -1118,6 +1130,11 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
    real(r8), target :: qrsedten(state%psetcols,pver)   ! Rain mixing ratio tendency from sedimentation
    real(r8), target :: qssedten(state%psetcols,pver)   ! Snow mixing ratio tendency from sedimentation
 
+   real(r8), target :: nstep_cldl_sed(state%psetcols)   ! number of substeps for cloud liquid sedimentation
+   real(r8), target :: nstep_cldi_sed(state%psetcols)   ! number of substeps for cloud ice sedimentation
+   real(r8), target :: nstep_rain_sed(state%psetcols)   ! number of substeps for rain sedimentation
+   real(r8), target :: nstep_snow_sed(state%psetcols)   ! number of substeps for snow sedimentation
+
    real(r8), target :: prao(state%psetcols,pver)
    real(r8), target :: prco(state%psetcols,pver)
    real(r8), target :: mnuccco(state%psetcols,pver)
@@ -1241,6 +1258,12 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
    real(r8), allocatable, target :: packed_qisedten(:,:)
    real(r8), allocatable, target :: packed_qrsedten(:,:)
    real(r8), allocatable, target :: packed_qssedten(:,:)
+
+   real(r8), allocatable, target :: packed_nstep_cldl_sed(:)
+   real(r8), allocatable, target :: packed_nstep_cldi_sed(:)
+   real(r8), allocatable, target :: packed_nstep_rain_sed(:)
+   real(r8), allocatable, target :: packed_nstep_snow_sed(:)
+
    real(r8), allocatable, target :: packed_umr(:,:)
    real(r8), allocatable, target :: packed_ums(:,:)
    real(r8), allocatable, target :: packed_pra(:,:)
@@ -1815,6 +1838,7 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
    call post_proc%add_field(p(vtrmc), p(packed_vtrmc))
    allocate(packed_vtrmi(mgncol,nlev))
    call post_proc%add_field(p(vtrmi), p(packed_vtrmi))
+
    allocate(packed_qcsedten(mgncol,nlev))
    call post_proc%add_field(p(qcsedten), p(packed_qcsedten))
    allocate(packed_qisedten(mgncol,nlev))
@@ -1825,6 +1849,18 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
       allocate(packed_qssedten(mgncol,nlev))
       call post_proc%add_field(p(qssedten), p(packed_qssedten))
    end if
+
+   allocate(packed_nstep_cldl_sed(mgncol))
+   call post_proc%add_field(p(nstep_cldl_sed), p(packed_nstep_cldl_sed))
+
+   allocate(packed_nstep_cldi_sed(mgncol))
+   call post_proc%add_field(p(nstep_cldi_sed), p(packed_nstep_cldi_sed))
+
+   allocate(packed_nstep_rain_sed(mgncol))
+   call post_proc%add_field(p(nstep_rain_sed), p(packed_nstep_rain_sed))
+
+   allocate(packed_nstep_snow_sed(mgncol))
+   call post_proc%add_field(p(nstep_snow_sed), p(packed_nstep_snow_sed))
 
    allocate(packed_pra(mgncol,nlev))
    call post_proc%add_field(p(prao), p(packed_pra))
@@ -2124,6 +2160,8 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
                  packed_umr,             packed_ums,             &
                  packed_qcsedten,        packed_qisedten,        &
                  packed_qrsedten,        packed_qssedten,        &
+                 packed_nstep_cldl_sed,  packed_nstep_cldi_sed,  &
+                 packed_nstep_rain_sed,  packed_nstep_snow_sed,  &
                  packed_pra,             packed_prc,             &
                  packed_mnuccc,  packed_mnucct,  packed_msacwi,  &
                  packed_psacws,  packed_bergs,   packed_berg,    &
@@ -2894,6 +2932,12 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf)
       call outfld('QRSEDTEN',    qrsedten,    psetcols, lchnk, avg_subcol_field=use_subcol_microp)
       call outfld('QSSEDTEN',    qssedten,    psetcols, lchnk, avg_subcol_field=use_subcol_microp)
    end if
+
+   call outfld('NSTEP_CLDL_SED',  nstep_cldl_sed, psetcols, lchnk, avg_subcol_field=use_subcol_microp)
+   call outfld('NSTEP_CLDI_SED',  nstep_cldi_sed, psetcols, lchnk, avg_subcol_field=use_subcol_microp)
+   call outfld('NSTEP_RAIN_SED',  nstep_rain_sed, psetcols, lchnk, avg_subcol_field=use_subcol_microp)
+   call outfld('NSTEP_SNOW_SED',  nstep_snow_sed, psetcols, lchnk, avg_subcol_field=use_subcol_microp)
+
    call outfld('MNUCCDO',     mnuccdo,     psetcols, lchnk, avg_subcol_field=use_subcol_microp)
    call outfld('MNUCCDOhet',  mnuccdohet,  psetcols, lchnk, avg_subcol_field=use_subcol_microp)
    call outfld('MNUCCRO',     mnuccro,     psetcols, lchnk, avg_subcol_field=use_subcol_microp)

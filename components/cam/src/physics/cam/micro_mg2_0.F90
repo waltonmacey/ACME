@@ -357,6 +357,7 @@ subroutine micro_mg_tend ( &
      umr,                          ums,                          &
      qcsedten,                     qisedten,                     &
      qrsedten,                     qssedten,                     &
+     nstep_cldl,   nstep_cldi,   nstep_rain,   nstep_snow,       &
      pratot,                       prctot,                       &
      mnuccctot,          mnuccttot,          msacwitot,          &
      psacwstot,          bergstot,           bergtot,            &
@@ -502,6 +503,12 @@ subroutine micro_mg_tend ( &
   real(r8), intent(out) :: qisedten(:,:)     ! qi sedimentation tendency (1/s)
   real(r8), intent(out) :: qrsedten(:,:)     ! qr sedimentation tendency (1/s)
   real(r8), intent(out) :: qssedten(:,:)     ! qs sedimentation tendency (1/s)
+
+  real(r8), intent(out) :: nstep_cldi(:)  ! number of substeps for sedimentation
+  real(r8), intent(out) :: nstep_cldl(:)  ! number of substeps for sedimentation
+  real(r8), intent(out) :: nstep_rain(:)  ! number of substeps for sedimentation
+  real(r8), intent(out) :: nstep_snow(:)  ! number of substeps for sedimentation
+
 
   ! microphysical process rates for output (mixing ratio tendencies) (all have units of 1/s)
   real(r8), intent(out) :: pratot(:,:)          ! accretion of cloud by rain
@@ -912,6 +919,11 @@ subroutine micro_mg_tend ( &
   qisedten =0._r8
   qrsedten =0._r8
   qssedten =0._r8
+
+  nstep_cldl = 0._r8
+  nstep_cldi = 0._r8
+  nstep_rain = 0._r8
+  nstep_snow = 0._r8
 
   pratot=0._r8
   prctot=0._r8
@@ -2136,6 +2148,7 @@ subroutine micro_mg_tend ( &
           maxval(fni/pdel(i,:))) &
           * deltat)
 
+     nstep_cldi(i) = nstep     ! save for output
 
      ! loop over sedimentation sub-time step to ensure stability
      !==============================================================
@@ -2218,6 +2231,8 @@ subroutine micro_mg_tend ( &
           maxval(fnc/pdel(i,:))) &
           * deltat)
 
+     nstep_cldl(i) = nstep     ! save for output
+
      ! loop over sedimentation sub-time step to ensure stability
      !==============================================================
      do n = 1,nstep
@@ -2279,6 +2294,8 @@ subroutine micro_mg_tend ( &
           maxval(fnr/pdel(i,:))) &
           * deltat)
 
+     nstep_rain(i) = nstep     ! save for output
+
      ! loop over sedimentation sub-time step to ensure stability
      !==============================================================
      do n = 1,nstep
@@ -2329,6 +2346,8 @@ subroutine micro_mg_tend ( &
           maxval( fs/pdel(i,:)), &
           maxval(fns/pdel(i,:))) &
           * deltat)
+
+     nstep_snow(i) = nstep     ! save for output
 
      ! loop over sedimentation sub-time step to ensure stability
      !==============================================================
