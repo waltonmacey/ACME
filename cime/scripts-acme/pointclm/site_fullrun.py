@@ -7,9 +7,13 @@ parser = OptionParser();
 
 parser.add_option("--caseidprefix", dest="mycaseid", default="", \
                   help="Unique identifier to include as a prefix to the case name")
+parser.add_option("--caseroot", dest="caseroot", default='', \
+                  help = "case root directory (default = ./, i.e., under scripts/)")
+parser.add_option("--runroot", dest="runroot", default="", \
+                  help="Directory where the run would be created")
 parser.add_option("--site", dest="site", default='', \
                   help = '6-character FLUXNET code to run (required)')
-parser.add_option("--sitegroup", dest="sitegroup", default="AmeriFlux", \
+parser.add_option("--sitegroup", dest="sitegroup",default="AmeriFlux", \
                   help = "site group to use (default AmeriFlux)")
 parser.add_option("--machine", dest="machine", default = 'oic2', \
                   help = "machine to use (default = oic2)")
@@ -59,9 +63,11 @@ parser.add_option("--C14", dest="C14", default=False, \
                   help = 'Use C14 as C13 (no decay)', action="store_true")
 parser.add_option("--ninst", dest="ninst", default=1, \
                       help = 'number of land model instances')
+parser.add_option("--BGC", action="store_true", dest="bgc", default=False, \
+                  help = 'Use BGC compset')
 parser.add_option("--harvmod", action="store_true", dest='harvmod', default=False, \
                     help="turn on harvest modification:  All harvest at first timestep")
-parser.add_option("--bulk_denitrif", dest="nitrif", default=False, \
+parser.add_option("--bulk_denitrif", dest="bulk_denitrif", default=False, \
                   help = 'To turn on BGC nitrification-denitrification', action="store_true")
 parser.add_option("--no_dynroot", dest="no_dynroot", default=False, \
                   help = 'Turn off dynamic root distribution', action="store_true")
@@ -73,8 +79,6 @@ parser.add_option("--CH4", dest="CH4", default=False, \
                   help = 'To turn on CN with CLM4me', action="store_true")
 parser.add_option("--makemetdata", action="store_true", dest="makemet", default=False, \
                     help="generate site meteorology")
-parser.add_option("--refcase", dest="refcase" , default='none', \
-                  help = 'Use already compiled CLM case')
 parser.add_option("--xpts", dest="xpts", default=1, \
                       help = 'for regional runs: xpts')
 parser.add_option("--ypts", dest="ypts", default=1, \
@@ -102,6 +106,19 @@ fname = PTCLMfiledir+'/'+options.sitegroup+'_sitedata.txt'
 AFdatareader = csv.reader(open(fname, "rt"))
 
 translen = int(options.nyears_transient)
+
+if (options.bgc):
+    mybgc='BGC'
+else:
+    mybgc='CN'
+
+#case run root directory
+if (options.runroot == '' or (os.path.exists(options.runroot) == False)):
+    runroot = options.csmdir+'/run'
+else:
+    runroot = os.path.abspath(options.runroot)
+
+isfirstsite = True
 for row in AFdatareader:
     if row[0] == options.site or (options.site == 'all' and row[0] !='site_code' \
                                       and row[0] != ''):
@@ -124,7 +141,7 @@ for row in AFdatareader:
 
         if (translen == -1):
           translen = endyear-1850+1        #length of transient run
-	  if (options.cpl_bypass):
+	  if (options.cpl_bypass and options.cruncep):
  	    translen = min(site_endyear,2010)-1850+1
 
         #use site parameter file if it exists
@@ -164,8 +181,6 @@ for row in AFdatareader:
             basecmd = basecmd+' --C14 '
         if (options.ninst > 1):
             basecmd = basecmd+' --ninst '+str(options.ninst)
-        if (options.refcase != 'none'):
-            basecmd = basecmd+' --refcase '+options.refcase
         if (options.nofire):
             basecmd = basecmd+' --nofire'
         if (options.harvmod):
@@ -182,12 +197,14 @@ for row in AFdatareader:
             basecmd = basecmd+' --cn_only'
         if (options.CH4):
             basecmd = basecmd+' --CH4'
-        if (options.MICROBE):
-	    basecmd = basecmd+' --MICROBE'
         if (options.cruncep):
             basecmd = basecmd+' --cruncep'
         if (options.surfdata_grid):
             basecmd = basecmd+' --surfdata_grid'
+        if (options.caseroot != ''):
+            basecmd = basecmd+' --caseroot '+options.caseroot
+        if (options.runroot != ''):
+            basecmd = basecmd+' --runroot '+options.runroot
         basecmd = basecmd + ' --np '+str(options.np)
         basecmd = basecmd + ' --tstep '+str(options.tstep)
         basecmd = basecmd + ' --co2_file '+options.co2_file
@@ -196,25 +213,35 @@ for row in AFdatareader:
 
 #----------------------- build commands for runCLM.py -----------------------------
 
+
+
         #AD spinup
         cmd_adsp = basecmd+' --ad_spinup --nyears_ad_spinup '+ \
             str(options.ny_ad)+' --hist_mfilt 1 --hist_nhtfrq -'+ \
             str((endyear-startyear+1)*8760)+' --align_year '+str(year_align+1)
+        if (not isfirstsite):
+	  cmd_adsp = cmd_adsp+' --exeroot '+ad_exeroot+' --no_build'
         if (options.clm40):
-            cmd_adsp = cmd_adsp+' --compset I1850CN'
-        elif (options.cpl_bypass):
-            cmd_adsp = cmd_adsp+' --compset I1850CLM45CBCN'
+            cmd_adsp = cmd_adsp+' --compset I1850'+mybgc
+            ad_case = site+'_I1850'+mybgc+'_ad_spinup'
+        else:
+	    if (options.cpl_bypass):
+                cmd_adsp = cmd_adsp+' --compset I1850CLM45CB'+mybgc
+                ad_case = site+'_I1850CLM45CB'+mybgc+'_ad_spinup'
+            else:
+                cmd_adsp = cmd_adsp+' --compset I1850CLM45'+mybgc
+                ad_case = site+'_I1850CLM45'+mybgc+'_ad_spinup'
         if (options.makemet):
             cmd_adsp = cmd_adsp+' --makemetdat'
         if (options.spinup_vars):
             cmd_adsp = cmd_adsp+' --spinup_vars'
-        #exit spinup (CLM 4.0 only)
+        if (mycaseid != ''):
+            ad_case = mycaseid+'_'+ad_case
+        if (isfirstsite):
+            ad_exeroot = os.path.abspath(runroot+'/'+ad_case+'/bld')
         if (options.clm40):
-            ad_case = site+'_I1850CN_ad_spinup'
-            if (mycaseid != ''):
-                ad_case = mycaseid+'_'+ad_case
-            cmd_exsp = basecmd+' --exit_spinup --compset I1850CN '+ \
-                '--finidat_case '+ad_case+' --finidat_year '+str(options.ny_ad)+ \
+            cmd_exsp = basecmd+' --exit_spinup --compset I1850'+mybgc+ \
+                ' --finidat_case '+ad_case+' --finidat_year '+str(options.ny_ad)+ \
                 ' --run_units nyears --run_n 1 --nyears_ad_spinup '+str(options.ny_ad)
 	    if (options.spinup_vars):
                cmd_exsp = cmd_exsp + ' --spinup_vars'
@@ -225,17 +252,17 @@ for row in AFdatareader:
                 basecase = basecase+'_I1850CN'
             else:
                 if (options.cpl_bypass):
-                  basecase = basecase+'_I1850CLM45CBCN'
+                  basecase = basecase+'_I1850CLM45CB'+mybgc
                 else: 
-                  basecase = basecase+'_I1850CLM45CN'
+                  basecase = basecase+'_I1850CLM45'+mybgc
         else:
             if (options.clm40):
                 basecase = site+'_I1850CN'
             else:
                 if (options.cpl_bypass):
-                  basecase=site+'_I1850CLM45CBCN'
+                  basecase=site+'_I1850CLM45CB'+mybgc
                 else:
-                  basecase=site+'_I1850CLM45CN'
+                  basecase=site+'_I1850CLM45'+mybgc
         if (options.clm40):
            cmd_fnsp = basecmd+' --finidat_case '+basecase+'_exit_spinup '+ \
                 '--finidat_year '+str(int(options.ny_ad)+2)+' --run_units nyears --run_n '+ \
@@ -245,11 +272,12 @@ for row in AFdatareader:
             cmd_fnsp = basecmd+' --finidat_case '+basecase+'_ad_spinup '+ \
                 '--finidat_year '+str(int(options.ny_ad)+1)+' --run_units nyears --run_n '+ \
                 str(fsplen)+' --hist_mfilt 1 --hist_nhtfrq -'+ \
-                str((endyear-startyear+1)*8760)+' --align_year '+str(year_align+1)
+                str((endyear-startyear+1)*8760)+' --align_year '+str(year_align+1)+' --no_build' + \
+                ' --exeroot '+ad_exeroot
         if (options.clm40):
             cmd_fnsp = cmd_fnsp+' --compset I1850CN'
         elif (options.cpl_bypass):
-            cmd_fnsp = cmd_fnsp+' --compset I1850CLM45CBCN'
+            cmd_fnsp = cmd_fnsp+' --compset I1850CLM45CB'+mybgc
         if (options.spinup_vars):
 		cmd_fnsp = cmd_fnsp+' --spinup_vars'
         #transient
@@ -257,13 +285,14 @@ for row in AFdatareader:
             ' --finidat_year '+str(fsplen+1)+' --run_units nyears' \
             +' --run_n '+str(translen)+' --align_year '+ \
             str(year_align+1850)+' --hist_nhtfrq '+ \
-            options.hist_nhtfrq+' --hist_mfilt '+options.hist_mfilt
+            options.hist_nhtfrq+' --hist_mfilt '+options.hist_mfilt+' --no_build' + \
+            ' --exeroot '+ad_exeroot
         if (options.clm40):
              cmd_trns = cmd_trns+' --compset I20TRCN'
         elif (options.cpl_bypass):
-            cmd_trns = cmd_trns+' --compset I20TRCLM45CBCN'
+            cmd_trns = cmd_trns+' --compset I20TRCLM45CB'+mybgc
         else:
-            cmd_trns = cmd_trns+' --compset I20TRCLM45CN'
+            cmd_trns = cmd_trns+' --compset I20TRCLM45'+mybgc
         if (options.spinup_vars):
                cmd_trns = cmd_trns + ' --spinup_vars'
         #transient phase 2 (CRU-NCEP only)
@@ -274,11 +303,11 @@ for row in AFdatareader:
                 ' --finidat_year 1921 --run_units nyears --branch ' \
                 +' --run_n '+str(thistranslen)+' --align_year 1921'+ \
                 ' --hist_nhtfrq '+options.hist_nhtfrq+' --hist_mfilt '+ \
-                options.hist_mfilt
+                options.hist_mfilt+' --no_build'+' --exeroot '+ad_exeroot
             if (options.clm40):
                 cmd_trns2 = cmd_trns2+' --compset I20TRCN'
             else:
-                cmd_trns2 = cmd_trns2+' --compset I20TRCLM45CN'
+                cmd_trns2 = cmd_trns2+' --compset I20TRCLM45'+mybgc
             print(cmd_trns2)
 
 #---------------------------------------------------------------------------------
@@ -299,18 +328,21 @@ for row in AFdatareader:
         print('\nSetting up final spinup case\n')
         os.system(cmd_fnsp)
         print('\nSetting up transient case\n')
+        print cmd_trns
         os.system(cmd_trns)
         if (options.cruncep and not options.cpl_bypass):
              print('\nSetting up transient case phase 2\n')
              os.system(cmd_trns2)
         
         output = open('./temp/site_fullrun.pbs','w')
-        #make site-specific pbs script
 
+        #Create a .PBS script to launch the full job (all 3 cases)
         if (options.cpl_bypass):
-          input = open('../../scripts/'+basecase+"_I1850CLM45CBCN"+'/'+basecase+"_I1850CLM45CBCN"+'.run')
+          input = open('../../scripts/'+basecase+"_I1850CLM45CB"+mybgc+ \
+                  '/'+basecase+"_I1850CLM45CB"+mybgc+'.run')
         else:
-          input = open('../../scripts/'+basecase+"_I1850CLM45CN"+'/'+basecase+"_I1850CLM45CN"+'.run')
+          input = open('../../scripts/'+basecase+"_I1850CLM45"+mybgc+ \
+                           '/'+basecase+"_I1850CLM45"+mybgc+'.run')
         for s in input:
             if ("perl" in s):
                 output.write("#!/bin/csh -f\n")
@@ -320,15 +352,23 @@ for row in AFdatareader:
         output.write("\n")
         
         if (options.cpl_bypass):
-          modelst = 'CLM45CBCN'
+          modelst = 'CLM45CB'+mybgc
         else:
-          modelst = 'CLM45CN'
+          modelst = 'CLM45'+mybgc
 
         basecase = site
         if (mycaseid != ''):
                 basecase = mycaseid+'_'+site
         output.write("cd "+os.path.abspath("../../scripts/"+basecase+"_I1850"+modelst+"_ad_spinup\n"))
         output.write("./"+basecase+"_I1850"+modelst+"_ad_spinup.run\n")
+        output.write("cd "+os.path.abspath(".")+'\n')
+        if (options.bgc):
+            output.write("python adjust_restart.py --rundir "+os.path.abspath(runroot)+'/'+ad_case+ \
+                             '/run/ --casename '+ ad_case+' --restart_year '+str(int(options.ny_ad)+1)+ \
+                             ' --BGC\n')
+        else:
+            output.write("python adjust_restart.py --rundir "+os.path.abspath(runroot)+'/'+ad_case+ \
+                             '/run/ --casename '+ad_case+' --restart_year '+str(int(options.ny_ad)+1)+'\n')
         output.write("cd "+os.path.abspath("../../scripts/"+basecase+"_I1850"+modelst+"\n"))
         output.write("./"+basecase+"_I1850"+modelst+".run\n")
         output.write("cd "+os.path.abspath("../../scripts/"+basecase+"_I20TR"+modelst+"\n"))
@@ -338,4 +378,4 @@ for row in AFdatareader:
 
         #submit
         os.system('qsub temp/site_fullrun.pbs')
-
+        isfirstsite = False

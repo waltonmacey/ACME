@@ -31,10 +31,12 @@ parser = OptionParser()
 
 parser.add_option("--caseidprefix", dest="mycaseid", default="", \
                   help="Unique identifier to include as a prefix to the case name")
-parser.add_option("--caseroot", dest="caseroot", default='../../scripts', \
+parser.add_option("--caseroot", dest="caseroot", default='', \
                   help = "case root directory (default = ./, i.e., under scripts/)")
-parser.add_option("--runroot", dest="runroot", default="../../../run", \
+parser.add_option("--runroot", dest="runroot", default="", \
                   help="Directory where the run would be created")
+parser.add_option("--exeroot", dest="exeroot", default="", \
+	         help="Location of executable")
 parser.add_option("--site", dest="site", default='', \
                   help = '6-character FLUXNET code to run (required)')
 parser.add_option("--sitegroup", dest="sitegroup", default="AmeriFlux", \
@@ -165,9 +167,9 @@ parser.add_option("--trans2", dest="trans2", default=False, action="store_true",
                   help = 'Tranisnent phase 2 (1901-2010) - CRUNCEP only')
 parser.add_option("--spinup_vars", dest="spinup_vars", default=False, \
                   help = 'Limit output vars in spinup runs', action="store_true")
-parser.add_option("--cn_only", dest="cn_only", default=False, \
+parser.add_option("--cn_only", dest="cn_only", default=True, \
                   help = 'Carbon/Nitrogen only (supplemental P)', action="store_true")
-parser.add_option("--cnp", dest="cnp", default=True, \
+parser.add_option("--cnp", dest="cnp", default=False, \
                   help = 'CNP model', action = "store_true")
 parser.add_option("--ensemble_file", dest="ensemble_file", default='', \
                   help = 'Parameter sample file to generate ensemble')
@@ -234,7 +236,7 @@ else:
 
 #case directory
 if (options.caseroot == '' or (os.path.exists(options.caseroot) == False)):
-    caseroot = csmdir+'/cime/cases'
+    caseroot = csmdir+'/cime/scripts'
 else:
     caseroot = os.path.abspath(options.caseroot)
 
@@ -344,14 +346,14 @@ if (options.finidat_case != ''):
         finidat_yst = '00'+str(finidat_year)
     if (finidat_year < 10):
         finidat_yst = '000'+str(finidat_year)
-    if(options.runroot == './'): 
-        finidat = csmdir+'/run/'+options.finidat_case+'/run/'+ \
-                  options.finidat_case+'.clm2.r.'+finidat_yst+ \
-                  '-01-01-00000.nc'
-    else:
-        finidat = runroot+'/'+options.finidat_case+'/run/'+ \
-                  options.finidat_case+'.clm2.r.'+finidat_yst+ \
-                  '-01-01-00000.nc'
+    #if(options.runroot == './'): 
+    #    finidat = csmdir+'/run/'+options.finidat_case+'/run/'+ \
+    #              options.finidat_case+'.clm2.r.'+finidat_yst+ \
+    #              '-01-01-00000.nc'
+    #else:
+    finidat = runroot+'/'+options.finidat_case+'/run/'+ \
+              options.finidat_case+'.clm2.r.'+finidat_yst+ \
+              '-01-01-00000.nc'
 
 #construct default casename
 casename    = options.site+"_"+compset
@@ -398,7 +400,12 @@ if (os.path.exists(casedir)):
 print("CASE directory is: "+casedir+"\n")
 
 #Construct case build and run directory
-blddir=runroot+'/'+casename
+if (options.exeroot == '' or (os.path.exists(options.exeroot) == False)):
+    blddir=runroot+'/'+casename	
+    exeroot = runroot+'/'+casename+'/bld'
+else:
+    blddir=options.exeroot
+    exeroot=options.exeroot
 print("CASE exeroot is: "+blddir+"\n")
 rundir=runroot+'/'+casename+'/run'
 print("CASE rundir is: "+rundir+"\n")
@@ -406,7 +413,7 @@ print("CASE rundir is: "+rundir+"\n")
 
 #------------------- make point data for site -------------------------------
 if (options.nopointdata == False):
-    ptcmd = 'python makepointdata.py --caseroot '+options.caseroot+' --casename '+casename+ \
+    ptcmd = 'python makepointdata.py --caseroot '+caseroot+' --casename '+casename+ \
         ' --site '+options.site+' --sitegroup '+options.sitegroup+ \
         ' --csmdir '+csmdir+' --ccsm_input '+options.ccsm_input+ \
         ' --compset '+compset
@@ -529,8 +536,7 @@ else:
 os.chdir(casedir)
 
 #------------------ env_build.xml modifications ------------------------
-#if (options.runroot != ''):
-#    os.system('./xmlchange -file env_build.xml -id EXEROOT -val '+runroot+'/'+casename)
+os.system('./xmlchange -file env_build.xml -id EXEROOT -val '+exeroot)
 
 #turn off ROF module
 os.system('./xmlchange -file env_build.xml -id RTM_MODE -val NULL')
@@ -552,11 +558,11 @@ if (options.machine == 'userdefined'):
     os.system('./xmlchange -file env_build.xml -id EXEROOT -val "'+runroot+'/'+casename+'/bld"')
 
 #-------------- env_run.xml modifications -------------------------
-if (options.runroot != ''):
-    os.system('./xmlchange -file env_run.xml -id RUNDIR -val '+rundir)
-    os.system('./xmlchange -file env_run.xml -id DOUT_S -val TRUE')
-    os.system('./xmlchange -file env_run.xml -id DOUT_S_ROOT -val ' \
-                  +runroot+'/archive/'+casename)
+#if (options.runroot != ''):
+os.system('./xmlchange -file env_run.xml -id RUNDIR -val '+rundir)
+os.system('./xmlchange -file env_run.xml -id DOUT_S -val TRUE')
+os.system('./xmlchange -file env_run.xml -id DOUT_S_ROOT -val ' \
+            +runroot+'/archive/'+casename)
 if (options.ccsm_input != ''):
     os.system('./xmlchange -file env_run.xml -id DIN_LOC_ROOT -val ' \
                   +options.ccsm_input)
@@ -704,9 +710,9 @@ for i in range(1,int(options.ninst)+1):
             line2=line2+1
             output.write(myline+"\n")
             hvars_file.close()
-    if (options.spinup_vars):
+    if (options.spinup_vars and (not '20TR' in compset)):
         output.write(" hist_empty_htapes = .true.\n")
-        output.write(" hist_fincl1 = 'NPOOL', 'RETRANSN', 'COL_FIRE_CLOSS', 'HDM', 'LNFM', 'NEE', 'GPP', 'FPSN', 'AR', 'HR', 'MR', 'GR', 'ER', 'NPP', 'TLAI', 'TOTSOMC', 'LEAFC', 'DEADSTEMC', 'DEADCROOTC', 'FROOTC', 'LIVESTEMC', 'LIVECROOTC', 'TOTVEGC', 'TOTCOLC', 'TOTLITC', 'BTRAN', 'CWDC', 'QVEGE', 'QVEGT', 'QSOIL', 'QDRAI', 'QRUNOFF', 'FPI', 'FPG'\n")
+        output.write(" hist_fincl1 = 'NPOOL', 'RETRANSN', 'PCO2', 'PBOT', 'NDEP_TO_SMINN', 'OCDEP', 'BCDEP', 'COL_FIRE_CLOSS', 'HDM', 'LNFM', 'NEE', 'GPP', 'FPSN', 'AR', 'HR', 'MR', 'GR', 'ER', 'NPP', 'TLAI', 'TOTSOMC', 'LEAFC', 'DEADSTEMC', 'DEADCROOTC', 'FROOTC', 'LIVESTEMC', 'LIVECROOTC', 'TOTVEGC', 'TOTCOLC', 'TOTLITC', 'BTRAN', 'CWDC', 'QVEGE', 'QVEGT', 'QSOIL', 'QDRAI', 'QRUNOFF', 'FPI', 'FPG'\n")
 
     if (options.ad_spinup):
         output.write(" hist_dov2xy = .true., .false.\n")
@@ -941,7 +947,12 @@ if (options.clean_build):
 #compile cesm
 if (options.no_build == False):
     os.system('./'+casename+'.build')
-if (options.caseroot == './'):
+else:
+    print ('no_build set.  Assuming model has already been built.')
+    print ('Creating run directory.  Setting BUILD_COMPLETE = TRUE')
+    os.system('./xmlchange BUILD_COMPLETE=TRUE')
+    os.system('mkdir -p '+rundir)
+if (options.caseroot == ''):
     os.chdir(csmdir+"/cime/scripts/"+casename)
 else:
     os.chdir(casedir) 
@@ -1081,14 +1092,24 @@ if (options.ensemble_file != ''):
             orig_dir = runroot+'/'+casename+'/bld'       #assume location of bld dir
             ens_dir  = runroot+'/UQ/'+casename+'/g'+est[1:]
             if (int(est)-100000 <= math.ceil(float(nsamples)/options.ninst)):
-                output.write('cd '+ens_dir+'\n')
-                output.write('mkdir -p timing/checkpoints\n')
                 #if (options.mpilib == 'mpi-serial'):
                 #  output.write(orig_dir+'/cesm.exe > ccsm_log.txt &\n')
                 #else:
-                output.write('mpirun -np '+str(options.np)+' --hostfile '+ \
-                                 csmdir+'/cime/scripts-acme/pointclm/temp/mynodefile'+ngst[1:]+ \
-                                 ' '+orig_dir+'/cesm.exe > ccsm_log.txt &\n')
+               if ('oic' in options.machine):
+                  output.write('cd '+ens_dir+'\n')
+                  output.write('mkdir -p timing/checkpoints\n')
+                  output.write('mpirun -np '+str(options.np)+' --hostfile '+ \
+                                   csmdir+'/cime/scripts-acme/pointclm/temp/mynodefile'+ngst[1:]+ \
+                                   ' '+orig_dir+'/cesm.exe > ccsm_log.txt &\n')
+               elif ('titan' in options.machine and int(options.ninst) == 1):
+                  #use wraprun utility on titan to manage the ensemble
+                  output.write('mkdir -p '+ens_dir+'/timing/checkpoints\n')
+                  if ( (i % 16) == 0):
+                    cmd = 'wraprun -n 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 --w-cd '+ens_dir
+                  elif ( (i % 16) < 15):
+                    cmd = cmd+','+ens_dir
+                  else:
+                    output.write(cmd+','+ens_dir+' '+orig_dir+'/cesm.exe > ccsm_log.txt &\n')
         output.write('wait\n')
         output.close()
 
