@@ -26,6 +26,16 @@ module params_mod
                                  ZOLTAN2CYCLIC    = 17, &
                                  ZOLTAN2RANDOM    = 18, &
                                  ZOLTAN2ZOLTAN    = 19, &
-                                 ZOLTAN2ND    = 20
+                                 ZOLTAN2ND    = 20, &
+                                 ZOLTAN2MJRCB    = 21, &
+                                 ZOLTAN2RCB_MAP    = 22, &
+                                 ZOLTAN2MJ_MAP    = 23, &
+                                 ZOLTAN2RIB_MAP    = 24, &
+                                 ZOLTAN2MJRCB_MAP    = 25, &
+                                 ZOLTAN2RCB_TMAP    = 26, &
+                                 ZOLTAN2MJ_TMAP    = 27, &
+                                 ZOLTAN2RIB_TMAP    = 28, &
+                                 ZOLTAN2MJRCB_TMAP    = 29
+
 
 end module params_mod

@@ -10,6 +10,7 @@
 #include <Zoltan2_XpetraCrsGraphAdapter.hpp>
 #include <Zoltan2_XpetraMultiVectorAdapter.hpp>
 #include <Zoltan2_PartitioningProblem.hpp>
+#include <Zoltan2_TaskMapping.hpp>
 #include <Tpetra_CrsGraph.hpp>
 #include <Tpetra_Map.hpp>
 
@@ -19,6 +20,7 @@
 #include <Teuchos_GlobalMPISession.hpp>
 
 #include <iostream>
+#include <vector>
 
 void zoltan_partition_problem(
     int *nelem,
@@ -37,6 +39,7 @@ void zoltan_partition_problem(
 
   typedef int zlno_t;
   typedef int zgno_t;
+  typedef int part_t;
   typedef double zscalar_t;
 
   typedef Tpetra::Map<>::node_type znode_t;
@@ -112,13 +115,20 @@ void zoltan_partition_problem(
   zoltan2_parameters.set("num_global_parts", tcomm->getSize());
   switch (*partmethod){
   case 5:
+  case 22:
+  case 26:
     zoltan2_parameters.set("algorithm", "rcb");
     break;
 
   case 6:
+  case 23:
+  case 27:
     zoltan2_parameters.set("algorithm", "multijagged");
+    zoltan2_parameters.set("mj_recursion_depth", "3");
     break;
   case 7:
+  case 24:
+  case 28:
     zoltan2_parameters.set("algorithm", "rib");
     break;
   case 8:
@@ -159,15 +169,18 @@ void zoltan_partition_problem(
     break;
   case 20:
     zoltan2_parameters.set("algorithm", "nd");
+  case 21:
+  case 25:
+  case 29:
+    zoltan2_parameters.set("algorithm", "multijagged");
+    zoltan2_parameters.set("mj_enable_rcb", "1");
     break;
   default :
     zoltan2_parameters.set("algorithm", "multijagged");
 
   }
-
   zoltan2_parameters.set("mj_keep_part_boxes", "0");
-  zoltan2_parameters.set("mj_recursion_depth", "3");
-  zoltan2_parameters.set("remap_parts", "yes");
+  //zoltan2_parameters.set("remap_parts", "yes");
 
 
   RCP<xcrsGraph_problem_t> homme_partition_problem (new xcrsGraph_problem_t(ia.getRawPtr(),&zoltan2_parameters,tcomm));
@@ -182,16 +195,33 @@ void zoltan_partition_problem(
   homme_partition_problem->solve();
   tcomm->barrier();
 
-  int *parts =  (int *)homme_partition_problem->getSolution().getPartListView();
   std::vector<int> tmp_result_parts(numGlobalCoords, 0);
+  int *parts =  (int *)homme_partition_problem->getSolution().getPartListView();
+  if (*partmethod >= 22){
+    Zoltan2::MachineRepresentation<zscalar_t, part_t> mach(*tcomm);
+    RCP<const Zoltan2::Environment> env = homme_partition_problem->getEnvironment();
 
-  /*for (int i = 0; i < numMyElements; ++i){
-    parts[i] += 1;
+    Zoltan2::CoordinateTaskMapper<adapter_t, part_t> ctm (
+        tcomm,
+        Teuchos::rcpFromRef(mach),
+        ia,
+        rcpFromRef(homme_partition_problem->getSolution()),
+        env);
+
+
+
+
+    for (zlno_t lclRow = 0; lclRow < numMyElements; ++lclRow) {
+      const zgno_t gblRow = map->getGlobalElement (lclRow);
+      int proc = ctm.getAssignedProcForTask(parts[lclRow]);
+      tmp_result_parts[gblRow] = proc + 1;
+    }
   }
-  */
-  for (zlno_t lclRow = 0; lclRow < numMyElements; ++lclRow) {
-    const zgno_t gblRow = map->getGlobalElement (lclRow);
-    tmp_result_parts[gblRow] = parts[lclRow] + 1;
+  else{
+    for (zlno_t lclRow = 0; lclRow < numMyElements; ++lclRow) {
+      const zgno_t gblRow = map->getGlobalElement (lclRow);
+      tmp_result_parts[gblRow] = parts[lclRow] + 1;
+    }
   }
 
   //tcomm->gatherAll (sizeof(int) * numMyElements, (const char *)parts, sizeof(int) * numGlobalCoords, (char *)result_parts) ;
@@ -206,11 +236,12 @@ void zoltan_partition_problem(
       &(tmp_result_parts[0]),
       result_parts);
 
+
+
+
   if (tcomm->getRank() == 0){
-
     homme_partition_problem->printMetrics(std::cout);
-    homme_partition_problem->printGraphMetrics(std::cout);
-
+    //homme_partition_problem->printGraphMetrics(std::cout);
     /*
     for (int i = 0; i < numGlobalCoords; ++i){
       std::cout << "i:" << i << " p:" << result_parts[i] << std::endl;
@@ -219,6 +250,119 @@ void zoltan_partition_problem(
 
   }
 }
+
+
+void zoltan2_print_metrics(
+    int *nelem,
+    int *xadj,
+    int *adjncy,
+    double *adjwgt,
+    double *vwgt,
+    int *nparts,
+    MPI_Comm comm,
+    int *result_parts){
+
+
+  int nv = *nelem;
+  int np = *nparts;
+  std::vector <double> part_edge_cuts(nv, 0);
+  std::vector <double> part_vertex_weights(np, 0);
+  int num_messages = 0;
+  double myEdgeCut = 0;
+  double weighted_hops = 0;
+
+  Teuchos::RCP<const Teuchos::Comm<int> > tcomm =
+      Teuchos::RCP<const Teuchos::Comm<int> > (new Teuchos::MpiComm<int> (comm));
+  int myRank = tcomm->getRank();
+
+  Zoltan2::MachineRepresentation<double, int> mach(*tcomm);
+
+  double **proc_coords;
+  int mach_coord_dim = mach.getMachineDim();
+  int *machine_extent = new int [mach_coord_dim];
+  bool *machine_extent_wrap_around = new bool[mach_coord_dim];
+
+  mach.getAllMachineCoordinatesView(proc_coords);
+  mach.getMachineExtent(machine_extent);
+  mach.getMachineExtentWrapArounds(machine_extent_wrap_around);
+
+  for (int i = 0; i < nv; ++i){
+    int part_of_i = result_parts[i] - 1;
+    part_vertex_weights[part_of_i] += vwgt[i];
+    if (part_of_i != myRank){
+      continue;
+    }
+    const int adj_begin = xadj[i];
+    const int adj_end = xadj[i + 1];
+    for (int j = adj_begin; j < adj_end; ++j){
+      int neighbor_vertex = adjncy[j];
+      double neighbor_conn = adjwgt[j];
+      int neighbor_part = result_parts[neighbor_vertex] - 1;
+      if (neighbor_part != myRank){
+        if (part_edge_cuts[neighbor_part] < 0.00001){
+          num_messages += 1;
+        }
+        part_edge_cuts[neighbor_part] += neighbor_conn;
+        myEdgeCut += neighbor_conn;
+        double hops = 0;
+        mach.getHopCount(part_of_i, neighbor_part, hops);
+        weighted_hops += hops * neighbor_conn;
+      }
+    }
+  }
+
+  int global_num_messages = 0;
+
+  Teuchos::reduceAll<int, int>(
+      *(tcomm),
+      Teuchos::REDUCE_SUM,
+      1,
+      &(num_messages),
+      &(global_num_messages));
+
+  int global_max_messages = 0;
+  Teuchos::reduceAll<int, int>(
+      *(tcomm),
+      Teuchos::REDUCE_MAX,
+      1,
+      &(num_messages),
+      &(global_max_messages));
+
+  double global_edge_cut = 0;
+  Teuchos::reduceAll<int, double>(
+      *(tcomm),
+      Teuchos::REDUCE_SUM,
+      1,
+      &(myEdgeCut),
+      &(global_edge_cut));
+
+  double global_max_edge_cut = 0;
+  Teuchos::reduceAll<int, double>(
+      *(tcomm),
+      Teuchos::REDUCE_MAX,
+      1,
+      &(myEdgeCut),
+      &(global_max_edge_cut));
+
+  double total_weighted_hops = 0;
+  Teuchos::reduceAll<int, double>(
+      *(tcomm),
+      Teuchos::REDUCE_SUM,
+      1,
+      &(weighted_hops),
+      &(total_weighted_hops));
+
+  if (myRank == 0){
+    std::cout << "\tGLOBAL NUM MESSAGES:" << global_num_messages << std::endl
+              << "\tMAX MESSAGES:       " << global_max_messages << std::endl
+              << "\tGLOBAL EDGE CUT:    " << global_edge_cut << std::endl
+              << "\tMAX EDGE CUT:       " << global_max_edge_cut << std::endl
+              << "\tTOTAL WEIGHTED HOPS:" << total_weighted_hops << std::endl;
+  }
+  delete [] machine_extent_wrap_around;
+  delete [] machine_extent;
+}
+
 #else //HAVE_TRILINOS
 void zoltan_partition_problem(
     int *nelem,
@@ -234,6 +378,21 @@ void zoltan_partition_problem(
     int *result_parts){
   std::cerr << "Homme is not compiled with Trilinos!!" << std::endl;
 }
+
+void zoltan2_print_metrics(
+    int *nelem,
+    int *xadj,
+    int *adjncy,
+    double *adjwgt,
+    double *vwgt,
+    int *nparts,
+    MPI_Comm comm,
+    int *result_parts){
+  std::cerr << "Homme is not compiled with Trilinos!!" << std::endl;
+}
+
+
+
 #endif // HAVE_TRILINOS
 
 //#endif

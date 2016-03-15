@@ -84,9 +84,13 @@ SET (FVM_SRCS ${SRC_SHARE_DIR}/bndry_mod.F90
               ${UTILS_SHARE_DIR}/shr_spfn_mod.F90
 )
 
+SET(PREQX_SRCS_C
+  ${SRC_SHARE_DIR}/zoltan_interface.c
+)
+
 
 # Make SRCS global so the tests can access it
-SET(FVM_SRCS ${FVM_SRCS} ${SRC_DIR}/fvm_main.F90 CACHE INTERNAL "Sources for fvm")
+SET(FVM_SRCS ${FVM_SRCS} ${PREQX_SRCS_C} ${SRC_DIR}/fvm_main.F90 CACHE INTERNAL "Sources for fvm")
 
 # Set up defaults
 IF (NOT FVM_NP)

@@ -111,14 +111,16 @@ contains
     ! --------------------------------
     use spacecurve_mod, only : genspacepart
     !-----------------
-    use zoltan_mod, only : genzoltanpart, getfixmeshcoordinates
+    use zoltan_mod, only : genzoltanpart, getfixmeshcoordinates, printMetrics
     ! --------------------------------
     use dof_mod, only : global_dof, CreateUniqueIndex, SetElemOffset
     ! --------------------------------
     use params_mod, only : SFCURVE, &
                            ZOLTAN2RCB, ZOLTAN2MJ, ZOLTAN2RIB, ZOLTAN2HSFC, ZOLTAN2PATOH, ZOLTAN2PHG, ZOLTAN2METIS, &
                            ZOLTAN2PARMETIS, ZOLTAN2SCOTCH, ZOLTAN2PTSCOTCH, ZOLTAN2BLOCK, ZOLTAN2CYCLIC, ZOLTAN2RANDOM, &
-                           ZOLTAN2ZOLTAN, ZOLTAN2ND, ZOLTAN2PARMA
+                           ZOLTAN2ZOLTAN, ZOLTAN2ND, ZOLTAN2PARMA, ZOLTAN2MJRCB, &
+                           ZOLTAN2MJ_MAP, ZOLTAN2RCB_MAP, ZOLTAN2RIB_MAP, ZOLTAN2MJRCB_MAP, &
+                           ZOLTAN2MJ_TMAP, ZOLTAN2RCB_TMAP, ZOLTAN2RIB_TMAP, ZOLTAN2MJRCB_TMAP
     ! --------------------------------
     use domain_mod, only : domain1d_t, decompose
     ! --------------------------------
@@ -289,6 +291,15 @@ contains
              partmethod .eq. ZOLTAN2CYCLIC .OR. &
              partmethod .eq. ZOLTAN2RANDOM .OR. &
              partmethod .eq. ZOLTAN2ZOLTAN .OR. &
+             partmethod .eq. ZOLTAN2MJRCB .OR. &
+             partmethod .eq. ZOLTAN2MJ_MAP .OR. &
+             partmethod .eq. ZOLTAN2RCB_MAP .OR. &
+             partmethod .eq. ZOLTAN2RIB_MAP .OR. &
+             partmethod .eq. ZOLTAN2MJRCB_MAP .OR. &
+             partmethod .eq. ZOLTAN2MJ_TMAP .OR. &
+             partmethod .eq. ZOLTAN2RCB_TMAP .OR. &
+             partmethod .eq. ZOLTAN2RIB_TMAP .OR. &
+             partmethod .eq. ZOLTAN2MJRCB_TMAP .OR. &
              partmethod .eq. ZOLTAN2ND) then
             call getfixmeshcoordinates(GridVertex, coord_dim1, coord_dim2, coord_dim3)
            endif
@@ -319,12 +330,24 @@ contains
              partmethod .eq. ZOLTAN2CYCLIC .OR. &
              partmethod .eq. ZOLTAN2RANDOM .OR. &
              partmethod .eq. ZOLTAN2ZOLTAN .OR. &
+             partmethod .eq. ZOLTAN2MJRCB .OR. &
+             partmethod .eq. ZOLTAN2MJ_MAP .OR. &
+             partmethod .eq. ZOLTAN2RCB_MAP .OR. &
+             partmethod .eq. ZOLTAN2RIB_MAP .OR. &
+             partmethod .eq. ZOLTAN2MJRCB_MAP .OR. &
+             partmethod .eq. ZOLTAN2MJ_TMAP .OR. &
+             partmethod .eq. ZOLTAN2RCB_TMAP .OR. &
+             partmethod .eq. ZOLTAN2RIB_TMAP .OR. &
+             partmethod .eq. ZOLTAN2MJRCB_TMAP .OR. &
              partmethod .eq. ZOLTAN2ND) then
         call genzoltanpart(GridEdge,GridVertex, par%comm, coord_dim1, coord_dim2, coord_dim3)
     else
         if(par%masterproc) write(iulog,*)"partitioning graph using Metis..."
        call genmetispart(GridEdge,GridVertex)
     endif
+
+    !print partitioning and mapping metrics
+    call printMetrics(GridEdge,GridVertex, par%comm)
 
     ! ===========================================================
     ! given partition, count number of local element descriptors

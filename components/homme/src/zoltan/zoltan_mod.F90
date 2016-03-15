@@ -11,7 +11,7 @@ module zoltan_mod
   integer, parameter :: VertexWeight = 1000
   integer, parameter :: EdgeWeight = 1000
 
-  public :: genzoltanpart, getfixmeshcoordinates
+  public :: genzoltanpart, getfixmeshcoordinates, printMetrics
 
 contains
   subroutine getfixmeshcoordinates(GridVertex, coord_dim1, coord_dim2, coord_dim3) !result(cartResult)
@@ -78,6 +78,31 @@ contains
   end subroutine getfixmeshcoordinates
 
 
+  subroutine printMetrics(GridEdge,GridVertex, comm)
+    use gridgraph_mod, only : GridVertex_t, GridEdge_t
+    use dimensions_mod , only : npart
+
+    implicit none
+    type (GridVertex_t), intent(inout) :: GridVertex(:)
+    type (GridEdge_t),   intent(inout) :: GridEdge(:)
+    type (integer),   intent(in) :: comm
+
+    integer , target, allocatable :: xadj(:),adjncy(:)    ! Adjacency structure for METIS
+    real(kind=REAL_KIND),  target, allocatable :: vwgt(:),adjwgt(:)    ! Weights for the adj struct for METIS
+    integer                       :: nelem_edge,nelem
+
+    nelem_edge=SIZE(GridEdge)
+    nelem = SIZE(GridVertex)
+
+    allocate(xadj(nelem+1))
+    allocate(vwgt(nelem))
+    allocate(adjncy(nelem_edge))
+    allocate(adjwgt(nelem_edge))
+    vwgt(:)=VertexWeight
+    call CreateMeshGraph(GridVertex,xadj,adjncy,adjwgt)
+    CALL Z2PRINTMETRICS(nelem,xadj,adjncy,adjwgt,vwgt,npart, comm, GridVertex%processor_number)
+  end subroutine printMetrics
+
   subroutine genzoltanpart(GridEdge,GridVertex, comm, coord_dim1, coord_dim2, coord_dim3)
     use gridgraph_mod, only : GridVertex_t, GridEdge_t, freegraph, createsubgridgraph, printgridvertex
     use kinds, only : int_kind
@@ -106,10 +131,10 @@ contains
 
     type (GridVertex_t), allocatable   :: SubVertex(:)
 
-    real(kind=4), allocatable   :: tpwgts(:)
+    !real(kind=4), allocatable   :: tpwgts(:)
     real(kind=4)                :: tmp
 
-    integer(kind=int_kind), allocatable          :: part(:)
+    !integer(kind=int_kind), allocatable          :: part(:)
     integer, allocatable          :: part_nl(:),local2global_nl(:)
     integer, allocatable          :: part_fl(:),local2global_fl(:)
 
@@ -131,8 +156,8 @@ contains
     !print *, "nelem_edge = ", nelem_edge
     !print *, "npart = ", npart
 
-    allocate(tpwgts(npart))
-    allocate(part(nelem))
+    !allocate(tpwgts(npart))
+    !allocate(part(nelem))
     allocate(xadj(nelem+1))
     allocate(vwgt(nelem))
     allocate(adjncy(nelem_edge))

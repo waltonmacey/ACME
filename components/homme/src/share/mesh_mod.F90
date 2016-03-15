@@ -1157,7 +1157,10 @@ contains
     use control_mod,            only : north, south, east, west, neast, seast, swest, nwest, partmethod
     use params_mod,             only : SFCURVE, ZOLTAN2RCB, ZOLTAN2MJ, ZOLTAN2RIB, ZOLTAN2HSFC, ZOLTAN2PATOH, ZOLTAN2PHG, ZOLTAN2METIS, &
                                        ZOLTAN2PARMETIS, ZOLTAN2SCOTCH, ZOLTAN2PTSCOTCH, ZOLTAN2BLOCK, ZOLTAN2CYCLIC, ZOLTAN2RANDOM, &
-                                       ZOLTAN2ZOLTAN, ZOLTAN2ND, ZOLTAN2PARMA
+                                       ZOLTAN2ZOLTAN, ZOLTAN2ND, ZOLTAN2PARMA, ZOLTAN2MJRCB, &
+                                       ZOLTAN2MJ_MAP, ZOLTAN2RCB_MAP, ZOLTAN2RIB_MAP, ZOLTAN2MJRCB_MAP, &
+                                       ZOLTAN2MJ_TMAP, ZOLTAN2RCB_TMAP, ZOLTAN2RIB_TMAP, ZOLTAN2MJRCB_TMAP
+
     use kinds, only : iulog, real_kind
 
     implicit none
@@ -1249,6 +1252,15 @@ contains
         partmethod .eq. ZOLTAN2CYCLIC .OR. &
         partmethod .eq. ZOLTAN2RANDOM .OR. &
         partmethod .eq. ZOLTAN2ZOLTAN .OR. &
+        partmethod .eq. ZOLTAN2MJRCB .OR. &
+        partmethod .eq. ZOLTAN2MJ_MAP .OR. &
+        partmethod .eq. ZOLTAN2RCB_MAP .OR. &
+        partmethod .eq. ZOLTAN2RIB_MAP .OR. &
+        partmethod .eq. ZOLTAN2MJRCB_MAP .OR. &
+        partmethod .eq. ZOLTAN2MJ_TMAP .OR. &
+        partmethod .eq. ZOLTAN2RCB_TMAP .OR. &
+        partmethod .eq. ZOLTAN2RIB_TMAP .OR. &
+        partmethod .eq. ZOLTAN2MJRCB_TMAP .OR. &
         partmethod .eq. ZOLTAN2ND) then
 
         allocate(coord_dim1(p_number_elements))
@@ -1281,6 +1293,15 @@ contains
            partmethod .eq. ZOLTAN2CYCLIC .OR. &
            partmethod .eq. ZOLTAN2RANDOM .OR. &
            partmethod .eq. ZOLTAN2ZOLTAN .OR. &
+           partmethod .eq. ZOLTAN2MJRCB .OR. &
+           partmethod .eq. ZOLTAN2MJ_MAP .OR. &
+           partmethod .eq. ZOLTAN2RCB_MAP .OR. &
+           partmethod .eq. ZOLTAN2RIB_MAP .OR. &
+           partmethod .eq. ZOLTAN2MJRCB_MAP .OR. &
+           partmethod .eq. ZOLTAN2MJ_TMAP .OR. &
+           partmethod .eq. ZOLTAN2RCB_TMAP .OR. &
+           partmethod .eq. ZOLTAN2RIB_TMAP .OR. &
+           partmethod .eq. ZOLTAN2MJRCB_TMAP .OR. &
            partmethod .eq. ZOLTAN2ND) then
                 coord_dim1(i) = face_center%x
                 coord_dim2(i) = face_center%y

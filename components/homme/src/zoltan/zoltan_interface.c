@@ -114,3 +114,52 @@ void zoltanpart_(int *nelem, int *xadj,int *adjncy,double *adjwgt,double *vwgt, 
 #endif
 
 }
+
+void z2printmetrics_(
+    int *nelem,
+    int *xadj,int *adjncy,double *adjwgt,double *vwgt,
+    int *nparts, MPI_Fint *comm,
+    int *result_parts) {
+  MPI_Comm c_comm = MPI_Comm_f2c(*comm);
+
+#if HAVE_TRILINOS
+  zoltan2_print_metrics(
+      nelem,
+      xadj,adjncy,adjwgt,vwgt,
+      nparts, c_comm,
+      result_parts);
+#else
+  int mype2, size2;
+  MPI_Comm_rank(c_comm, &mype2);
+  MPI_Comm_size(c_comm, &size2);
+  if (mype2 == 0) {
+
+    printf("Zoltan cannot be used since it is not compiled with Trilinos.");
+  }
+  exit(1);
+#endif
+}
+void Z2PRINTMETRICS(
+    int *nelem,
+    int *xadj,int *adjncy,double *adjwgt,double *vwgt,
+    int *nparts, MPI_Fint *comm,
+    int *result_parts) {
+  z2printmetrics_( nelem, xadj,adjncy,adjwgt,vwgt, nparts, comm, result_parts);
+}
+void z2printmetrics(
+    int *nelem,
+    int *xadj,int *adjncy,double *adjwgt,double *vwgt,
+    int *nparts, MPI_Fint *comm,
+    int *result_parts) {
+  z2printmetrics_(nelem, xadj, adjncy, adjwgt, vwgt, nparts, comm, result_parts);
+}
+void zoltanpart(int *nelem, int *xadj,int *adjncy,double *adjwgt,double *vwgt, int *nparts, MPI_Fint *comm,
+    double *xcoord, double *ycoord, double *zcoord, int *result_parts, int *partmethod) {
+  zoltanpart_(nelem, xadj,adjncy,adjwgt,vwgt, nparts, comm, xcoord, ycoord, zcoord, result_parts,partmethod);
+}
+
+void ZOLTANPART(int *nelem, int *xadj,int *adjncy,double *adjwgt,double *vwgt, int *nparts, MPI_Fint *comm,
+    double *xcoord, double *ycoord, double *zcoord, int *result_parts, int *partmethod) {
+  zoltanpart_(nelem, xadj,adjncy,adjwgt,vwgt, nparts, comm, xcoord, ycoord, zcoord, result_parts,partmethod);
+}
+
