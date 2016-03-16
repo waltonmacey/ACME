@@ -38,7 +38,10 @@ character(len=16) :: cam_physpkg          = unset_str  ! CAM physics package [ca
                                                        !   ideal | adiabatic].
 character(len=32) :: cam_chempkg          = unset_str  ! CAM chemistry package [waccm_mozart | 
                                                        !  waccm_ghg | trop_mozart | trop_ghg | 
-                                                       !  trop_bam | trop_mam3 | trop_mam7 | 
+                                                       !  trop_bam | trop_mam3 | trop_mam4 | 
+                                                       !  trop_mam4_resus | trop_mam4_mom |
+                                                       !  trop_mam4_resus_mom | trop_mam7 | trop_mam9 |
+                                                       !  linoz_mam3 | linoz_mam4_resus | linoz_mam4_resus_mom
                                                        !  super_fast_llnl | super_fast_llnl_mam3 | 
                                                        !  waccm_mozart_mam3 | none
 character(len=16) :: waccmx_opt           = unset_str  ! WACCMX run option [ionosphere | neutral | off
@@ -66,25 +69,35 @@ logical           :: history_budget       = .false.    ! output tendencies and s
                                                        ! liquid budgets.
 logical           :: ssalt_tuning         = .false.    ! sea salt tuning flag for progseasalts_intr.F90
 logical           :: resus_fix            = .false.    ! to address resuspension bug fix in wetdep.F90 
-logical           :: convproc_do_aer      = .false.    ! to apply unified convective transport for aerosols
-logical           :: convproc_do_gas      = .false.    ! to apply unified convective transport for gasses  
+logical           :: convproc_do_aer      = .false.    ! to apply unified convective transport/removal for aerosols
+logical           :: convproc_do_gas      = .false.    ! to apply unified convective transport/removal for trace gases  
+                                                       ! *** the unified conv. trans/removal currently does not do gases ***
 !  convproc_method_activate - 1=apply abdulrazzak-ghan to entrained aerosols for lowest nlayers
 !                             2=do secondary activation with prescribed supersat
-integer           :: convproc_method_activate = 2      ! unified convective transport method               
+integer           :: convproc_method_activate = 2      ! controls activation in the unified convective transport/removal
+integer           :: mam_amicphys_optaa   = 0          ! <= 0 -- use old microphysics code (separate calls to gasaerexch, 
+                                                       !                                    newnuc, and coag routines) 
+                                                       !  > 0 -- use new microphysics code (single call to amicphys routine)
 logical           :: liqcf_fix            = .false.    ! liq cld fraction fix calc.                     
 logical           :: regen_fix            = .false.    ! aerosol regeneration bug fix for ndrop.F90 
 logical           :: demott_ice_nuc       = .false.    ! use DeMott ice nucleation treatment in microphysics 
 integer           :: history_budget_histfile_num = 1   ! output history file number for budget fields
 logical           :: history_waccm        = .true.     ! output variables of interest for WACCM runs
+logical           :: history_clubb        = .true.     ! output default CLUBB-related variables
 logical           :: do_clubb_sgs
 logical           :: do_tms
+logical           :: micro_do_icesupersat
 logical           :: state_debug_checks   = .false.    ! Extra checks for validity of physics_state objects
                                                        ! in physics_update.
+! Macro/micro-physics co-substeps
+integer           :: cld_macmic_num_steps = 1
 
 logical :: prog_modal_aero ! determines whether prognostic modal aerosols are present in the run.
 
 !BSINGH -  Bugfix flags (Must be removed once the bug fix is accepted for master merge)
 logical :: fix_g1_err_ndrop = .false. !BSINGH - default is false
+! Option to use heterogeneous freezing
+logical, public, protected :: use_hetfrz_classnuc = .false.
 
 ! Which gravity wave sources are used?
 ! Orographic
@@ -138,11 +151,13 @@ subroutine phys_ctl_readnl(nlfile)
    namelist /phys_ctl_nl/ cam_physpkg, cam_chempkg, waccmx_opt, deep_scheme, shallow_scheme, &
       eddy_scheme, microp_scheme,  macrop_scheme, radiation_scheme, srf_flux_avg, &
       use_subcol_microp, atm_dep_flux, history_amwg, history_vdiag, history_aerosol, history_aero_optics, &
-      history_eddy, history_budget,  history_budget_histfile_num, history_waccm, & 
-      conv_water_in_rad, do_clubb_sgs, do_tms, state_debug_checks, &
-      use_gw_oro, use_gw_front, use_gw_convect, fix_g1_err_ndrop, &
-      ssalt_tuning, resus_fix, convproc_do_aer, convproc_do_gas, convproc_method_activate, &
-      liqcf_fix, regen_fix, demott_ice_nuc, &
+      history_eddy, history_budget,  history_budget_histfile_num, history_waccm, &
+      conv_water_in_rad, history_clubb, do_clubb_sgs, do_tms, state_debug_checks, &
+      use_hetfrz_classnuc, use_gw_oro, use_gw_front, use_gw_convect, &
+      cld_macmic_num_steps, micro_do_icesupersat, &
+      fix_g1_err_ndrop, ssalt_tuning, resus_fix, convproc_do_aer, &
+      convproc_do_gas, convproc_method_activate, liqcf_fix, regen_fix, demott_ice_nuc, &
+      mam_amicphys_optaa, &
       l_tracer_aero, l_vdiff, l_rayleigh, l_gw_drag, l_ac_energy_chk, &
       l_bc_energy_fix, l_dry_adj, l_st_mac, l_st_mic, l_rad
    !-----------------------------------------------------------------------------
@@ -183,10 +198,13 @@ subroutine phys_ctl_readnl(nlfile)
    call mpibcast(history_budget,                  1 , mpilog,  0, mpicom)
    call mpibcast(history_budget_histfile_num,     1 , mpiint,  0, mpicom)
    call mpibcast(history_waccm,                   1 , mpilog,  0, mpicom)
+   call mpibcast(history_clubb,                   1 , mpilog,  0, mpicom)
    call mpibcast(do_clubb_sgs,                    1 , mpilog,  0, mpicom)
    call mpibcast(conv_water_in_rad,               1 , mpiint,  0, mpicom)
    call mpibcast(do_tms,                          1 , mpilog,  0, mpicom)
+   call mpibcast(micro_do_icesupersat,            1 , mpilog,  0, mpicom)
    call mpibcast(state_debug_checks,              1 , mpilog,  0, mpicom)
+   call mpibcast(use_hetfrz_classnuc,             1 , mpilog,  0, mpicom)
    call mpibcast(use_gw_oro,                      1 , mpilog,  0, mpicom)
    call mpibcast(use_gw_front,                    1 , mpilog,  0, mpicom)
    call mpibcast(use_gw_convect,                  1 , mpilog,  0, mpicom)
@@ -196,6 +214,7 @@ subroutine phys_ctl_readnl(nlfile)
    call mpibcast(convproc_do_aer,                 1 , mpiint,  0, mpicom)
    call mpibcast(convproc_do_gas,                 1 , mpilog,  0, mpicom)
    call mpibcast(convproc_method_activate,        1 , mpilog,  0, mpicom)
+   call mpibcast(mam_amicphys_optaa,              1 , mpilog,  0, mpicom)
    call mpibcast(liqcf_fix,                       1 , mpilog,  0, mpicom)
    call mpibcast(regen_fix,                       1 , mpilog,  0, mpicom)
    call mpibcast(demott_ice_nuc,                  1 , mpilog,  0, mpicom)
@@ -209,6 +228,7 @@ subroutine phys_ctl_readnl(nlfile)
    call mpibcast(l_st_mac,                        1 , mpilog,  0, mpicom)
    call mpibcast(l_st_mic,                        1 , mpilog,  0, mpicom)
    call mpibcast(l_rad,                           1 , mpilog,  0, mpicom)
+   call mpibcast(cld_macmic_num_steps,            1 , mpiint,  0, mpicom)
 #endif
 
    ! Error checking:
@@ -221,7 +241,8 @@ subroutine phys_ctl_readnl(nlfile)
       write(iulog,*)'waccm: illegal value of waccmx_opt:', waccmx_opt
       call endrun('waccm: illegal value of waccmx_opt')
    endif
-   if (.not. (shallow_scheme .eq. 'Hack' .or. shallow_scheme .eq. 'UW' .or. shallow_scheme .eq. 'CLUBB_SGS' &
+   if (.not. (shallow_scheme .eq. 'Hack' .or. shallow_scheme .eq. 'UW' .or. &
+              shallow_scheme .eq. 'CLUBB_SGS' .or. shallow_scheme == 'UNICON' &
        .or. shallow_scheme.eq.'off')) then
       write(iulog,*)'phys_setopts: illegal value of shallow_scheme:', shallow_scheme
       call endrun('phys_setopts: illegal value of shallow_scheme')
@@ -266,13 +287,28 @@ subroutine phys_ctl_readnl(nlfile)
          call endrun('CLUBB and eddy, macrop or shallow schemes incompatible')
       endif
    endif
-      
 
+   ! Macro/micro co-substepping support.
+   if (cld_macmic_num_steps > 1) then
+      if (microp_scheme /= "MG" .or. (macrop_scheme /= "park" .and. macrop_scheme /= "CLUBB_SGS")) then
+         call endrun ("Setting cld_macmic_num_steps > 1 is only &
+              &supported with Park or CLUBB macrophysics and MG microphysics.")
+      end if
+   end if
 
    ! prog_modal_aero determines whether prognostic modal aerosols are present in the run.
    prog_modal_aero = (     cam_chempkg_is('trop_mam3') &
                       .or. cam_chempkg_is('trop_mam4') &
+                      .or. cam_chempkg_is('trop_mam4_resus') &
+                      .or. cam_chempkg_is('trop_mam4_resus_soag') &
+                      .or. cam_chempkg_is('trop_mam4_mom') &
+                      .or. cam_chempkg_is('trop_mam4_resus_mom') &
                       .or. cam_chempkg_is('trop_mam7') &
+                      .or. cam_chempkg_is('trop_mam9') &
+                      .or. cam_chempkg_is('linoz_mam3') &
+                      .or. cam_chempkg_is('linoz_mam4_resus') &
+                      .or. cam_chempkg_is('linoz_mam4_resus_mom') &
+                      .or. cam_chempkg_is('linoz_mam4_resus_mom_soag') &
                       .or. cam_chempkg_is('super_fast_llnl_mam3') &
                       .or. cam_chempkg_is('trop_mozart_mam3') &
                       .or. cam_chempkg_is('trop_strat_mam3') &
@@ -319,14 +355,16 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
                         radiation_scheme_out, use_subcol_microp_out, atm_dep_flux_out, &
                         history_amwg_out, history_vdiag_out, history_aerosol_out, history_aero_optics_out, history_eddy_out, &
                         history_budget_out, history_budget_histfile_num_out, history_waccm_out, &
-                        conv_water_in_rad_out, cam_chempkg_out, prog_modal_aero_out, macrop_scheme_out, &
-                        do_clubb_sgs_out, do_tms_out, state_debug_checks_out, fix_g1_err_ndrop_out,     &
-                        ssalt_tuning_out,resus_fix_out,convproc_do_aer_out,  &
-                        convproc_do_gas_out, convproc_method_activate_out,   &
+                        history_clubb_out, conv_water_in_rad_out, cam_chempkg_out, prog_modal_aero_out, macrop_scheme_out, &
+                        do_clubb_sgs_out, do_tms_out, state_debug_checks_out, &
+                        cld_macmic_num_steps_out, micro_do_icesupersat_out, &
+                        fix_g1_err_ndrop_out, ssalt_tuning_out,resus_fix_out,convproc_do_aer_out,  &
+                        convproc_do_gas_out, convproc_method_activate_out, mam_amicphys_optaa_out, &
                         liqcf_fix_out, regen_fix_out,demott_ice_nuc_out      &
                        ,l_tracer_aero_out, l_vdiff_out, l_rayleigh_out, l_gw_drag_out, l_ac_energy_chk_out  &
                        ,l_bc_energy_fix_out, l_dry_adj_out, l_st_mac_out, l_st_mic_out, l_rad_out  &
                         )
+
 !-----------------------------------------------------------------------
 ! Purpose: Return runtime settings
 !          deep_scheme_out   : deep convection scheme
@@ -352,7 +390,9 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
    logical,           intent(out), optional :: history_budget_out
    integer,           intent(out), optional :: history_budget_histfile_num_out
    logical,           intent(out), optional :: history_waccm_out
+   logical,           intent(out), optional :: history_clubb_out
    logical,           intent(out), optional :: do_clubb_sgs_out
+   logical,           intent(out), optional :: micro_do_icesupersat_out
    integer,           intent(out), optional :: conv_water_in_rad_out
    character(len=32), intent(out), optional :: cam_chempkg_out
    logical,           intent(out), optional :: prog_modal_aero_out
@@ -364,6 +404,7 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
    logical,           intent(out), optional :: convproc_do_aer_out 
    logical,           intent(out), optional :: convproc_do_gas_out 
    integer,           intent(out), optional :: convproc_method_activate_out 
+   integer,           intent(out), optional :: mam_amicphys_optaa_out
    logical,           intent(out), optional :: liqcf_fix_out       
    logical,           intent(out), optional :: regen_fix_out       
    logical,           intent(out), optional :: demott_ice_nuc_out  
@@ -379,6 +420,7 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
    logical,           intent(out), optional :: l_st_mac_out
    logical,           intent(out), optional :: l_st_mic_out
    logical,           intent(out), optional :: l_rad_out
+   integer,           intent(out), optional :: cld_macmic_num_steps_out
 
    if ( present(deep_scheme_out         ) ) deep_scheme_out          = deep_scheme
    if ( present(shallow_scheme_out      ) ) shallow_scheme_out       = shallow_scheme
@@ -397,7 +439,9 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
    if ( present(history_eddy_out        ) ) history_eddy_out         = history_eddy
    if ( present(history_budget_histfile_num_out ) ) history_budget_histfile_num_out = history_budget_histfile_num
    if ( present(history_waccm_out       ) ) history_waccm_out        = history_waccm
+   if ( present(history_clubb_out       ) ) history_clubb_out        = history_clubb
    if ( present(do_clubb_sgs_out        ) ) do_clubb_sgs_out         = do_clubb_sgs
+   if ( present(micro_do_icesupersat_out )) micro_do_icesupersat_out = micro_do_icesupersat
    if ( present(conv_water_in_rad_out   ) ) conv_water_in_rad_out    = conv_water_in_rad
    if ( present(cam_chempkg_out         ) ) cam_chempkg_out          = cam_chempkg
    if ( present(prog_modal_aero_out     ) ) prog_modal_aero_out      = prog_modal_aero
@@ -408,7 +452,8 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
    if ( present(resus_fix_out           ) ) resus_fix_out            = resus_fix      
    if ( present(convproc_do_aer_out     ) ) convproc_do_aer_out      = convproc_do_aer
    if ( present(convproc_do_gas_out     ) ) convproc_do_gas_out      = convproc_do_gas
-   if ( present(convproc_method_activate_out))convproc_method_activate_out= convproc_method_activate
+   if ( present(convproc_method_activate_out ) ) convproc_method_activate_out = convproc_method_activate
+   if ( present(mam_amicphys_optaa_out  ) ) mam_amicphys_optaa_out  = mam_amicphys_optaa
    if ( present(liqcf_fix_out           ) ) liqcf_fix_out            = liqcf_fix      
    if ( present(regen_fix_out           ) ) regen_fix_out            = regen_fix      
    if ( present(demott_ice_nuc_out      ) ) demott_ice_nuc_out       = demott_ice_nuc 
@@ -422,6 +467,8 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
    if ( present(l_st_mac_out            ) ) l_st_mac_out          = l_st_mac
    if ( present(l_st_mic_out            ) ) l_st_mic_out          = l_st_mic
    if ( present(l_rad_out               ) ) l_rad_out             = l_rad
+   if ( present(cld_macmic_num_steps_out) ) cld_macmic_num_steps_out = cld_macmic_num_steps
+
 end subroutine phys_getopts
 
 !===============================================================================

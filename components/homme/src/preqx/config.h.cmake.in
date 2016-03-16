@@ -62,3 +62,6 @@
 
 /* Using Accelerator */
 #cmakedefine IS_ACCELERATOR
+
+/* Whether to use OpenMP4 */
+#cmakedefine OMP4

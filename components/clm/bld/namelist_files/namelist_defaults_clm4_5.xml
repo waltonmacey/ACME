@@ -36,6 +36,9 @@ attributes from the config_cache.xml file (with keys converted to upper-case).
 <spinup_state bgc_spinup="on" >1</spinup_state>
 <spinup_state bgc_spinup="off">0</spinup_state>
 
+<nyears_ad_carbon_only  >20</nyears_ad_carbon_only>
+<spinup_mortality_factor>10</spinup_mortality_factor>
+
 <!-- Irrigation default -->
 <irrig>.false.</irrig>
 
@@ -66,13 +69,17 @@ attributes from the config_cache.xml file (with keys converted to upper-case).
 
 <glc_snow_persistence_max_days>7300</glc_snow_persistence_max_days>
 
+<!-- VSFM default -->
+<use_vsfm>.false.</use_vsfm>
+<vsfm_satfunc_type>smooth_brooks_corey_bz3</vsfm_satfunc_type>
+
 <!-- ================================================================== -->
 <!-- The default filenames are given relative to the root directory
      for the CLM2 data in the CESM distribution -->
 <!-- Plant function types (relative to {csmdata}) -->
-<paramfile                 >lnd/clm2/paramdata/clm_params.c150521.nc</paramfile>
+<paramfile                 >lnd/clm2/paramdata/clm_params.c160128.nc</paramfile>
 <paramfile use_ed=".true." >lnd/clm2/paramdata/clm_params.ED.c140115.nc</paramfile>
-<paramfile use_crop=".true." >lnd/clm2/paramdata/clm_params.c150330.nc</paramfile>
+<paramfile use_crop=".true." >lnd/clm2/paramdata/clm_params.c151111.nc</paramfile>
 
 <!-- soil order related parameters (relative to {csmdata}) -->
 <fsoilordercon             >lnd/clm2/paramdata/CNP_parameters_c131108.nc</fsoilordercon> 
@@ -149,6 +156,19 @@ ic_tod="0" sim_year="1850" glc_nec="0" use_crop=".false." >lnd/clm2/initdata_map
 ic_tod="0" sim_year="1850" glc_nec="0" use_crop=".false." >lnd/clm2/initdata_map/clmi.I1850CRUCLM45BGC.0241-01-01.ne30np4_g1v6_simyr1850_c140111.nc
 </finidat>
 
+<!-- Initial condition file with CLM45SP -->
+<finidat hgrid="ne30np4"   maxpft="17"  mask="gx1v6" use_cn=".false." ic_ymd="18500101" more_vertlayers=".false."
+ic_tod="0" sim_year="2000" glc_nec="0" use_crop=".false." >lnd/clm2/initdata_map/clmi.ICRUCLM45.ne30_g16.e61c667.clm2.r.0021-01-01-00000.nc
+</finidat>
+
+<finidat hgrid="ne30np4"   maxpft="17"  mask="oEC60to30" use_cn=".false." ic_ymd="18500101" more_vertlayers=".false."
+ic_tod="0" sim_year="2000" glc_nec="0" use_crop=".false." >lnd/clm2/initdata_map/clmi.ICRUCLM45.ne30_oEC.e61c667.clm2.r.0021-01-01-00000.nc
+</finidat>
+
+<finidat hgrid="ne30np4"   maxpft="17"  mask="oEC60to30" use_cn=".false." ic_ymd="18500101" more_vertlayers=".false."
+ic_tod="0" sim_year="1850" glc_nec="0" use_crop=".false." >lnd/clm2/initdata_map/clmi.I1850CLM45.ne30_oEC.e61c667.clm2.r.0021-01-01-00000.nc
+</finidat>
+
 
 <!-- Initial condition files with CLM45BGCDV -->
 
@@ -195,7 +215,10 @@ lnd/clm2/surfdata_map/surfdata_10x15_simyr2000_c130927.nc</fsurdat>
 
 <fsurdat hgrid="ne30np4"     sim_year="2000" >
 lnd/clm2/surfdata_map/surfdata_ne30np4_simyr2000_c130927.nc</fsurdat>
-
+<fsurdat hgrid="ne120np4"     sim_year="2000" >
+lnd/clm2/surfdata_map/surfdata_ne120np4_simyr2000_c150121.nc</fsurdat>
+<fsurdat hgrid="ne16np4"      sim_year="2000" use_crop=".false." >
+lnd/clm2/surfdata_map/surfdata_ne16np4_simyr2000_c160108.nc</fsurdat>
 
 <!-- Crop surface datasets -->
 <fsurdat hgrid="1.9x2.5"   sim_year="2000" use_crop=".true." >
@@ -245,6 +268,8 @@ lnd/clm2/surfdata_map/surfdata_1x1_brazil_simyr1850_c140610.nc</fsurdat>
 
 <fsurdat hgrid="ne30np4"      sim_year="1850" use_crop=".false." >
 lnd/clm2/surfdata_map/surfdata_ne30np4_simyr1850_c130927.nc</fsurdat>
+<fsurdat hgrid="ne16np4"      sim_year="1850" use_crop=".false." >
+lnd/clm2/surfdata_map/surfdata_ne16np4_simyr1850_c160108.nc</fsurdat>
 
 <!-- Dynamic PFT surface datasets (relative to {csmdata}) -->
 
@@ -330,6 +355,15 @@ lnd/clm2/surfdata_map/surfdata_ne30np4_simyr1850_c130927.nc</fsurdat>
  use_crop=".false." >lnd/clm2/surfdata_map/surfdata.pftdyn_ne30np4_rcp2.6_simyr1850-2100_c130524.nc</flanduse_timeseries>
 
 <!-- GLC mask datasets (relative to {csmdata}) -->
+<!-- Currently glc_grid is not being read from anywhere, so these rules are broken.  -->
+<!-- Until that is fixed, the first entry matching hgrid will be used. -->
+<!-- So for now use a mask that cover both GIS and AIS.  This is not the most efficient approach but it will always work for either ice sheet. -->
+<!--
+<fglcmask hgrid="0.9x1.25" glc_grid="mpas.ais20km">lnd/clm2/griddata/glcmaskdata_0.9x1.25_everywhere.nc</fglcmask>
+this mask will have smb calculated over the entire global land surface
+-->
+<fglcmask hgrid="0.9x1.25" glc_grid="--ANYTHING--">lnd/clm2/griddata/glcmaskdata_0.9x1.25_GIS_AIS.nc</fglcmask>
+
 <fglcmask hgrid="48x96"    glc_grid="gland20" >glc/cism/griddata/glcmaskdata_48x96_Gland20km.nc</fglcmask>
 <fglcmask hgrid="48x96"    glc_grid="gland10" >glc/cism/griddata/glcmaskdata_48x96_Gland10km.nc</fglcmask>
 <fglcmask hgrid="48x96"    glc_grid="gland5"  >glc/cism/griddata/glcmaskdata_48x96_Gland5km.nc</fglcmask>
@@ -342,6 +376,9 @@ lnd/clm2/surfdata_map/surfdata_ne30np4_simyr1850_c130927.nc</fsurdat>
 <fglcmask hgrid="1.9x2.5"  glc_grid="gland10" >glc/cism/griddata/glcmaskdata_1.9x2.5_Gland10km.nc</fglcmask>
 <fglcmask hgrid="1.9x2.5"  glc_grid="gland5"  >glc/cism/griddata/glcmaskdata_1.9x2.5_Gland5km.nc</fglcmask>
 <fglcmask hgrid="1.9x2.5"  glc_grid="gland5UM">glc/cism/griddata/glcmaskdata_1.9x2.5_Gland5km.nc</fglcmask>
+<!-- MPASLI grids that could be used if the glc_grid logic was working. -->
+<fglcmask hgrid="0.9x1.25" glc_grid="mpas.gis20km">glc/cism/griddata/glcmaskdata_0.9x1.25_Gland5km.nc</fglcmask>  <!-- the CISM one works fine for this mesh -->
+<fglcmask hgrid="0.9x1.25" glc_grid="mpas.ais20km">lnd/clm2/griddata/glcmaskdata_0.9x1.25_60S.nc</fglcmask>
 
 <!-- Land topo datasets (when running glc_nec) (relative to {csmdata}) -->
 <flndtopo hgrid="0.9x1.25"  >lnd/clm2/griddata/topodata_0.9x1.25_USGS_070110.nc</flndtopo>
@@ -394,6 +431,48 @@ lnd/clm2/surfdata_map/surfdata_ne30np4_simyr1850_c130927.nc</fsurdat>
 <ndepmapalgo use_cn=".true."   hgrid="1x1_asphaltjungleNJ" >nn</ndepmapalgo>
 <ndepmapalgo use_cn=".true."   hgrid="1x1_tropicAtl"       >nn</ndepmapalgo>
 <ndepmapalgo use_cn=".true."   hgrid="5x5_amazon"          >nn</ndepmapalgo>
+
+<!-- Phosphorus deposition streams namelist defaults -->
+<stream_year_first_pdep use_cn=".true."   sim_year="2000" >2000</stream_year_first_pdep>
+<stream_year_last_pdep  use_cn=".true."   sim_year="2000" >2000</stream_year_last_pdep>
+
+<stream_year_first_pdep use_cn=".true."   sim_year="1850" >2000</stream_year_first_pdep>
+<stream_year_last_pdep  use_cn=".true."   sim_year="1850" >2000</stream_year_last_pdep>
+
+<stream_year_first_pdep use_cn=".true."   sim_year="1000" >2000</stream_year_first_pdep>
+<stream_year_last_pdep  use_cn=".true."   sim_year="1000" >2000</stream_year_last_pdep>
+
+<stream_year_first_pdep use_cn=".true."   sim_year="constant" sim_year_range="1000-1002" >2000</stream_year_first_pdep>
+<stream_year_last_pdep  use_cn=".true."   sim_year="constant" sim_year_range="1000-1002" >2000</stream_year_last_pdep>
+
+<stream_year_first_pdep use_cn=".true."   sim_year="constant" sim_year_range="1000-1004" >2000</stream_year_first_pdep>
+<stream_year_last_pdep  use_cn=".true."   sim_year="constant" sim_year_range="1000-1004" >2000</stream_year_last_pdep>
+
+<stream_year_first_pdep use_cn=".true."   sim_year="constant" sim_year_range="1850-2000" >1850</stream_year_first_pdep>
+<stream_year_last_pdep  use_cn=".true."   sim_year="constant" sim_year_range="1850-2000" >2000</stream_year_last_pdep>
+
+<stream_year_first_pdep use_cn=".true."   sim_year="constant" sim_year_range="1850-2100" >1850</stream_year_first_pdep>
+<stream_year_last_pdep  use_cn=".true."   sim_year="constant" sim_year_range="1850-2100" >2100</stream_year_last_pdep>
+
+<stream_year_first_pdep use_cn=".true."   sim_year="constant" sim_year_range="2000-2100" >2000</stream_year_first_pdep>
+<stream_year_last_pdep  use_cn=".true."   sim_year="constant" sim_year_range="2000-2100" >2100</stream_year_last_pdep>
+
+<stream_fldfilename_pdep hgrid="1.9x2.5"   use_cn=".true."   >lnd/clm2/pdepdata/fpdep_clm_hist_simyr2000_1.9x2.5_c150929.nc</stream_fldfilename_pdep>
+<stream_fldfilename_pdep hgrid="1.9x2.5"   use_cn=".true."   rcp="8.5" >lnd/clm2/pdepdata/fpdep_clm_hist_simyr2000_1.9x2.5_c150929.nc</stream_fldfilename_pdep>
+<stream_fldfilename_pdep hgrid="1.9x2.5"   use_cn=".true."   rcp="6"   >lnd/clm2/pdepdata/fpdep_clm_hist_simyr2000_1.9x2.5_c150929.nc</stream_fldfilename_pdep>
+<stream_fldfilename_pdep hgrid="1.9x2.5"   use_cn=".true."   rcp="4.5" >lnd/clm2/pdepdata/fpdep_clm_hist_simyr2000_1.9x2.5_c150929.nc</stream_fldfilename_pdep>
+<stream_fldfilename_pdep hgrid="1.9x2.5"   use_cn=".true."   rcp="2.6" >lnd/clm2/pdepdata/fpdep_clm_hist_simyr2000_1.9x2.5_c150929.nc</stream_fldfilename_pdep>
+
+<pdepmapalgo use_cn=".true."                               >bilinear</pdepmapalgo>
+
+<pdepmapalgo use_cn=".true."   hgrid="1x1_brazil"          >nn</pdepmapalgo>
+<pdepmapalgo use_cn=".true."   hgrid="1x1_mexicocityMEX"   >nn</pdepmapalgo>
+<pdepmapalgo use_cn=".true."   hgrid="1x1_vancouverCAN"    >nn</pdepmapalgo>
+<pdepmapalgo use_cn=".true."   hgrid="1x1_urbanc_alpha"    >nn</pdepmapalgo>
+<pdepmapalgo use_cn=".true."   hgrid="1x1_camdenNJ"        >nn</pdepmapalgo>
+<pdepmapalgo use_cn=".true."   hgrid="1x1_asphaltjungleNJ" >nn</pdepmapalgo>
+<pdepmapalgo use_cn=".true."   hgrid="1x1_tropicAtl"       >nn</pdepmapalgo>
+<pdepmapalgo use_cn=".true."   hgrid="5x5_amazon"          >nn</pdepmapalgo>
 
 <!-- LAI streams namelist defaults -->
 <use_lai_streams        >.false.</use_lai_streams>

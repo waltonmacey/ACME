@@ -604,7 +604,6 @@ endif
     integer :: i,k,ir,ll,iptr
 
     integer :: is,ie,in,iw
-    integer :: nce
 
     !call t_adj_detailf(+2)
     !call t_startf('edgeVpack')
@@ -623,7 +622,11 @@ endif
 #endif
     do k=1,vlyr
        iptr = np*(kptr+k-1)
-!dir$ ivdep
+#ifdef OMP4
+!$omp simd
+#else
+!dir$ simd
+#endif
        do i=1,np
           edge%buf(iptr+is+i)   = v(i  ,1 ,k) ! South
           edge%buf(iptr+in+i)   = v(i  ,np,k) ! North
@@ -688,12 +691,12 @@ endif
     endif
 
     !set the max_corner_elem
-    nce = max_corner_elem
 ! SWEST
     do ll=swest,swest+max_corner_elem-1
         if (edge%putmap(ll,ielem) /= -1) then
             do k=1,vlyr
-                edge%buf(nce*(kptr+k-1)+edge%putmap(ll,ielem)+1)=v(1  ,1 ,k)
+                iptr = (kptr+k-1)+edge%putmap(ll,ielem)+1
+                edge%buf(iptr)=v(1  ,1 ,k)
             end do
         end if
     end do
@@ -702,7 +705,8 @@ endif
     do ll=swest+max_corner_elem,swest+2*max_corner_elem-1
         if (edge%putmap(ll,ielem) /= -1) then
             do k=1,vlyr
-                edge%buf(nce*(kptr+k-1)+edge%putmap(ll,ielem)+1)=v(np ,1 ,k)
+                iptr = (kptr+k-1)+edge%putmap(ll,ielem)+1
+                edge%buf(iptr)=v(np ,1 ,k)
 !                edge%buf(kptr+k,edge%putmap(ll,ielem)+1)=v(np ,1 ,k)
             end do
         end if
@@ -712,7 +716,8 @@ endif
     do ll=swest+3*max_corner_elem,swest+4*max_corner_elem-1
         if (edge%putmap(ll,ielem) /= -1) then
             do k=1,vlyr
-                edge%buf(nce*(kptr+k-1)+edge%putmap(ll,ielem)+1)=v(np ,np,k)
+                iptr = (kptr+k-1)+edge%putmap(ll,ielem)+1
+                edge%buf(iptr)=v(np ,np,k)
 !                edge%buf(kptr+k,edge%putmap(ll,ielem)+1)=v(np ,np,k)
             end do
         end if
@@ -722,7 +727,8 @@ endif
     do ll=swest+2*max_corner_elem,swest+3*max_corner_elem-1
         if (edge%putmap(ll,ielem) /= -1) then
             do k=1,vlyr
-                edge%buf(nce*(kptr+k-1)+edge%putmap(ll,ielem)+1)=v(1  ,np,k)
+                iptr = (kptr+k-1)+edge%putmap(ll,ielem)+1
+                edge%buf(iptr)=v(1  ,np,k)
 !                edge%buf(kptr+k,edge%putmap(ll,ielem)+1)=v(1  ,np,k)
             end do
         end if
@@ -748,11 +754,10 @@ endif
     integer :: i,k,ir,ll,iptr
 
     integer :: is,ie,in,iw
-    integer :: nce
     real (kind=real_kind) :: tmp
 
-    call t_adj_detailf(+2)
-    call t_startf('edgeSpack')
+!pw call t_adj_detailf(+2)
+!pw call t_startf('edgeSpack')
 
     is = edge%putmap(south,ielem)
     ie = edge%putmap(east,ielem)
@@ -769,13 +774,11 @@ endif
        edge%buf(iptr+in+1)   = v(k) ! North
        edge%buf(iptr+iw+1)   = v(k) ! West
     enddo
-    !set the max_corner_elem
-    nce = max_corner_elem
 ! SWEST
     do ll=swest,swest+max_corner_elem-1
         if (edge%putmap(ll,ielem) /= -1) then
             do k=1,vlyr
-                iptr = nce*(kptr+k-1)
+                iptr = (kptr+k-1)
                 edge%buf(iptr+edge%putmap(ll,ielem)+1)=v(k)
             end do
         end if
@@ -785,7 +788,7 @@ endif
     do ll=swest+max_corner_elem,swest+2*max_corner_elem-1
         if (edge%putmap(ll,ielem) /= -1) then
             do k=1,vlyr
-                iptr = nce*(kptr+k-1)
+                iptr = (kptr+k-1)
                 edge%buf(iptr+edge%putmap(ll,ielem)+1)=v(k)
             end do
         end if
@@ -795,7 +798,7 @@ endif
     do ll=swest+3*max_corner_elem,swest+4*max_corner_elem-1
         if (edge%putmap(ll,ielem) /= -1) then
             do k=1,vlyr
-                iptr = nce*(kptr+k-1)
+                iptr = (kptr+k-1)
                 edge%buf(iptr+edge%putmap(ll,ielem)+1)=v(k)
             end do
         end if
@@ -805,14 +808,14 @@ endif
     do ll=swest+2*max_corner_elem,swest+3*max_corner_elem-1
         if (edge%putmap(ll,ielem) /= -1) then
             do k=1,vlyr
-                iptr = nce*(kptr+k-1)
+                iptr = (kptr+k-1)
                 edge%buf(iptr+edge%putmap(ll,ielem)+1)=v(k)
             end do
         end if
     end do
 
-    call t_stopf('edgeSpack')
-    call t_adj_detailf(-2)
+!pw call t_stopf('edgeSpack')
+!pw call t_adj_detailf(-2)
 
   end subroutine edgeSpack
 
@@ -972,7 +975,7 @@ endif
     !type (EdgeDescriptor_t)            :: desc
 
     ! Local
-    integer :: i,k,ll,iptr,nce
+    integer :: i,k,ll,iptr
     integer :: is,ie,in,iw
     integer :: ks,ke,kblock
     logical :: done
@@ -1014,11 +1017,10 @@ endif
     enddo
 
 ! SWEST
-    nce = max_corner_elem
     do ll=swest,swest+max_corner_elem-1
         if(edge%getmap(ll,ielem) /= -1) then 
             do k=1,vlyr
-                v(1  ,1 ,k)=v(1 ,1 ,k)+edge%receive(nce*(kptr+k-1)+edge%getmap(ll,ielem)+1)
+                v(1  ,1 ,k)=v(1 ,1 ,k)+edge%receive((kptr+k-1)+edge%getmap(ll,ielem)+1)
             enddo
         endif
     end do
@@ -1027,7 +1029,7 @@ endif
     do ll=swest+max_corner_elem,swest+2*max_corner_elem-1
         if(edge%getmap(ll,ielem) /= -1) then 
             do k=1,vlyr
-                v(np ,1 ,k)=v(np,1 ,k)+edge%receive(nce*(kptr+k-1)+edge%getmap(ll,ielem)+1)
+                v(np ,1 ,k)=v(np,1 ,k)+edge%receive((kptr+k-1)+edge%getmap(ll,ielem)+1)
             enddo
         endif
     end do
@@ -1036,7 +1038,7 @@ endif
     do ll=swest+3*max_corner_elem,swest+4*max_corner_elem-1
         if(edge%getmap(ll,ielem) /= -1) then 
             do k=1,vlyr
-                v(np ,np,k)=v(np,np,k)+edge%receive(nce*(kptr+k-1)+edge%getmap(ll,ielem)+1)
+                v(np ,np,k)=v(np,np,k)+edge%receive((kptr+k-1)+edge%getmap(ll,ielem)+1)
             enddo
         endif
     end do
@@ -1045,7 +1047,7 @@ endif
     do ll=swest+2*max_corner_elem,swest+3*max_corner_elem-1
         if(edge%getmap(ll,ielem) /= -1) then 
             do k=1,vlyr
-                v(1  ,np,k)=v(1 ,np,k)+edge%receive(nce*(kptr+k-1)+edge%getmap(ll,ielem)+1)
+                v(1  ,np,k)=v(1 ,np,k)+edge%receive((kptr+k-1)+edge%getmap(ll,ielem)+1)
             enddo
         endif
     end do
@@ -1060,6 +1062,8 @@ endif
     !call t_adj_detailf(-2)
 
   end subroutine edgeVunpack
+
+
   subroutine edgeVunpackVert(edge,v,ielem)
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
     use dimensions_mod, only : np, max_corner_elem, ne
@@ -1071,7 +1075,7 @@ endif
 
     ! Local
     logical, parameter :: UseUnroll = .TRUE.
-    integer :: i,k,l
+    integer :: i,k,l, nce
     integer :: is,ie,in,iw,ine,inw,isw,ise
 
     threadsafe=.false.
@@ -1093,102 +1097,102 @@ endif
     ! N+S
     do i=1,np/2
        ! North
-       !kptr = 0
-       !iptr=np*(kptr+k-1)+in
-       ! iptr = np*(k-1)+in
+       ! kptr = 0
+       ! iptr=np*(kptr+k-1)+in
   
-!       v(3,i ,np)%x = edge%buf(1,in+i) 
-       ! iptr = np*(1-1)+in 
-       v(3,i ,np)%x = edge%buf(in+i) 
+!      iptr = np*(1-1)+in 
+!      v(3,i ,np)%x = edge%receive(1,in+i) 
+       v(3,i ,np)%x = edge%receive(in+i) 
 
-!       v(3,i ,np)%y = edge%buf(2,in+i) 
-       ! iptr = np*(2-1)+in 
-!       iptr = np+in
-       v(3,i ,np)%y = edge%buf(np+in+i) 
+!      iptr = np*(2-1)+in 
+!      v(3,i ,np)%y = edge%receive(2,in+i) 
+       v(3,i ,np)%y = edge%receive(np+in+i) 
 
-!       v(3,i ,np)%z = edge%buf(3,in+i) 
-!       iptr = np*(3-1)+in 
-!       iptr = 2*np+in
-       v(3,i ,np)%z = edge%buf(2*np+in+i) 
+!      iptr = np*(3-1)+in 
+!      v(3,i ,np)%z = edge%receive(3,in+i) 
+       v(3,i ,np)%z = edge%receive(2*np+in+i) 
 
        ! South
-       ! v(2,i ,1)%x  = edge%buf(1,is+i) 
-       v(2,i ,1)%x  = edge%buf(is+i) 
-       ! v(2,i ,1)%y  = edge%buf(2,is+i) 
-       v(2,i ,1)%y  = edge%buf(np+is+i) 
-       ! v(2,i ,1)%y  = edge%buf(3,is+i) 
-       v(2,i ,1)%z  = edge%buf(2*np+is+i) 
+       ! v(2,i ,1)%x  = edge%receive(1,is+i) 
+       v(2,i ,1)%x  = edge%receive(is+i) 
+
+       ! v(2,i ,1)%y  = edge%receive(2,is+i) 
+       v(2,i ,1)%y  = edge%receive(np+is+i) 
+
+       ! v(2,i ,1)%z  = edge%receive(3,is+i) 
+       v(2,i ,1)%z  = edge%receive(2*np+is+i) 
     enddo
 
     do i=np/2+1,np
        ! North
-       ! v(4,i ,np)%x = edge%buf(1,in+i) 
-       v(4,i ,np)%x = edge%buf(in+i) 
+       ! v(4,i ,np)%x = edge%receive(1,in+i) 
+       v(4,i ,np)%x = edge%receive(in+i) 
 
-       ! v(4,i ,np)%y = edge%buf(2,in+i) 
-       v(4,i ,np)%y = edge%buf(np+in+i) 
+       ! v(4,i ,np)%y = edge%receive(2,in+i) 
+       v(4,i ,np)%y = edge%receive(np+in+i) 
 
-       ! v(4,i ,np)%z = edge%buf(3,in+i) 
-       v(4,i ,np)%z = edge%buf(2*np+in+i) 
+       ! v(4,i ,np)%z = edge%receive(3,in+i) 
+       v(4,i ,np)%z = edge%receive(2*np+in+i) 
        ! South
-       ! v(1,i ,1)%x  = edge%buf(1,is+i) 
-       v(1,i ,1)%x  = edge%buf(is+i) 
-       ! v(1,i ,1)%y  = edge%buf(2,is+i) 
-       v(1,i ,1)%y  = edge%buf(np+is+i) 
-       ! v(1,i ,1)%z  = edge%buf(3,is+i)        
-       v(1,i ,1)%z  = edge%buf(2*np+is+i)        
+       ! v(1,i ,1)%x  = edge%receive(1,is+i) 
+       v(1,i ,1)%x  = edge%receive(is+i) 
+       ! v(1,i ,1)%y  = edge%receive(2,is+i) 
+       v(1,i ,1)%y  = edge%receive(np+is+i) 
+       ! v(1,i ,1)%z  = edge%receive(3,is+i)        
+       v(1,i ,1)%z  = edge%receive(2*np+is+i)        
     enddo
 
     do i=1,np/2
        ! East
-       ! v(3,np,i)%x = edge%buf(1,ie+i)
-       v(3,np,i)%x = edge%buf(ie+i)
-       ! v(3,np,i)%y = edge%buf(2,ie+i)
-       v(3,np,i)%y = edge%buf(np+ie+i)
-       ! v(3,np,i)%z = edge%buf(3,ie+i)       
-       v(3,np,i)%z = edge%buf(2*np+ie+i)       
+       ! v(3,np,i)%x = edge%receive(1,ie+i)
+       v(3,np,i)%x = edge%receive(ie+i)
+       ! v(3,np,i)%y = edge%receive(2,ie+i)
+       v(3,np,i)%y = edge%receive(np+ie+i)
+       ! v(3,np,i)%z = edge%receive(3,ie+i)       
+       v(3,np,i)%z = edge%receive(2*np+ie+i)       
        ! West
-       ! v(4,1,i)%x  = edge%buf(1,iw+i)
-       v(4,1,i)%x  = edge%buf(iw+i)
-       ! v(4,1,i)%y  = edge%buf(2,iw+i)
-       v(4,1,i)%y  = edge%buf(np+iw+i)
-       ! v(4,1,i)%z  = edge%buf(3,iw+i)
-       v(4,1,i)%z  = edge%buf(2*np+iw+i)
+       ! v(4,1,i)%x  = edge%receive(1,iw+i)
+       v(4,1,i)%x  = edge%receive(iw+i)
+       ! v(4,1,i)%y  = edge%receive(2,iw+i)
+       v(4,1,i)%y  = edge%receive(np+iw+i)
+       ! v(4,1,i)%z  = edge%receive(3,iw+i)
+       v(4,1,i)%z  = edge%receive(2*np+iw+i)
     end do
 
     do i=np/2+1,np
        ! East
-       ! v(2,np,i)%x = edge%buf(1,ie+i)
-       v(2,np,i)%x = edge%buf(ie+i)
+       ! v(2,np,i)%x = edge%receive(1,ie+i)
+       v(2,np,i)%x = edge%receive(ie+i)
 
-       ! v(2,np,i)%y = edge%buf(2,ie+i)
-       v(2,np,i)%y = edge%buf(np+ie+i)
+       ! v(2,np,i)%y = edge%receive(2,ie+i)
+       v(2,np,i)%y = edge%receive(np+ie+i)
 
-       ! v(2,np,i)%z = edge%buf(3,ie+i)       
-       v(2,np,i)%z = edge%buf(2*np+ie+i)       
+       ! v(2,np,i)%z = edge%receive(3,ie+i)       
+       v(2,np,i)%z = edge%receive(2*np+ie+i)       
        ! West
 
-       ! v(1,1,i)%x  = edge%buf(1,iw+i)
-       v(1,1,i)%x  = edge%buf(iw+i)
+       ! v(1,1,i)%x  = edge%receive(1,iw+i)
+       v(1,1,i)%x  = edge%receive(iw+i)
 
-       ! v(1,1,i)%y  = edge%buf(2,iw+i)
-       v(1,1,i)%y  = edge%buf(np+iw+i)
+       ! v(1,1,i)%y  = edge%receive(2,iw+i)
+       v(1,1,i)%y  = edge%receive(np+iw+i)
 
-       ! v(1,1,i)%z  = edge%buf(3,iw+i)
-       v(1,1,i)%z  = edge%buf(2*np+iw+i)
+       ! v(1,1,i)%z  = edge%receive(3,iw+i)
+       v(1,1,i)%z  = edge%receive(2*np+iw+i)
     end do
 
 ! SWEST
+    nce = max_corner_elem
     do l=swest,swest+max_corner_elem-1
        ! find the one active corner, then exist
         isw=edge%getmap(l,ielem)
         if(isw /= -1) then 
-            ! v(1,1,1)%x=edge%buf(1,desc%getmapP(l)+1)
-            v(1,1,1)%x=edge%buf(isw+1)
-            ! v(1,1,1)%y=edge%buf(2,desc%getmapP(l)+1)
-            v(1,1,1)%y=edge%buf(np+isw+1)
-            ! v(1,1,1)%z=edge%buf(3,desc%getmapP(l)+1)
-            v(1,1,1)%z=edge%buf(2*np+isw+1)
+            ! v(1,1,1)%x=edge%receive(1,desc%getmapP(l)+1)
+            v(1,1,1)%x=edge%receive(isw+1)
+            ! v(1,1,1)%y=edge%receive(2,desc%getmapP(l)+1)
+            v(1,1,1)%y=edge%receive(nce+isw+1)
+            ! v(1,1,1)%z=edge%receive(3,desc%getmapP(l)+1)
+            v(1,1,1)%z=edge%receive(2*nce+isw+1)
             exit 
         else
             v(1,1,1)%x=0_real_kind
@@ -1202,12 +1206,12 @@ endif
        ! find the one active corner, then exist
         ise=edge%getmap(l,ielem)
         if(ise /= -1) then 
-            ! v(2,np,1)%x=edge%buf(1,desc%getmapP(l)+1)
-            v(2,np,1)%x=edge%buf(ise+1)
-            ! v(2,np,1)%y=edge%buf(2,desc%getmapP(l)+1)
-            v(2,np,1)%y=edge%buf(np+ise+1)
-            ! v(2,np,1)%z=edge%buf(3,desc%getmapP(l)+1)
-            v(2,np,1)%z=edge%buf(2*np+ise+1)
+            ! v(2,np,1)%x=edge%receive(1,desc%getmapP(l)+1)
+            v(2,np,1)%x=edge%receive(ise+1)
+            ! v(2,np,1)%y=edge%receive(2,desc%getmapP(l)+1)
+            v(2,np,1)%y=edge%receive(nce+ise+1)
+            ! v(2,np,1)%z=edge%receive(3,desc%getmapP(l)+1)
+            v(2,np,1)%z=edge%receive(2*nce+ise+1)
             exit
         else
             v(2,np,1)%x=0_real_kind
@@ -1221,9 +1225,9 @@ endif
        ! find the one active corner, then exist
         ine=edge%getmap(l,ielem)
         if(ine /= -1) then 
-            v(3,np,np)%x=edge%buf(ine+1)
-            v(3,np,np)%y=edge%buf(np+ine+1)
-            v(3,np,np)%z=edge%buf(2*np+ine+1)
+            v(3,np,np)%x=edge%receive(ine+1)
+            v(3,np,np)%y=edge%receive(nce+ine+1)
+            v(3,np,np)%z=edge%receive(2*nce+ine+1)
             exit
         else
             v(3,np,np)%x=0_real_kind
@@ -1237,9 +1241,9 @@ endif
        ! find the one active corner, then exist
         inw = edge%getmap(l,ielem)
         if(inw/= -1) then 
-            v(4,1,np)%x=edge%buf(inw+1)
-            v(4,1,np)%y=edge%buf(np+inw+1)
-            v(4,1,np)%z=edge%buf(2*np+inw+1)
+            v(4,1,np)%x=edge%receive(inw+1)
+            v(4,1,np)%y=edge%receive(nce+inw+1)
+            v(4,1,np)%z=edge%receive(2*nce+inw+1)
             exit
         else
             v(4,1,np)%x=0_real_kind
@@ -1295,6 +1299,9 @@ endif
     end do
 
   end subroutine edgeVunpackVert
+
+
+
   ! ========================================
   ! edgeDGVunpack:
   !
@@ -1333,6 +1340,7 @@ endif
     end do
 
     nce = max_corner_elem
+!   this is probably broken.  nce should be 1?  MT 2016/2/9
     i = swest
     if(edge%getmap(i,ielem) /= -1) then
       do k=1,vlyr
@@ -1382,7 +1390,7 @@ endif
 
     ! Local
 
-    integer :: i,k,l,iptr,nce
+    integer :: i,k,l,iptr
     integer :: is,ie,in,iw
 
     threadsafe=.false.
@@ -1401,12 +1409,11 @@ endif
        end do
     end do
 
-    nce = max_corner_elem
 ! SWEST
     do l=swest,swest+max_corner_elem-1
         if(edge%getmap(l,ielem) /= -1) then 
             do k=1,vlyr
-                v(1  ,1 ,k)=MAX(v(1 ,1 ,k),edge%receive(nce*(kptr+k-1)+edge%getmap(l,ielem)+1))
+                v(1  ,1 ,k)=MAX(v(1 ,1 ,k),edge%receive((kptr+k-1)+edge%getmap(l,ielem)+1))
             enddo
         endif
     end do
@@ -1415,7 +1422,7 @@ endif
     do l=swest+max_corner_elem,swest+2*max_corner_elem-1
         if(edge%getmap(l,ielem) /= -1) then 
             do k=1,vlyr
-                v(np ,1 ,k)=MAX(v(np,1 ,k),edge%receive(nce*(kptr+k-1)+edge%getmap(l,ielem)+1))
+                v(np ,1 ,k)=MAX(v(np,1 ,k),edge%receive((kptr+k-1)+edge%getmap(l,ielem)+1))
             enddo
         endif
     end do
@@ -1424,7 +1431,7 @@ endif
     do l=swest+3*max_corner_elem,swest+4*max_corner_elem-1
         if(edge%getmap(l,ielem) /= -1) then
             do k=1,vlyr
-                v(np ,np,k)=MAX(v(np,np,k),edge%receive(nce*(kptr+k-1)+edge%getmap(l,ielem)+1))
+                v(np ,np,k)=MAX(v(np,np,k),edge%receive((kptr+k-1)+edge%getmap(l,ielem)+1))
             enddo
         endif
     end do
@@ -1433,7 +1440,7 @@ endif
     do l=swest+2*max_corner_elem,swest+3*max_corner_elem-1
         if(edge%getmap(l,ielem) /= -1) then 
             do k=1,vlyr
-                v(1  ,np,k)=MAX(v(1 ,np,k),edge%receive(nce*(kptr+k-1)+edge%getmap(l,ielem)+1))
+                v(1  ,np,k)=MAX(v(1 ,np,k),edge%receive((kptr+k-1)+edge%getmap(l,ielem)+1))
             enddo
         endif
     end do
@@ -1453,10 +1460,10 @@ endif
 
     ! Local
 
-    integer :: i,k,l,iptr,nce
+    integer :: i,k,l,iptr
     integer :: is,ie,in,iw
 
-    call t_startf('edgeSunpack')
+!pw call t_startf('edgeSunpack')
     threadsafe=.false.
 
     is=edge%getmap(south,ielem)
@@ -1468,12 +1475,11 @@ endif
        v(k) = MAX(v(k),edge%receive(iptr+is+1),edge%receive(iptr+ie+1),edge%receive(iptr+in+1),edge%receive(iptr+iw+1))
     end do
 
-    nce = max_corner_elem
 ! SWEST
     do l=swest,swest+max_corner_elem-1
         if(edge%getmap(l,ielem) /= -1) then 
             do k=1,vlyr
-                iptr = nce*(kptr+k-1)
+                iptr = (kptr+k-1)
                 v(k)=MAX(v(k),edge%receive(iptr+edge%getmap(l,ielem)+1))
             enddo
         endif
@@ -1483,7 +1489,7 @@ endif
     do l=swest+max_corner_elem,swest+2*max_corner_elem-1
         if(edge%getmap(l,ielem) /= -1) then 
             do k=1,vlyr
-                iptr = nce*(kptr+k-1)
+                iptr = (kptr+k-1)
                 v(k)=MAX(v(k),edge%receive(iptr+edge%getmap(l,ielem)+1))
             enddo
         endif
@@ -1493,7 +1499,7 @@ endif
     do l=swest+3*max_corner_elem,swest+4*max_corner_elem-1
         if(edge%getmap(l,ielem) /= -1) then
             do k=1,vlyr
-                iptr = nce*(kptr+k-1)
+                iptr = (kptr+k-1)
                 v(k)=MAX(v(k),edge%receive(iptr+edge%getmap(l,ielem)+1))
             enddo
         endif
@@ -1503,12 +1509,12 @@ endif
     do l=swest+2*max_corner_elem,swest+3*max_corner_elem-1
         if(edge%getmap(l,ielem) /= -1) then 
             do k=1,vlyr
-                iptr = nce*(kptr+k-1)
+                iptr = (kptr+k-1)
                 v(k)=MAX(v(k),edge%receive(iptr+edge%getmap(l,ielem)+1))
             enddo
         endif
     end do
-    call t_stopf('edgeSunpack')
+!pw call t_stopf('edgeSunpack')
     
   end subroutine edgeSunpackMAX
 
@@ -1525,10 +1531,10 @@ endif
 
     ! Local
 
-    integer :: i,k,l,iptr,nce
+    integer :: i,k,l,iptr
     integer :: is,ie,in,iw
 
-    call t_startf('edgeSunpack')
+!pw call t_startf('edgeSunpack')
     threadsafe=.false.
 
     is=edge%getmap(south,ielem)
@@ -1540,12 +1546,11 @@ endif
        v(k) = MIN(v(k),edge%receive(iptr+is+1),edge%receive(iptr+ie+1),edge%receive(iptr+in+1),edge%receive(iptr+iw+1))
     end do
 
-    nce = max_corner_elem
 ! SWEST
     do l=swest,swest+max_corner_elem-1
         if(edge%getmap(l,ielem) /= -1) then 
             do k=1,vlyr
-                iptr = nce*(kptr+k-1)
+                iptr = (kptr+k-1)
                 v(k)=MiN(v(k),edge%receive(iptr+edge%getmap(l,ielem)+1))
             enddo
         endif
@@ -1555,7 +1560,7 @@ endif
     do l=swest+max_corner_elem,swest+2*max_corner_elem-1
         if(edge%getmap(l,ielem) /= -1) then 
             do k=1,vlyr
-                iptr = nce*(kptr+k-1)
+                iptr = (kptr+k-1)
                 v(k)=MIN(v(k),edge%receive(iptr+edge%getmap(l,ielem)+1))
             enddo
         endif
@@ -1565,7 +1570,7 @@ endif
     do l=swest+3*max_corner_elem,swest+4*max_corner_elem-1
         if(edge%getmap(l,ielem) /= -1) then
             do k=1,vlyr
-                iptr = nce*(kptr+k-1)
+                iptr = (kptr+k-1)
                 v(k)=MIN(v(k),edge%receive(iptr+edge%getmap(l,ielem)+1))
             enddo
         endif
@@ -1575,12 +1580,12 @@ endif
     do l=swest+2*max_corner_elem,swest+3*max_corner_elem-1
         if(edge%getmap(l,ielem) /= -1) then 
             do k=1,vlyr
-                iptr = nce*(kptr+k-1)
+                iptr = (kptr+k-1)
                 v(k)=MIN(v(k),edge%receive(iptr+edge%getmap(l,ielem)+1))
             enddo
         endif
     end do
-    call t_stopf('edgeSunpack')
+!pw call t_stopf('edgeSunpack')
     
   end subroutine edgeSunpackMIN
 
@@ -1597,7 +1602,7 @@ endif
 
     ! Local
 
-    integer :: i,k,l,iptr,nce
+    integer :: i,k,l,iptr
     integer :: is,ie,in,iw
 
     threadsafe=.false.
@@ -1617,11 +1622,10 @@ endif
     end do
 
 ! SWEST
-    nce = max_corner_elem
     do l=swest,swest+max_corner_elem-1
         if(edge%getmap(l,ielem) /= -1) then 
             do k=1,vlyr
-                v(1  ,1 ,k)=MIN(v(1 ,1 ,k),edge%receive(nce*(kptr+k-1)+edge%getmap(l,ielem)+1))
+                v(1  ,1 ,k)=MIN(v(1 ,1 ,k),edge%receive((kptr+k-1)+edge%getmap(l,ielem)+1))
             enddo
         endif
     end do
@@ -1630,7 +1634,7 @@ endif
     do l=swest+max_corner_elem,swest+2*max_corner_elem-1
         if(edge%getmap(l,ielem) /= -1) then 
             do k=1,vlyr
-                v(np ,1 ,k)=MIN(v(np,1 ,k),edge%receive(nce*(kptr+k-1)+edge%getmap(l,ielem)+1))
+                v(np ,1 ,k)=MIN(v(np,1 ,k),edge%receive((kptr+k-1)+edge%getmap(l,ielem)+1))
             enddo
         endif
     end do
@@ -1639,7 +1643,7 @@ endif
     do l=swest+3*max_corner_elem,swest+4*max_corner_elem-1
         if(edge%getmap(l,ielem) /= -1) then 
             do k=1,vlyr
-                v(np ,np,k)=MIN(v(np,np,k),edge%receive(nce*(kptr+k-1)+edge%getmap(l,ielem)+1))
+                v(np ,np,k)=MIN(v(np,np,k),edge%receive((kptr+k-1)+edge%getmap(l,ielem)+1))
             enddo
         endif
     end do
@@ -1648,7 +1652,7 @@ endif
     do l=swest+2*max_corner_elem,swest+3*max_corner_elem-1
         if(edge%getmap(l,ielem) /= -1) then 
             do k=1,vlyr
-                v(1  ,np,k)=MIN(v(1 ,np,k),edge%receive(nce*(kptr+k-1)+edge%getmap(l,ielem)+1))
+                v(1  ,np,k)=MIN(v(1 ,np,k),edge%receive((kptr+k-1)+edge%getmap(l,ielem)+1))
             enddo
         endif
     end do
