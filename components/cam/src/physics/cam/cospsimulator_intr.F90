@@ -147,6 +147,7 @@ module cospsimulator_intr
    integer, parameter :: n_gmi_ch = 13
    integer, parameter :: gmi_chidx(n_gmi_ch)  =&         ! GPM GMI channel index
             (/1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13/)
+
 #endif
 
 !! The CAM and COSP namelists defaults are set below.  Some of the COSP namelist 
@@ -1356,9 +1357,15 @@ endif
                    '1',gmi_chidx)
     ! add field
     call addfld('GPM_GMI_TB_CS',(/'cosp_scol','gmi_chidx'/),'I','K',&
+                   'simulated GPM GMI brightness temperature, subcolumn',&
+                   flag_xyfill=.true., fill_value=R_UNDEF)
+    call addfld('GPM_GMI_TB',   (/'gmi_chidx'/),'I','K',&
                    'simulated GPM GMI brightness temperature',&
                    flag_xyfill=.true., fill_value=R_UNDEF)
+    
     call add_default('GPM_GMI_TB_CS',cosp_histfile_num, ' ')
+    call add_default('GPM_GMI_TB',   cosp_histfile_num, ' ')
+    
    endif 
 
 #endif
@@ -1525,6 +1532,12 @@ endif
       call addfld ('DEM_C_COSP',(/ 'lev' /),'I','1','DEM_C_COSP',flag_xyfill=.true., fill_value=R_UNDEF)
       call addfld ('DTAU_S_COSP_SNOW',(/ 'lev' /),'I','1','DTAU_S_COSP_SNOW',flag_xyfill=.true., fill_value=R_UNDEF)
       call addfld ('DEM_S_COSP_SNOW',(/ 'lev' /),'I','1','DEM_S_COSP_SNOW',flag_xyfill=.true., fill_value=R_UNDEF)
+! out the shallow and deep convection rain and snow rate for debug use
+      call addfld ('COSP_DP_RAIN', (/ 'lev' /), 'I', '1','COSP_DP_RAIN',flag_xyfill=.true., fill_value=R_UNDEF )
+      call addfld ('COSP_DP_SNOW', (/ 'lev' /), 'I', '1','COSP_DP_SNOW',flag_xyfill=.true., fill_value=R_UNDEF )
+      call addfld ('COSP_SH_RAIN', (/ 'lev' /), 'I', '1','COSP_SH_RAIN',flag_xyfill=.true., fill_value=R_UNDEF )
+      call addfld ('COSP_SH_SNOW', (/ 'lev' /), 'I', '1','COSP_SH_SNOW',flag_xyfill=.true., fill_value=R_UNDEF )
+
 
       call add_default ('PS_COSP',cosp_histfile_aux_num,' ')
       call add_default ('TS_COSP',cosp_histfile_aux_num,' ')
@@ -1564,6 +1577,12 @@ endif
       call add_default ('DEM_C_COSP',cosp_histfile_aux_num,' ')
       call add_default ('DTAU_S_COSP_SNOW',cosp_histfile_aux_num,' ')
       call add_default ('DEM_S_COSP_SNOW',cosp_histfile_aux_num,' ')
+! add shallow and deep convection rain and snow rate for debug use
+      call add_default ('COSP_DP_RAIN',cosp_histfile_aux_num,' ')
+      call add_default ('COSP_DP_SNOW',cosp_histfile_aux_num,' ')
+      call add_default ('COSP_SH_RAIN',cosp_histfile_aux_num,' ')
+      call add_default ('COSP_SH_SNOW',cosp_histfile_aux_num,' ')
+     
    end if
 
    rei_idx = pbuf_get_index('REI')
@@ -2113,6 +2132,9 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
 #endif
 #ifdef GPM_GMI2
    real(r8) :: tbgpmgmi_cs(pcols,ngmichannels*nscol_cosp)
+   real(r8) :: tbgpmgmi_avg(pcols,ngmichannels)
+   real(r8) :: tbgpmgmi_sum(pcols,ngmichannels)
+   integer(r8) :: tbgpmgmi_cnt(pcols,ngmichannels)
 #endif
    real(r8) :: cltmodis(pcols)
    real(r8) :: clwmodis(pcols)
@@ -2217,6 +2239,9 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
 #endif
 #ifdef GPM_GMI2
    tbgpmgmi_cs(1:pcols,1:ngmichannels*nscol_cosp)=R_UNDEF
+   tbgpmgmi_avg(1:pcols,1:ngmichannels)=R_UNDEF
+   tbgpmgmi_sum(1:pcols,1:ngmichannels)=0
+   tbgpmgmi_cnt(1:pcols,1:ngmichannels)=0
 #endif
    cldtot_calcs(1:pcols)=R_UNDEF
    cldtot_cs(1:pcols)=R_UNDEF
@@ -3109,9 +3134,9 @@ if (cosp_runall) then
    gbx%gpmsurface%LAI                   = cam_in%gpm_lai(1:Npoints)
    gbx%gpmsurface%Soil_Type         = getGFSSoilType(      cam_in%gpm_sandfrac(1:Npoints), cam_in%gpm_clayfrac(1:Npoints))
    gbx%gpmsurface%Vegetation_Type   = getGFSVegetationType(cam_in%gpm_vegrho(1:Npoints),   cam_in%gpm_vegmge(1:Npoints)  )
-   do i_gmi_sensor=1,Npoints
-print *, "soil type: ", gbx%gpmsurface(i_gmi_sensor)%Soil_Type,  "vegetation type: ", gbx%gpmsurface(i_gmi_sensor)%Vegetation_Type
-   end do
+!   do i_gmi_sensor=1,Npoints
+!print *, "soil type: ", gbx%gpmsurface(i_gmi_sensor)%Soil_Type,  "vegetation type: ", gbx%gpmsurface(i_gmi_sensor)%Vegetation_Type
+!   end do
    ! water surface properties
    gbx%gpmsurface%water_temperature = gbx%skt !gbx%T(:,1) !cam_in%sst(1:Npoints)
    gbx%gpmsurface%wind_Speed        = SQRT(gbx%u_wind*gbx%u_wind+gbx%v_wind*gbx%v_wind)
@@ -3186,6 +3211,11 @@ print *, "soil type: ", gbx%gpmsurface(i_gmi_sensor)%Soil_Type,  "vegetation typ
       call outfld('DEM_C_COSP',gbx%dem_c(1:ncol,pver:1:-1),ncol,lchnk)
       call outfld('DTAU_S_COSP_SNOW',gbx%dtau_s_snow(1:ncol,pver:1:-1),ncol,lchnk)
       call outfld('DEM_S_COSP_SNOW',gbx%dem_s_snow(1:ncol,pver:1:-1),ncol,lchnk)
+! output deep and shallow convection rain and snow for debug use
+      call outfld('COSP_DP_RAIN',dp_flxprc(1:ncol,1:pver)-dp_flxsnw(1:ncol,1:pver),ncol,lchnk)
+      call outfld('COSP_DP_SNOW',dp_flxsnw(1:ncol,1:pver),ncol,lchnk)
+      call outfld('COSP_SH_RAIN',sh_flxprc(1:ncol,1:pver)-sh_flxsnw(1:ncol,1:pver),ncol,lchnk)
+      call outfld('COSP_SH_SNOW',sh_flxsnw(1:ncol,1:pver),ncol,lchnk)
    end if
 
    !print *, 'Calling the COSP simulator and running on all columns...'
@@ -3358,7 +3388,16 @@ print *, "soil type: ", gbx%gpmsurface(i_gmi_sensor)%Soil_Type,  "vegetation typ
           do isc=1,nscol_cosp
             ihsc=(i_gmi_channel-1)*nscol_cosp+isc
             tbgpmgmi_cs(i,ihsc) = tbgpmgmi(i, isc, i_gmi_channel)
+            where (tbgpmgmi(:,:,i_gmi_channel) /= R_UNDEF)
+               tbgpmgmi_sum = tbgpmgmi_sum + tbgpmgmi(:,:,i_gmi_channel)
+               tbgpmgmi_cnt = tbgpmgmi_cnt + 1
+            endwhere
           end do
+          where (tbgpmgmi_cnt /= 0)
+            tbgpmgmi_avg = tbgpmgmi_sum / tbgpmgmi_cnt
+          elsewhere
+            tbgpmgmi_avg = R_UNDEF
+          endwhere
         end do
 #endif
         ! CAM clMISR (time,tau,CTH_height_bin,profile)
@@ -5188,6 +5227,7 @@ end if  !!! END RUNNING COSP ONLY RADAR/LIDAR
 #ifdef GPM_GMI2
       if (lgpmgmi_sim) then
          call outfld('GPM_GMI_TB_CS',tbgpmgmi_cs, pcols, lchnk)
+         call outfld('GPM_GMI_TB',tbgpmgmi_avg, pcols, lchnk)
       end if
 #endif
 

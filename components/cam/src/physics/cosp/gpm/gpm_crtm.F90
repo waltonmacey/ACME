@@ -158,20 +158,13 @@ contains
          ! conversion is implemented in gpm_crtm_simulator.F90.
          atm(i_profile)%Absorber(:,2)  = o3(i_profile,:)
 
-!#ifdef GMI_DEBUG
-if(.false.) then
-         atm(i_profile)%Absorber(:,1) = 0
-         atm(i_profile)%Absorber(:,2) = 0
-end if
-!#endif
-
          ! assign cloud properties
          ! For now, the cloud types follow those in COSP. Each type of
          ! hydrometer defined in COSP is set to be a single cloud
          ! TODO: current implementation do not distinguish cloud or clear. May
          ! need to define number of clouds based on clear/cloud
          ! TODO: Make sure the units agree. In CRTM, Effective radius has unit microns,
-         ! while water content has unit kg/m^2
+         ! and water content has unit kg/m^2
 
          
 !#ifndef GMI_DEBUG
@@ -271,6 +264,9 @@ end do
 
 
       tbs = rts%Brightness_temperature
+if (.false. .AND. n_channels == 9 ) then
+  tbs(5:6,:) = rts(8:9,:)%SOD
+end if
 ! For debug use
 !print *, rts(1,1)%Brightness_temperature
 !print *, tbs

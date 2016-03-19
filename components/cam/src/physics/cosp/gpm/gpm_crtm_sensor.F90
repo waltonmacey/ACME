@@ -338,6 +338,8 @@ contains
          case ('gpm-gmi-highfreq')
             call GPM_CRTM_sensor_create(gmi, 'gmi_gpm','GPM_GMI_LOWFREQ',49.19, 45.36,&
                       channel_subset = (/(i,i=10,13)/)  )
+         case ('trmm-tmi')
+            call GPM_CRTM_sensor_create(gmi, 'tmi_trmm','TRMM_TMI',53.3, 49 )
          case default
             print *, 'error: sensor not implemented in default list'
             stop

@@ -66,10 +66,10 @@ contains
 ! scattering results
 !
 !-----------------------
-   subroutine gpm_crtm_simulator_run(gbx,sgx,chinfo, scan_angle, zenith_angle, gpm_results)
+   subroutine gpm_crtm_simulator_run(gbx,sghydro,chinfo, scan_angle, zenith_angle, gpm_results)
       ! Arguments
       type(cosp_gridbox), intent(in) :: gbx
-      type(cosp_sghydro), intent(in) :: sgx
+      type(cosp_sghydro), intent(in) :: sghydro
       type(CRTM_ChannelInfo_type), intent(in) :: chinfo(:) ! [n_sensors]
       real, intent(in) :: scan_angle(:)          ! [n_sensors]         
       real, intent(in) :: zenith_angle(:)        ! [n_sensors]         
@@ -114,6 +114,7 @@ contains
       integer :: i_column
       integer :: i_cloud
       integer :: i_channel
+      integer :: i_profile
       real, allocatable :: tbs(:,:) ! temporary variable to store Tb result
       real, allocatable :: m_layer(:,:) ! mass per unit area of air in each layer [kg/m^2] 
       !--------------
@@ -163,7 +164,7 @@ contains
       month = 1
       day = 1
 !print *, "-----debug mr_hydro values -----"
-!print *, maxval(sgx%mr_hydro)
+!print *, maxval(sghydro%mr_hydro)
 !print *, maxval(m_layer)
 !print *, minval(m_layer)
 !print *, maxval(gbx%pint), minval(gbx%pint)
@@ -187,11 +188,81 @@ contains
 !print *, "i_sensor, i_column:", n, i_column
       tbs = 0.0
       ! COSP effect radius is in meters. Convert to micros for CRTM
-      Reff_hydro   = sgx%Reff(    :, i_column, n_layers:1:-1, :) * 1e6
+      Reff_hydro   = sghydro%Reff(    :, i_column, n_layers:1:-1, :) * 1e6
       ! COSP use mixing ratio for hydrometers [kg/kg]. Convert to water content [kg/m^2] 
       do i_cloud=1,n_clouds
-        water_content(:,:,i_cloud)= sgx%mr_hydro(:, i_column, n_layers:1:-1, i_cloud) * m_layer
+        water_content(:,:,i_cloud)= sghydro%mr_hydro(:, i_column, n_layers:1:-1, i_cloud) * m_layer
       end do
+
+if (.false. ) then      
+Reff_hydro(:,:,7) = Reff_hydro(:,:,7) * 10
+Reff_hydro(:,:,8) = Reff_hydro(:,:,8) * 10
+
+! turn off the clouds
+Reff_hydro(:,:,1) = 0
+Reff_hydro(:,:,2) = 0
+Reff_hydro(:,:,5) = 0
+Reff_hydro(:,:,6) = 0
+      
+water_content(:,:,1) = 0
+water_content(:,:,2) = 0
+water_content(:,:,5) = 0
+water_content(:,:,6) = 0
+end if
+
+
+if (.false.) then
+water_content = 0
+Reff_hydro = 0
+
+if (i_column <= 8 ) then
+water_content(:,:,i_column)= sghydro%mr_hydro(:, 1, n_layers:1:-1, i_column) * m_layer
+Reff_hydro(:,:,i_column)   = sghydro%Reff(    :, 1, n_layers:1:-1, i_column) * 1e6
+elseif (i_column == 10) then
+water_content(:,:,8)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 8) * m_layer
+Reff_hydro(:,:,8)   = sghydro%Reff(    :, 1, n_layers:1:-1, 8) * 1e6 * 10
+elseif (i_column == 11) then
+water_content(:,:,8)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 8) * m_layer
+Reff_hydro(:,:,8)   = 3000
+elseif (i_column == 12) then
+water_content(:,:,8)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 8) * m_layer
+Reff_hydro(:,:,8)   = 10000
+elseif (i_column == 13) then
+water_content(:,:,8)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 8) * m_layer * 10
+Reff_hydro(:,:,8)   = 10000
+elseif (i_column == 14) then
+water_content(:,:,8)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 8) * m_layer * 100
+Reff_hydro(:,:,8)   = 10000
+elseif (i_column == 15) then
+water_content(:,:,8)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 8) * m_layer * 1000
+Reff_hydro(:,:,8)   = 10000
+elseif (i_column == 16) then
+water_content(:,:,7)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 7) * m_layer
+Reff_hydro(:,:,7)   = sghydro%Reff(    :, 1, n_layers:1:-1, 7) * 1e6
+water_content(:,:,8)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 8) * m_layer * 10
+Reff_hydro(:,:,8)   = 10000
+elseif (i_column == 17) then
+water_content(:,:,7)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 7) * m_layer
+Reff_hydro(:,:,7)   = sghydro%Reff(    :, 1, n_layers:1:-1, 7) * 1e6
+water_content(:,:,8)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 8) * m_layer * 100
+Reff_hydro(:,:,8)   = 10000
+elseif (i_column == 18) then
+water_content(:,:,7)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 7) * m_layer
+Reff_hydro(:,:,7)   = sghydro%Reff(    :, 1, n_layers:1:-1, 7) * 1e6
+water_content(:,:,8)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 8) * m_layer * 1000
+Reff_hydro(:,:,8)   = 10000
+end if
+mr_vapor = 0
+end if
+
+!print *, 'icolumn=', i_column
+!if ( i_column >= 2 .AND. i_column <=10) then
+!      do i_cloud=1,n_clouds
+!      if (i_cloud == 3 .OR. i_cloud==4 .OR. i_cloud==7 .OR. i_cloud == 8) then
+!        water_content(:,:,i_cloud)= sghydro%mr_hydro(:, 1, n_layers:1:-1, i_cloud) * m_layer * 2**(i_column-1)
+!      end if
+!      end do
+!end if 
       call crtm_multiprof( &
       n_profiles,   & ! number of profiles
       n_layers,     & ! number of atmosphere layers
@@ -219,14 +290,54 @@ contains
       tbs           & ! brightness temperature [output]
       )
 !print *, gpm_results(n)%tbs
+if (.false.) then
+do i_profile = 1, n_profiles
+if ( i_column == 1) then
+  print *, "latitude ", latitude(i_profile), "longitude", longitude(i_profile)
+  print *, "maximum water_content ",max( maxval(water_content(:,:,3:4)),  maxval(water_content(:,:,7:8)) )
+  write(*,*), water_content(i_profile, :, 3)
+  print *, "---"
+  write(*,*), water_content(i_profile, :, 4)
+  print *, "---"
+  write(*,*), water_content(i_profile, :, 7)
+  print *, "---"
+  write(*,*), water_content(i_profile, :, 8)
 
+  print *, "Reff "
+  write(*,*), Reff_hydro(i_profile, :, 3)
+  print *, "---"
+  write(*,*), Reff_hydro(i_profile, :, 4)
+  print *, "---"
+  write(*,*), Reff_hydro(i_profile, :, 7)
+  print *, "---"
+  write(*,*), Reff_hydro(i_profile, :, 8)
 
+end if
+end do
+end if
 !print *, 'in gpm_crtm_simulator'
 !print *, tbs
       ! Need to reshape the results
       do i_channel = 1, n_channels
         gpm_results(n)%tbs(:,i_column,i_channel) = tbs(i_channel,:)
       end do
+
+      
+if (.false.) then    
+if (n_channels == 9) then
+gpm_results(n)%tbs(:,1:n_layers,1) = water_content(:,:,3)
+gpm_results(n)%tbs(:,1:n_layers,2) = water_content(:,:,4)
+gpm_results(n)%tbs(:,1:n_layers,3) = water_content(:,:,7)
+gpm_results(n)%tbs(:,1:n_layers,4) = water_content(:,:,8)
+end if 
+
+if (n_channels ==4) then
+gpm_results(n)%tbs(:,1:n_layers,1) = Reff_hydro(:,:,3)
+gpm_results(n)%tbs(:,1:n_layers,2) = Reff_hydro(:,:,4)
+gpm_results(n)%tbs(:,1:n_layers,3) = Reff_hydro(:,:,7)
+gpm_results(n)%tbs(:,1:n_layers,4) = Reff_hydro(:,:,8)
+endif
+end if
       end do ! i_column
 !print *, "Maximum TB in sensor ", n, " is ", maxval(gpm_results(n)%tbs )
 !print *, "TB(1,1,1): ",gpm_results(n)%tbs(1,1,1)
