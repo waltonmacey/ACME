@@ -147,6 +147,8 @@ module cospsimulator_intr
    integer, parameter :: n_gmi_ch = 13
    integer, parameter :: gmi_chidx(n_gmi_ch)  =&         ! GPM GMI channel index
             (/1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13/)
+   integer, parameter :: n_tmi_ch = 9
+   integer, parameter :: tmi_chidx(n_tmi_ch) = (/1,2,3,4,5,6,7,8,9/)
 
 #endif
 
@@ -177,6 +179,7 @@ module cospsimulator_intr
 #endif
 #ifdef GPM_GMI2
    logical :: cosp_gpmgmi_sim = .false.
+   logical :: cosp_trmmtmi_sim = .false.
 #endif
    logical :: cosp_llidar_sim = .false.      ! CAM namelist variable default
    logical :: cosp_lisccp_sim = .false.      ! CAM namelist variable default
@@ -205,6 +208,7 @@ module cospsimulator_intr
 #endif
 #ifdef GPM_GMI2
    logical :: lgpmgmi_sim = .false.
+   logical :: ltrmmtmi_sim = .false.
 #endif
 
 
@@ -256,6 +260,7 @@ module cospsimulator_intr
 #endif
 #ifdef GPM_GMI2
    logical :: ltbgpmgmi = .false.
+   logical :: ltbtrmmtmi = .false.
 #endif
    logical :: ltauisccp = .false.
    logical :: ltclisccp = .false.
@@ -675,6 +680,7 @@ subroutine cospsimulator_intr_readnl(nlfile)
 #endif
 #ifdef GPM_GMI2
    call mpibcast(cosp_gpmgmi_sim,     1,  mpilog, 0, mpicom)
+   call mpibcast(cosp_trmmtmi_sim,    1,  mpilog, 0, mpicom)
 #endif
 
 #endif
@@ -730,6 +736,9 @@ subroutine cospsimulator_intr_readnl(nlfile)
 #ifdef GPM_GMI2
    if (cosp_gpmgmi_sim) then
       lgpmgmi_sim = .true.
+   endif
+   if (cosp_trmmtmi_sim) then
+      ltrmmtmi_sim = .true.
    endif
 #endif
    if (cosp_histfile_aux .and. cosp_histfile_aux_num == -1) then
@@ -805,6 +814,9 @@ subroutine cospsimulator_intr_readnl(nlfile)
    if (lradar_sim) then
      lgpmgmi_sim = .true.
    endif
+   if (lradar_sim) then
+     ltrmmtmi_sim = .true.
+   endif
 #endif
    !! reset COSP namelist variables based on input from cam namelist variables
    if (cosp_ncolumns .ne. ncolumns) then
@@ -835,6 +847,9 @@ subroutine cospsimulator_intr_readnl(nlfile)
 #ifdef GPM_GMI2
    if (lgpmgmi_sim) then
       ltbgpmgmi = .true.
+   endif
+   if (ltrmmtmi_sim) then
+      ltbtrmmtmi = .true.
    endif
 #endif
 
@@ -1355,16 +1370,28 @@ endif
     ! Add coordinates
     call add_hist_coord('gmi_chidx',n_gmi_ch  ,'GPM GMI channel index', &
                    '1',gmi_chidx)
+    call add_hist_coord('tmi_chidx',n_tmi_ch  ,'TRMM TMI channel index', &
+                   '1',tmi_chidx)
     ! add field
+    ! GPM GMI
     call addfld('GPM_GMI_TB_CS',(/'cosp_scol','gmi_chidx'/),'I','K',&
                    'simulated GPM GMI brightness temperature, subcolumn',&
                    flag_xyfill=.true., fill_value=R_UNDEF)
     call addfld('GPM_GMI_TB',   (/'gmi_chidx'/),'I','K',&
                    'simulated GPM GMI brightness temperature',&
                    flag_xyfill=.true., fill_value=R_UNDEF)
+    ! TRMM TMI
+    call addfld('TRMM_TMI_TB_CS',(/'cosp_scol','tmi_chidx'/),'I','K',&
+                   'simulated TRMM TMI brightness temperature, subcolumn',&
+                   flag_xyfill=.true., fill_value=R_UNDEF)
+    call addfld('TRMM_TMI_TB',   (/'tmi_chidx'/),'I','K',&
+                   'simulated TRMM TMI brightness temperature',&
+                   flag_xyfill=.true., fill_value=R_UNDEF)
     
-    call add_default('GPM_GMI_TB_CS',cosp_histfile_num, ' ')
-    call add_default('GPM_GMI_TB',   cosp_histfile_num, ' ')
+    call add_default('GPM_GMI_TB_CS', cosp_histfile_num, ' ')
+    call add_default('GPM_GMI_TB',    cosp_histfile_num, ' ')
+    call add_default('TRMM_TMI_TB_CS',cosp_histfile_num, ' ')
+    call add_default('TRMM_TMI_TB',   cosp_histfile_num, ' ')
     
    endif 
 
@@ -1630,9 +1657,10 @@ endif
     
   if (lgpmgmi_sim) then
     ! Add GPM GMI sensor to senser list in GPM_CRTM_sensor_mod
-#ifdef USE_COSP
+#ifdef GPM_GMI2
     call GPM_CRTM_sensor_add('gpm-gmi-lowfreq')
     call GPM_CRTM_sensor_add('gpm-gmi-highfreq')
+    call GPM_CRTM_sensor_add('trmm-tmi')
     ! initialize GPM GMI sensors
     call GPM_CRTM_sensor_init()
 #endif
@@ -2073,6 +2101,9 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    integer, parameter :: ngmichannels= 13
    integer :: i_gmi_channel
    real(r8) :: tbgpmgmi(pcols,nscol_cosp,ngmichannels)
+   integer, parameter :: ntmichannels= 9
+   integer :: i_tmi_channel
+   real(r8) :: tbtrmmtmi(pcols,nscol_cosp,ntmichannels)
 #endif
 
    real(r8) :: atb532(pcols,nscol_cosp,nhtml_cosp)      ! atb532 (time,height_mlev,column,profile)
@@ -2135,6 +2166,10 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    real(r8) :: tbgpmgmi_avg(pcols,ngmichannels)
    real(r8) :: tbgpmgmi_sum(pcols,ngmichannels)
    integer(r8) :: tbgpmgmi_cnt(pcols,ngmichannels)
+   real(r8) :: tbtrmmtmi_cs(pcols,ntmichannels*nscol_cosp)
+   real(r8) :: tbtrmmtmi_avg(pcols,ntmichannels)
+   real(r8) :: tbtrmmtmi_sum(pcols,ntmichannels)
+   integer(r8) :: tbtrmmtmi_cnt(pcols,ntmichannels)
 #endif
    real(r8) :: cltmodis(pcols)
    real(r8) :: clwmodis(pcols)
@@ -2186,6 +2221,7 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
 #endif
 #ifdef GPM_GMI2
    tbgpmgmi(1:pcols,1:nscol_cosp,1:ngmichannels) = R_UNDEF
+   tbtrmmtmi(1:pcols,1:nscol_cosp,1:ntmichannels) = R_UNDEF
 #endif
    cfad_lidarsr532(1:pcols,1:nsr_cosp,1:nht_cosp)=R_UNDEF
    dbze94(1:pcols,1:nscol_cosp,1:nhtml_cosp)=R_UNDEF
@@ -2242,6 +2278,10 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    tbgpmgmi_avg(1:pcols,1:ngmichannels)=R_UNDEF
    tbgpmgmi_sum(1:pcols,1:ngmichannels)=0
    tbgpmgmi_cnt(1:pcols,1:ngmichannels)=0
+   tbtrmmtmi_cs (1:pcols,1:ntmichannels*nscol_cosp)=R_UNDEF
+   tbtrmmtmi_avg(1:pcols,1:ntmichannels)=R_UNDEF
+   tbtrmmtmi_sum(1:pcols,1:ntmichannels)=0
+   tbtrmmtmi_cnt(1:pcols,1:ntmichannels)=0
 #endif
    cldtot_calcs(1:pcols)=R_UNDEF
    cldtot_cs(1:pcols)=R_UNDEF
@@ -3296,6 +3336,7 @@ if (cosp_runall) then
 #ifdef GPM_GMI2
    tbgpmgmi(1:ncol,1:nscol_cosp,1:9) = sggpmgmi(1)%tbs
    tbgpmgmi(1:ncol,1:nscol_cosp,10:13) = sggpmgmi(2)%tbs
+   tbtrmmtmi(1:ncol, 1:nscol_cosp,1:9) = sggpmgmi(3)%tbs
 #endif
    !! modis variables
    cltmodis(1:ncol)=modis%Cloud_Fraction_Total_Mean
@@ -3384,21 +3425,21 @@ if (cosp_runall) then
         end do
 #endif
 #ifdef GPM_GMI2
+        ! GMI
         do i_gmi_channel=1, ngmichannels
           do isc=1,nscol_cosp
             ihsc=(i_gmi_channel-1)*nscol_cosp+isc
             tbgpmgmi_cs(i,ihsc) = tbgpmgmi(i, isc, i_gmi_channel)
-            where (tbgpmgmi(:,:,i_gmi_channel) /= R_UNDEF)
-               tbgpmgmi_sum = tbgpmgmi_sum + tbgpmgmi(:,:,i_gmi_channel)
-               tbgpmgmi_cnt = tbgpmgmi_cnt + 1
-            endwhere
           end do
-          where (tbgpmgmi_cnt /= 0)
-            tbgpmgmi_avg = tbgpmgmi_sum / tbgpmgmi_cnt
-          elsewhere
-            tbgpmgmi_avg = R_UNDEF
-          endwhere
         end do
+        ! TMI
+        do i_tmi_channel=1, ntmichannels
+          do isc=1,nscol_cosp
+            ihsc=(i_tmi_channel-1)*nscol_cosp+isc
+            tbtrmmtmi_cs(i,ihsc) = tbtrmmtmi(i, isc, i_tmi_channel)
+          end do
+        end do
+
 #endif
         ! CAM clMISR (time,tau,CTH_height_bin,profile)
         do ihm=1,nhtmisr_cosp
@@ -3429,7 +3470,29 @@ if (cosp_runall) then
         end do
         end do
    end do
+#ifdef GPM_GMI2
+   do isc = 1, nscol_cosp
+        where (tbgpmgmi(:,isc,:) /= R_UNDEF)
+           tbgpmgmi_sum = tbgpmgmi_sum + tbgpmgmi(:,isc,:)
+           tbgpmgmi_cnt = tbgpmgmi_cnt + 1
+        endwhere
+        where (tbtrmmtmi(:,isc,:) /= R_UNDEF)
+           tbtrmmtmi_sum = tbtrmmtmi_sum + tbtrmmtmi(:,isc,:)
+           tbtrmmtmi_cnt = tbtrmmtmi_cnt + 1
+        endwhere
+   end do
+   where (tbgpmgmi_cnt /= 0)
+      tbgpmgmi_avg = tbgpmgmi_sum / tbgpmgmi_cnt
+   elsewhere
+      tbgpmgmi_avg = R_UNDEF
+   endwhere
+   where (tbtrmmtmi_cnt /= 0)
+     tbtrmmtmi_avg = tbtrmmtmi_sum / tbtrmmtmi_cnt
+   elsewhere
+     tbtrmmtmi_avg = R_UNDEF
+   endwhere
 
+#endif
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ! DEALLOCATE MEMORY for running with all columns
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -5228,6 +5291,8 @@ end if  !!! END RUNNING COSP ONLY RADAR/LIDAR
       if (lgpmgmi_sim) then
          call outfld('GPM_GMI_TB_CS',tbgpmgmi_cs, pcols, lchnk)
          call outfld('GPM_GMI_TB',tbgpmgmi_avg, pcols, lchnk)
+         call outfld('TRMM_TMI_TB_CS',tbtrmmtmi_cs, pcols, lchnk)
+         call outfld('TRMM_TMI_TB',tbtrmmtmi_avg, pcols, lchnk)
       end if
 #endif
 

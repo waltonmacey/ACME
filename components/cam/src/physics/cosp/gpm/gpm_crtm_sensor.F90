@@ -21,8 +21,11 @@ module GPM_CRTM_sensor_mod
   ! Public attribute will be set on declaration
 !  public :: GPM_CRTM_sensor_type
 !  public :: GPM_CRTM_sensor_create, GPM_CRTM_sensor_createdefault
-  public :: GPM_CRTM_sensor_add, GPM_CRTM_sensor_init, GPM_CRTM_sensor_destroy, &
-            GPM_CRTM_sensor_inquire, GPM_CRTM_sensor_add_byproperties
+  public :: GPM_CRTM_sensor_add, &
+            GPM_CRTM_sensor_init,&
+            GPM_CRTM_sensor_destroy, &
+            GPM_CRTM_sensor_inquire, &
+            GPM_CRTM_sensor_add_byproperties
   ! ---------------------
   ! Procedure overloading
   ! ---------------------
@@ -339,7 +342,7 @@ contains
             call GPM_CRTM_sensor_create(gmi, 'gmi_gpm','GPM_GMI_LOWFREQ',49.19, 45.36,&
                       channel_subset = (/(i,i=10,13)/)  )
          case ('trmm-tmi')
-            call GPM_CRTM_sensor_create(gmi, 'tmi_trmm','TRMM_TMI',53.3, 49 )
+            call GPM_CRTM_sensor_create(gmi, 'tmi_trmm','TRMM_TMI',53.3, 49.0 )
          case default
             print *, 'error: sensor not implemented in default list'
             stop
