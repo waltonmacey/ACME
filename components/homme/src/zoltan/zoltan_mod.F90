@@ -22,9 +22,9 @@ contains
     use dimensions_mod,         only : ne
 
     type (GridVertex_t), intent(inout) :: GridVertex(:)
-    type (real(kind=real_kind)),allocatable, intent(inout) :: coord_dim1(:)
-    type (real(kind=real_kind)),allocatable, intent(inout) :: coord_dim2(:)
-    type (real(kind=real_kind)),allocatable, intent(inout) :: coord_dim3(:)
+    real(kind=real_kind),allocatable, intent(inout) :: coord_dim1(:)
+    real(kind=real_kind),allocatable, intent(inout) :: coord_dim2(:)
+    real(kind=real_kind),allocatable, intent(inout) :: coord_dim3(:)
     !type(cartesian3D_t)     ,  allocatable   :: cartResult(:)
     !type (real(kind=real_kind)),  allocatable   :: coord_dim1(:)
     !type (real(kind=real_kind)),  allocatable   :: coord_dim2(:)
@@ -118,9 +118,9 @@ contains
     type (GridVertex_t), intent(inout) :: GridVertex(:)
     type (GridEdge_t),   intent(inout) :: GridEdge(:)
     type (integer),   intent(in) :: comm
-    type (real(kind=real_kind)),intent(in) :: coord_dim1(:)
-    type (real(kind=real_kind)),intent(in) :: coord_dim2(:)
-    type (real(kind=real_kind)),intent(in) :: coord_dim3(:)
+    real(kind=real_kind),intent(in) :: coord_dim1(:)
+    real(kind=real_kind),intent(in) :: coord_dim2(:)
+    real(kind=real_kind),intent(in) :: coord_dim3(:)
 
 
     integer , target, allocatable :: xadj(:),adjncy(:)    ! Adjacency structure for METIS

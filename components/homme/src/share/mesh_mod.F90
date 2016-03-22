@@ -24,6 +24,8 @@ module mesh_mod
   public  :: MeshCubeEdgeCount  ! called anytime afer MeshOpen
   public  :: MeshCubeElemCount  ! called anytime afer MeshOpen
   public  :: MeshCubeTopology   ! called afer MeshOpen
+  public  :: MeshCubeTopologyCoords   ! called afer MeshOpen
+
   public  :: MeshSetCoordinates ! called after MeshCubeTopology    
   public  :: MeshPrint          ! show the contents of the Mesh after it has been loaded into the module
   public  :: MeshClose  
@@ -1166,9 +1168,9 @@ contains
     implicit none
     type (GridEdge_t),   intent(inout) :: GridEdge(:)
     type (GridVertex_t), intent(inout) :: GridVertex(:)
-    type (real(kind=real_kind)),allocatable, intent(inout) :: coord_dim1(:)
-    type (real(kind=real_kind)),allocatable, intent(inout) :: coord_dim2(:)
-    type (real(kind=real_kind)),allocatable, intent(inout) :: coord_dim3(:)
+    real(kind=real_kind),allocatable, intent(inout) :: coord_dim1(:)
+    real(kind=real_kind),allocatable, intent(inout) :: coord_dim2(:)
+    real(kind=real_kind),allocatable, intent(inout) :: coord_dim3(:)
 
     real(kind=real_kind)             :: coordinates(4,3)
     real(kind=real_kind)             :: centroid(3)

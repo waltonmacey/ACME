@@ -12,13 +12,42 @@
 #endif
 #include "stdio.h"
 
-#define VISUALIZEOUTPUT
-
+//#define VISUALIZEOUTPUT
+//#define WRITE_INPUT
 void zoltanpart_(int *nelem, int *xadj,int *adjncy,double *adjwgt,double *vwgt, int *nparts, MPI_Fint *comm,
     double *xcoord, double *ycoord, double *zcoord, int *result_parts, int *partmethod) {
   MPI_Comm c_comm = MPI_Comm_f2c(*comm);
 
+#ifdef WRITE_INPUT
+  {
+    int mype2, i = 0, j = 0;
+    MPI_Comm_rank(c_comm, &mype2);
+    FILE *coordinate_file = fopen("mesh_coords.txt", "w");
+    for (j = 0; j < *nelem; ++j){
+      fprintf(coordinate_file,"%lf %lf %lf\n", xcoord[j], ycoord[j], zcoord[j]);
+    }
 
+    fclose(coordinate_file);
+
+    FILE *processed_graph_file = fopen("processed_graph.txt", "w");
+
+    fprintf(processed_graph_file,"%d\n", *nelem);
+    for (i = 0; i <= *nelem; ++i){
+    fprintf(processed_graph_file, "%d ", xadj[i]);
+    }
+    fprintf(processed_graph_file,"\n%d\n", xadj[*nelem]);
+    
+
+    for (i = 0; i < xadj[*nelem]; ++i){
+    	fprintf(processed_graph_file, "%d ", adjncy[i]);
+    }
+    fprintf(processed_graph_file,"\n");
+
+    fclose(processed_graph_file);
+
+
+  }
+#endif
 #ifdef VISUALIZEINPUT
   int mype2, size2;
   MPI_Comm_rank(c_comm, &mype2);
@@ -92,7 +121,7 @@ void zoltanpart_(int *nelem, int *xadj,int *adjncy,double *adjwgt,double *vwgt, 
       int findex = result_parts[j];
       fprintf(coord_files[findex - 1],"%lf %lf %lf\n", xcoord[j], ycoord[j], zcoord[j]);
     }
-    for (int i = 0; i< size; ++i){
+    for (i = 0; i< size; ++i){
       fclose(coord_files[i]);
     }
 

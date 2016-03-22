@@ -100,9 +100,10 @@ void zoltan_partition_problem(
 
   RCP<tMVector_t> coords(new tMVector_t(map, coordView.view(0, coord_dim), coord_dim));//= set multivector;
   RCP<const tMVector_t> const_coords = rcp_const_cast<const tMVector_t>(coords);
-  Zoltan2::XpetraMultiVectorAdapter<tMVector_t> *adapter = (new Zoltan2::XpetraMultiVectorAdapter<tMVector_t>(const_coords));
+  //Zoltan2::XpetraMultiVectorAdapter<tMVector_t> *adapter = (new Zoltan2::XpetraMultiVectorAdapter<tMVector_t>(const_coords));
+  Zoltan2::XpetraMultiVectorAdapter<tMVector_t> adapter(const_coords);
 
-  ia->setCoordinateInput(adapter);
+  ia->setCoordinateInput(&adapter);
   ia->setEdgeWeights(adjwgt, 1, 0);
   ia->setVertexWeights(vwgt, 1, 0);
   /***********************************SET COORDINATES*********************/
@@ -238,17 +239,16 @@ void zoltan_partition_problem(
 
 
 
-
+/*
   if (tcomm->getRank() == 0){
     homme_partition_problem->printMetrics(std::cout);
     //homme_partition_problem->printGraphMetrics(std::cout);
-    /*
     for (int i = 0; i < numGlobalCoords; ++i){
       std::cout << "i:" << i << " p:" << result_parts[i] << std::endl;
     }
-    */
 
   }
+*/
 }
 
 
@@ -311,6 +311,12 @@ void zoltan2_print_metrics(
     }
   }
 
+  double total_weight = 0, max_weight = 0;
+  for (int i = 0; i < *nparts; ++i){ 
+    total_weight += part_vertex_weights[i];
+    if (part_vertex_weights[i] > max_weight) max_weight = part_vertex_weights[i];
+  }
+  
   int global_num_messages = 0;
 
   Teuchos::reduceAll<int, int>(
@@ -353,7 +359,8 @@ void zoltan2_print_metrics(
       &(total_weighted_hops));
 
   if (myRank == 0){
-    std::cout << "\tGLOBAL NUM MESSAGES:" << global_num_messages << std::endl
+    std::cout << "\tIMBALANCE:" 	  << (total_weight / *nparts) / max_weight << std::endl
+	      << "\tGLOBAL NUM MESSAGES:" << global_num_messages << std::endl
               << "\tMAX MESSAGES:       " << global_max_messages << std::endl
               << "\tGLOBAL EDGE CUT:    " << global_edge_cut << std::endl
               << "\tMAX EDGE CUT:       " << global_max_edge_cut << std::endl
