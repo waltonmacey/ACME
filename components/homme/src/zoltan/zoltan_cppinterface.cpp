@@ -304,23 +304,29 @@ void zoltan_map_problem(
   //int *parts = result_parts;
 
   Teuchos::ParameterList problemParams;
+
+
   Teuchos::RCP<Zoltan2::Environment> env (new Zoltan2::Environment(problemParams, global_comm));
 
   zgno_t num_map_task = global_comm->getSize();
-  if (*partmethod == 30){
+  if (*partmethod == 30 || *partmethod == 32){
     num_map_task = *nelem;
 
     for (int i = 0; i <  *nelem; ++i){
       result_parts[i] = i;
     }
   }
-  if (*partmethod == 31){
+  if (*partmethod == 31 || *partmethod == 33){
     for (int i = 0; i <  *nelem; ++i){
       result_parts[i] = result_parts[i] - 1;
     }
   }
 
-  Zoltan2::MachineRepresentation<zscalar_t, part_t> mach(*global_comm);
+  if ((*partmethod < 30 && *partmethod > 25) || (*partmethod == 32) || (*partmethod ==33) ){
+    problemParams.set("machine_coord_transformation", "EIGNORE");
+  }
+
+  Zoltan2::MachineRepresentation<zscalar_t, part_t> mach(*global_comm, problemParams);
   Zoltan2::CoordinateTaskMapper<adapter_t, part_t> ctm (
       global_comm,
       Teuchos::rcpFromRef(mach),
