@@ -12,7 +12,7 @@
 #endif
 #include "stdio.h"
 
-#define VISUALIZEOUTPUT
+//#define VISUALIZEOUTPUT
 
 void zoltanpart_(int *nelem, int *xadj,int *adjncy,double *adjwgt,double *vwgt, int *nparts, MPI_Fint *comm,
     double *xcoord, double *ycoord, double *zcoord, int *result_parts, int *partmethod) {
@@ -54,8 +54,14 @@ void zoltanpart_(int *nelem, int *xadj,int *adjncy,double *adjwgt,double *vwgt, 
 #endif
 
 #if HAVE_TRILINOS
-  zoltan_partition_problem(nelem, xadj,adjncy,adjwgt,vwgt, nparts, c_comm,
-      xcoord, ycoord, zcoord, result_parts, partmethod);
+  if (*partmethod >= 5 && *partmethod < 30){
+    zoltan_partition_problem(nelem, xadj,adjncy,adjwgt,vwgt, nparts, c_comm,
+        xcoord, ycoord, zcoord, result_parts, partmethod);
+  }
+  if (*partmethod >= 22){
+    zoltan_map_problem(nelem, xadj,adjncy,adjwgt,vwgt, nparts, c_comm,
+            xcoord, ycoord, zcoord, result_parts, partmethod);
+  }
 #else
   int mype2, size2;
   MPI_Comm_rank(c_comm, &mype2);

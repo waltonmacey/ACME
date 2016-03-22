@@ -5,6 +5,7 @@
 
 #include "zoltan_cppinterface.hpp"
 
+
 #if HAVE_TRILINOS
 //#include <Zoltan2_XpetraCrsGraphAdapter.hpp>
 #include <Zoltan2_XpetraCrsGraphAdapter.hpp>
@@ -39,7 +40,7 @@ void zoltan_partition_problem(
 
   typedef int zlno_t;
   typedef int zgno_t;
-  typedef int part_t;
+  //typedef int part_t;
   typedef double zscalar_t;
 
   typedef Tpetra::Map<>::node_type znode_t;
@@ -180,54 +181,25 @@ void zoltan_partition_problem(
 
   }
   zoltan2_parameters.set("mj_keep_part_boxes", "0");
-  //zoltan2_parameters.set("remap_parts", "yes");
 
 
   RCP<xcrsGraph_problem_t> homme_partition_problem (new xcrsGraph_problem_t(ia.getRawPtr(),&zoltan2_parameters,tcomm));
-  //if (tcomm->getRank() == 0)
-  //  std::cout << "calling solve" << std::endl;
-
-
-  //std::cout << " tcomm->getRank():" << tcomm->getRank() << " numMyElements:" << numMyElements << std::endl;
-
-
 
   homme_partition_problem->solve();
   tcomm->barrier();
 
   std::vector<int> tmp_result_parts(numGlobalCoords, 0);
   int *parts =  (int *)homme_partition_problem->getSolution().getPartListView();
+
+  int fortran_shift = 1;
   if (*partmethod >= 22){
-    Zoltan2::MachineRepresentation<zscalar_t, part_t> mach(*tcomm);
-    RCP<const Zoltan2::Environment> env = homme_partition_problem->getEnvironment();
-
-    Zoltan2::CoordinateTaskMapper<adapter_t, part_t> ctm (
-        tcomm,
-        Teuchos::rcpFromRef(mach),
-        ia,
-        rcpFromRef(homme_partition_problem->getSolution()),
-        env);
-
-
-
-
-    for (zlno_t lclRow = 0; lclRow < numMyElements; ++lclRow) {
-      const zgno_t gblRow = map->getGlobalElement (lclRow);
-      int proc = ctm.getAssignedProcForTask(parts[lclRow]);
-      tmp_result_parts[gblRow] = proc + 1;
-    }
-  }
-  else{
-    for (zlno_t lclRow = 0; lclRow < numMyElements; ++lclRow) {
-      const zgno_t gblRow = map->getGlobalElement (lclRow);
-      tmp_result_parts[gblRow] = parts[lclRow] + 1;
-    }
+    fortran_shift = 0;
   }
 
-  //tcomm->gatherAll (sizeof(int) * numMyElements, (const char *)parts, sizeof(int) * numGlobalCoords, (char *)result_parts) ;
-  //tcomm->gather (sizeof(int) * numMyElements, (const char *)parts, sizeof(int) * numGlobalCoords, (char *)result_parts, 0);
-  //tcomm->broadcast (0, sizeof(int) * numGlobalCoords, (char *)result_parts);
-  //tcomm->reduceAll(Teuchos::REDUCE_SUM, sizeof(int) * numGlobalCoords, (char *)&(tmp_result_parts[0]), (char *)result_parts);
+  for (zlno_t lclRow = 0; lclRow < numMyElements; ++lclRow) {
+    const zgno_t gblRow = map->getGlobalElement (lclRow);
+    tmp_result_parts[gblRow] = parts[lclRow] + fortran_shift;
+  }
 
   Teuchos::reduceAll<int, int>(
       *(tcomm),
@@ -235,21 +207,127 @@ void zoltan_partition_problem(
       numGlobalCoords,
       &(tmp_result_parts[0]),
       result_parts);
+}
 
 
+void zoltan_map_problem(
+    int *nelem,
+    int *xadj,
+    int *adjncy,
+    double *adjwgt,
+    double *vwgt,
+    int *nparts,
+    MPI_Comm comm,
+    double *xcoord,
+    double *ycoord,
+    double *zcoord,
+    int *result_parts,
+    int *partmethod){
+
+  using namespace Teuchos;
+
+  typedef int zlno_t;
+  typedef int zgno_t;
+  typedef int part_t;
+  typedef double zscalar_t;
+
+  typedef Tpetra::Map<>::node_type znode_t;
+  typedef Tpetra::Map<zlno_t, zgno_t, znode_t> map_t;
+  size_t numGlobalCoords = *nelem;
 
 
-  if (tcomm->getRank() == 0){
-    homme_partition_problem->printMetrics(std::cout);
-    //homme_partition_problem->printGraphMetrics(std::cout);
-    /*
-    for (int i = 0; i < numGlobalCoords; ++i){
-      std::cout << "i:" << i << " p:" << result_parts[i] << std::endl;
-    }
-    */
+  Teuchos::RCP<const Teuchos::Comm<int> > tcomm =  Teuchos::createSerialComm<int>();
+  Teuchos::RCP<const Teuchos::Comm<int> > global_comm =
+      Teuchos::RCP<const Teuchos::Comm<int> > (new Teuchos::MpiComm<int> (comm));
+
+  RCP<const map_t> map = rcp (new map_t (numGlobalCoords, 0, tcomm));
+
+  typedef Tpetra::CrsGraph<zlno_t, zgno_t, znode_t> tcrsGraph_t;
+  RCP<tcrsGraph_t> TpetraCrsGraph(new tcrsGraph_t (map, 0));
+
+  const zlno_t numMyElements = map->getNodeNumElements ();
+  const zgno_t myBegin = map->getGlobalElement (0);
+
+  for (zlno_t lclRow = 0; lclRow < numMyElements; ++lclRow) {
+    const zgno_t gblRow = map->getGlobalElement (lclRow);
+    zgno_t begin = xadj[gblRow];
+    zgno_t end = xadj[gblRow + 1];
+    const ArrayView< const zgno_t > indices(adjncy+begin, end-begin);
+    TpetraCrsGraph->insertGlobalIndices(gblRow, indices);
+  }
+  TpetraCrsGraph->fillComplete ();
+
+  RCP<const tcrsGraph_t> const_data = rcp_const_cast<const tcrsGraph_t>(TpetraCrsGraph);
+  typedef Tpetra::MultiVector<zscalar_t, zlno_t, zgno_t, znode_t> tMVector_t;
+  typedef Zoltan2::XpetraCrsGraphAdapter<tcrsGraph_t, tMVector_t> adapter_t;
+  RCP<adapter_t> ia (new adapter_t(const_data/*,(int)vtx_weights.size(),(int)edge_weights.size()*/, 1, 1));
+
+  /***********************************SET COORDINATES*********************/
+  const int coord_dim = 3;
+  // make an array of array views containing the coordinate data
+  Teuchos::Array<Teuchos::ArrayView<const zscalar_t> > coordView(coord_dim);
+
+  if(numMyElements > 0){
+    Teuchos::ArrayView<const zscalar_t> a(xcoord + myBegin, numMyElements);
+    coordView[0] = a;
+    Teuchos::ArrayView<const zscalar_t> b(ycoord + myBegin, numMyElements);
+    coordView[1] = b;
+    Teuchos::ArrayView<const zscalar_t> c(zcoord + myBegin, numMyElements);
+    coordView[2] = c;
+  }
+  else {
+    Teuchos::ArrayView<const zscalar_t> a;
+    coordView[0] = a;
+    coordView[1] = a;
+    coordView[2] = a;
 
   }
+
+  RCP<tMVector_t> coords(new tMVector_t(map, coordView.view(0, coord_dim), coord_dim));//= set multivector;
+  RCP<const tMVector_t> const_coords = rcp_const_cast<const tMVector_t>(coords);
+  Zoltan2::XpetraMultiVectorAdapter<tMVector_t> *adapter = (new Zoltan2::XpetraMultiVectorAdapter<tMVector_t>(const_coords));
+
+  ia->setCoordinateInput(adapter);
+  ia->setEdgeWeights(adjwgt, 1, 0);
+  ia->setVertexWeights(vwgt, 1, 0);
+  /***********************************SET COORDINATES*********************/
+
+  //int *parts = result_parts;
+
+  Teuchos::ParameterList problemParams;
+  Teuchos::RCP<Zoltan2::Environment> env (new Zoltan2::Environment(problemParams, global_comm));
+
+  zgno_t num_map_task = global_comm->getSize();
+  if (*partmethod == 30){
+    num_map_task = *nelem;
+
+    for (int i = 0; i <  *nelem; ++i){
+      result_parts[i] = i;
+    }
+  }
+  if (*partmethod == 31){
+    for (int i = 0; i <  *nelem; ++i){
+      result_parts[i] = result_parts[i] - 1;
+    }
+  }
+
+  Zoltan2::MachineRepresentation<zscalar_t, part_t> mach(*global_comm);
+  Zoltan2::CoordinateTaskMapper<adapter_t, part_t> ctm (
+      global_comm,
+      Teuchos::rcpFromRef(mach),
+      ia,
+      num_map_task,
+      result_parts,
+      env,
+      false);
+
+  const int fortran_shift = 1;
+  for (zlno_t lclRow = 0; lclRow < numMyElements; ++lclRow) {
+    int proc = ctm.getAssignedProcForTask(result_parts[lclRow]);
+    result_parts[lclRow] = proc + fortran_shift;
+  }
 }
+
 
 
 void zoltan2_print_metrics(
@@ -378,7 +456,20 @@ void zoltan_partition_problem(
     int *result_parts){
   std::cerr << "Homme is not compiled with Trilinos!!" << std::endl;
 }
-
+void zoltan_map_problem(
+    int *nelem,
+    int *xadj,
+    int *adjncy,
+    int *adjwgt,
+    int *vwgt,
+    int *nparts,
+    MPI_Comm comm,
+    double *xcoord,
+    double *ycoord,
+    double *zcoord,
+    int *result_parts){
+  std::cerr << "Homme is not compiled with Trilinos!!" << std::endl;
+}
 void zoltan2_print_metrics(
     int *nelem,
     int *xadj,

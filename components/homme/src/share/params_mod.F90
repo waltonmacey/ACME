@@ -35,7 +35,10 @@ module params_mod
                                  ZOLTAN2RCB_TMAP    = 26, &
                                  ZOLTAN2MJ_TMAP    = 27, &
                                  ZOLTAN2RIB_TMAP    = 28, &
-                                 ZOLTAN2MJRCB_TMAP    = 29
+                                 ZOLTAN2MJRCB_TMAP    = 29, &
+                                 ZOLTAN2SEQMAP        = 30, &
+                                 SFCURVE_Z2MAP        = 31
+
 
 
 end module params_mod
