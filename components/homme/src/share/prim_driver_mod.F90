@@ -122,7 +122,7 @@ contains
                            ZOLTAN2ZOLTAN, ZOLTAN2ND, ZOLTAN2PARMA, ZOLTAN2MJRCB, &
                            ZOLTAN2MJ_MAP, ZOLTAN2RCB_MAP, ZOLTAN2RIB_MAP, ZOLTAN2MJRCB_MAP, &
                            ZOLTAN2MJ_TMAP, ZOLTAN2RCB_TMAP, ZOLTAN2RIB_TMAP, ZOLTAN2MJRCB_TMAP, &
-                           ZOLTAN2SEQMAP, SFCURVE_Z2MAP
+                           ZOLTAN2SEQMAP, SFCURVE_Z2MAP, ZOLTAN2SEQ_TMAP, SFCURVE_Z2_TMAP
     ! --------------------------------
     use domain_mod, only : domain1d_t, decompose
     ! --------------------------------
@@ -304,6 +304,8 @@ contains
              partmethod .eq. ZOLTAN2MJRCB_TMAP .OR. &
              partmethod .eq. ZOLTAN2SEQMAP .OR. &
              partmethod .eq. SFCURVE_Z2MAP .OR. &
+             partmethod .eq. ZOLTAN2SEQ_TMAP .OR. &
+             partmethod .eq. SFCURVE_Z2_TMAP .OR. &
              partmethod .eq. ZOLTAN2ND) then
             call getfixmeshcoordinates(GridVertex, coord_dim1, coord_dim2, coord_dim3)
            endif
@@ -344,9 +346,11 @@ contains
              partmethod .eq. ZOLTAN2RIB_TMAP .OR. &
              partmethod .eq. ZOLTAN2MJRCB_TMAP .OR. &
              partmethod .eq. ZOLTAN2SEQMAP .OR. &
+             partmethod .eq. ZOLTAN2SEQ_TMAP .OR. &
              partmethod .eq. ZOLTAN2ND) then
         call genzoltanpart(GridEdge,GridVertex, par%comm, coord_dim1, coord_dim2, coord_dim3)
-    elseif (partmethod .eq. SFCURVE_Z2MAP) then
+    elseif ( partmethod .eq. SFCURVE_Z2_TMAP .OR. &
+             partmethod .eq. SFCURVE_Z2MAP ) then
         call genspacepart(GridEdge,GridVertex)
         call genzoltanpart(GridEdge,GridVertex, par%comm, coord_dim1, coord_dim2, coord_dim3)
     else
