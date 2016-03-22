@@ -121,7 +121,8 @@ contains
                            ZOLTAN2PARMETIS, ZOLTAN2SCOTCH, ZOLTAN2PTSCOTCH, ZOLTAN2BLOCK, ZOLTAN2CYCLIC, ZOLTAN2RANDOM, &
                            ZOLTAN2ZOLTAN, ZOLTAN2ND, ZOLTAN2PARMA, ZOLTAN2MJRCB, &
                            ZOLTAN2MJ_MAP, ZOLTAN2RCB_MAP, ZOLTAN2RIB_MAP, ZOLTAN2MJRCB_MAP, &
-                           ZOLTAN2MJ_TMAP, ZOLTAN2RCB_TMAP, ZOLTAN2RIB_TMAP, ZOLTAN2MJRCB_TMAP
+                           ZOLTAN2MJ_TMAP, ZOLTAN2RCB_TMAP, ZOLTAN2RIB_TMAP, ZOLTAN2MJRCB_TMAP, &
+                           ZOLTAN2SEQMAP, SFCURVE_Z2MAP
     ! --------------------------------
     use domain_mod, only : domain1d_t, decompose
     ! --------------------------------
@@ -301,6 +302,8 @@ contains
              partmethod .eq. ZOLTAN2RCB_TMAP .OR. &
              partmethod .eq. ZOLTAN2RIB_TMAP .OR. &
              partmethod .eq. ZOLTAN2MJRCB_TMAP .OR. &
+             partmethod .eq. ZOLTAN2SEQMAP .OR. &
+             partmethod .eq. SFCURVE_Z2MAP .OR. &
              partmethod .eq. ZOLTAN2ND) then
             call getfixmeshcoordinates(GridVertex, coord_dim1, coord_dim2, coord_dim3)
            endif
@@ -313,10 +316,10 @@ contains
     !DBG if(par%masterproc) call PrintGridVertex(GridVertex)
 
 
-    if(partmethod .eq. SFCURVE) then
+    if(partmethod .eq. SFCURVE ) then
        if(par%masterproc) write(iulog,*)"partitioning graph using SF Curve..."
        call genspacepart(GridEdge,GridVertex)
-    else if (partmethod .eq. ZOLTAN2RCB .OR. &
+    elseif (partmethod .eq. ZOLTAN2RCB .OR. &
              partmethod .eq. ZOLTAN2MJ .OR.  &
              partmethod .eq. ZOLTAN2RIB .OR. &
              partmethod .eq. ZOLTAN2HSFC .OR. &
@@ -340,7 +343,11 @@ contains
              partmethod .eq. ZOLTAN2RCB_TMAP .OR. &
              partmethod .eq. ZOLTAN2RIB_TMAP .OR. &
              partmethod .eq. ZOLTAN2MJRCB_TMAP .OR. &
+             partmethod .eq. ZOLTAN2SEQMAP .OR. &
              partmethod .eq. ZOLTAN2ND) then
+        call genzoltanpart(GridEdge,GridVertex, par%comm, coord_dim1, coord_dim2, coord_dim3)
+    elseif (partmethod .eq. SFCURVE_Z2MAP) then
+        call genspacepart(GridEdge,GridVertex)
         call genzoltanpart(GridEdge,GridVertex, par%comm, coord_dim1, coord_dim2, coord_dim3)
     else
         if(par%masterproc) write(iulog,*)"partitioning graph using Metis..."
