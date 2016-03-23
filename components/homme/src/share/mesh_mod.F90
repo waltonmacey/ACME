@@ -1161,7 +1161,8 @@ contains
                                        ZOLTAN2PARMETIS, ZOLTAN2SCOTCH, ZOLTAN2PTSCOTCH, ZOLTAN2BLOCK, ZOLTAN2CYCLIC, ZOLTAN2RANDOM, &
                                        ZOLTAN2ZOLTAN, ZOLTAN2ND, ZOLTAN2PARMA, ZOLTAN2MJRCB, &
                                        ZOLTAN2MJ_MAP, ZOLTAN2RCB_MAP, ZOLTAN2RIB_MAP, ZOLTAN2MJRCB_MAP, &
-                                       ZOLTAN2MJ_TMAP, ZOLTAN2RCB_TMAP, ZOLTAN2RIB_TMAP, ZOLTAN2MJRCB_TMAP
+                                       ZOLTAN2MJ_TMAP, ZOLTAN2RCB_TMAP, ZOLTAN2RIB_TMAP, ZOLTAN2MJRCB_TMAP, &
+                                        ZOLTAN2SEQMAP, SFCURVE_Z2MAP, ZOLTAN2SEQ_TMAP, SFCURVE_Z2_TMAP
 
     use kinds, only : iulog, real_kind
 
@@ -1263,6 +1264,10 @@ contains
         partmethod .eq. ZOLTAN2RCB_TMAP .OR. &
         partmethod .eq. ZOLTAN2RIB_TMAP .OR. &
         partmethod .eq. ZOLTAN2MJRCB_TMAP .OR. &
+        partmethod .eq. ZOLTAN2SEQMAP .OR. &
+        partmethod .eq. SFCURVE_Z2MAP .OR. &
+        partmethod .eq. ZOLTAN2SEQ_TMAP .OR. &
+        partmethod .eq. SFCURVE_Z2_TMAP .OR. &
         partmethod .eq. ZOLTAN2ND) then
 
         allocate(coord_dim1(p_number_elements))
@@ -1304,6 +1309,10 @@ contains
            partmethod .eq. ZOLTAN2RCB_TMAP .OR. &
            partmethod .eq. ZOLTAN2RIB_TMAP .OR. &
            partmethod .eq. ZOLTAN2MJRCB_TMAP .OR. &
+           partmethod .eq. ZOLTAN2SEQMAP .OR. &
+           partmethod .eq. SFCURVE_Z2MAP .OR. &
+           partmethod .eq. ZOLTAN2SEQ_TMAP .OR. &
+           partmethod .eq. SFCURVE_Z2_TMAP .OR. &
            partmethod .eq. ZOLTAN2ND) then
                 coord_dim1(i) = face_center%x
                 coord_dim2(i) = face_center%y

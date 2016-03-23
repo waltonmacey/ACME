@@ -140,7 +140,14 @@ void zoltan_partition_problem(
     zoltan2_parameters.set("algorithm", "patoh");
     break;
   case 10:
-    zoltan2_parameters.set("algorithm", "phg");
+    zoltan2_parameters.set("algorithm", "zoltan");
+    {
+      Teuchos::ParameterList &zparams =
+        zoltan2_parameters.sublist("zoltan_parameters",false);
+      zparams.set("LB_METHOD", "PHG");
+      zparams.set("LB_APPROACH", "PARTITION");
+    }
+    //zoltan2_parameters.set("algorithm", "phg");
     break;
   case 11:
     zoltan2_parameters.set("algorithm", "metis");
