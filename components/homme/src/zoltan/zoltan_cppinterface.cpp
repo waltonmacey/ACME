@@ -281,6 +281,7 @@ void zoltan_map_problem(
     coordView[0] = a;
     coordView[1] = a;
     coordView[2] = a;
+  }
 
 /*
   if (tcomm->getRank() == 0){
