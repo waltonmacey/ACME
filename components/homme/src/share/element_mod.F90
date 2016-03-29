@@ -571,12 +571,12 @@ contains
 
   !___________________________________________________________________
   subroutine setup_element_pointers(elem)
-    use dimensions_mod, only: nelemd
+    use dimensions_mod, only: nelemd, qsize
     implicit none
     type(element_t), intent(inout) :: elem(:)
 #if USE_OPENACC
     integer :: ie
-    allocate( state_Qdp                (np,np,nlev,qsize_d,2,nelemd)          )
+    allocate( state_Qdp                (np,np,nlev,qsize,2,nelemd)          )
     allocate( state_ps_v               (np,np,timelevels,nelemd)              )
     allocate( state_v                  (np,np,2,nlev,timelevels,nelemd)       )
     allocate( state_t                  (np,np  ,nlev,timelevels,nelemd)       )
