@@ -4,7 +4,7 @@
 
 module prim_advance_mod
   !OVERWRITING: applycamforcing, applycamforcing_dynamics, prim_advance_init, prim_advance_exp, init_dp3d, prim_step_init, advance_hypervis_dp
-  use prim_advance_mod_base, only: prim_advance_si, preq_robert3, smooth_phis, overwrite_SEdensity, advance_hypervis, advance_hypervis_lf
+  use prim_advance_mod_base, only: prim_advance_si, preq_robert3, smooth_phis, overwrite_SEdensity, advance_hypervis, advance_hypervis_lf, applycamforcing, applycamforcing_dynamics
 #if USE_OPENACC
   use openacc, only: acc_async_sync
   use dimensions_mod, only: np,nelemd
@@ -18,15 +18,13 @@ module prim_advance_mod
 
   integer, parameter :: asyncid = acc_async_sync
 
-  public :: prim_advance_si, preq_robert3, smooth_phis, overwrite_SEdensity
+  public :: prim_advance_si, preq_robert3, smooth_phis, overwrite_SEdensity, advance_hypervis, advance_hypervis_lf, applycamforcing, applycamforcing_dynamics
 
   public :: prim_advance_init
   public :: prim_advance_exp
   public :: init_dp3d, prim_step_init
   public :: copy_dynamics_d2h
   public :: copy_dynamics_h2d
-  public :: applycamforcing
-  public :: applycamforcing_dynamics
 
   real (kind=real_kind) :: initialized_for_dt   = 0
   real (kind=real_kind), allocatable :: ur_weights(:)
@@ -71,6 +69,7 @@ contains
 
   subroutine copy_dynamics_h2d( elem , nt )
     use element_mod, only: element_t, state_v, state_ps_v, state_t, state_qdp, state_dp3d, derived_vn0, derived_pecnd
+    use element_mod, only: state_Qdp,state_ps_v,state_v,state_t,state_dp3d,derived_vn0,derived_divdp,derived_divdp_proj,derived_eta_dot_dpdn,derived_omega_p,derived_pecnd
     implicit none
     type(element_t), intent(inout) :: elem(:)
     integer        , intent(in   ) :: nt
@@ -80,10 +79,12 @@ contains
     call t_startf('update device')
     !$acc update device(state_t,state_v,state_ps_v,derived_pecnd)
 #if ( defined CAM )
-    do ie = 1 , nelemd
-      !$acc update device(elem(ie)%derived%u_met,elem(ie)%derived%v_met,elem(ie)%derived%dudt_met,elem(ie)%derived%dvdt_met,elem(ie)%derived%nudge_factor,elem(ie)%derived%Utnd,&
-      !$acc&              elem(ie)%derived%Vtnd,elem(ie)%derived%t_met,elem(ie)%derived%dtdt_met,elem(ie)%derived%ttnd,elem(ie)%derived%ps_met,elem(ie)%derived%dpsdt_met)
-    enddo
+    !$acc update device(elem)
+    !$acc update device(state_Qdp,state_ps_v,state_v,state_t,state_dp3d,derived_vn0,derived_divdp,derived_divdp_proj,derived_eta_dot_dpdn,derived_omega_p,derived_pecnd)
+!    do ie = 1 , nelemd
+!      !$acc update device(elem(ie)%derived%u_met,elem(ie)%derived%v_met,elem(ie)%derived%dudt_met,elem(ie)%derived%dvdt_met,elem(ie)%derived%nudge_factor,elem(ie)%derived%Utnd,&
+!      !$acc&              elem(ie)%derived%Vtnd,elem(ie)%derived%t_met,elem(ie)%derived%dtdt_met,elem(ie)%derived%ttnd,elem(ie)%derived%ps_met,elem(ie)%derived%dpsdt_met)
+!    enddo
 #endif
     call t_stopf('update device')
     !$omp end master
@@ -93,6 +94,7 @@ contains
 
   subroutine copy_dynamics_d2h( elem , nt )
     use element_mod, only: element_t, state_v, state_ps_v, state_t, state_dp3d, derived_vn0, derived_eta_dot_dpdn, derived_omega_p
+    use element_mod, only: state_Qdp,state_ps_v,state_v,state_t,state_dp3d,derived_vn0,derived_divdp,derived_divdp_proj,derived_eta_dot_dpdn,derived_omega_p,derived_pecnd
     implicit none
     type(element_t), intent(inout) :: elem(:)
     integer        , intent(in   ) :: nt
@@ -100,12 +102,14 @@ contains
     !$omp barrier
     !$omp master
     call t_startf('update host')
-    do ie = 1 , nelemd
 #if ( defined CAM )
-      !$acc update host(elem(ie)%derived%utnd,elem(ie)%derived%vtnd,elem(ie)%derived%ttnd)
-      !$acc update host(grad_p_m_pmet)
+    !acc update host(elem)
+    !$acc update host(state_Qdp,state_ps_v,state_v,state_t,state_dp3d,derived_vn0,derived_divdp,derived_divdp_proj,derived_eta_dot_dpdn,derived_omega_p,derived_pecnd)
+!    do ie = 1 , nelemd
+!      !$acc update host(elem(ie)%derived%utnd,elem(ie)%derived%vtnd,elem(ie)%derived%ttnd)
+!      !$acc update host(grad_p_m_pmet)
+!    enddo
 #endif
-    enddo
     !$acc update host(state_t,state_v,state_ps_v,state_dp3d) 
     call t_stopf('update host')
     !$omp end master
@@ -968,99 +972,6 @@ contains
     call t_stopf('compute_and_apply_rhs')
     call t_adj_detailf(-1)
   end subroutine compute_and_apply_rhs
-
-
-
-  subroutine applyCAMforcing(elem,fvm,hvcoord,np1,np1_qdp,dt_q,nets,nete)
-    use dimensions_mod        , only : np, nc, nlev, qsize
-    use element_mod           , only : element_t
-    use hybvcoord_mod         , only : hvcoord_t
-    use control_mod           , only : moisture, tracer_grid_type
-    use control_mod           , only : TRACER_GRIDTYPE_GLL, TRACER_GRIDTYPE_FVM
-    use physical_constants    , only : Cp
-    use fvm_control_volume_mod, only : fvm_struct, n0_fvm
-    implicit none
-    type (element_t)     , intent(inout) :: elem(:)
-    type(fvm_struct)     , intent(inout) :: fvm(:)
-    real (kind=real_kind), intent(in)    :: dt_q
-    type (hvcoord_t)     , intent(in)    :: hvcoord
-    integer              , intent(in)    :: np1,nets,nete,np1_qdp
-    ! local
-    integer :: i,j,k,ie,q
-    real (kind=real_kind) :: v1,dp
-    real (kind=real_kind) :: beta(np,np),E0(np,np),ED(np,np),dp0m1(np,np),dpsum(np,np)
-    logical :: wet
-    call t_startf('applyCAMforcing_openacc')
-    wet = (moisture /= "dry")
-    do ie=nets,nete
-      ! apply forcing to Qdp
-      elem(ie)%derived%FQps(:,:,1)=0
-      ! even when running fvm tracers we need to updates forcing on ps and qv on GLL grid
-      ! for fvm tracer qsize is usually 1 (qv)
-      do q=1,qsize
-        do k=1,nlev
-          do j=1,np
-            do i=1,np
-              v1 = dt_q*elem(ie)%derived%FQ(i,j,k,q,1)
-              if (elem(ie)%state%Qdp(i,j,k,q,np1_qdp) + v1 < 0 .and. v1<0) then
-                if (elem(ie)%state%Qdp(i,j,k,q,np1_qdp) < 0 ) then
-                  v1=0  ! Q already negative, dont make it more so
-                else
-                  v1 = -elem(ie)%state%Qdp(i,j,k,q,np1_qdp)
-                endif
-              endif
-              elem(ie)%state%Qdp(i,j,k,q,np1_qdp) = elem(ie)%state%Qdp(i,j,k,q,np1_qdp)+v1
-              if (q==1) then
-                elem(ie)%derived%FQps(i,j,1)=elem(ie)%derived%FQps(i,j,1)+v1/dt_q
-              endif
-            enddo
-          enddo
-        enddo
-      enddo
-      if (wet .and. qsize>0) then
-        ! to conserve dry mass in the precese of Q1 forcing:
-        elem(ie)%state%ps_v(:,:,np1) = elem(ie)%state%ps_v(:,:,np1) + dt_q*elem(ie)%derived%FQps(:,:,1)
-      endif
-      ! Qdp(np1) and ps_v(np1) were updated by forcing - update Q(np1)
-      do q=1,qsize
-        do k=1,nlev
-          do j=1,np
-            do i=1,np
-              dp = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + &
-                   ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*elem(ie)%state%ps_v(i,j,np1)
-              elem(ie)%state%Q(i,j,k,q) = elem(ie)%state%Qdp(i,j,k,q,np1_qdp)/dp
-            enddo
-          enddo
-        enddo
-      enddo
-      elem(ie)%state%T(:,:,:,np1)   = elem(ie)%state%T(:,:,:,np1)   + dt_q*elem(ie)%derived%FT(:,:,:,1)
-      elem(ie)%state%v(:,:,:,:,np1) = elem(ie)%state%v(:,:,:,:,np1) + dt_q*elem(ie)%derived%FM(:,:,:,:,1)
-    enddo
-    call t_stopf('applyCAMforcing_openacc')
-  end subroutine applyCAMforcing
-
-
-
-  subroutine applyCAMforcing_dynamics(elem,hvcoord,np1,dt_q,nets,nete)
-    use dimensions_mod, only : np, nlev, qsize
-    use element_mod   , only : element_t
-    use hybvcoord_mod , only : hvcoord_t
-    implicit none
-    type (element_t)     , intent(inout) :: elem(:)
-    real (kind=real_kind), intent(in)    :: dt_q
-    type (hvcoord_t)     , intent(in)    :: hvcoord
-    integer              , intent(in)    :: np1,nets,nete
-    ! local
-    integer :: i,j,k,ie,q
-    real (kind=real_kind) :: v1,dp
-    logical :: wet
-    call t_startf('applyCAMforcing_dynamics_openacc')
-    do ie=nets,nete
-      elem(ie)%state%T(:,:,:,np1)   = elem(ie)%state%T(:,:,:,np1)   + dt_q*elem(ie)%derived%FT(:,:,:,1)
-      elem(ie)%state%v(:,:,:,:,np1) = elem(ie)%state%v(:,:,:,:,np1) + dt_q*elem(ie)%derived%FM(:,:,:,:,1)
-    enddo
-    call t_stopf('applyCAMforcing_dynamics_openacc')
-  end subroutine applyCAMforcing_dynamics
 
 
 
