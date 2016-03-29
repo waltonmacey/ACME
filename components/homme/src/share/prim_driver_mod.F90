@@ -1102,7 +1102,7 @@ contains
     if (hybrid%masterthread) write(iulog,*) "initial state:"
     call prim_printstate(elem, tl, hybrid,hvcoord,nets,nete, fvm)
 
-    call solver_init2(elem(:), deriv(hybrid%ithr))
+    call solver_init2(elem(:), deriv(hybrid%ithr), hvcoord)
     call Prim_Advec_Init2(elem(:), hvcoord, hybrid)
 
   end subroutine prim_init2
@@ -1353,7 +1353,7 @@ contains
     use control_mod, only: statefreq,&
            energy_fixer, ftype, qsplit, rsplit, test_cfldep, disable_diagnostics
     use prim_advance_mod, only : applycamforcing, &
-                                 applycamforcing_dynamics
+                                 applycamforcing_dynamics, init_dp3d
     use prim_state_mod, only : prim_printstate, prim_diag_scalars, prim_energy_halftimes
     use parallel_mod, only : abortmp
     use reduction_mod, only : parallelmax
@@ -1361,6 +1361,7 @@ contains
     use fvm_control_volume_mod, only : n0_fvm
 #if USE_OPENACC
     use openacc_utils_mod, only: copy_qdp_h2d, copy_qdp_d2h
+    use prim_advance_mod, only: copy_dynamics_h2d, copy_dynamics_d2h
 #endif
 
     type (element_t) , intent(inout)        :: elem(:)
@@ -1451,29 +1452,17 @@ contains
       call t_stopf("prim_diag_scalars")
     endif
 
-    ! initialize dp3d from ps
-    if (rsplit>0) then
-    call t_startf("init_dp3d_from_ps")
-    do ie=nets,nete
-       do k=1,nlev
-          elem(ie)%state%dp3d(:,:,k,tl%n0)=&
-               ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + &
-               ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*elem(ie)%state%ps_v(:,:,tl%n0)
-       enddo
-       ! DEBUGDP step: ps_v should not be used for rsplit>0 code during prim_step
-       ! vertical_remap.  so to this for debugging:
-!       elem(ie)%state%ps_v(:,:,tl%n0)=-9e9 !outcommented so the pre_scribed winds work with rsplit>0
-    enddo
-    call t_stopf("init_dp3d_from_ps")
-    endif
-
 #if (USE_OPENACC)
     call TimeLevel_Qdp( tl, qsplit, n0_qdp, np1_qdp) 
 
     call t_startf("copy_qdp_h2d")
     call copy_qdp_h2d( elem , n0_qdp )
+    call copy_dynamics_h2d( elem , tl%n0 )
     call t_stopf("copy_qdp_h2d")
 #endif
+
+    ! initialize dp3d from ps
+    if (rsplit>0) call init_dp3d(elem,hvcoord,tl%n0,nets,nete)
 
     ! loop over rsplit vertically lagrangian timesteps
     call t_startf("prim_step_rX")
@@ -1492,6 +1481,7 @@ contains
 
     call t_startf("copy_qdp_h2d")
     call copy_qdp_d2h( elem , np1_qdp )
+    call copy_dynamics_d2h( elem , tl%np1 )
     call t_stopf("copy_qdp_h2d")
 #endif
 
@@ -1609,14 +1599,14 @@ contains
 !
 !
     use hybvcoord_mod, only : hvcoord_t
-    use time_mod, only : TimeLevel_t, timelevel_update, nsplit
+    use time_mod, only : TimeLevel_t, timelevel_update, nsplit, timelevel_qdp
     use control_mod, only: statefreq, integration, ftype, qsplit, nu_p, test_cfldep, rsplit
     use control_mod, only : use_semi_lagrange_transport, tracer_transport_type
     use control_mod, only : tracer_grid_type, TRACER_GRIDTYPE_GLL
     use fvm_mod,     only : fvm_ideal_test, IDEAL_TEST_OFF, IDEAL_TEST_ANALYTICAL_WINDS
     use fvm_mod,     only : fvm_test_type, IDEAL_TEST_BOOMERANG, IDEAL_TEST_SOLIDBODY
     use fvm_bsp_mod, only : get_boomerang_velocities_gll, get_solidbody_velocities_gll
-    use prim_advance_mod, only : prim_advance_exp, overwrite_SEdensity
+    use prim_advance_mod, only : prim_advance_exp, overwrite_SEdensity, prim_step_init
     use prim_advection_mod, only : prim_advec_tracers_fvm
     use prim_advection_mod, only : prim_advec_tracers_remap, deriv
     use derivative_mod, only : subcell_integration
@@ -1674,50 +1664,7 @@ contains
     ! initialize mean flux accumulation variables and save some variables at n0
     ! for use by advection
     ! ===============
-    do ie=nets,nete
-      elem(ie)%derived%eta_dot_dpdn=0     ! mean vertical mass flux
-      elem(ie)%derived%vn0=0              ! mean horizontal mass flux
-      elem(ie)%derived%omega_p=0
-      if (nu_p>0) then
-         elem(ie)%derived%dpdiss_ave=0
-         elem(ie)%derived%dpdiss_biharmonic=0
-      endif
-      ! save velocity at time t for seme-legrangian transport
-      !
-      ! this code is broken!
-      !
-      if (fvm_ideal_test == IDEAL_TEST_ANALYTICAL_WINDS) then
-         stop
-        do k = 1, nlev
-          if (fvm_test_type == IDEAL_TEST_BOOMERANG) then
-            elem(ie)%derived%vstar(:,:,:,k)=get_boomerang_velocities_gll(elem(ie), time_at(tl%n0))
-            stop
-          else if (fvm_test_type == IDEAL_TEST_SOLIDBODY) then
-            elem(ie)%derived%vstar(:,:,:,k)=get_solidbody_velocities_gll(elem(ie), time_at(tl%n0))
-            stop
-          else
-            call abortmp('Bad fvm_test_type in prim_step')
-          end if
-        end do
-      else if (use_semi_lagrange_transport) then
-        elem(ie)%derived%vstar=elem(ie)%state%v(:,:,:,:,tl%n0)
-      end if
-
-      if (rsplit==0) then
-        ! save dp at time t for use in tracers
-#if (defined COLUMN_OPENMP)
-!$omp parallel do default(shared), private(k)
-#endif
-         do k=1,nlev
-            elem(ie)%derived%dp(:,:,k)=&
-                 ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + &
-                 ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*elem(ie)%state%ps_v(:,:,tl%n0)
-         enddo
-      else
-         ! dp at time t:  use floating lagrangian levels:
-         elem(ie)%derived%dp(:,:,:)=elem(ie)%state%dp3d(:,:,:,tl%n0)
-      endif
-    enddo
+    call prim_step_init(elem,hvcoord,tl%n0,nets,nete)
     call t_stopf("prim_step_init")
 
     ! ===============
@@ -1727,12 +1674,10 @@ contains
     n_Q = tl%n0  ! n_Q = timelevel of FV tracers at time t.  need to save this
                  ! FV tracers still carry 3 timelevels
                  ! SE tracers only carry 2 timelevels
-    call prim_advance_exp(elem, deriv(hybrid%ithr), hvcoord,   &
-         hybrid, dt, tl, nets, nete, compute_diagnostics)
+    call prim_advance_exp(elem, deriv(hybrid%ithr), hvcoord,hybrid, dt, tl, nets, nete, compute_diagnostics)
     do n=2,qsplit
        call TimeLevel_update(tl,"leapfrog")
-       call prim_advance_exp(elem, deriv(hybrid%ithr), hvcoord,   &
-            hybrid, dt, tl, nets, nete, .false.)
+       call prim_advance_exp(elem, deriv(hybrid%ithr), hvcoord, hybrid, dt, tl, nets, nete, .false.)
        ! defer final timelevel update until after Q update.
     enddo
 #ifdef HOMME_TEST_SUB_ELEMENT_MASS_FLUX
@@ -1790,8 +1735,7 @@ contains
     call t_startf("prim_step_advec")
     if (qsize > 0) then
       call t_startf("PAT_remap")
-      call Prim_Advec_Tracers_remap(elem, deriv(hybrid%ithr),hvcoord,flt_advection,hybrid,&
-           dt_q,tl,nets,nete)
+      call Prim_Advec_Tracers_remap(elem, deriv(hybrid%ithr),hvcoord,flt_advection,hybrid,dt_q,tl,nets,nete)
       call t_stopf("PAT_remap")
     end if
     !

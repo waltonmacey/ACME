@@ -7,7 +7,7 @@
 #endif
 
 module prim_advection_mod
-  !OVERWRITING: Prim_Advec_Tracers_remap, prim_advec_init1, prim_advec_init2, prim_advec_init_deriv, deriv, Prim_Advec_Tracers_remap_rk2
+      !OVERWRITING: Prim_Advec_Tracers_remap, prim_advec_init1, prim_advec_init2, prim_advec_init_deriv, deriv, Prim_Advec_Tracers_remap_rk2
   use prim_advection_mod_base, only: Prim_Advec_Tracers_remap_ALE, prim_advec_tracers_fvm, vertical_remap
   use kinds, only              : real_kind
   use dimensions_mod, only     : nlev, nlevp, np, qsize, ntrac, nc, nep, nelemd
@@ -35,19 +35,19 @@ module prim_advection_mod
   implicit none
   private
   type (derivative_t), allocatable :: deriv(:) ! derivative struct (nthreads)
-  real(kind=real_kind), private, allocatable :: qmin(:,:,:), qmax(:,:,:)
-  real(kind=real_kind), private, allocatable :: dp0(:)
-  real(kind=real_kind), private, allocatable :: Qtens_biharmonic(:,:,:,:,:)
-  real(kind=real_kind), private, allocatable :: Qtens(:,:,:,:,:)
-  real(kind=real_kind), private, allocatable :: grads_tracer(:,:,:,:,:,:)
-  real(kind=real_kind), private, allocatable :: dp_star(:,:,:,:)
-  type (EdgeBuffer_t), private :: edgeAdv, edgeAdvQ3, edgeAdv_p1, edgeAdvQ2, edgeAdv1, edgeAdv3, edgeMinMax
-  integer,parameter, private :: DSSeta = 1
-  integer,parameter, private :: DSSomega = 2
-  integer,parameter, private :: DSSdiv_vdp_ave = 3
-  integer,parameter, private :: DSSno_var = -1
-  real(kind=real_kind), allocatable, private :: data_pack(:,:,:,:), data_pack2(:,:,:,:)
-  logical, private :: first_time = .true.
+  real(kind=real_kind), allocatable :: qmin(:,:,:), qmax(:,:,:)
+  real(kind=real_kind), allocatable :: dp0(:)
+  real(kind=real_kind), allocatable :: Qtens_biharmonic(:,:,:,:,:)
+  real(kind=real_kind), allocatable :: Qtens(:,:,:,:,:)
+  real(kind=real_kind), allocatable :: grads_tracer(:,:,:,:,:,:)
+  real(kind=real_kind), allocatable :: dp_star(:,:,:,:)
+  type (EdgeBuffer_t) :: edgeAdv, edgeAdvQ3, edgeAdv_p1, edgeAdvQ2, edgeAdv1, edgeAdv3, edgeMinMax
+  integer,parameter :: DSSeta = 1
+  integer,parameter :: DSSomega = 2
+  integer,parameter :: DSSdiv_vdp_ave = 3
+  integer,parameter :: DSSno_var = -1
+  real(kind=real_kind), allocatable :: data_pack(:,:,:,:), data_pack2(:,:,:,:)
+  logical :: first_time = .true.
 
   public :: Prim_Advec_Tracers_remap_ALE, prim_advec_tracers_fvm, vertical_remap
   public :: Prim_Advec_Tracers_remap
@@ -55,79 +55,8 @@ module prim_advection_mod
   public :: prim_advec_init2
   public :: prim_advec_init_deriv
   public :: deriv
-  public :: Prim_Advec_Tracers_remap_rk2
 
 contains
-
-  subroutine copy_qdp1_h2d( elem , tl , nets , nete )
-    use element_mod, only: element_t, state_qdp
-    use perf_mod, only: t_startf, t_stopf
-    implicit none
-    type(element_t), intent(in) :: elem(:)
-    integer        , intent(in) :: tl, nets , nete
-    integer :: ie, k, j, i
-    call t_startf('qdp1_pcie')
-#   if USE_OPENACC
-      do ie = nets , nete
-        data_pack(:,:,:,ie) = state_qdp(:,:,:,1,tl,ie)
-      enddo
-      !$omp barrier
-      !$omp master
-!     do ie = 1 , nelemd
-!       !$acc update device(state_qdp(:,:,:,1,tl,ie))
-!     enddo
-      !$acc update device(data_pack) async(1)
-      !$acc parallel loop gang vector collapse(4) async(1) present(state_qdp,data_pack)
-      do ie = 1 , nelemd
-        do k = 1 , nlev
-          do j = 1 , np
-            do i = 1 , np
-              state_qdp(i,j,k,1,tl,ie) = data_pack(i,j,k,ie)
-            enddo
-          enddo
-        enddo
-      enddo
-      !$acc wait(1)
-      !$omp end master
-      !$omp barrier
-#   endif
-    call t_stopf('qdp1_pcie')
-  end subroutine copy_qdp1_h2d
-
-  subroutine copy_qdp1_d2h( elem , tl , nets , nete )
-    use element_mod, only: element_t, state_qdp
-    use perf_mod, only: t_startf, t_stopf
-    implicit none
-    type(element_t), intent(in) :: elem(:)
-    integer        , intent(in) :: tl, nets , nete
-    integer :: ie, k, j, i
-    call t_startf('qdp1_pcie')
-#   if USE_OPENACC
-      !$omp barrier
-      !$omp master
-      !$acc parallel loop gang vector collapse(4) async(1) present(state_qdp,data_pack)
-      do ie = 1 , nelemd
-        do k = 1 , nlev
-          do j = 1 , np
-            do i = 1 , np
-              data_pack(i,j,k,ie) = state_qdp(i,j,k,1,tl,ie)
-            enddo
-          enddo
-        enddo
-      enddo
-      !$acc update host(data_pack) async(1)
-      !$acc wait(1)
-!     do ie = 1 , nelemd
-!       !$acc update host(state_qdp(:,:,:,1,tl,ie))
-!     enddo
-      !$omp end master
-      !$omp barrier
-      do ie = nets , nete
-        state_qdp(:,:,:,1,tl,ie) = data_pack(:,:,:,ie)
-      enddo
-#   endif
-    call t_stopf('qdp1_pcie')
-  end subroutine copy_qdp1_d2h
 
   subroutine Prim_Advec_Tracers_remap( elem , deriv , hvcoord , flt , hybrid , dt , tl , nets , nete )
     use perf_mod      , only : t_startf, t_stopf, t_barrierf            ! _EXTERNAL
@@ -323,15 +252,15 @@ contains
 
     !$acc enter data pcreate(qmin,qmax,qtens_biharmonic,grads_tracer,dp_star,qtens,data_pack,data_pack2)
     !$acc enter data pcopyin(dp0)
-    !$acc enter data pcopyin(edgeMinMax         ,edgeAdvQ3         ,edgeAdv1,edgeAdv,edgeAdv_p1,edgeAdvQ2)
-    !$acc enter data pcopyin(edgeMinMax%buf     ,edgeAdvQ3%buf     ,edgeAdv1%buf,edgeAdv%buf,edgeAdv_p1%buf,edgeAdvQ2%buf)
-    !$acc enter data pcopyin(edgeMinMax%receive ,edgeAdvQ3%receive ,edgeAdv1%receive,edgeAdv%receive,edgeAdv_p1%receive,edgeAdvQ2%receive)
-    !$acc enter data pcopyin(edgeMinMax%putmap  ,edgeAdvQ3%putmap  ,edgeAdv1%putmap,edgeAdv%putmap,edgeAdv_p1%putmap,edgeAdvQ2%putmap)
-    !$acc enter data pcopyin(edgeMinMax%getmap  ,edgeAdvQ3%getmap  ,edgeAdv1%getmap,edgeAdv%getmap,edgeAdv_p1%getmap,edgeAdvQ2%getmap)
-    !$acc enter data pcopyin(edgeMinMax%reverse ,edgeAdvQ3%reverse ,edgeAdv1%reverse,edgeAdv%reverse,edgeAdv_p1%reverse,edgeAdvQ2%reverse)
-    !$acc enter data pcopyin(edgeMinMax%tag     ,edgeAdvQ3%tag     ,edgeAdv1%tag,edgeAdv%tag,edgeAdv_p1%tag,edgeAdvQ2%tag)
-    !$acc enter data pcopyin(edgeMinMax%srequest,edgeAdvQ3%srequest,edgeAdv1%srequest,edgeAdv%srequest,edgeAdv_p1%srequest,edgeAdvQ2%srequest)
-    !$acc enter data pcopyin(edgeMinMax%rrequest,edgeAdvQ3%rrequest,edgeAdv1%rrequest,edgeAdv%rrequest,edgeAdv_p1%rrequest,edgeAdvQ2%rrequest)
+    !$acc enter data pcopyin(edgeMinMax         ,edgeAdvQ3         ,edgeAdv1         ,edgeAdv         ,edgeAdv_p1         ,edgeAdvQ2         ,edgeAdv3         )
+    !$acc enter data pcopyin(edgeMinMax%buf     ,edgeAdvQ3%buf     ,edgeAdv1%buf     ,edgeAdv%buf     ,edgeAdv_p1%buf     ,edgeAdvQ2%buf     ,edgeAdv3%buf     )
+    !$acc enter data pcopyin(edgeMinMax%receive ,edgeAdvQ3%receive ,edgeAdv1%receive ,edgeAdv%receive ,edgeAdv_p1%receive ,edgeAdvQ2%receive ,edgeAdv3%receive )
+    !$acc enter data pcopyin(edgeMinMax%putmap  ,edgeAdvQ3%putmap  ,edgeAdv1%putmap  ,edgeAdv%putmap  ,edgeAdv_p1%putmap  ,edgeAdvQ2%putmap  ,edgeAdv3%putmap  )
+    !$acc enter data pcopyin(edgeMinMax%getmap  ,edgeAdvQ3%getmap  ,edgeAdv1%getmap  ,edgeAdv%getmap  ,edgeAdv_p1%getmap  ,edgeAdvQ2%getmap  ,edgeAdv3%getmap  )
+    !$acc enter data pcopyin(edgeMinMax%reverse ,edgeAdvQ3%reverse ,edgeAdv1%reverse ,edgeAdv%reverse ,edgeAdv_p1%reverse ,edgeAdvQ2%reverse ,edgeAdv3%reverse )
+    !$acc enter data pcopyin(edgeMinMax%tag     ,edgeAdvQ3%tag     ,edgeAdv1%tag     ,edgeAdv%tag     ,edgeAdv_p1%tag     ,edgeAdvQ2%tag     ,edgeAdv3%tag     )
+    !$acc enter data pcopyin(edgeMinMax%srequest,edgeAdvQ3%srequest,edgeAdv1%srequest,edgeAdv%srequest,edgeAdv_p1%srequest,edgeAdvQ2%srequest,edgeAdv3%srequest)
+    !$acc enter data pcopyin(edgeMinMax%rrequest,edgeAdvQ3%rrequest,edgeAdv1%rrequest,edgeAdv%rrequest,edgeAdv_p1%rrequest,edgeAdvQ2%rrequest,edgeAdv3%rrequest)
 
     !$omp end master
     !$omp barrier
@@ -460,7 +389,6 @@ contains
       !$omp end master
       !$omp barrier
     enddo
-    call copy_qdp1_d2h( elem , nt_qdp , nets , nete )
     call t_stopf('advance_hypervis_scalar')
   end subroutine advance_hypervis_scalar
 
@@ -487,7 +415,6 @@ contains
     enddo
     !$omp end master
     !$omp barrier
-    if (limiter_option == 8) call copy_qdp1_d2h( elem , np1_qdp , nets , nete )
     
   end subroutine qdp_time_avg
 
@@ -512,10 +439,10 @@ contains
   use control_mod           , only: limiter_option, nu_p, nu_q
   use perf_mod              , only: t_startf, t_stopf
   use element_mod           , only: derived_divdp_proj, state_qdp, derived_vn0, derived_divdp
-  use derivative_mod, only: divergence_sphere_openacc
-  use viscosity_mod , only: biharmonic_wk_scalar_openacc, neighbor_minmax_openacc
-  use edge_mod      , only: edgeVpack_openacc, edgeVunpack_openacc
-  use bndry_mod     , only: bndry_exchangeV => bndry_exchangeV_simple_overlap
+  use derivative_mod        , only: divergence_sphere_openacc
+  use viscosity_mod         , only: biharmonic_wk_scalar_openacc, neighbor_minmax_openacc
+  use edge_mod              , only: edgeVpack_openacc, edgeVunpack_openacc
+  use bndry_mod             , only: bndry_exchangeV => bndry_exchangeV_simple_overlap
   implicit none
   integer              , intent(in   )         :: np1_qdp, n0_qdp
   real (kind=real_kind), intent(in   )         :: dt
@@ -532,30 +459,6 @@ contains
   real(kind=real_kind) :: tmp, mintmp, maxtmp, dp
   integer :: ie,q,i,j,k
   integer :: rhs_viss
-
-
-  do ie = nets , nete
-    data_pack (:,:,:,ie) = elem(ie)%derived%dpdiss_ave
-    data_pack2(:,:,:,ie) = elem(ie)%derived%dp       
-  enddo
-  !$omp barrier
-  !$omp master
-  !$acc update device(data_pack,data_pack2) async(1)
-  !$acc update device(derived_divdp_proj,derived_vn0) async(2)
-  !$acc parallel loop gang vector collapse(4) present(data_pack,elem) async(1)
-  do ie = 1 , nelemd
-    do k = 1 , nlev
-      do j = 1 , np
-        do i = 1 , np
-          elem(ie)%derived%dpdiss_ave(i,j,k) = data_pack (i,j,k,ie)
-          elem(ie)%derived%dp        (i,j,k) = data_pack2(i,j,k,ie)
-        enddo
-      enddo
-    enddo
-  enddo
-  !$acc wait
-  !$omp end master
-  !$omp barrier
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   compute Q min/max values for lim8
@@ -686,33 +589,8 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Compute velocity used to advance Qdp 
 
-  if ( limiter_option == 8 .and. nu_p > 0 .and. rhs_viss /= 0 ) then
-    do ie = nets , nete
-      data_pack(:,:,:,ie) = elem(ie)%derived%dpdiss_biharmonic
-    enddo
-    !$omp barrier
-    !$omp master
-    !$acc update device(data_pack) async(1)
-    !$acc parallel loop gang vector collapse(4) present(elem,data_pack) async(1)
-    do ie = 1 , nelemd
-      do k = 1 , nlev
-        do j = 1 , np
-          do i = 1 , np
-            elem(ie)%derived%dpdiss_biharmonic(i,j,k) = data_pack(i,j,k,ie)
-          enddo
-        enddo
-      enddo
-    enddo
-    !$acc wait(1)
-    !$omp end master
-    !$omp barrier
-  endif
-
   !$omp barrier
   !$omp master
-  if (limiter_option == 8) then
-    !$acc update device(derived_divdp)
-  endif
   !$acc parallel loop gang vector collapse(4) present(elem(:),derived_divdp_proj,derived_vn0,dp_star,derived_divdp,grads_tracer,state_qdp) &
   !$acc& private(dp,vstar)
   do ie = 1 , nelemd
@@ -740,7 +618,7 @@ contains
       enddo
     enddo
   enddo
-  call divergence_sphere_openacc( grads_tracer , deriv , elem(:) , qtens , nlev*qsize , 1 , nelemd , 1 , 1 )
+  call divergence_sphere_openacc( grads_tracer , deriv , elem(:) , qtens , nlev*qsize , 1 , nelemd , 1 , 1 , 1 , 1 )
   !$acc parallel loop gang vector collapse(5) present(qtens,state_qdp,qtens_biharmonic)
   do ie = 1 , nelemd
     ! advance Qdp
@@ -957,11 +835,11 @@ contains
   end subroutine limiter_optim_iter_full
 
   subroutine precompute_divdp( elem , hybrid , deriv , dt , nets , nete , n0_qdp )
-    use element_mod           , only: element_t, derived_vn0, derived_divdp, derived_divdp_proj
+    use element_mod           , only: element_t, derived_vn0, derived_divdp, derived_divdp_proj, derived_omega_p, derived_eta_dot_dpdn
     use hybrid_mod            , only: hybrid_t
     use derivative_mod        , only: derivative_t
-    use edge_mod              , only: edgeVpack, edgeVunpack
-    use bndry_mod             , only: bndry_exchangeV
+    use edge_mod              , only: edgeVpack_openacc, edgeVunpack_openacc
+    use bndry_mod             , only: bndry_exchangeV => bndry_exchangeV_simple_minimize_pcie
     use control_mod           , only: limiter_option
     use derivative_mod, only: divergence_sphere_openacc
     use openacc_utils_mod     , only: copy_ondev
@@ -972,45 +850,57 @@ contains
     type (derivative_t)  , intent(in   ) :: deriv
     real(kind=real_kind) , intent(in   ) :: dt
     integer              , intent(in   ) :: nets , nete , n0_qdp
-    integer :: ie , k
+    integer :: ie , k, j, i
     real(kind=real_kind), pointer, dimension(:,:,:) :: DSSvar
-    call copy_qdp1_h2d(elem,n0_qdp,nets,nete)
+    call t_startf('derived PEU')
     !$omp barrier
     !$omp master
-    !$acc update device(derived_vn0)
-    call divergence_sphere_openacc(derived_vn0,deriv,elem,derived_divdp,nlev,1,nelemd,1,1)
+    call divergence_sphere_openacc(derived_vn0,deriv,elem,derived_divdp,nlev,1,nelemd,1,1,1,1)
     call copy_ondev(derived_divdp_proj,derived_divdp,product(shape(derived_divdp)))
-    !$acc update host(derived_divdp,derived_divdp_proj)
+    ! note: eta_dot_dpdn is actually dimension nlev+1, but nlev+1 data is
+    ! all zero so we only have to DSS 1:nlev
+    !$acc parallel loop gang vector collapse(4) present(elem,derived_eta_dot_dpdn,derived_omega_p,derived_divdp_proj)
+    do ie = 1 , nelemd
+      do k = 1 , nlev
+        do j = 1 , np
+          do i = 1 , np
+            derived_eta_dot_dpdn(i,j,k,ie) = elem(ie)%spheremp(i,j) * derived_eta_dot_dpdn(i,j,k,ie)
+            derived_omega_p     (i,j,k,ie) = elem(ie)%spheremp(i,j) * derived_omega_p     (i,j,k,ie)
+            derived_divdp_proj  (i,j,k,ie) = elem(ie)%spheremp(i,j) * derived_divdp_proj  (i,j,k,ie)
+          enddo
+        enddo
+      enddo
+    enddo
+    call edgeVpack_openacc( edgeAdv3 , derived_eta_dot_dpdn , nlev , 0      , elem  , 1 , nelemd , 1 , 1 )
+    call edgeVpack_openacc( edgeAdv3 , derived_omega_p      , nlev , nlev   , elem  , 1 , nelemd , 1 , 1 )
+    call edgeVpack_openacc( edgeAdv3 , derived_divdp_proj   , nlev , nlev*2 , elem  , 1 , nelemd , 1 , 1 )
     !$omp end master
     !$omp barrier
-    call t_startf('derived PEU')
-    do ie = nets , nete
-      ! note: eta_dot_dpdn is actually dimension nlev+1, but nlev+1 data is
-      ! all zero so we only have to DSS 1:nlev
-      do k = 1 , nlev
-        elem(ie)%derived%eta_dot_dpdn(:,:,k) = elem(ie)%spheremp(:,:) * elem(ie)%derived%eta_dot_dpdn(:,:,k) 
-        elem(ie)%derived%omega_p(:,:,k)      = elem(ie)%spheremp(:,:) * elem(ie)%derived%omega_p(:,:,k)      
-        elem(ie)%derived%divdp_proj(:,:,k)   = elem(ie)%spheremp(:,:) * elem(ie)%derived%divdp_proj(:,:,k)   
-      enddo
-      call edgeVpack( edgeAdv3 , elem(ie)%derived%eta_dot_dpdn(:,:,1:nlev) , nlev , 0      , ie )
-      call edgeVpack( edgeAdv3 , elem(ie)%derived%omega_p(:,:,1:nlev)      , nlev , nlev   , ie )
-      call edgeVpack( edgeAdv3 , elem(ie)%derived%divdp_proj(:,:,1:nlev)   , nlev , nlev*2 , ie )
-    enddo
 
     call bndry_exchangeV( hybrid , edgeAdv3   )
 
-    do ie = nets , nete
-      call edgeVunpack( edgeAdv3 , elem(ie)%derived%eta_dot_dpdn(:,:,1:nlev) , nlev , 0      , ie )
-      call edgeVunpack( edgeAdv3 , elem(ie)%derived%omega_p(:,:,1:nlev)      , nlev , nlev   , ie )
-      call edgeVunpack( edgeAdv3 , elem(ie)%derived%divdp_proj(:,:,1:nlev)   , nlev , nlev*2 , ie )
+    !$omp barrier
+    !$omp master
+    call edgeVunpack_openacc( edgeAdv3 , derived_eta_dot_dpdn , nlev , 0      , elem  , 1 , nelemd , 1 , 1 )
+    call edgeVunpack_openacc( edgeAdv3 , derived_omega_p      , nlev , nlev   , elem  , 1 , nelemd , 1 , 1 )
+    call edgeVunpack_openacc( edgeAdv3 , derived_divdp_proj   , nlev , nlev*2 , elem  , 1 , nelemd , 1 , 1 )
+    !$acc parallel loop gang vector collapse(4) present(elem,derived_eta_dot_dpdn,derived_omega_p,derived_divdp_proj)
+    do ie = 1 , nelemd
       do k = 1 , nlev
-        elem(ie)%derived%eta_dot_dpdn(:,:,k) = elem(ie)%rspheremp(:,:) * elem(ie)%derived%eta_dot_dpdn(:,:,k) 
-        elem(ie)%derived%omega_p(:,:,k)      = elem(ie)%rspheremp(:,:) * elem(ie)%derived%omega_p(:,:,k)      
-        elem(ie)%derived%divdp_proj(:,:,k)   = elem(ie)%rspheremp(:,:) * elem(ie)%derived%divdp_proj(:,:,k)   
+        do j = 1 , np
+          do i = 1 , np
+            derived_eta_dot_dpdn(i,j,k,ie) = elem(ie)%rspheremp(i,j) * derived_eta_dot_dpdn(i,j,k,ie)
+            derived_omega_p     (i,j,k,ie) = elem(ie)%rspheremp(i,j) * derived_omega_p     (i,j,k,ie)
+            derived_divdp_proj  (i,j,k,ie) = elem(ie)%rspheremp(i,j) * derived_divdp_proj  (i,j,k,ie)
+          enddo
+        enddo
       enddo
     enddo
+    !$omp end master
+    !$omp barrier
     call t_stopf('derived PEU')
   end subroutine precompute_divdp
+
 
 end module prim_advection_mod
 

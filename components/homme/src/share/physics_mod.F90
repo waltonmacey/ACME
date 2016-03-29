@@ -60,6 +60,8 @@ module physics_mod
   public :: Virtual_Specific_Heat
   public :: kappastar  
 
+  public :: virtual_temperature1d
+
  interface Virtual_Temperature
     module procedure Virtual_Temperature1d
     module procedure Virtual_Temperature3d
@@ -84,6 +86,7 @@ contains
   
   function Virtual_Temperature1d(Tin,rin) result(Tv)
     
+    !$acc routine seq
     real (kind=real_kind),intent(in) :: Tin
     real (kind=real_kind),intent(in) :: rin
     real (kind=real_kind)            :: Tv
@@ -133,6 +136,7 @@ contains
 
   function Virtual_Specific_Heat(rin) result(Cp_star)
     
+    !$acc routine seq
     real (kind=real_kind),intent(in) :: rin
     real (kind=real_kind)            :: Cp_star
 

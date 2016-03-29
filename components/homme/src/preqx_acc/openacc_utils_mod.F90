@@ -6,6 +6,9 @@
 module openacc_utils_mod
   use kinds, only: real_kind
   use dimensions_mod, only: nelemd
+#ifdef _OPENACC
+  use openacc, only: acc_async_sync
+#endif
   implicit none
   private
 
@@ -16,8 +19,32 @@ module openacc_utils_mod
   public :: copy_ondev
   public :: copy_ondev_async
   public :: acc_async_test_wrap
+  public :: memset
+
+#ifndef _OPENACC
+  integer :: acc_async_sync = -1
+#endif
 
 contains
+
+  subroutine memset(n,arr,val,asyncid_in)
+    implicit none
+    integer             , intent(in   ) :: n
+    real(kind=real_kind), intent(  out) :: arr(n)
+    real(kind=real_kind), intent(in   ) :: val
+    integer, optional   , intent(in   ) :: asyncid_in
+    integer :: i
+    integer :: asyncid
+    if (present(asyncid_in)) then
+      asyncid = asyncid_in
+    else
+      asyncid = acc_async_sync
+    endif
+    !$acc parallel loop gang vector present(arr) async(asyncid)
+    do i = 1 , n
+      arr(i) = val
+    enddo
+  end subroutine memset
 
   function acc_async_test_wrap( asyncid )  result(rslt)
 #   ifdef _OPENACC
@@ -36,32 +63,38 @@ contains
 
   subroutine copy_qdp_h2d( elem , tl )
     use element_mod, only: element_t, state_qdp
+    use perf_mod, only: t_startf,t_stopf
     implicit none
     type(element_t), intent(in) :: elem(:)
     integer        , intent(in) :: tl
     integer :: ie
     !$omp barrier
+    call t_startf('copy_qdp_h2d')
     !$omp master
     do ie = 1 , nelemd
       !$acc update device(state_qdp(:,:,:,:,tl,ie))
     enddo
     !$omp end master
     !$omp barrier
+    call t_stopf('copy_qdp_h2d')
   end subroutine copy_qdp_h2d
 
   subroutine copy_qdp_d2h( elem , tl )
     use element_mod, only: element_t, state_qdp
+    use perf_mod, only: t_startf,t_stopf
     implicit none
     type(element_t), intent(in) :: elem(:)
     integer        , intent(in) :: tl
     integer :: ie
     !$omp barrier
+    call t_startf('copy_qdp_d2h')
     !$omp master
     do ie = 1 , nelemd
       !$acc update host(state_qdp(:,:,:,:,tl,ie))
     enddo
     !$omp end master
     !$omp barrier
+    call t_stopf('copy_qdp_d2h')
   end subroutine copy_qdp_d2h
 
   subroutine copy_ondev(dest,src,len)

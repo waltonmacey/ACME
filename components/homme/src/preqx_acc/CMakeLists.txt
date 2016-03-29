@@ -23,6 +23,8 @@ SET(PREQX_SRCS_F90
   ${SRC_SHARE_DIR}/solver_init_mod_base.F90
   ${SRC_SHARE_DIR}/vertremap_mod_base.F90
   ${SRC_SHARE_DIR}/viscosity_mod_base.F90
+  ${SRC_SHARE_DIR}/prim_advance_mod_base.F90 
+  ${SRC_SHARE_DIR}/prim_si_mod_base.F90 
   ${SRC_DIR}/preqx_acc/bndry_mod.F90
   ${SRC_DIR}/preqx_acc/derivative_mod.F90
   ${SRC_DIR}/preqx_acc/edge_mod.F90
@@ -31,6 +33,8 @@ SET(PREQX_SRCS_F90
   ${SRC_DIR}/preqx_acc/solver_init_mod.F90
   ${SRC_DIR}/preqx_acc/vertremap_mod.F90
   ${SRC_DIR}/preqx_acc/viscosity_mod.F90
+  ${SRC_DIR}/preqx_acc/prim_advance_mod.F90 
+  ${SRC_DIR}/preqx_acc/prim_si_mod.F90 
   ${SRC_SHARE_DIR}/kinds.F90
   ${SRC_SHARE_DIR}/dimensions_mod.F90
   ${SRC_SHARE_DIR}/control_mod.F90
@@ -91,12 +95,10 @@ SET(PREQX_SRCS_F90
   ${SRC_DIR}/checksum_mod.F90 
   ${SRC_DIR}/baroclinic_inst_mod.F90 
   ${SRC_SHARE_DIR}/diffusion_mod.F90 
-  ${SRC_SHARE_DIR}/prim_si_mod.F90 
   ${SRC_DIR}/asp_tests.F90 
   ${SRC_SHARE_DIR}/prim_state_mod.F90 
   ${SRC_DIR}/prim_restart_mod.F90 
   ${SRC_SHARE_DIR}/prim_si_ref_mod.F90 
-  ${SRC_SHARE_DIR}/prim_advance_mod.F90 
   ${SRC_DIR}/forcing_mod.F90 
   ${SRC_SHARE_DIR}/metis_mod.F90 
   ${SRC_SHARE_DIR}/prim_driver_mod.F90 

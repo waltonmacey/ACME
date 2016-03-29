@@ -6,7 +6,7 @@
 !#define _DBG_ !DBG
 !
 !
-module prim_advance_mod
+module prim_advance_mod_base
   use edgetype_mod, only : EdgeDescriptor_t, EdgeBuffer_t
   use kinds, only : real_kind, iulog
   use perf_mod, only: t_startf, t_stopf, t_barrierf, t_adj_detailf ! _EXTERNAL
@@ -17,7 +17,8 @@ module prim_advance_mod
   private
   save
   public :: prim_advance_exp, prim_advance_si, prim_advance_init, preq_robert3,&
-       applyCAMforcing_dynamics, applyCAMforcing, smooth_phis, overwrite_SEdensity
+       applyCAMforcing_dynamics, applyCAMforcing, smooth_phis, overwrite_SEdensity, prim_step_init, init_dp3d, &
+       advance_hypervis, advance_hypervis_lf, advance_hypervis_dp
 
 #ifdef TRILINOS
   public :: distribute_flux_at_corners
@@ -79,6 +80,89 @@ contains
     endif
 
   end subroutine prim_advance_init
+
+
+  subroutine prim_step_init(elem,hvcoord,nt,nets,nete)
+    use dimensions_mod, only : np, nlev
+    use element_mod   , only : element_t, state_ps_v, state_dp3d
+    use hybvcoord_mod , only : hvcoord_t
+    use control_mod   , only : use_semi_lagrange_transport, tracer_transport_type, rsplit, nu_p
+    use fvm_mod       , only : fvm_ideal_test, IDEAL_TEST_OFF, IDEAL_TEST_ANALYTICAL_WINDS
+    use fvm_mod       , only : fvm_test_type, IDEAL_TEST_BOOMERANG, IDEAL_TEST_SOLIDBODY
+    use fvm_bsp_mod   , only : get_boomerang_velocities_gll, get_solidbody_velocities_gll
+    use time_mod      , only : time_at
+    implicit none
+    type(element_t), intent(inout) :: elem(:)
+    type(hvcoord_t), intent(in   ) :: hvcoord
+    integer        , intent(in   ) :: nt,nets,nete
+    integer :: i,j,k,ie
+    do ie=nets,nete
+      elem(ie)%derived%eta_dot_dpdn=0     ! mean vertical mass flux
+      elem(ie)%derived%vn0=0              ! mean horizontal mass flux
+      elem(ie)%derived%omega_p=0
+      if (nu_p>0) then
+        elem(ie)%derived%dpdiss_ave=0
+        elem(ie)%derived%dpdiss_biharmonic=0
+      endif
+      ! save velocity at time t for seme-legrangian transport
+      !
+      ! this code is broken!
+      !
+      if (fvm_ideal_test == IDEAL_TEST_ANALYTICAL_WINDS) then
+         stop
+        do k = 1, nlev
+          if (fvm_test_type == IDEAL_TEST_BOOMERANG) then
+            elem(ie)%derived%vstar(:,:,:,k)=get_boomerang_velocities_gll(elem(ie), time_at(nt))
+            stop
+          else if (fvm_test_type == IDEAL_TEST_SOLIDBODY) then
+            elem(ie)%derived%vstar(:,:,:,k)=get_solidbody_velocities_gll(elem(ie), time_at(nt))
+            stop
+          else
+            call abortmp('Bad fvm_test_type in prim_step')
+          end if
+        end do
+      else if (use_semi_lagrange_transport) then
+        elem(ie)%derived%vstar=elem(ie)%state%v(:,:,:,:,nt)
+      end if
+
+      if (rsplit==0) then
+        ! save dp at time t for use in tracers
+#if (defined COLUMN_OPENMP)
+!$omp parallel do default(shared), private(k)
+#endif
+         do k=1,nlev
+            elem(ie)%derived%dp(:,:,k)=&
+                 ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + &
+                 ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*elem(ie)%state%ps_v(:,:,nt)
+         enddo
+      else
+         ! dp at time t:  use floating lagrangian levels:
+         elem(ie)%derived%dp(:,:,:)=elem(ie)%state%dp3d(:,:,:,nt)
+      endif
+    enddo
+  end subroutine prim_step_init
+
+
+  subroutine init_dp3d(elem,hvcoord,nt,nets,nete)
+    use dimensions_mod, only: np, nlev
+    use element_mod   , only: element_t
+    use hybvcoord_mod , only : hvcoord_t
+    implicit none
+    type(element_t), intent(inout) :: elem(:)
+    type(hvcoord_t), intent(in   ) :: hvcoord
+    integer        , intent(in   ) :: nt,nets,nete
+    integer :: i,j,k,ie
+    do ie = nets , nete
+      do k = 1 , nlev
+        do j = 1 , np
+          do i = 1 , np
+            elem(ie)%state%dp3d(i,j,k,nt) = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + &
+                                            ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*elem(ie)%state%ps_v(i,j,nt)
+          enddo
+        enddo
+      enddo
+    enddo
+  end subroutine init_dp3d
 
 
   subroutine prim_advance_exp(elem, deriv, hvcoord, hybrid,&
@@ -3725,5 +3809,5 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
   end subroutine overwrite_SEdensity
 
 
-end module prim_advance_mod
+end module prim_advance_mod_base
 

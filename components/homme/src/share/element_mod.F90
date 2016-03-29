@@ -18,9 +18,16 @@ module element_mod
 
   public :: setup_element_pointers
   real (kind=real_kind), allocatable, target, public :: state_Qdp                (:,:,:,:,:,:)    ! (np,np,nlev,qsize_d,2,nelemd)   
+  real (kind=real_kind), allocatable, target, public :: state_ps_v               (:,:,:,:)        ! (np,np,timelevels,nelemd)               surface pressure
+  real (kind=real_kind), allocatable, target, public :: state_v                  (:,:,:,:,:,:)    ! (np,np,2,nlev,timelevels,nelemd)        velocity
+  real (kind=real_kind), allocatable, target, public :: state_t                  (:,:,:,:,:)      ! (np,np,nlev,timelevels,nelemd)          temperature
+  real (kind=real_kind), allocatable, target, public :: state_dp3d               (:,:,:,:,:)      ! (np,np,nlev,timelevels,nelemd)          delta p on levels
   real (kind=real_kind), allocatable, target, public :: derived_vn0              (:,:,:,:,:)      ! (np,np,2,nlev,nelemd)                   velocity for SE tracer advection
   real (kind=real_kind), allocatable, target, public :: derived_divdp            (:,:,:,:)        ! (np,np,nlev,nelemd)                     divergence of dp
   real (kind=real_kind), allocatable, target, public :: derived_divdp_proj       (:,:,:,:)        ! (np,np,nlev,nelemd)                     DSSed divdp
+  real (kind=real_kind), allocatable, target, public :: derived_omega_p          (:,:,:,:)        ! (np,np,nlev,nelemd)                     vertical tendency (derived)       
+  real (kind=real_kind), allocatable, target, public :: derived_eta_dot_dpdn     (:,:,:,:)        ! (np,np,nlevp,nelemd)                    mean vertical flux from dynamics
+  real (kind=real_kind), allocatable, target, public :: derived_pecnd            (:,:,:,:)        ! (np,np,nlev,nelemd)                     pressure perturbation from condensate
 
 #if USE_OPENACC
 
@@ -29,14 +36,14 @@ module element_mod
     ! prognostics must match those in prim_restart_mod.F90
     ! vertically-lagrangian code advects dp3d instead of ps_v
     ! tracers Q, Qdp always use 2 level time scheme
-    real (kind=real_kind) :: v   (np,np,2,nlev,timelevels)            ! velocity                           1
-    real (kind=real_kind) :: T   (np,np,nlev,timelevels)              ! temperature                        2
-    real (kind=real_kind) :: dp3d(np,np,nlev,timelevels)              ! delta p on levels                  8
+    real (kind=real_kind), pointer :: v(:,:,:,:,:)                    ! velocity                           1
+    real (kind=real_kind), pointer :: T(:,:,:,:)                      ! temperature                        2
     real (kind=real_kind) :: lnps(np,np,timelevels)                   ! log surface pressure               3
-    real (kind=real_kind) :: ps_v(np,np,timelevels)                   ! surface pressure                   4
+    real (kind=real_kind), pointer :: ps_v(:,:,:)                     ! surface pressure                   4
     real (kind=real_kind) :: phis(np,np)                              ! surface geopotential (prescribed)  5
     real (kind=real_kind) :: Q   (np,np,nlev,qsize_d)                 ! Tracer concentration               6
-    real (kind=real_kind), pointer :: Qdp (:,:,:,:,:)  ! Tracer mass                        7  (np,np,nlev,qsize,2)   
+    real (kind=real_kind), pointer :: Qdp (:,:,:,:,:)                 ! Tracer mass                        7  (np,np,nlev,qsize_d,2)   
+    real (kind=real_kind), pointer :: dp3d(:,:,:,:)                   ! delta p on levels                  8
   end type elem_state_t
 
   integer(kind=int_kind),public,parameter::StateComponents=8  ! num prognistics variables (for prim_restart_mod.F90)
@@ -44,15 +51,15 @@ module element_mod
     ! diagnostic variables for preqx solver
     ! storage for subcycling tracers/dynamics
     ! if (compute_mean_flux==1) vn0=time_avg(U*dp) else vn0=U at tracer-time t
-  real (kind=real_kind), pointer :: vn0              (:,:,:,:)       ! (np,np,2,nlev)                  velocity for SE tracer advection
+    real (kind=real_kind), pointer :: vn0              (:,:,:,:)       ! (np,np,2,nlev)                  velocity for SE tracer advection
     real (kind=real_kind) :: vstar(np,np,2,nlev)                      ! velocity on Lagrangian surfaces
     real (kind=real_kind) :: dpdiss_biharmonic(np,np,nlev)            ! mean dp dissipation tendency, if nu_p>0
     real (kind=real_kind) :: dpdiss_ave(np,np,nlev)                   ! mean dp used to compute psdiss_tens
 
     ! diagnostics for explicit timestep
     real (kind=real_kind) :: phi(np,np,nlev)                          ! geopotential
-    real (kind=real_kind) :: omega_p(np,np,nlev)                      ! vertical tendency (derived)       
-    real (kind=real_kind) :: eta_dot_dpdn(np,np,nlevp)                ! mean vertical flux from dynamics
+    real (kind=real_kind), pointer :: omega_p(:,:,:)                      ! vertical tendency (derived)       
+    real (kind=real_kind), pointer :: eta_dot_dpdn(:,:,:)                ! mean vertical flux from dynamics
 
     ! semi-implicit diagnostics: computed in explict-component, reused in Helmholtz-component.
     real (kind=real_kind) :: grad_lnps(np,np,2)                       ! gradient of log surface pressure               
@@ -84,15 +91,15 @@ module element_mod
     real (kind=real_kind) :: Ttnd(npsq,nlev)                          ! accumulated T tendency due to nudging towards prescribed met
 #else
     ! forcing terms for HOMME
-    real (kind=real_kind) :: FQ(np,np,nlev,qsize_d, timelevels)       ! tracer forcing 
+    real (kind=real_kind) :: FQ(np,np,nlev,qsize_d, timelevels)       ! tracer forcing
     real (kind=real_kind) :: FM(np,np,2,nlev, timelevels)             ! momentum forcing
-    real (kind=real_kind) :: FT(np,np,nlev, timelevels)               ! temperature forcing 
+    real (kind=real_kind) :: FT(np,np,nlev, timelevels)               ! temperature forcing
 #endif
 
     ! forcing terms for both CAM and HOMME
     ! FQps for conserving dry mass in the presence of precipitation
 
-    real (kind=real_kind) :: pecnd(np,np,nlev)                        ! pressure perturbation from condensate
+    real (kind=real_kind), pointer :: pecnd(:,:,:)                    ! pressure perturbation from condensate
     real (kind=real_kind) :: FQps(np,np,timelevels)                   ! forcing of FQ on ps_v 
   end type derived_state_t
 
@@ -564,20 +571,34 @@ contains
 
   !___________________________________________________________________
   subroutine setup_element_pointers(elem)
-    use dimensions_mod, only: nelemd, qsize
+    use dimensions_mod, only: nelemd
     implicit none
     type(element_t), intent(inout) :: elem(:)
 #if USE_OPENACC
     integer :: ie
-    allocate( state_Qdp                (np,np,nlev,qsize,2,nelemd)            )
+    allocate( state_Qdp                (np,np,nlev,qsize_d,2,nelemd)          )
+    allocate( state_ps_v               (np,np,timelevels,nelemd)              )
+    allocate( state_v                  (np,np,2,nlev,timelevels,nelemd)       )
+    allocate( state_t                  (np,np  ,nlev,timelevels,nelemd)       )
+    allocate( state_dp3d               (np,np  ,nlev,timelevels,nelemd)       )
     allocate( derived_vn0              (np,np,2,nlev,nelemd)                  )
     allocate( derived_divdp            (np,np,nlev,nelemd)                    )
     allocate( derived_divdp_proj       (np,np,nlev,nelemd)                    )
+    allocate( derived_eta_dot_dpdn     (np,np,nlevp,nelemd)                   )
+    allocate( derived_omega_p          (np,np,nlev,nelemd)                    )
+    allocate( derived_pecnd            (np,np,nlev,nelemd)                    )
     do ie = 1 , nelemd
       elem(ie)%state%Qdp                 => state_Qdp                (:,:,:,:,:,ie)
+      elem(ie)%state%ps_v                => state_ps_v               (:,:,:,ie)
+      elem(ie)%state%v                   => state_v                  (:,:,:,:,:,ie)
+      elem(ie)%state%t                   => state_t                  (:,:,:,:,ie)
+      elem(ie)%state%dp3d                => state_dp3d               (:,:,:,:,ie)
       elem(ie)%derived%vn0               => derived_vn0              (:,:,:,:,ie)  
       elem(ie)%derived%divdp             => derived_divdp            (:,:,:,ie)    
       elem(ie)%derived%divdp_proj        => derived_divdp_proj       (:,:,:,ie)    
+      elem(ie)%derived%eta_dot_dpdn      => derived_eta_dot_dpdn     (:,:,:,ie)    
+      elem(ie)%derived%omega_p           => derived_omega_p          (:,:,:,ie)    
+      elem(ie)%derived%pecnd             => derived_pecnd            (:,:,:,ie)    
     enddo
 #endif
   end subroutine setup_element_pointers

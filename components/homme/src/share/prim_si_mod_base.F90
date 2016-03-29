@@ -2,7 +2,7 @@
 #include "config.h"
 #endif
 
-module prim_si_mod
+module prim_si_mod_base
   implicit none
   private
   public :: preq_omegap
@@ -514,4 +514,4 @@ subroutine geopotential_t(                                 &
 
 
 
-end module prim_si_mod
+end module prim_si_mod_base
