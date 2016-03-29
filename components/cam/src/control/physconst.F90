@@ -71,6 +71,7 @@ module physconst
    real(r8), public           :: sday         = shr_const_sday  ! sec in siderial day ~ sec
    real(r8), public           :: mwh2o        = shr_const_mwwv  ! molecular weight h2o
    real(r8), public           :: cpwv         = shr_const_cpwv  ! specific heat of water vapor (J/K/kg)
+   !$acc declare copyin(cpwv)
    real(r8), public           :: mwdry        = shr_const_mwdair! molecular weight dry air
    real(r8), public           :: rearth       = shr_const_rearth! radius of earth (m)
    real(r8), public           :: tmelt        = shr_const_tkfrz ! Freezing point of water (K)
@@ -81,7 +82,9 @@ module physconst
    real(r8), public           :: ra           = 1._r8/shr_const_rearth            ! reciprocal of earth radius
    real(r8), public           :: omega        = shr_const_omega                   ! earth rot ~ rad/sec
    real(r8), public           :: rh2o         = shr_const_rwv                     ! Water vapor gas constant ~ J/K/kg
+   !$acc declare copyin(rh2o)
    real(r8), public           :: rair         = shr_const_rdair   ! Dry air gas constant     ~ J/K/kg
+   !$acc declare copyin(rair)
    real(r8), public           :: epsilo       = shr_const_mwwv/shr_const_mwdair   ! ratio of h2o to dry air molecular weights 
    real(r8), public           :: zvir         = shr_const_zvir                    ! (rh2o/rair) - 1
    real(r8), public           :: cpvir        = shr_const_cpvir                   ! CPWV/CPDAIR - 1.0

@@ -98,7 +98,7 @@ OPTIONS
                            default: default compiler for the target machine
   -camse_target <name>     Spedify a target for the cam-se dycore (ignored for other atmospheric dycores)
                            default: preqx
-                           options: preqx, preqx-acc
+                           options: preqx, preqx_acc
   -mpilib <name>           Specify a mpi library for the target machine (optional)
                            default: default mpi library for the target machine
                            allowed: openmpi, mpich, ibm, mpi-serial, etc
