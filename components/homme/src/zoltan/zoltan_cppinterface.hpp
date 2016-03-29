@@ -7,6 +7,20 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+void sort_graph(
+    int *nelem,
+    int *xadj,
+    int *adjncy,
+    double *adjwgt,
+    double *vwgt);
+#ifdef __cplusplus
+}
+#endif
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
  void zoltan_partition_problem(
      int *nelem,
      int *xadj,
@@ -17,7 +31,7 @@ extern "C" {
      MPI_Comm comm,
      double *xcoord,
      double *ycoord,
-     double *zcoord,
+     double *zcoord, int *coord_dimension,
      int *result_parts,
      int *partmethod);
 #ifdef __cplusplus
@@ -37,7 +51,7 @@ extern "C" {
      MPI_Comm comm,
      double *xcoord,
      double *ycoord,
-     double *zcoord,
+     double *zcoord, int *coord_dimension,
      int *result_parts,
      int *partmethod);
 #ifdef __cplusplus
@@ -59,5 +73,7 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
+
+
 
 #endif

@@ -22,6 +22,40 @@
 
 #include <iostream>
 #include <vector>
+#include <algorithm>
+
+struct SortItem{
+  int id;
+  int weight;
+  bool operator<(const SortItem& a) const
+  {
+      return this->id < a.id;
+  }
+};
+void sort_graph(
+    int *nelem,
+    int *xadj,
+    int *adjncy,
+    double *adjwgt,
+    double *vwgt){
+
+  std::vector <SortItem> sorter(*nelem);
+
+  for (int i =0; i < *nelem; ++i){
+    int b = xadj[i];
+    int e = xadj[i + 1];
+    for (int j = b; j < e; ++j){
+      sorter[j-b].id = adjncy[j];
+      sorter[j-b].weight = adjwgt[j];
+    }
+    std::sort(sorter.begin(), sorter.begin() + e - b);
+    for (int j = b; j < e; ++j){
+      adjncy[j] = sorter[j-b].id;
+      adjwgt[j] = sorter[j-b].weight;
+    }
+  }
+
+}
 
 void zoltan_partition_problem(
     int *nelem,
@@ -33,7 +67,7 @@ void zoltan_partition_problem(
     MPI_Comm comm,
     double *xcoord,
     double *ycoord,
-    double *zcoord,
+    double *zcoord, int *coord_dimension,
     int *result_parts,
     int *partmethod){
   using namespace Teuchos;
@@ -79,7 +113,7 @@ void zoltan_partition_problem(
 
 
   /***********************************SET COORDINATES*********************/
-  const int coord_dim = 3;
+  const int coord_dim = *coord_dimension;
   // make an array of array views containing the coordinate data
   Teuchos::Array<Teuchos::ArrayView<const zscalar_t> > coordView(coord_dim);
 
@@ -88,23 +122,26 @@ void zoltan_partition_problem(
     coordView[0] = a;
     Teuchos::ArrayView<const zscalar_t> b(ycoord + myBegin, numMyElements);
     coordView[1] = b;
-    Teuchos::ArrayView<const zscalar_t> c(zcoord + myBegin, numMyElements);
-    coordView[2] = c;
+    if (coord_dim == 3){
+      Teuchos::ArrayView<const zscalar_t> c(zcoord + myBegin, numMyElements);
+      coordView[2] = c;
+    }
   }
   else {
     Teuchos::ArrayView<const zscalar_t> a;
     coordView[0] = a;
     coordView[1] = a;
-    coordView[2] = a;
 
+    if (coord_dim == 3){
+      coordView[2] = a;
+    }
   }
 
   RCP<tMVector_t> coords(new tMVector_t(map, coordView.view(0, coord_dim), coord_dim));//= set multivector;
   RCP<const tMVector_t> const_coords = rcp_const_cast<const tMVector_t>(coords);
-  //Zoltan2::XpetraMultiVectorAdapter<tMVector_t> *adapter = (new Zoltan2::XpetraMultiVectorAdapter<tMVector_t>(const_coords));
-  Zoltan2::XpetraMultiVectorAdapter<tMVector_t> adapter(const_coords);
+  Zoltan2::XpetraMultiVectorAdapter<tMVector_t> *adapter = (new Zoltan2::XpetraMultiVectorAdapter<tMVector_t>(const_coords));
 
-  ia->setCoordinateInput(&adapter);
+  ia->setCoordinateInput(adapter);
   ia->setEdgeWeights(adjwgt, 1, 0);
   ia->setVertexWeights(vwgt, 1, 0);
   /***********************************SET COORDINATES*********************/
@@ -228,7 +265,7 @@ void zoltan_map_problem(
     MPI_Comm comm,
     double *xcoord,
     double *ycoord,
-    double *zcoord,
+    double *zcoord, int *coord_dimension,
     int *result_parts,
     int *partmethod){
 
@@ -262,6 +299,15 @@ void zoltan_map_problem(
     zgno_t end = xadj[gblRow + 1];
     const ArrayView< const zgno_t > indices(adjncy+begin, end-begin);
     TpetraCrsGraph->insertGlobalIndices(gblRow, indices);
+
+    /*
+    if (global_comm->getRank() == 0){
+      std::cout << "gblRow:" << gblRow;
+      for (int i = begin; i < end; ++i){
+        std::cout << "\tneighbor:" << adjncy[i] << " w:" << adjwgt[i] << std::endl;
+      }
+    }
+    */
   }
   TpetraCrsGraph->fillComplete ();
 
@@ -271,7 +317,8 @@ void zoltan_map_problem(
   RCP<adapter_t> ia (new adapter_t(const_data/*,(int)vtx_weights.size(),(int)edge_weights.size()*/, 1, 1));
 
   /***********************************SET COORDINATES*********************/
-  const int coord_dim = 3;
+  const int coord_dim = *coord_dimension;
+  //const int coord_dim = 2;
   // make an array of array views containing the coordinate data
   Teuchos::Array<Teuchos::ArrayView<const zscalar_t> > coordView(coord_dim);
 
@@ -280,25 +327,19 @@ void zoltan_map_problem(
     coordView[0] = a;
     Teuchos::ArrayView<const zscalar_t> b(ycoord + myBegin, numMyElements);
     coordView[1] = b;
-    Teuchos::ArrayView<const zscalar_t> c(zcoord + myBegin, numMyElements);
-    coordView[2] = c;
+    if (coord_dim == 3){
+      Teuchos::ArrayView<const zscalar_t> c(zcoord + myBegin, numMyElements);
+      coordView[2] = c;
+    }
   }
   else {
     Teuchos::ArrayView<const zscalar_t> a;
     coordView[0] = a;
     coordView[1] = a;
-    coordView[2] = a;
-  }
-
-/*
-  if (tcomm->getRank() == 0){
-    homme_partition_problem->printMetrics(std::cout);
-    //homme_partition_problem->printGraphMetrics(std::cout);
-    for (int i = 0; i < numGlobalCoords; ++i){
-      std::cout << "i:" << i << " p:" << result_parts[i] << std::endl;
+    if (coord_dim == 3){
+      coordView[2] = a;
     }
   }
-*/
 
   RCP<tMVector_t> coords(new tMVector_t(map, coordView.view(0, coord_dim), coord_dim));//= set multivector;
   RCP<const tMVector_t> const_coords = rcp_const_cast<const tMVector_t>(coords);
@@ -412,12 +453,6 @@ void zoltan2_print_metrics(
     }
   }
 
-  double total_weight = 0, max_weight = 0;
-  for (int i = 0; i < *nparts; ++i){ 
-    total_weight += part_vertex_weights[i];
-    if (part_vertex_weights[i] > max_weight) max_weight = part_vertex_weights[i];
-  }
-  
   int global_num_messages = 0;
 
   Teuchos::reduceAll<int, int>(
@@ -460,8 +495,7 @@ void zoltan2_print_metrics(
       &(total_weighted_hops));
 
   if (myRank == 0){
-    std::cout << "\tIMBALANCE:" 	  << (total_weight / *nparts) / max_weight << std::endl
-	      << "\tGLOBAL NUM MESSAGES:" << global_num_messages << std::endl
+    std::cout << "\tGLOBAL NUM MESSAGES:" << global_num_messages << std::endl
               << "\tMAX MESSAGES:       " << global_max_messages << std::endl
               << "\tGLOBAL EDGE CUT:    " << global_edge_cut << std::endl
               << "\tMAX EDGE CUT:       " << global_max_edge_cut << std::endl
@@ -509,6 +543,15 @@ void zoltan2_print_metrics(
     int *nparts,
     MPI_Comm comm,
     int *result_parts){
+  std::cerr << "Homme is not compiled with Trilinos!!" << std::endl;
+}
+
+void sort_graph(
+    int *nelem,
+    int *xadj,
+    int *adjncy,
+    double *adjwgt,
+    double *vwgt){
   std::cerr << "Homme is not compiled with Trilinos!!" << std::endl;
 }
 

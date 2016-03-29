@@ -42,4 +42,9 @@ module params_mod
                                  SFCURVE_Z2_TMAP        = 33
 
 
+   integer, public, parameter :: SPHERE_COORDS = 1, &
+                                 CUBE_COORDS = 2, &
+                                 FACE_2D_LB_COORDS = 3
+
+
 end module params_mod

@@ -91,6 +91,8 @@ module control_mod
   character(len=MAX_STRING_LEN)    , public :: precon_method  ! if semi_implicit, type of preconditioner:
                                                   ! choices block_jacobi or identity
 
+  integer              , public :: coord_transform_method     ! If zoltan2 is used, various ways of representing the coordinates methods
+                                                              ! check params_mod for options.
   integer              , public :: partmethod     ! partition methods
   character(len=MAX_STRING_LEN)    , public :: topology       ! options: "cube" is supported
   character(len=MAX_STRING_LEN)    , public :: test_case      ! options: if cube: "swtc1","swtc2",or "swtc6"  

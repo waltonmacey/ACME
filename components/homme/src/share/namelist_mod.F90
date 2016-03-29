@@ -6,13 +6,14 @@ module namelist_mod
   !-----------------
   use kinds, only : real_kind, iulog
   !-----------------
-  use params_mod, only : recursive, sfcurve
+  use params_mod, only : recursive, sfcurve, SPHERE_COORDS
   !-----------------
   use cube_mod, only : rotate_grid
   use control_mod, only : &
        MAX_STRING_LEN,&
        MAX_FILE_LEN,  &
        partmethod,    &       ! Mesh partitioning method (METIS)
+       coord_transform_method,    &       !how to represent the coordinates.
        topology,      &       ! Mesh topology
        test_case,     &       ! test case
        uselapi,       &
@@ -226,9 +227,11 @@ module namelist_mod
     ! ============================================
 
     namelist /ctl_nl/ PARTMETHOD,    &       ! Mesh partitioning method (METIS)
+                      COORD_TRANSFORM_METHOD,    &       ! Mesh partitioning method (METIS)
                       TOPOLOGY,      &       ! Mesh topology
 #ifdef CAM
                      se_partmethod,    &
+                     se_COORD_TRANSFORM_METHOD, &
                      se_topology,      &
                      se_ne,            &
                      se_limiter_option, &
@@ -388,6 +391,7 @@ module namelist_mod
     ! Set the default partmethod
     ! ==========================
 
+    COORD_TRANSFORM_METHOD = SPHERE_COORDS
     PARTMETHOD    = RECURSIVE
     npart         = 1
     useframes     = 0
@@ -742,6 +746,7 @@ module namelist_mod
     !  Spread the namelist stuff around
     ! =====================================
 
+    call MPI_bcast(COORD_TRANSFORM_METHOD ,1,MPIinteger_t,par%root,par%comm,ierr)
     call MPI_bcast(PARTMETHOD ,1,MPIinteger_t,par%root,par%comm,ierr)
     call MPI_bcast(TOPOLOGY     ,MAX_STRING_LEN,MPIChar_t  ,par%root,par%comm,ierr)
     call MPI_bcast(test_case    ,MAX_STRING_LEN,MPIChar_t  ,par%root,par%comm,ierr)
@@ -1136,6 +1141,7 @@ module namelist_mod
        write(iulog,*)"readnl: ne,np         = ",NE,np
        if (npdg>0) write(iulog,*)"readnl: npdg       = ",npdg
        write(iulog,*)"readnl: partmethod    = ",PARTMETHOD
+       write(iulog,*)"readnl: COORD_TRANSFORM_METHOD    = ",COORD_TRANSFORM_METHOD
        write(iulog,*)'readnl: nmpi_per_node = ',nmpi_per_node
        write(iulog,*)"readnl: vthreads      = ",vthreads
        write(iulog,*)'readnl: multilevel    = ',multilevel

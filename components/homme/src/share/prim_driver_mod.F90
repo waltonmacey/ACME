@@ -177,6 +177,7 @@ contains
     real (kind=real_kind) ,  allocatable :: coord_dim1(:)
     real (kind=real_kind) ,  allocatable :: coord_dim2(:)
     real (kind=real_kind) ,  allocatable :: coord_dim3(:)
+    integer :: coord_dimension
 
 #ifndef CAM
     logical :: repro_sum_use_ddpdd, repro_sum_recompute
@@ -307,7 +308,7 @@ contains
              partmethod .eq. ZOLTAN2SEQ_TMAP .OR. &
              partmethod .eq. SFCURVE_Z2_TMAP .OR. &
              partmethod .eq. ZOLTAN2ND) then
-            call getfixmeshcoordinates(GridVertex, coord_dim1, coord_dim2, coord_dim3)
+            call getfixmeshcoordinates(GridVertex, coord_dim1, coord_dim2, coord_dim3, coord_dimension)
            endif
         end if
 
@@ -317,6 +318,7 @@ contains
 
     !DBG if(par%masterproc) call PrintGridVertex(GridVertex)
 
+    call t_startf('PartitioningTime')
 
     if(partmethod .eq. SFCURVE ) then
        if(par%masterproc) write(iulog,*)"partitioning graph using SF Curve..."
@@ -348,18 +350,21 @@ contains
              partmethod .eq. ZOLTAN2SEQMAP .OR. &
              partmethod .eq. ZOLTAN2SEQ_TMAP .OR. &
              partmethod .eq. ZOLTAN2ND) then
-        call genzoltanpart(GridEdge,GridVertex, par%comm, coord_dim1, coord_dim2, coord_dim3)
+        call genzoltanpart(GridEdge,GridVertex, par%comm, coord_dim1, coord_dim2, coord_dim3, coord_dimension)
     elseif ( partmethod .eq. SFCURVE_Z2_TMAP .OR. &
              partmethod .eq. SFCURVE_Z2MAP ) then
         call genspacepart(GridEdge,GridVertex)
-        call genzoltanpart(GridEdge,GridVertex, par%comm, coord_dim1, coord_dim2, coord_dim3)
+        call genzoltanpart(GridEdge,GridVertex, par%comm, coord_dim1, coord_dim2, coord_dim3, coord_dimension)
     else
         if(par%masterproc) write(iulog,*)"partitioning graph using Metis..."
        call genmetispart(GridEdge,GridVertex)
     endif
+    call t_stopf('PartitioningTime')
 
+    call t_startf('PrintMetricTime')
     !print partitioning and mapping metrics
     call printMetrics(GridEdge,GridVertex, par%comm)
+    call t_stopf('PrintMetricTime')
 
     ! ===========================================================
     ! given partition, count number of local element descriptors
