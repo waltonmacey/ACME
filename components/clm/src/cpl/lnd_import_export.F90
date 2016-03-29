@@ -294,7 +294,7 @@ contains
             close(unit=9)
           end if
 
-          do v=1,6
+          do v=1,7
             write(zst, '(I3)') 100+ztoget
             if (atm2lnd_vars%metsource == 0) then 
               ierr = nf90_open(trim(metdata_bypass) // '/' // trim(metsource_str) // '_' // trim(metvars(v)) // &
@@ -403,7 +403,7 @@ contains
           end do    !end variable loop        
 
         else
-          do v=1,6
+          do v=1,7
             if (atm2lnd_vars%npf(v) - 1._r8 .gt. 1e-3) then 
               if (v == 4 .or. v .eq. 5) then    !Precipitation
                 if (mod(nstep-1,nint(atm2lnd_vars%npf(v))) == 1 .and. nstep .gt. 3) then
@@ -435,7 +435,7 @@ contains
         tindex = atm2lnd_vars%tindex(g,:,:)
 
         !get weights for linear interpolation 
-        do v=1,6
+        do v=1,7
           if (atm2lnd_vars%npf(v) - 1._r8 .gt. 1e-3) then
                wt1(v) = 1._r8 - (mod(nstep-1-atm2lnd_vars%npf(v)/2._r8,atm2lnd_vars%npf(v))*1._r8)/atm2lnd_vars%npf(v)	
                wt2(v) = 1._r8 - wt1(v)
@@ -486,16 +486,16 @@ contains
         atm2lnd_vars%forc_lwrad_not_downscaled_grc(g) = ea * SHR_CONST_STEBOL * tbot**4
 
         !use longwave from file if provided
-        !atm2lnd_vars%forc_lwrad_not_downscaled_grc(g) = ((atm2lnd_vars%atm_input(7,g,1,tindex(1))*atm2lnd_vars%scale_factors(7)+ &
-        !                                                atm2lnd_vars%add_offsets(7))*wt1(7) + (atm2lnd_vars%atm_input(7,g,1,tindex(2)) &
-        !                                                *atm2lnd_vars%scale_factors(7)+atm2lnd_vars%add_offsets(7))*wt2(7)) * &
-        !                                                atm2lnd_vars%var_mult(7,g,mon) + atm2lnd_vars%var_offset(7,g,mon)  
+        atm2lnd_vars%forc_lwrad_not_downscaled_grc(g) = ((atm2lnd_vars%atm_input(7,g,1,tindex(7,1))*atm2lnd_vars%scale_factors(7)+ &
+                                                        atm2lnd_vars%add_offsets(7))*wt1(7) + (atm2lnd_vars%atm_input(7,g,1,tindex(7,2)) &
+                                                        *atm2lnd_vars%scale_factors(7)+atm2lnd_vars%add_offsets(7))*wt2(7)) * &
+                                                        atm2lnd_vars%var_mult(7,g,mon) + atm2lnd_vars%var_offset(7,g,mon)  
  
-        !Shortwave radiation (cosine zenith angle interpolation)
-        thiscosz = max(cos(szenith(ldomain%lonc(g),ldomain%latc(g),0,int(thiscalday),tod/3600,mod(tod,3600)/60, get_step_size())* &
-                          3.14159265358979/180.0d0), 0.001d0)
-        avgcosz = 0d0
+        !Shortwave radiation (cosine zenith angle interpolation if met data timestep is greater than 1 hour)
         if (atm2lnd_vars%npf(4) - 1._r8 .gt. 1e-3) then 
+          thiscosz = max(cos(szenith(ldomain%lonc(g),ldomain%latc(g),0,int(thiscalday),tod/3600,mod(tod,3600)/60, get_step_size())* &
+                          3.14159265358979/180.0d0), 0.001d0)
+          avgcosz = 0d0
           do tm=1,nint(atm2lnd_vars%npf(4))  
             !Get the average cosine zenith angle over the time resolution of the input data 	 
             if (tod-2*get_step_size() >= 0) then 
@@ -509,13 +509,11 @@ contains
             avgcosz  = avgcosz + max(cos(szenith(ldomain%lonc(g),ldomain%latc(g),0,calday_start,tod_start+((tm+1)*get_step_size())/3600, &
                          mod((tm+1)*get_step_size(),3600)/60, get_step_size())*3.14159265358979/180.0d0), 0.001d0)/atm2lnd_vars%npf(4)
           end do
-        else
-          avgcosz = thiscosz
-        end if
-        if (thiscosz > 0.001d0) then 
-          wt2(4) = thiscosz/avgcosz
-        else
-          wt2(4) = 0d0
+          if (thiscosz > 0.001d0) then
+            wt2(4) = thiscosz/avgcosz
+          else
+            wt2(4) = 0d0
+          end if
         end if
 
         swndr               = ((atm2lnd_vars%atm_input(4,g,1,tindex(4,2))*atm2lnd_vars%scale_factors(4)+ &
@@ -534,8 +532,6 @@ contains
         swvdf               = ((atm2lnd_vars%atm_input(4,g,1,tindex(4,2))*atm2lnd_vars%scale_factors(4)+ &
                                 atm2lnd_vars%add_offsets(4))*wt2(4))*0.50_R8
         atm2lnd_vars%forc_solai_grc(g,1) = (1._R8 - ratio_rvrf)*swvdf
-        !if (g .eq. 1) print*, thiscalday, tod, thiscosz, avgcosz, (atm2lnd_vars%atm_input(4,g,1,tindex(4,2))*atm2lnd_vars%scale_factors(4)+ &
-        !                        atm2lnd_vars%add_offsets(4)), wt2(4)	
 
         !Rain and snow
         frac = (atm2lnd_vars%forc_t_not_downscaled_grc(g) - SHR_CONST_TKFRZ)*0.5_R8       ! ramp near freezing
