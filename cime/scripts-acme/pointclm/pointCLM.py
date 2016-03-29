@@ -739,7 +739,11 @@ for i in range(1,int(options.ninst)+1):
                          str(numypts)+"pt_"+casename+"_simyr"+str(mysimyr)+".nc'\n")
     #pft dynamics file for transient run
     if ('20TR' in compset):
-        output.write(" flanduse_timeseries = './surfdata.pftdyn_"+str(numxpts)+'x' \
+        if (options.nopointdata):
+	    output.write(" flanduse_timeseries = '"+options.ccsm_input+"/lnd/clm2/"+surfdir+ \
+              "/surfdata.pftdyn_"+str(numxpts)+'x'+str(numypts)+"pt_"+options.site+".nc'\n")
+        else:
+            output.write(" flanduse_timeseries = './surfdata.pftdyn_"+str(numxpts)+'x' \
                          +str(numypts)+"pt_"+casename+".nc'\n")
         output.write(' check_finidat_fsurdat_consistency = .false.\n')
     #pft-physiology file
@@ -928,14 +932,14 @@ if (not cpl_bypass):
                                    ' '+str(startyear)+' '+str(endyear)+'  ", '+mypresaero+myco2+'\n')
         elif ('streams' in s):
             continue  #do nothing
-        elif ('taxmode =' in s):
+        elif ('taxmode' in s):
             if (use_cruncep):
                 taxst = "taxmode = 'cycle', 'cycle', 'cycle', 'extend'"
             else:
                 taxst = "taxmode = 'cycle', 'extend'"
             if ('20TR' in compset):
                 taxst = taxst+", 'extend'"
-                myoutput.write(taxst+'\n')
+            myoutput.write(taxst+'\n')
         else:
             myoutput.write(s)
     myinput.close()

@@ -28,6 +28,13 @@ parser.add_option("--ccsm_input", dest="ccsm_input", \
                   help = "input data directory for CESM (required)")
 parser.add_option("--clm40", dest="clm40", action="store_true", \
                   default=False, help="Use CLM 4.0 code")
+parser.add_option("--nopointdata", action="store_true", \
+                  dest="nopointdata", help="Do NOT make point data (use data already created)", \
+                  default=False)
+parser.add_option("--noad", action="store_true", dest="noad", default=False, \
+                  help='Do not perform ad spinup simulation')
+parser.add_option("--notrans", action="store_true", dest="notrans", default=False, \
+	          help='Do not perform transient simulation (spinup only)')
 parser.add_option("--srcmods_loc", dest="srcmods_loc", default='', \
                   help = 'Copy sourcemods from this location')
 parser.add_option("--nyears_final_spinup", dest="nyears_final_spinup", default='1000', \
@@ -199,6 +206,8 @@ for row in AFdatareader:
             basecmd = basecmd+' --CH4'
         if (options.cruncep):
             basecmd = basecmd+' --cruncep'
+        if (options.nopointdata):
+            basecmd = basecmd+' --nopointdata'
         if (options.surfdata_grid):
             basecmd = basecmd+' --surfdata_grid'
         if (options.caseroot != ''):
@@ -227,10 +236,12 @@ for row in AFdatareader:
         else:
 	    if (options.cpl_bypass):
                 cmd_adsp = cmd_adsp+' --compset I1850CLM45CB'+mybgc
-                ad_case = site+'_I1850CLM45CB'+mybgc+'_ad_spinup'
+                ad_case = site+'_I1850CLM45CB'+mybgc
             else:
                 cmd_adsp = cmd_adsp+' --compset I1850CLM45'+mybgc
-                ad_case = site+'_I1850CLM45'+mybgc+'_ad_spinup'
+                ad_case = site+'_I1850CLM45'+mybgc
+        if (options.noad == False):
+	    ad_case = ad_case+'_ad_spinup'
         if (options.makemet):
             cmd_adsp = cmd_adsp+' --makemetdat'
         if (options.spinup_vars):
@@ -269,11 +280,18 @@ for row in AFdatareader:
                 str(fsplen)+' --hist_mfilt 1 --hist_nhtfrq -'+ \
                 str((endyear-startyear+1)*8760)
         else:
-            cmd_fnsp = basecmd+' --finidat_case '+basecase+'_ad_spinup '+ \
-                '--finidat_year '+str(int(options.ny_ad)+1)+' --run_units nyears --run_n '+ \
-                str(fsplen)+' --hist_mfilt 1 --hist_nhtfrq -'+ \
-                str((endyear-startyear+1)*8760)+' --align_year '+str(year_align+1)+' --no_build' + \
-                ' --exeroot '+ad_exeroot
+            if (options.noad):
+                cmd_fnsp = basecmd+' --run_units nyears --run_n '+str(fsplen)+' --hist_mfilt 1 '+ \
+                    '--hist_nhtfrq -'+str((endyear-startyear+1)*8760)+' --align_year '+ \
+                    str(year_align+1)+' --coldstart'
+                if (not isfirstsite):
+                    cmd_fnsp = cmd_fnsp+' --exeroot '+ad_exeroot+' --no_build'
+            else:
+                cmd_fnsp = basecmd+' --finidat_case '+basecase+'_ad_spinup '+ \
+                    '--finidat_year '+str(int(options.ny_ad)+1)+' --run_units nyears --run_n '+ \
+                    str(fsplen)+' --hist_mfilt 1 --hist_nhtfrq -'+ \
+                    str((endyear-startyear+1)*8760)+' --align_year '+str(year_align+1)+' --no_build' + \
+                    ' --exeroot '+ad_exeroot
         if (options.clm40):
             cmd_fnsp = cmd_fnsp+' --compset I1850CN'
         elif (options.cpl_bypass):
@@ -321,18 +339,20 @@ for row in AFdatareader:
 
         #build cases
         print('\nSetting up ad_spinup case\n')
-        os.system(cmd_adsp)
-        if (options.clm40):
-            print("\nSetting up exit_spinup case\n")
-            os.system(cmd_exsp)
+        if (options.noad == False):
+            os.system(cmd_adsp)
+            if (options.clm40):
+                print("\nSetting up exit_spinup case\n")
+                os.system(cmd_exsp)
         print('\nSetting up final spinup case\n')
         os.system(cmd_fnsp)
-        print('\nSetting up transient case\n')
-        print cmd_trns
-        os.system(cmd_trns)
-        if (options.cruncep and not options.cpl_bypass):
-             print('\nSetting up transient case phase 2\n')
-             os.system(cmd_trns2)
+        if (options.notrans == False):
+            print('\nSetting up transient case\n')
+            print cmd_trns
+            os.system(cmd_trns)
+            if (options.cruncep and not options.cpl_bypass):
+                 print('\nSetting up transient case phase 2\n')
+                 os.system(cmd_trns2)
         
         output = open('./temp/site_fullrun.pbs','w')
 
@@ -347,7 +367,7 @@ for row in AFdatareader:
             if ("perl" in s):
                 output.write("#!/bin/csh -f\n")
             elif ("#PBS" in s or "#!" in s):
-                output.write(s)
+                output.write(s.replace('24:00','72:00'))
         input.close()
         output.write("\n")
         
@@ -359,20 +379,22 @@ for row in AFdatareader:
         basecase = site
         if (mycaseid != ''):
                 basecase = mycaseid+'_'+site
-        output.write("cd "+os.path.abspath("../../scripts/"+basecase+"_I1850"+modelst+"_ad_spinup\n"))
-        output.write("./"+basecase+"_I1850"+modelst+"_ad_spinup.run\n")
-        output.write("cd "+os.path.abspath(".")+'\n')
-        if (options.bgc):
-            output.write("python adjust_restart.py --rundir "+os.path.abspath(runroot)+'/'+ad_case+ \
-                             '/run/ --casename '+ ad_case+' --restart_year '+str(int(options.ny_ad)+1)+ \
-                             ' --BGC\n')
-        else:
-            output.write("python adjust_restart.py --rundir "+os.path.abspath(runroot)+'/'+ad_case+ \
-                             '/run/ --casename '+ad_case+' --restart_year '+str(int(options.ny_ad)+1)+'\n')
+        if (options.noad == False):
+            output.write("cd "+os.path.abspath("../../scripts/"+basecase+"_I1850"+modelst+"_ad_spinup\n"))
+            output.write("./"+basecase+"_I1850"+modelst+"_ad_spinup.run\n")
+            output.write("cd "+os.path.abspath(".")+'\n')
+            if (options.bgc):
+                output.write("python adjust_restart.py --rundir "+os.path.abspath(runroot)+'/'+ad_case+ \
+                                 '/run/ --casename '+ ad_case+' --restart_year '+str(int(options.ny_ad)+1)+ \
+                                 ' --BGC\n')
+            else:
+                output.write("python adjust_restart.py --rundir "+os.path.abspath(runroot)+'/'+ad_case+ \
+                                 '/run/ --casename '+ad_case+' --restart_year '+str(int(options.ny_ad)+1)+'\n')
         output.write("cd "+os.path.abspath("../../scripts/"+basecase+"_I1850"+modelst+"\n"))
         output.write("./"+basecase+"_I1850"+modelst+".run\n")
-        output.write("cd "+os.path.abspath("../../scripts/"+basecase+"_I20TR"+modelst+"\n"))
-        output.write("./"+basecase+"_I20TR"+modelst+".run\n")
+        if (options.notrans == False):
+            output.write("cd "+os.path.abspath("../../scripts/"+basecase+"_I20TR"+modelst+"\n"))
+            output.write("./"+basecase+"_I20TR"+modelst+".run\n")
         output.close()
 
 
