@@ -1627,4 +1627,13 @@ Type of saturation function used in VSFM.
     van_genuchten            = use the van Genuchten model
 </entry>
 
+<entry id="vsfm_lateral_model_type" type="char*32" category="clm_physics"
+       group="clm_inparm"
+       valid_values="none,source_sink,three_dimensional" >
+Type of lateral flow formulation supported in VSFM.
+    none               = No lateral flow
+    source_sink        = 1D VSFM solution + Lateral flow modeled as source/sink term
+    three_dimensional  = 3D VSFM solution (only supported for serial run)
+</entry>
+
 </namelist_definition>
