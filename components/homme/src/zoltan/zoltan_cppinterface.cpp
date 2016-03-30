@@ -276,6 +276,8 @@ void zoltan_map_problem(
   typedef int part_t;
   typedef double zscalar_t;
 
+
+
   typedef Tpetra::Map<>::node_type znode_t;
   typedef Tpetra::Map<zlno_t, zgno_t, znode_t> map_t;
   size_t numGlobalCoords = *nelem;
@@ -285,6 +287,14 @@ void zoltan_map_problem(
   Teuchos::RCP<const Teuchos::Comm<int> > global_comm =
       Teuchos::RCP<const Teuchos::Comm<int> > (new Teuchos::MpiComm<int> (comm));
 
+
+  Teuchos::ParameterList problemParams;
+  Teuchos::RCP<Zoltan2::Environment> env (new Zoltan2::Environment(problemParams, global_comm));
+  RCP<Zoltan2::TimerManager> timer(new Zoltan2::TimerManager(global_comm, &std::cout, Zoltan2::MACRO_TIMERS));
+  env->setTimer(timer);
+
+
+  env->timerStart(Zoltan2::MACRO_TIMERS, "TpetraGraphCreate");
   RCP<const map_t> map = rcp (new map_t (numGlobalCoords, 0, tcomm));
 
   typedef Tpetra::CrsGraph<zlno_t, zgno_t, znode_t> tcrsGraph_t;
@@ -310,7 +320,9 @@ void zoltan_map_problem(
     */
   }
   TpetraCrsGraph->fillComplete ();
+  env->timerStop(Zoltan2::MACRO_TIMERS, "TpetraGraphCreate");
 
+  env->timerStart(Zoltan2::MACRO_TIMERS, "AdapterCreate");
   RCP<const tcrsGraph_t> const_data = rcp_const_cast<const tcrsGraph_t>(TpetraCrsGraph);
   typedef Tpetra::MultiVector<zscalar_t, zlno_t, zgno_t, znode_t> tMVector_t;
   typedef Zoltan2::XpetraCrsGraphAdapter<tcrsGraph_t, tMVector_t> adapter_t;
@@ -348,14 +360,15 @@ void zoltan_map_problem(
   ia->setCoordinateInput(adapter);
   ia->setEdgeWeights(adjwgt, 1, 0);
   ia->setVertexWeights(vwgt, 1, 0);
+
+  env->timerStop(Zoltan2::MACRO_TIMERS, "AdapterCreate");
   /***********************************SET COORDINATES*********************/
 
   //int *parts = result_parts;
 
-  Teuchos::ParameterList problemParams;
 
 
-  Teuchos::RCP<Zoltan2::Environment> env (new Zoltan2::Environment(problemParams, global_comm));
+
 
   zgno_t num_map_task = global_comm->getSize();
   if (*partmethod == 30 || *partmethod == 32){
@@ -375,7 +388,13 @@ void zoltan_map_problem(
     problemParams.set("machine_coord_transformation", "EIGNORE");
   }
 
+  env->timerStart(Zoltan2::MACRO_TIMERS, "MachineCreate");
+
   Zoltan2::MachineRepresentation<zscalar_t, part_t> mach(*global_comm, problemParams);
+
+  env->timerStop(Zoltan2::MACRO_TIMERS, "MachineCreate");
+
+  env->timerStart(Zoltan2::MACRO_TIMERS, "CoordinateTaskMapper");
   Zoltan2::CoordinateTaskMapper<adapter_t, part_t> ctm (
       global_comm,
       Teuchos::rcpFromRef(mach),
@@ -384,6 +403,8 @@ void zoltan_map_problem(
       result_parts,
       env,
       false);
+  env->timerStop(Zoltan2::MACRO_TIMERS, "CoordinateTaskMapper");
+  timer->printAndResetToZero();
 
   const int fortran_shift = 1;
   for (zlno_t lclRow = 0; lclRow < numMyElements; ++lclRow) {
