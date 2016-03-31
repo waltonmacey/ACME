@@ -1564,7 +1564,62 @@ endif
       call addfld ('COSP_DP_SNOW', (/ 'lev' /), 'I', '1','COSP_DP_SNOW',flag_xyfill=.true., fill_value=R_UNDEF )
       call addfld ('COSP_SH_RAIN', (/ 'lev' /), 'I', '1','COSP_SH_RAIN',flag_xyfill=.true., fill_value=R_UNDEF )
       call addfld ('COSP_SH_SNOW', (/ 'lev' /), 'I', '1','COSP_SH_SNOW',flag_xyfill=.true., fill_value=R_UNDEF )
+! add fileds used by CRTM simulator
+#ifdef GPM_GMI2
+      call addfld ('CRTM_LAND_FRAC',  horiz_only, 'I', '1', 'CRTM land fraction', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_WATER_FRAC', horiz_only, 'I', '1', 'CRTM water fraction', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_SOIL_MOIST', horiz_only, 'I', '1', 'CRTM soil moisture', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_VEG_FRAC',   horiz_only, 'I', '1', 'CRTM vegetable fraction', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_SOIL_TEMP',  horiz_only, 'I', '1', 'CRTM soil temperature', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_LAI',        horiz_only, 'I', '1', 'CRTM leaf area index', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_SOIL_TYPE',  horiz_only, 'I', '1', 'CRTM soil type', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_VEG_TYPE',   horiz_only, 'I', '1', 'CRTM vegetation type', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_WIND_SPEED', horiz_only, 'I', '1', 'CRTM wind speed', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_WIND_DIR',   horiz_only, 'I', '1', 'CRTM wind direction', flag_xyfill=.true., fill_value=R_UNDEF)
+     
+      call addfld ('PINT0_COSP',      horiz_only , 'I', 'Pa','Pressure at model top', flag_xyfill=.true., fill_value=R_UNDEF)
 
+
+      call addfld ('CRTM_MR_HYDRO_1',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_MR_HYDRO_1', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_MR_HYDRO_2',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_MR_HYDRO_2', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_MR_HYDRO_3',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_MR_HYDRO_3', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_MR_HYDRO_4',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_MR_HYDRO_4', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_MR_HYDRO_5',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_MR_HYDRO_5', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_MR_HYDRO_6',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_MR_HYDRO_6', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_MR_HYDRO_7',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_MR_HYDRO_7', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_MR_HYDRO_8',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_MR_HYDRO_8', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_MR_HYDRO_9',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_MR_HYDRO_9', flag_xyfill=.true., fill_value=R_UNDEF)
+      
+      call addfld ('CRTM_REFF_HYDRO_1',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_REFF_HYDRO_1', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_REFF_HYDRO_2',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_REFF_HYDRO_2', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_REFF_HYDRO_3',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_REFF_HYDRO_3', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_REFF_HYDRO_4',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_REFF_HYDRO_4', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_REFF_HYDRO_5',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_REFF_HYDRO_5', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_REFF_HYDRO_6',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_REFF_HYDRO_6', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_REFF_HYDRO_7',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_REFF_HYDRO_7', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_REFF_HYDRO_8',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_REFF_HYDRO_8', flag_xyfill=.true., fill_value=R_UNDEF)
+      call addfld ('CRTM_REFF_HYDRO_9',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_REFF_HYDRO_9', flag_xyfill=.true., fill_value=R_UNDEF)
+
+!      call addfld ('CRTM_MR_HYDRO_2MO_1',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_MR_HYDRO_2MO_1', flag_xyfill=.true., fill_value=R_UNDEF)
+!      call addfld ('CRTM_MR_HYDRO_2MO_2',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_MR_HYDRO_2MO_2', flag_xyfill=.true., fill_value=R_UNDEF)
+!      call addfld ('CRTM_MR_HYDRO_2MO_3',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_MR_HYDRO_2MO_3', flag_xyfill=.true., fill_value=R_UNDEF)
+!      call addfld ('CRTM_MR_HYDRO_2MO_4',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_MR_HYDRO_2MO_4', flag_xyfill=.true., fill_value=R_UNDEF)
+!      call addfld ('CRTM_MR_HYDRO_2MO_5',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_MR_HYDRO_2MO_5', flag_xyfill=.true., fill_value=R_UNDEF)
+!      call addfld ('CRTM_MR_HYDRO_2MO_6',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_MR_HYDRO_2MO_6', flag_xyfill=.true., fill_value=R_UNDEF)
+!      call addfld ('CRTM_MR_HYDRO_2MO_7',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_MR_HYDRO_2MO_7', flag_xyfill=.true., fill_value=R_UNDEF)
+!      call addfld ('CRTM_MR_HYDRO_2MO_8',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_MR_HYDRO_2MO_8', flag_xyfill=.true., fill_value=R_UNDEF)
+!      call addfld ('CRTM_MR_HYDRO_2MO_9',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_MR_HYDRO_2MO_9', flag_xyfill=.true., fill_value=R_UNDEF)
+      
+!      call addfld ('CRTM_REFF_HYDRO_2MO_1',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_REFF_HYDRO_2MO_1', flag_xyfill=.true., fill_value=R_UNDEF)
+!      call addfld ('CRTM_REFF_HYDRO_2MO_2',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_REFF_HYDRO_2MO_2', flag_xyfill=.true., fill_value=R_UNDEF)
+!      call addfld ('CRTM_REFF_HYDRO_2MO_3',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_REFF_HYDRO_2MO_3', flag_xyfill=.true., fill_value=R_UNDEF)
+!      call addfld ('CRTM_REFF_HYDRO_2MO_4',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_REFF_HYDRO_2MO_4', flag_xyfill=.true., fill_value=R_UNDEF)
+!      call addfld ('CRTM_REFF_HYDRO_2MO_5',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_REFF_HYDRO_2MO_5', flag_xyfill=.true., fill_value=R_UNDEF)
+!      call addfld ('CRTM_REFF_HYDRO_2MO_6',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_REFF_HYDRO_2MO_6', flag_xyfill=.true., fill_value=R_UNDEF)
+!      call addfld ('CRTM_REFF_HYDRO_2MO_7',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_REFF_HYDRO_2MO_7', flag_xyfill=.true., fill_value=R_UNDEF)
+!      call addfld ('CRTM_REFF_HYDRO_2MO_8',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_REFF_HYDRO_2MO_8', flag_xyfill=.true., fill_value=R_UNDEF)
+!      call addfld ('CRTM_REFF_HYDRO_2MO_9',       (/'cosp_scol','lev      '/), 'I', '1', 'CRTM_REFF_HYDRO_2MO_9', flag_xyfill=.true., fill_value=R_UNDEF)
+#endif
 
       call add_default ('PS_COSP',cosp_histfile_aux_num,' ')
       call add_default ('TS_COSP',cosp_histfile_aux_num,' ')
@@ -1609,7 +1664,62 @@ endif
       call add_default ('COSP_DP_SNOW',cosp_histfile_aux_num,' ')
       call add_default ('COSP_SH_RAIN',cosp_histfile_aux_num,' ')
       call add_default ('COSP_SH_SNOW',cosp_histfile_aux_num,' ')
-     
+! add fields used by CRTM simulator
+#ifdef GPM_GMI2
+      call add_default ('CRTM_LAND_FRAC',  cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_WATER_FRAC', cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_SOIL_MOIST', cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_VEG_FRAC',   cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_SOIL_TEMP',  cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_LAI',        cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_SOIL_TYPE',  cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_VEG_TYPE',   cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_WIND_SPEED', cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_WIND_DIR',   cosp_histfile_aux_num,' ')
+      
+      call add_default ('PINT0_COSP',      cosp_histfile_aux_num,' ')
+
+      call add_default ('CRTM_MR_HYDRO_1',   cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_MR_HYDRO_2',   cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_MR_HYDRO_3',   cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_MR_HYDRO_4',   cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_MR_HYDRO_5',   cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_MR_HYDRO_6',   cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_MR_HYDRO_7',   cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_MR_HYDRO_8',   cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_MR_HYDRO_9',   cosp_histfile_aux_num,' ')
+
+      call add_default ('CRTM_REFF_HYDRO_1',   cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_REFF_HYDRO_2',   cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_REFF_HYDRO_3',   cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_REFF_HYDRO_4',   cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_REFF_HYDRO_5',   cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_REFF_HYDRO_6',   cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_REFF_HYDRO_7',   cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_REFF_HYDRO_8',   cosp_histfile_aux_num,' ')
+      call add_default ('CRTM_REFF_HYDRO_9',   cosp_histfile_aux_num,' ')
+
+!      call add_default ('CRTM_MR_HYDRO_2MO_1',   cosp_histfile_aux_num,' ')
+!      call add_default ('CRTM_MR_HYDRO_2MO_2',   cosp_histfile_aux_num,' ')
+!      call add_default ('CRTM_MR_HYDRO_2MO_3',   cosp_histfile_aux_num,' ')
+!      call add_default ('CRTM_MR_HYDRO_2MO_4',   cosp_histfile_aux_num,' ')
+!      call add_default ('CRTM_MR_HYDRO_2MO_5',   cosp_histfile_aux_num,' ')
+!      call add_default ('CRTM_MR_HYDRO_2MO_6',   cosp_histfile_aux_num,' ')
+!      call add_default ('CRTM_MR_HYDRO_2MO_7',   cosp_histfile_aux_num,' ')
+!      call add_default ('CRTM_MR_HYDRO_2MO_8',   cosp_histfile_aux_num,' ')
+!      call add_default ('CRTM_MR_HYDRO_2MO_9',   cosp_histfile_aux_num,' ')
+
+!      call add_default ('CRTM_REFF_HYDRO_2MO_1',   cosp_histfile_aux_num,' ')
+!      call add_default ('CRTM_REFF_HYDRO_2MO_2',   cosp_histfile_aux_num,' ')
+!      call add_default ('CRTM_REFF_HYDRO_2MO_3',   cosp_histfile_aux_num,' ')
+!      call add_default ('CRTM_REFF_HYDRO_2MO_4',   cosp_histfile_aux_num,' ')
+!      call add_default ('CRTM_REFF_HYDRO_2MO_5',   cosp_histfile_aux_num,' ')
+!      call add_default ('CRTM_REFF_HYDRO_2MO_6',   cosp_histfile_aux_num,' ')
+!      call add_default ('CRTM_REFF_HYDRO_2MO_7',   cosp_histfile_aux_num,' ')
+!      call add_default ('CRTM_REFF_HYDRO_2MO_8',   cosp_histfile_aux_num,' ')
+!      call add_default ('CRTM_REFF_HYDRO_2MO_9',   cosp_histfile_aux_num,' ')
+
+#endif
    end if
 
    rei_idx = pbuf_get_index('REI')
@@ -2165,11 +2275,17 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    real(r8) :: tbgpmgmi_cs(pcols,ngmichannels*nscol_cosp)
    real(r8) :: tbgpmgmi_avg(pcols,ngmichannels)
    real(r8) :: tbgpmgmi_sum(pcols,ngmichannels)
-   integer(r8) :: tbgpmgmi_cnt(pcols,ngmichannels)
+   integer  :: tbgpmgmi_cnt(pcols,ngmichannels)
    real(r8) :: tbtrmmtmi_cs(pcols,ntmichannels*nscol_cosp)
    real(r8) :: tbtrmmtmi_avg(pcols,ntmichannels)
    real(r8) :: tbtrmmtmi_sum(pcols,ntmichannels)
-   integer(r8) :: tbtrmmtmi_cnt(pcols,ntmichannels)
+   integer  :: tbtrmmtmi_cnt(pcols,ntmichannels)
+
+   real(r8) :: crtm_mr_hydro(pcols,nhtml_cosp*nscol_cosp,9)
+   real(r8) :: crtm_Reff_hydro(pcols,nhtml_cosp*nscol_cosp,9)
+!   real(r8) :: crtm_mr_hydro_2mo(pcols,nhtml_cosp*nscol_cosp,9)
+!   real(r8) :: crtm_Reff_hydro_2mo(pcols,nhtml_cosp*nscol_cosp,9)
+
 #endif
    real(r8) :: cltmodis(pcols)
    real(r8) :: clwmodis(pcols)
@@ -3197,7 +3313,7 @@ if (cosp_runall) then
    do i_gmi_sensor = 1,n_sensors
       call construct_gpm_crtm_result(Npoints, ncolumns,&
                     CRTM_ChannelInfo_n_Channels(chinfo_list(i_gmi_sensor)), &
-                    sggpmgmi(i_gmi_sensor) )
+                    sggpmgmi(i_gmi_sensor) , Nlevels)
    end do
 #endif
 
@@ -3256,6 +3372,22 @@ if (cosp_runall) then
       call outfld('COSP_DP_SNOW',dp_flxsnw(1:ncol,1:pver),ncol,lchnk)
       call outfld('COSP_SH_RAIN',sh_flxprc(1:ncol,1:pver)-sh_flxsnw(1:ncol,1:pver),ncol,lchnk)
       call outfld('COSP_SH_SNOW',sh_flxsnw(1:ncol,1:pver),ncol,lchnk)
+! add fields used by CRTM simulator
+#ifdef GPM_GMI2
+      call outfld ('CRTM_LAND_FRAC',  gbx%gpmsurface%land_coverage             , ncol, lchnk)
+      call outfld ('CRTM_WATER_FRAC', gbx%gpmsurface%water_coverage            , ncol, lchnk)
+      call outfld ('CRTM_SOIL_MOIST', gbx%gpmsurface%Soil_Moisture_Content     , ncol, lchnk)
+      call outfld ('CRTM_VEG_FRAC',   gbx%gpmsurface%Vegetation_Fraction       , ncol, lchnk)
+      call outfld ('CRTM_SOIL_TEMP',  gbx%gpmsurface%Soil_Temperature          , ncol, lchnk)
+      call outfld ('CRTM_LAI',        gbx%gpmsurface%LAI                       , ncol, lchnk)
+      call outfld ('CRTM_SOIL_TYPE',  0.0_r8+gbx%gpmsurface%Soil_Type          , ncol, lchnk)
+      call outfld ('CRTM_VEG_TYPE',   0.0_r8+gbx%gpmsurface%Vegetation_Type    , ncol, lchnk)
+      call outfld ('CRTM_WIND_SPEED', gbx%gpmsurface%Wind_Speed                , ncol, lchnk)
+      call outfld ('CRTM_WIND_DIR',   gbx%gpmsurface%Wind_Direction            , ncol, lchnk)
+      
+      call outfld ('PINT0_COSP',      gbx%pint(1:ncol, pverp)                  , ncol, lchnk)
+#endif
+
    end if
 
    !print *, 'Calling the COSP simulator and running on all columns...'
@@ -3410,7 +3542,7 @@ if (cosp_runall) then
         ! CAM dbzegpmku (time,height_mlev,column,profile)
         do ihml=1,nhtml_cosp
         do isc=1,nscol_cosp
-           ihsc=(ihml-1)*nscol_cosp+isc                 
+           ihsc= (nhtml_cosp-ihml)*nscol_cosp+isc   !  (ihml-1)*nscol_cosp+isc                 ! need to flip nlevels
            dbzegpmku_cs(i,ihsc) = dbzegpmku(i,isc,ihml)                 ! dbzegpmku_cs(pcols,pver*nscol_cosp) 
         end do
         end do
@@ -3419,7 +3551,7 @@ if (cosp_runall) then
         ! CAM dbzegpmka (time,height_mlev,column,profile)
         do ihml=1,nhtml_cosp
         do isc=1,nscol_cosp
-           ihsc=(ihml-1)*nscol_cosp+isc                 
+           ihsc= (nhtml_cosp-ihml)*nscol_cosp+isc   !  (ihml-1)*nscol_cosp+isc                 ! need to flip nlevels
            dbzegpmka_cs(i,ihsc) = dbzegpmka(i,isc,ihml)                 ! dbzegpmka_cs(pcols,pver*nscol_cosp) 
         end do
         end do
@@ -3438,6 +3570,20 @@ if (cosp_runall) then
             ihsc=(i_tmi_channel-1)*nscol_cosp+isc
             tbtrmmtmi_cs(i,ihsc) = tbtrmmtmi(i, isc, i_tmi_channel)
           end do
+        end do
+
+
+
+        do i_gmi_channel = 1,9  ! should be loop through types of hydrometers. But I am too lazy to declare a new variable
+        do ihml=1,nhtml_cosp
+        do isc=1,nscol_cosp
+           ihsc= (nhtml_cosp-ihml)*nscol_cosp+isc   !  (ihml-1)*nscol_cosp+isc                 ! need to flip nlevels
+           crtm_mr_hydro(i,ihsc,i_gmi_channel)       = sggpmgmi(1)%mr_hydro_sg(i,isc,ihml,i_gmi_channel)                
+           crtm_Reff_hydro(i,ihsc,i_gmi_channel)     = sggpmgmi(1)%Reff_hydro_sg(i,isc,ihml,i_gmi_channel)                
+!           crtm_mr_hydro_2mo(i,ihsc,i_gmi_channel)   = sggpmgmi(1)%mr_hydro_sg_2mo(i,isc,ihml,i_gmi_channel)                
+!           crtm_Reff_hydro_2mo(i,ihsc,i_gmi_channel) = sggpmgmi(1)%Reff_hydro_sg_2mo(i,isc,ihml,i_gmi_channel)                
+        end do
+        end do
         end do
 
 #endif
@@ -5293,6 +5439,47 @@ end if  !!! END RUNNING COSP ONLY RADAR/LIDAR
          call outfld('GPM_GMI_TB',tbgpmgmi_avg, pcols, lchnk)
          call outfld('TRMM_TMI_TB_CS',tbtrmmtmi_cs, pcols, lchnk)
          call outfld('TRMM_TMI_TB',tbtrmmtmi_avg, pcols, lchnk)
+
+         call outfld('CRTM_MR_HYDRO_1', crtm_mr_hydro(:,:,1), pcols, lchnk)
+         call outfld('CRTM_MR_HYDRO_2', crtm_mr_hydro(:,:,2), pcols, lchnk)
+         call outfld('CRTM_MR_HYDRO_3', crtm_mr_hydro(:,:,3), pcols, lchnk)
+         call outfld('CRTM_MR_HYDRO_4', crtm_mr_hydro(:,:,4), pcols, lchnk)
+         call outfld('CRTM_MR_HYDRO_5', crtm_mr_hydro(:,:,5), pcols, lchnk)
+         call outfld('CRTM_MR_HYDRO_6', crtm_mr_hydro(:,:,6), pcols, lchnk)
+         call outfld('CRTM_MR_HYDRO_7', crtm_mr_hydro(:,:,7), pcols, lchnk)
+         call outfld('CRTM_MR_HYDRO_8', crtm_mr_hydro(:,:,8), pcols, lchnk)
+         call outfld('CRTM_MR_HYDRO_9', crtm_mr_hydro(:,:,9), pcols, lchnk)
+
+         call outfld('CRTM_REFF_HYDRO_1', crtm_reff_hydro(:,:,1), pcols, lchnk)
+         call outfld('CRTM_REFF_HYDRO_2', crtm_reff_hydro(:,:,2), pcols, lchnk)
+         call outfld('CRTM_REFF_HYDRO_3', crtm_reff_hydro(:,:,3), pcols, lchnk)
+         call outfld('CRTM_REFF_HYDRO_4', crtm_reff_hydro(:,:,4), pcols, lchnk)
+         call outfld('CRTM_REFF_HYDRO_5', crtm_reff_hydro(:,:,5), pcols, lchnk)
+         call outfld('CRTM_REFF_HYDRO_6', crtm_reff_hydro(:,:,6), pcols, lchnk)
+         call outfld('CRTM_REFF_HYDRO_7', crtm_reff_hydro(:,:,7), pcols, lchnk)
+         call outfld('CRTM_REFF_HYDRO_8', crtm_reff_hydro(:,:,8), pcols, lchnk)
+         call outfld('CRTM_REFF_HYDRO_9', crtm_reff_hydro(:,:,9), pcols, lchnk)
+
+!         call outfld('CRTM_MR_HYDRO_2MO_1', crtm_mr_hydro_2mo(:,:,1), pcols, lchnk)
+!         call outfld('CRTM_MR_HYDRO_2MO_2', crtm_mr_hydro_2mo(:,:,2), pcols, lchnk)
+!         call outfld('CRTM_MR_HYDRO_2MO_3', crtm_mr_hydro_2mo(:,:,3), pcols, lchnk)
+!         call outfld('CRTM_MR_HYDRO_2MO_4', crtm_mr_hydro_2mo(:,:,4), pcols, lchnk)
+!         call outfld('CRTM_MR_HYDRO_2MO_5', crtm_mr_hydro_2mo(:,:,5), pcols, lchnk)
+!         call outfld('CRTM_MR_HYDRO_2MO_6', crtm_mr_hydro_2mo(:,:,6), pcols, lchnk)
+!         call outfld('CRTM_MR_HYDRO_2MO_7', crtm_mr_hydro_2mo(:,:,7), pcols, lchnk)
+!         call outfld('CRTM_MR_HYDRO_2MO_8', crtm_mr_hydro_2mo(:,:,8), pcols, lchnk)
+!         call outfld('CRTM_MR_HYDRO_2MO_9', crtm_mr_hydro_2mo(:,:,9), pcols, lchnk)
+
+!         call outfld('CRTM_REFF_HYDRO_2MO_1', crtm_reff_hydro_2mo(:,:,1), pcols, lchnk)
+!         call outfld('CRTM_REFF_HYDRO_2MO_2', crtm_reff_hydro_2mo(:,:,2), pcols, lchnk)
+!         call outfld('CRTM_REFF_HYDRO_2MO_3', crtm_reff_hydro_2mo(:,:,3), pcols, lchnk)
+!         call outfld('CRTM_REFF_HYDRO_2MO_4', crtm_reff_hydro_2mo(:,:,4), pcols, lchnk)
+!         call outfld('CRTM_REFF_HYDRO_2MO_5', crtm_reff_hydro_2mo(:,:,5), pcols, lchnk)
+!         call outfld('CRTM_REFF_HYDRO_2MO_6', crtm_reff_hydro_2mo(:,:,6), pcols, lchnk)
+!         call outfld('CRTM_REFF_HYDRO_2MO_7', crtm_reff_hydro_2mo(:,:,7), pcols, lchnk)
+!         call outfld('CRTM_REFF_HYDRO_2MO_8', crtm_reff_hydro_2mo(:,:,8), pcols, lchnk)
+!         call outfld('CRTM_REFF_HYDRO_2MO_9', crtm_reff_hydro_2mo(:,:,9), pcols, lchnk)
+
       end if
 #endif
 

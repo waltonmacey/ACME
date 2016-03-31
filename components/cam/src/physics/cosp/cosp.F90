@@ -316,7 +316,7 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
    do i_gmi_sensor = 1,n_sensors
       call construct_gpm_crtm_result(Ni, Ncolumns,&
                     CRTM_ChannelInfo_n_Channels(chinfo_list(i_gmi_sensor)), &
-                    sggpmgmi_it(i_gmi_sensor) )
+                    sggpmgmi_it(i_gmi_sensor), Nlevels )
    end do
 #endif
     
@@ -397,7 +397,7 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
    do i_gmi_sensor = 1,n_sensors
       call construct_gpm_crtm_result(Ni, ncolumns,&
                     CRTM_ChannelInfo_n_Channels(chinfo_list(i_gmi_sensor)), &
-                    sggpmgmi_it(i_gmi_sensor) )
+                    sggpmgmi_it(i_gmi_sensor), Nlevels )
    end do
 #endif
             endif
@@ -480,6 +480,12 @@ SUBROUTINE COSP(overlap,Ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,mo
 #ifdef GPM_KA
             if (cfg%Lgpmka_sim) call cosp_sggpmdpr_cpsection(ix,iy,sggpmka_it,sggpmka)
             if (cfg%Lgpmka_sim) call cosp_gpmdprstats_cpsection(ix,iy,stgpmka_it,stgpmka)
+#endif
+#ifdef GPM_GMI2
+   do i_gmi_sensor = 1,n_sensors
+      call gpm_crtm_result_cpsection(ix, iy, sggpmgmi_it(i_gmi_sensor), &
+      sggpmgmi(i_gmi_sensor)  )
+   end do
 #endif
         enddo
         ! Deallocate types
@@ -929,6 +935,13 @@ SUBROUTINE COSP_ITER(overlap,seed,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,m
       endwhere
    endif ! Ncolumns > 1
   
+! save the fields needed by GMI simulator for debug use
+sggpmgmi(1)%mr_hydro_sg      = sghydro%mr_hydro
+sggpmgmi(1)%Reff_hydro_sg    = sghydro%Reff
+!sggpmgmi(1)%mr_hydro_sg_2mo  = sghydro_2mo%mr_hydro
+!sggpmgmi(1)%Reff_hydro_sg_2mo= sghydro_2mo%Reff
+
+
    !++++++++++ Simulator ++++++++++
 #ifdef RTTOV
     call cosp_simulator(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,modis,rttov,stradar,stlidar &

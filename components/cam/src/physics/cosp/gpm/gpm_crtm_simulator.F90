@@ -24,16 +24,22 @@ module gpm_crtm_simulator_mod
      integer :: Npoints
      integer :: Ncolumns
      integer :: Nchannels
-     real, allocatable, public :: tbs(:,:,:) ! n_channels x n_profiles
+     real, allocatable, public :: tbs(:,:,:) ! n_profiles x n_columns x n_channels
+     
+     real, allocatable :: mr_hydro_sg(:,:,:,:)   ! (nprofiles x n_columns x n_layers x n_hydro)
+     real, allocatable :: Reff_hydro_sg(:,:,:,:) ! (nprofiles x n_columns x n_layers x n_hydro)
+!     real, allocatable :: mr_hydro_sg_2mo(:,:,:,:)   ! (nprofiles x n_columns x n_layers x n_hydro)
+!     real, allocatable :: Reff_hydro_sg_2mo(:,:,:,:) ! (nprofiles x n_columns x n_layers x n_hydro)
    end type GPM_CRTM_result_type
 
 contains
 !===========
-   subroutine construct_GPM_CRTM_result(Npoints, Ncolumns, Nchannels, x)
+   subroutine construct_GPM_CRTM_result(Npoints, Ncolumns, Nchannels, x, Nlevels)
      integer, intent(in) :: Npoints
      integer, intent(in) :: Ncolumns
      integer, intent(in) :: Nchannels
      type(GPM_CRTM_result_type), intent(out) :: x
+     integer, intent(in), optional :: Nlevels
 
      x%Npoints = Npoints
      x%Ncolumns = Ncolumns
@@ -41,6 +47,17 @@ contains
 
      allocate(x%tbs(Npoints,Ncolumns,Nchannels))
      x%tbs=0.0
+     if (present(Nlevels)) then
+     allocate(x%mr_hydro_sg      (Npoints,Ncolumns,Nlevels,9))
+     allocate(x%Reff_hydro_sg    (Npoints,Ncolumns,Nlevels,9))
+!     allocate(x%mr_hydro_sg_2mo  (Npoints,Ncolumns,Nlevels,9))
+!     allocate(x%Reff_hydro_sg_2mo(Npoints,Ncolumns,Nlevels,9))
+
+     x%mr_hydro_sg = 0.0
+     x%Reff_hydro_sg = 0.0
+!     x%mr_hydro_sg_2mo = 0.0
+!     x%Reff_hydro_sg_2mo = 0.0
+end if
    end subroutine construct_GPM_CRTM_result
 !============
    subroutine free_GPM_CRTM_result(x)
@@ -49,7 +66,10 @@ contains
      x%Ncolumns  = 0
      x%Nchannels = 0
      deallocate(x%tbs)
-     
+     if(allocated(x%mr_hydro_sg)) deallocate(x%mr_hydro_sg)
+     if(allocated(x%Reff_hydro_sg)) deallocate(x%Reff_hydro_sg)
+!     deallocate(x%mr_hydro_sg_2mo)
+!     deallocate(x%Reff_hydro_sg_2mo)
    end subroutine free_GPM_CRTM_result
 !=============
    subroutine GPM_CRTM_result_cpsection(ix, iy, x, y)
@@ -58,6 +78,10 @@ contains
      type(GPM_CRTM_result_type), intent(in) :: x
      type(GPM_CRTM_result_type), intent(inout) :: y
      y%tbs(iy(1):iy(2), :,:) = x%tbs(ix(1):ix(2), :, :)
+     y%mr_hydro_sg      (iy(1):iy(2), :,:,:) = x%mr_hydro_sg      (ix(1):ix(2), :, :,:)
+     y%Reff_hydro_sg    (iy(1):iy(2), :,:,:) = x%Reff_hydro_sg    (ix(1):ix(2), :, :,:)
+!     y%mr_hydro_sg_2mo  (iy(1):iy(2), :,:,:) = x%mr_hydro_sg_2mo  (ix(1):ix(2), :, :,:)
+!     y%Reff_hydro_sg_2mo(iy(1):iy(2), :,:,:) = x%Reff_hydro_sg_2mo(ix(1):ix(2), :, :,:)
    end subroutine GPM_CRTM_result_cpsection
 
 !-----------------------
@@ -66,7 +90,7 @@ contains
 ! scattering results
 !
 !-----------------------
-   subroutine gpm_crtm_simulator_run(gbx,sghydro,chinfo, scan_angle, zenith_angle, gpm_results)
+   subroutine gpm_crtm_simulator_run(gbx,sghydro,chinfo, scan_angle, zenith_angle, gpm_results, filter_profile, filter_column)
       ! Arguments
       type(cosp_gridbox), intent(in) :: gbx
       type(cosp_sghydro), intent(in) :: sghydro
@@ -74,6 +98,8 @@ contains
       real, intent(in) :: scan_angle(:)          ! [n_sensors]         
       real, intent(in) :: zenith_angle(:)        ! [n_sensors]         
       type(GPM_CRTM_result_type), intent(inout) :: gpm_results(:)  ! [n_sensors]
+      logical, intent(in), optional :: filter_profile(:) ! [n_profiles] filter to indicate if one profile is calculated
+      logical, intent(in), optional :: filter_column(:)  ! [n_columns]  filter to indicate if one column  is calculated
       
       ! Parameters used for converting model variables to that used by crtm
       real, parameter :: eps    =  0.622
@@ -117,6 +143,8 @@ contains
       integer :: i_profile
       real, allocatable :: tbs(:,:) ! temporary variable to store Tb result
       real, allocatable :: m_layer(:,:) ! mass per unit area of air in each layer [kg/m^2] 
+      logical, allocatable :: filter_profile_local(:)
+      logical, allocatable :: filter_column_local(:)
       !--------------
       n_sensors = size(chinfo)
       ! obtain variable dimensions from gbx
@@ -140,6 +168,20 @@ contains
                longitude(n_profiles) )
 
       allocate(m_layer(n_profiles, n_layers) )
+
+      allocate(filter_profile_local(n_profiles))
+      allocate(filter_column_local(gbx%Ncolumns))
+
+      if(present(filter_profile)) then
+        filter_profile_local = filter_profile
+      else
+        filter_profile_local = .true.
+      end if
+      if(present(filter_column)) then
+        filter_column_local = filter_column
+      else
+        filter_column_local = .true.
+      end if
       !-------------- construct atmosphere profile -----------
       ! COSP structure layers are from bottom to top, while CRTM wants top to
       ! bottom
@@ -184,7 +226,7 @@ contains
 
      allocate(tbs(n_channels, n_profiles))
       do i_column = 1, gbx%Ncolumns
-
+        if (filter_column_local(i_column) == .true. ) then
 !print *, "i_sensor, i_column:", n, i_column
       tbs = 0.0
       ! COSP effect radius is in meters. Convert to micros for CRTM
@@ -255,7 +297,7 @@ end if
 mr_vapor = 0
 end if
 
-!print *, 'icolumn=', i_column
+print *, 'icolumn=', i_column
 !if ( i_column >= 2 .AND. i_column <=10) then
 !      do i_cloud=1,n_clouds
 !      if (i_cloud == 3 .OR. i_cloud==4 .OR. i_cloud==7 .OR. i_cloud == 8) then
@@ -287,7 +329,8 @@ end if
       year,         & ! model year
       month,        & ! model month of year
       day,          & ! model day of month
-      tbs           & ! brightness temperature [output]
+      tbs,          & ! brightness temperature [output]
+      filter_profile_local  & ! filter indicating if one profile is calculated
       )
 !print *, gpm_results(n)%tbs
 if (.false.) then
@@ -338,6 +381,7 @@ gpm_results(n)%tbs(:,1:n_layers,3) = Reff_hydro(:,:,7)
 gpm_results(n)%tbs(:,1:n_layers,4) = Reff_hydro(:,:,8)
 endif
 end if
+        end if ! filter_column
       end do ! i_column
 !print *, "Maximum TB in sensor ", n, " is ", maxval(gpm_results(n)%tbs )
 !print *, "TB(1,1,1): ",gpm_results(n)%tbs(1,1,1)

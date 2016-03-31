@@ -39,7 +39,8 @@ contains
       year,         & ! model year
       month,        & ! model month of year
       day,          & ! model day of month
-      tbs           & ! brightness temperature [output]
+      tbs,          & ! brightness temperature [output]
+      filter        & ! filter indicate if one profile is calculated
       )
 
       ! input and output variables
@@ -66,6 +67,7 @@ contains
       real, intent(in) :: year                ! [1]         
       real, intent(in) :: month               ! [1]         
       real, intent(in) :: day                 ! [1]         
+      logical, intent(in) :: filter(:)        ! [n_profiles]
       
       real, intent(out)   :: tbs(:,:)           ! [n_channels x n_profiles]
       !----- parameters -------
@@ -112,6 +114,7 @@ contains
 !print *, maxval(water_content)
 !print *, maxval(T)
       do i_profile = 1, n_profiles
+        if (filter(i_profile) == .true.) then
          atm(i_profile)%Climatology         = US_STANDARD_ATMOSPHERE
          atm(i_profile)%Absorber_Id(1:2)    = (/H2O_ID                 ,  O3_ID/)
          atm(i_profile)%Absorber_units(1:2) = (/MASS_MIXING_RATIO_UNITS,  VOLUME_MIXING_RATIO_UNITS/)
@@ -220,7 +223,8 @@ contains
          atm(i_profile)%Aerosol(1)%Type = DUST_AEROSOL
          atm(i_profile)%Aerosol(1)%Effective_Radius = Reff_aerosol(i_profile,:,1)
          atm(i_profile)%Aerosol(1)%Concentration    = mr_aerosol(i_profile,:,1)
-!#endif         
+!#endif
+        end if
       end do ! i_profile
       !---------------------
       ! geometry and option structures
@@ -242,17 +246,19 @@ contains
       ! forward calculation
 ! For debug use
 do i_profile = 1, n_profiles
+  if (filter(i_profile) ==.true. ) then
 !  print *, "i_profile", i_profile 
 !      call CRTM_Atmosphere_Inspect(atm(i_profile:i_profile))
 !      call CRTM_Geometry_Inspect(geo(i_profile))
 !      call CRTM_ChannelInfo_Inspect(chinfo)
-
+  
       err_stat = CRTM_Forward(atm(i_profile:i_profile), sfc(i_profile:i_profile), geo(i_profile:i_profile), chinfo(1:1),rts(:,i_profile:i_profile))
       !err_stat = CRTM_Forward(atm, sfc, geo, chinfo(1:1),rts)
 
 !print *,'in gpm_crtm.F90'
 !print *, "BT",rts(6,i_profile)%Brightness_temperature
 !print *, "SOD", rts(6,i_profile)%SOD, "surfEm", rts(6, i_profile)%Surface_Emissivity, "a"
+end if
 end do
 !call CRTM_RTSolution_Inspect(rts)
       

@@ -22,7 +22,6 @@ module GPM_CRTM_result_mod
       integer :: n_channels = -1
       integer :: n_profiles = -1
       real, allocatable :: tbs(:,:) ! n_channels x n_profiles
-
    end type GPM_CRTM_result_type
 
 contains
