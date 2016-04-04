@@ -596,6 +596,8 @@ end subroutine ocean_data_readnl
        endif
        enddo section_loop_sslt_mass
 
+enddo tracer_loop
+
 #if ( defined MODAL_AERO_9MODE || defined MODAL_AERO_4MODE_MOM )
 
 add_om_species: if ( has_mam_mom ) then
@@ -646,7 +648,6 @@ add_om_species: if ( has_mam_mom ) then
        m = om_num_ind(m_om)
        mn=seasalt_indices(nslt+nslt_om+m)
 
-          cflx(:ncol,mn)=0.0_r8
           ! add number tracers for organics-only modes
           if (emit_this_mode(m_om)) then
 !             if(masterproc .and. debug_mam_mom) then
@@ -704,14 +705,13 @@ add_om_species: if ( has_mam_mom ) then
                    !                 total number not modified
                    cflx(:ncol,mm) = cflx(:ncol,mm) + cflx_help2(:ncol) &
                         * mass_frac_bub_section(:ncol, n, i)
-!                        * om_ssa(:ncol, i)
                 else if ( ( mixing_state == 1 ) .or. ( mixing_state == 3 ) ) then
                    ! Mixing state 1: external mixture, add OM to mass and number
                    ! Mixing state 3: internal mixture, add OM to mass and number
                    where (om_ssa(:ncol, i) .gt. 0.0_r8) ! avoid division by zero
                       cflx(:ncol,mm) = cflx(:ncol,mm) + cflx_help2(:ncol) &
-                           * mass_frac_bub_section(:ncol, n, i) / om_ssa(:ncol, i) &
-                           * (1._r8 / (1._r8 - om_ssa(:ncol, i)) - 1._r8)
+                           * mass_frac_bub_section(:ncol, n, i) / om_ssa(:ncol, i) * &
+                           (1._r8 / (1._r8 - om_ssa(:ncol, i)) - 1._r8)
                    elsewhere
                       cflx(:ncol,mm) = cflx(:ncol,mm)
                    end where
@@ -733,8 +733,6 @@ add_om_species: if ( has_mam_mom ) then
 
  end if add_om_species
 #endif
-
-  enddo tracer_loop
 
   end subroutine seasalt_emis
 
@@ -901,7 +899,7 @@ add_om_species: if ( has_mam_mom ) then
    ! OMF maximum and minimum values -- max from Rinaldi et al. (2013)
    real(r8), parameter :: omfrac_max = 0.78
    !
-   integer  :: i, nsection
+   integer  :: i
    integer  :: lchnk
    !
    !-----------------------------------------------------------------------
