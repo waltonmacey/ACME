@@ -29,10 +29,10 @@ cmake                                                                          \
   -DENABLE_OPENMP=TRUE                                                         \
   -DHOMME_PROJID=STF006                                                        \
   -DPREQX_CUSTOM_FLAGS_FILE=${HOMME_ROOT}/compile_scripts/titan/customFlags.cmake.cpu \
+  -DOPENACC_Fortran_FLAGS="-acc -ta=tesla,pin,cc35,cuda7.0 -Minfo=accel"       \
+  -DOPENACC_Linker_FLAGS="-acc -ta=tesla,pin,cc35,cuda7.0 -Mcuda"              \
   $HOMME_ROOT                                               
 fi
-# -DOPENACC_Fortran_FLAGS="-acc -ta=tesla,pin,cc35,cuda7.0 -Minfo=accel"       \
-# -DOPENACC_Linker_FLAGS="-acc -ta=tesla,pin,cc35,cuda7.0 -Mcuda"              \
 
 if [ $do_clean -eq 1 ]; then
 make clean                                                  || exit -1
@@ -42,5 +42,5 @@ if [ $do_make -eq 1 ]; then
 make -j32                                                   || exit -1
 mkdir -p $HOMME_ROOT/build/preqx
 cp ./src/preqx/preqx $HOMME_ROOT/build/preqx/preqx.cpu      || exit -1
-#cp ./src/preqx_acc/preqx_acc $HOMME_ROOT/build/preqx/preqx.openacc      || exit -1
+cp ./src/preqx_acc/preqx_acc $HOMME_ROOT/build/preqx/preqx.openacc      || exit -1
 fi

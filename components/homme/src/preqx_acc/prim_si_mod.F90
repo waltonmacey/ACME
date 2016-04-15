@@ -24,7 +24,7 @@ contains
   subroutine preq_vertadv_openacc(elem, eta_dot_dp_deta, rpdel, T_vadv, v_vadv, nets , nete, tl)
     use kinds         , only : real_kind
     use dimensions_mod, only : nlev, np, nlevp, nelemd
-    use element_mod   , only : element_t
+    use element_mod   , only : element_t, state_t, state_v
     implicit none
     type(element_t)      , intent(in)  :: elem(:)
     real (kind=real_kind), intent(in)  :: eta_dot_dp_deta(np,np  ,nlevp,nelemd)
@@ -35,7 +35,7 @@ contains
     ! Local Variables
     integer :: i,j,k,ie
     real(kind=real_kind) :: facp(np,np,nlev), facm(np,np,nlev)
-    !$acc parallel loop gang private(facm,facp) present(elem,eta_dot_dp_deta,rpdel,t_vadv,v_vadv)
+    !$acc parallel loop gang private(facm,facp) present(elem,eta_dot_dp_deta,rpdel,t_vadv,v_vadv,state_t,state_v)
     do ie = nets , nete
       !$acc cache(facm,facp)
       !$acc loop vector
@@ -53,17 +53,26 @@ contains
       do j = 1 , np
         !$acc loop vector
         do i = 1 , np 
-          T_vadv(i,j  ,1,ie) = facp(i,j,1)*( elem(ie)%state%T(i,j  ,2,tl) - elem(ie)%state%T(i,j  ,1,tl) )
-          v_vadv(i,j,1,1,ie) = facp(i,j,1)*( elem(ie)%state%v(i,j,1,2,tl) - elem(ie)%state%v(i,j,1,1,tl) )
-          v_vadv(i,j,2,1,ie) = facp(i,j,1)*( elem(ie)%state%v(i,j,2,2,tl) - elem(ie)%state%v(i,j,2,1,tl) )
+          !T_vadv(i,j  ,1,ie) = facp(i,j,1)*( elem(ie)%state%T(i,j  ,2,tl) - elem(ie)%state%T(i,j  ,1,tl) )
+          !v_vadv(i,j,1,1,ie) = facp(i,j,1)*( elem(ie)%state%v(i,j,1,2,tl) - elem(ie)%state%v(i,j,1,1,tl) )
+          !v_vadv(i,j,2,1,ie) = facp(i,j,1)*( elem(ie)%state%v(i,j,2,2,tl) - elem(ie)%state%v(i,j,2,1,tl) )
+          T_vadv(i,j  ,1,ie) = facp(i,j,1)*( state_T(i,j  ,2,tl,ie) - state_T(i,j  ,1,tl,ie) )
+          v_vadv(i,j,1,1,ie) = facp(i,j,1)*( state_v(i,j,1,2,tl,ie) - state_v(i,j,1,1,tl,ie) )
+          v_vadv(i,j,2,1,ie) = facp(i,j,1)*( state_v(i,j,2,2,tl,ie) - state_v(i,j,2,1,tl,ie) )
           do k = 2 , nlev-1
-            T_vadv(i,j  ,k,ie) = facp(i,j,k)*( elem(ie)%state%T(i,j  ,k+1,tl) - elem(ie)%state%T(i,j  ,k,tl) ) + facm(i,j,k)*( elem(ie)%state%T(i,j  ,k,tl) - elem(ie)%state%T(i,j  ,k-1,tl) )
-            v_vadv(i,j,1,k,ie) = facp(i,j,k)*( elem(ie)%state%v(i,j,1,k+1,tl) - elem(ie)%state%v(i,j,1,k,tl) ) + facm(i,j,k)*( elem(ie)%state%v(i,j,1,k,tl) - elem(ie)%state%v(i,j,1,k-1,tl) )
-            v_vadv(i,j,2,k,ie) = facp(i,j,k)*( elem(ie)%state%v(i,j,2,k+1,tl) - elem(ie)%state%v(i,j,2,k,tl) ) + facm(i,j,k)*( elem(ie)%state%v(i,j,2,k,tl) - elem(ie)%state%v(i,j,2,k-1,tl) )
+            !T_vadv(i,j  ,k,ie) = facp(i,j,k)*( elem(ie)%state%T(i,j  ,k+1,tl) - elem(ie)%state%T(i,j  ,k,tl) ) + facm(i,j,k)*( elem(ie)%state%T(i,j  ,k,tl) - elem(ie)%state%T(i,j  ,k-1,tl) )
+            !v_vadv(i,j,1,k,ie) = facp(i,j,k)*( elem(ie)%state%v(i,j,1,k+1,tl) - elem(ie)%state%v(i,j,1,k,tl) ) + facm(i,j,k)*( elem(ie)%state%v(i,j,1,k,tl) - elem(ie)%state%v(i,j,1,k-1,tl) )
+            !v_vadv(i,j,2,k,ie) = facp(i,j,k)*( elem(ie)%state%v(i,j,2,k+1,tl) - elem(ie)%state%v(i,j,2,k,tl) ) + facm(i,j,k)*( elem(ie)%state%v(i,j,2,k,tl) - elem(ie)%state%v(i,j,2,k-1,tl) )
+            T_vadv(i,j  ,k,ie) = facp(i,j,k)*( state_T(i,j  ,k+1,tl,ie) - state_T(i,j  ,k,tl,ie) ) + facm(i,j,k)*( state_T(i,j  ,k,tl,ie) - state_T(i,j  ,k-1,tl,ie) )
+            v_vadv(i,j,1,k,ie) = facp(i,j,k)*( state_v(i,j,1,k+1,tl,ie) - state_v(i,j,1,k,tl,ie) ) + facm(i,j,k)*( state_v(i,j,1,k,tl,ie) - state_v(i,j,1,k-1,tl,ie) )
+            v_vadv(i,j,2,k,ie) = facp(i,j,k)*( state_v(i,j,2,k+1,tl,ie) - state_v(i,j,2,k,tl,ie) ) + facm(i,j,k)*( state_v(i,j,2,k,tl,ie) - state_v(i,j,2,k-1,tl,ie) )
           enddo
-          T_vadv(i,j  ,nlev,ie) = facm(i,j,nlev)*( elem(ie)%state%T(i,j  ,nlev,tl) - elem(ie)%state%T(i,j  ,nlev-1,tl) )
-          v_vadv(i,j,1,nlev,ie) = facm(i,j,nlev)*( elem(ie)%state%v(i,j,1,nlev,tl) - elem(ie)%state%v(i,j,1,nlev-1,tl) )
-          v_vadv(i,j,2,nlev,ie) = facm(i,j,nlev)*( elem(ie)%state%v(i,j,2,nlev,tl) - elem(ie)%state%v(i,j,2,nlev-1,tl) )
+          !T_vadv(i,j  ,nlev,ie) = facm(i,j,nlev)*( elem(ie)%state%T(i,j  ,nlev,tl) - elem(ie)%state%T(i,j  ,nlev-1,tl) )
+          !v_vadv(i,j,1,nlev,ie) = facm(i,j,nlev)*( elem(ie)%state%v(i,j,1,nlev,tl) - elem(ie)%state%v(i,j,1,nlev-1,tl) )
+          !v_vadv(i,j,2,nlev,ie) = facm(i,j,nlev)*( elem(ie)%state%v(i,j,2,nlev,tl) - elem(ie)%state%v(i,j,2,nlev-1,tl) )
+          T_vadv(i,j  ,nlev,ie) = facm(i,j,nlev)*( state_T(i,j  ,nlev,tl,ie) - state_T(i,j  ,nlev-1,tl,ie) )
+          v_vadv(i,j,1,nlev,ie) = facm(i,j,nlev)*( state_v(i,j,1,nlev,tl,ie) - state_v(i,j,1,nlev-1,tl,ie) )
+          v_vadv(i,j,2,nlev,ie) = facm(i,j,nlev)*( state_v(i,j,2,nlev,tl,ie) - state_v(i,j,2,nlev-1,tl,ie) )
         enddo
       enddo
     enddo

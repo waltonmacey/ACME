@@ -79,12 +79,11 @@ contains
     call t_startf('update device')
     !$acc update device(state_t,state_v,state_ps_v,derived_pecnd)
 #if ( defined CAM )
-    !$acc update device(elem)
-    !$acc update device(state_Qdp,state_ps_v,state_v,state_t,state_dp3d,derived_vn0,derived_divdp,derived_divdp_proj,derived_eta_dot_dpdn,derived_omega_p,derived_pecnd)
-!    do ie = 1 , nelemd
-!      !$acc update device(elem(ie)%derived%u_met,elem(ie)%derived%v_met,elem(ie)%derived%dudt_met,elem(ie)%derived%dvdt_met,elem(ie)%derived%nudge_factor,elem(ie)%derived%Utnd,&
-!      !$acc&              elem(ie)%derived%Vtnd,elem(ie)%derived%t_met,elem(ie)%derived%dtdt_met,elem(ie)%derived%ttnd,elem(ie)%derived%ps_met,elem(ie)%derived%dpsdt_met)
-!    enddo
+    !$acc update device(elem(:),state_Qdp,state_ps_v,state_v,state_t,state_dp3d,derived_vn0,derived_divdp,derived_divdp_proj,derived_omega_p,derived_eta_dot_dpdn,derived_pecnd)
+    do ie = 1 , nelemd
+      !$acc update device(elem(ie)%derived%u_met,elem(ie)%derived%v_met,elem(ie)%derived%dudt_met,elem(ie)%derived%dvdt_met,elem(ie)%derived%nudge_factor,elem(ie)%derived%Utnd,&
+      !$acc&              elem(ie)%derived%Vtnd,elem(ie)%derived%t_met,elem(ie)%derived%dtdt_met,elem(ie)%derived%ttnd,elem(ie)%derived%ps_met,elem(ie)%derived%dpsdt_met)
+    enddo
 #endif
     call t_stopf('update device')
     !$omp end master
@@ -103,12 +102,11 @@ contains
     !$omp master
     call t_startf('update host')
 #if ( defined CAM )
-    !acc update host(elem)
-    !$acc update host(state_Qdp,state_ps_v,state_v,state_t,state_dp3d,derived_vn0,derived_divdp,derived_divdp_proj,derived_eta_dot_dpdn,derived_omega_p,derived_pecnd)
-!    do ie = 1 , nelemd
-!      !$acc update host(elem(ie)%derived%utnd,elem(ie)%derived%vtnd,elem(ie)%derived%ttnd)
-!      !$acc update host(grad_p_m_pmet)
-!    enddo
+    !$acc update host(elem(:),state_Qdp,state_ps_v,state_v,state_t,state_dp3d,derived_vn0,derived_divdp,derived_divdp_proj,derived_omega_p,derived_eta_dot_dpdn,derived_pecnd)
+    do ie = 1 , nelemd
+      !$acc update host(elem(ie)%derived%utnd,elem(ie)%derived%vtnd,elem(ie)%derived%ttnd)
+      !$acc update host(grad_p_m_pmet)
+    enddo
 #endif
     !$acc update host(state_t,state_v,state_ps_v,state_dp3d) 
     call t_stopf('update host')
