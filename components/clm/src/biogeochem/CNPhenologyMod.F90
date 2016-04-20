@@ -59,6 +59,8 @@ module CNPhenologyMod
      real(r8) :: crit_offset_swi ! critical number of water stress days to initiate offset
      real(r8) :: soilpsi_off     ! critical soil water potential for leaf offset
      real(r8) :: lwtop   	 ! live wood turnover proportion (annual fraction)
+     real(r8) :: gddfunc_p1
+     real(r8) :: gddfunc_p2
   end type CNPnenolParamsType
 
   ! CNPhenolParamsInst is populated in readCNPhenolParams 
@@ -77,6 +79,8 @@ module CNPhenologyMod
   real(r8) :: crit_offset_swi               ! water stress days for offset trigger
   real(r8) :: soilpsi_off                   ! water potential for offset trigger (MPa)
   real(r8) :: lwtop                         ! live wood turnover proportion (annual fraction)
+  real(r8) :: gddfunc_p1
+  real(r8) :: gddfunc_p2
 
   ! CropPhenology variables and constants
   real(r8) :: p1d, p1v                      ! photoperiod factor constants for crop vernalization
@@ -173,6 +177,16 @@ contains
     call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun( msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
     CNPhenolParamsInst%lwtop=tempr   
+
+    tString='gddfunc_p1'
+    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun( msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    CNPhenolParamsInst%gddfunc_p1=tempr
+
+    tString='gddfunc_p2'
+    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun( msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    CNPhenolParamsInst%gddfunc_p2=tempr
 
   end subroutine readCNPhenolParams
 
@@ -303,6 +317,8 @@ contains
 
     ! set transfer parameters
     fstor2tran=CNPhenolParamsInst%fstor2tran
+    gddfunc_p1 = CNPhenolParamsInst%gddfunc_p1
+    gddfunc_p2 = CNPhenolParamsInst%gddfunc_p2
 
     ! -----------------------------------------
     ! Constants for CNStressDecidPhenology
@@ -637,7 +653,7 @@ contains
             lgsf(p) = 0._r8
 
             ! onset gdd sum from Biome-BGC, v4.1.2
-            crit_onset_gdd = exp(4.8_r8 + 0.13_r8*(annavg_t2m(p) - SHR_CONST_TKFRZ))
+            crit_onset_gdd = exp(gddfunc_p1 + gddfunc_p2*(annavg_t2m(p) - SHR_CONST_TKFRZ))
 
             ! set flag for solstice period (winter->summer = 1, summer->winter = 0)
             if (dayl(g) >= prev_dayl(g)) then

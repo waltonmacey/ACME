@@ -178,7 +178,7 @@ contains
     ! !USES:
     use pftvarcon       , only : noveg, nbrdlf_evr_shrub, pprodharv10
     use clm_varcon      , only : secspday
-    use clm_time_manager, only : get_days_per_year
+    use clm_time_manager, only : get_days_per_year, get_curr_date, get_step_size
     !
     ! !ARGUMENTS:
     integer                  , intent(in)    :: num_soilc       ! number of soil columns in filter
@@ -198,9 +198,11 @@ contains
     integer :: p                         ! patch index
     integer :: g                         ! gridcell index
     integer :: fp                        ! patch filter index
+    integer :: year,mon,day,sec,dtime
     real(r8):: am                        ! rate for fractional harvest mortality (1/yr)
     real(r8):: m                         ! rate for fractional harvest mortality (1/s)
     real(r8):: days_per_year             ! days per year
+    logical :: do_harvest_all
     !-----------------------------------------------------------------------
 
    associate(& 
@@ -339,7 +341,19 @@ contains
 
    days_per_year = get_days_per_year()
 
+   call get_curr_date(year, mon, day, sec)
+   dtime = get_step_size()
+
    ! patch loop
+#ifdef HARVMOD
+   !Do harvest for whole year on first timestep   
+   if (mon==1 .and. day==31 .and. sec==0) then
+     do_harvest_all = .true.
+   else
+     do_harvest_all = .false.
+   end if
+#endif
+
    do fp = 1,num_soilp
       p = filter_soilp(fp)
       g = pgridcell(p)
@@ -348,10 +362,19 @@ contains
       ! get the annual harvest "mortality" rate (am) from harvest array
       ! and convert to rate per second
       if (ivt(p) > noveg .and. ivt(p) < nbrdlf_evr_shrub) then
-
          if (do_harvest) then
             am = harvest(g)
-            m  = am/(days_per_year * secspday)
+#ifdef HARVMOD
+            if (do_harvest_all) then
+              !harvest all in a single timestep
+              m = am/dtime
+            else        
+              m=0._r8
+            end if
+#else
+            !spread harvest throughout the year
+            m = am/(days_per_year * secspday)
+#endif
          else
             m = 0._r8
          end if   

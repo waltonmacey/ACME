@@ -713,7 +713,7 @@ contains
 
        minpsi=CNDecompCnParamsInst%minpsi_cn
 
-       Q10 = CNParamsShareInst%Q10
+       Q10 = CNParamsShareInst%Q10_hr
 
        ! set "froz_q10" parameter
        froz_q10  = CNParamsShareInst%froz_q10
