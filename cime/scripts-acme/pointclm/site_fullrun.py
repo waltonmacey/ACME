@@ -368,6 +368,8 @@ for row in AFdatareader:
                 output.write("#!/bin/csh -f\n")
             elif ("#PBS" in s or "#!" in s):
                 output.write(s.replace('24:00','72:00'))
+            elif ("#SBATCH" in s or "#!" in s):
+                output.write(s)
         input.close()
         output.write("\n")
         
@@ -399,5 +401,8 @@ for row in AFdatareader:
 
 
         #submit
-        os.system('qsub temp/site_fullrun.pbs')
+        if ('edison' in options.machine):
+            os.system('sbatch temp/site_fullrun.pbs')
+        else:
+            os.system('qsub temp/site_fullrun.pbs')
         isfirstsite = False

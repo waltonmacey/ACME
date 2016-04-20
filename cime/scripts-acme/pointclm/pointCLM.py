@@ -597,7 +597,7 @@ if ('20TR' in compset):
                       +'RUN_STARTDATE -val 1850-01-01')
     
 #no PIO on oic
-if ('oic' in options.machine):
+if ('oic' in options.machine or 'edison' in options.machine):
     os.system('./xmlchange -file env_run.xml -id ' \
                   +'PIO_TYPENAME -val netcdf')
 
@@ -931,13 +931,15 @@ os.system('mv '+csmdir+'/cime/scripts-acme/pointclm/temp/*'+casename+'* ' \
 if (options.nopointdata == False):
    os.system('mv '+csmdir+'/cime/scripts-acme/pointclm/temp/domain*'+options.site+'* ' \
           +runroot+'/'+casename+'/run/')
-
+else:
+   os.system('cp '+options.ccsm_input+'/share/domains/domain.clm/domain*'+options.site+'* ' \
+	+runroot+'/'+casename+'/run/'
 #os.system('cp -f ../microbepar_in ' +csmdir+'/run/'+casename+'/run/')
 
 #submit job if requested
 if (options.no_submit == False and options.mc_ensemble < 0 and options.ensemble_file == ''):
     os.system("pwd")
-    os.system("qsub "+casename+".run")
+    os.system("./"+casename+'.submit')
 
 
 #------------------------- Code to generate and run parameter ensembles --------------------------------------

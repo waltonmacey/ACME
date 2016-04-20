@@ -1,3 +1,6 @@
+#Python utilities for reading and writing variables to a netcdf file
+#  using Scientific Python OR scipy, whichever available
+
 def getvar(fname, varname):
     usescipy = False
     try:
@@ -7,7 +10,7 @@ def getvar(fname, varname):
         from scipy.io import netcdf
         usescipy = True
     if (usescipy):
-        nffile = netcdf.netcdf_file(fname,"r")
+        nffile = netcdf.netcdf_file(fname,"r",mmap=False)
         var = nffile.variables[varname]
         varvals = var[:].copy()    #works for vector only?
         nffile.close()
@@ -27,9 +30,9 @@ def putvar(fname, varname, varvals):
         from scipy.io import netcdf
         usescipy = True
     if (usescipy):
-        nffile = netcdf.netcdf_file(fname,"a")
+        nffile = netcdf.netcdf_file(fname,"a",mmap=False)
         var = nffile.variables[varname]
-        var[:] = varvals[:]
+        var[:] = varvals
         nffile.close()
     else:
         nffile = netcdf.NetCDFFile(fname,"a")
@@ -38,4 +41,3 @@ def putvar(fname, varname, varvals):
         nffile.close()
     ierr = 0
     return ierr
-

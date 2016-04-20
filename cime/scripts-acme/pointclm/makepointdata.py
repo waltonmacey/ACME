@@ -47,11 +47,11 @@ parser.add_option("--ypts", dest="ypts", default=1, \
 
 
 csmdir=os.path.abspath(options.csmdir)
-options.ccsm_input = os.path.abspath(options.ccsm_input)
+ccsm_input = os.path.abspath(options.ccsm_input)
 
 #------------------- get site information ----------------------------------
 
-os.chdir(options.ccsm_input+'/lnd/clm2/PTCLM/')
+os.chdir(ccsm_input+'/lnd/clm2/PTCLM/')
 AFdatareader = csv.reader(open(options.sitegroup+'_sitedata.txt',"rb"))
 for row in AFdatareader:
     if row[0] == options.site:
@@ -78,7 +78,7 @@ for row in AFdatareader:
             print(" Making meteorological data for site")
             metcmd = 'python '+csmdir+'/cime/scripts-acme/makemetdata.py' \
                           +' --site '+options.site+' --lat '+row[4]+' --lon '+ \
-                          row[3]+' --ccsm_input '+options.ccsm_input+ \
+                          row[3]+' --ccsm_input '+ccsm_input+ \
                           ' --startyear '+row[6]+' --endyear '+row[7]+' --numxpts '+ \
                           str(numxpts)+' --numypts '+str(numypts)
             if (options.metdir != 'none'):
@@ -103,10 +103,10 @@ ygrid_T62     = int((lat+90)/1.9)
 #---------------------Create domain data --------------------------------------------------
 
 print('Creating domain data')
-os.system('mkdir -p '+options.csmdir+'/cime/scripts-acme/pointclm/temp')
-domainfile_orig = options.ccsm_input+'/atm/datm7/domain.clm/' \
+os.system('mkdir -p '+csmdir+'/cime/scripts-acme/pointclm/temp')
+domainfile_orig = ccsm_input+'/atm/datm7/domain.clm/' \
     +'domain.360x720_ORCHIDEE0to360.100409.nc'
-domainfile_new = options.csmdir+'/cime/scripts-acme/pointclm/temp/' \
+domainfile_new = csmdir+'/cime/scripts-acme/pointclm/temp/' \
     +'domain.lnd.'+str(numxpts)+'x'+str(numypts)+'pt_'+options.site+'_navy.nc'
 if (os.path.isfile(domainfile_new)):
     print('Warning:  Removing existing domain file')
@@ -148,33 +148,33 @@ ierr = nffun.putvar(domainfile_new, 'xv', xv)
 ierr = nffun.putvar(domainfile_new, 'yv', yv)
 ierr = nffun.putvar(domainfile_new, 'area', area)
 
-#os.system('cp '+options.ccsm_input+'/share/domains/domain.clm/domain.lnd.'+str(numxpts)+'x'+str(numypts)+ \
-#              'pt_'+options.site+'_navy.nc '+options.ccsm_input+'/atm/datm7/domain.clm')
+#os.system('cp 'ccsm_input+'/share/domains/domain.clm/domain.lnd.'+str(numxpts)+'x'+str(numypts)+ \
+#              'pt_'+options.site+'_navy.nc '+ccsm_input+'/atm/datm7/domain.clm')
 
 #-------------------- create surface data ----------------------------------
 print('Creating surface data')
 mysimyr=1850
 if (options.compset == 'I2000CN'):
     mysimyr=2000
-#surffile_orig = options.ccsm_input+'/lnd/clm2/surfdata/' \
+#surffile_orig = ccsm_input+'/lnd/clm2/surfdata/' \
 #    +'surfdata_0.5x0.5_simyr1850.nc'
 if (options.clm40):
-    surffile_orig = options.ccsm_input+'/lnd/clm2/surfdata/surfdata_360x720_nourb_simyr1850_c120717.nc'
-    surffile_new  = options.csmdir+'/cime/scripts-acme/pointclm/temp/surfdata_'+str(numxpts)+'x' \
+    surffile_orig = ccsm_input+'/lnd/clm2/surfdata/surfdata_360x720_nourb_simyr1850_c120717.nc'
+    surffile_new  = csmdir+'/cime/scripts-acme/pointclm/temp/surfdata_'+str(numxpts)+'x' \
                     +str(numypts)+'pt_'+options.mycase+'_simyr'+str(mysimyr)+'.nc'
 else:
-    #surffile_orig = options.ccsm_input+'/lnd/clm2/surfdata_map/surfdata_360x720cru_simyr1850_c130415.nc'
-    surffile_orig = options.ccsm_input+'/lnd/clm2/surfdata_map/surfdata_360x720cru_simyr1850_c130927.nc'
-    surffile_new =  options.csmdir+'/cime/scripts-acme/pointclm/temp/surfdata_'+str(numxpts)+'x'+str(numypts)+'pt_'+ \
+    #surffile_orig = ccsm_input+'/lnd/clm2/surfdata_map/surfdata_360x720cru_simyr1850_c130415.nc'
+    surffile_orig = ccsm_input+'/lnd/clm2/surfdata_map/surfdata_360x720cru_simyr1850_c150626.nc'
+    surffile_new =  csmdir+'/cime/scripts-acme/pointclm/temp/surfdata_'+str(numxpts)+'x'+str(numypts)+'pt_'+ \
                     options.mycase+'_simyr'+str(mysimyr)+'.nc'
 
 print(surffile_orig)
 if (os.path.isfile(surffile_new)):
     print('Warning:  Removing existing surface file')
     os.system('rm -rf '+surffile_new)
-print('ncks -d lsmlon,'+str(xgrid)+','+str(xgrid+numxpts-1)+' -d lsmlat,'+str(ygrid)+ \
+print('ncks --fix_rec_dmn time -d lsmlon,'+str(xgrid)+','+str(xgrid+numxpts-1)+' -d lsmlat,'+str(ygrid)+ \
           ','+str(ygrid+numypts-1)+' '+surffile_orig+' '+surffile_new)
-os.system('ncks -d lsmlon,'+str(xgrid)+','+str(xgrid+numxpts-1)+' -d lsmlat,'+str(ygrid)+ \
+os.system('ncks --fix_rec_dmn time -d lsmlon,'+str(xgrid)+','+str(xgrid+numxpts-1)+' -d lsmlat,'+str(ygrid)+ \
           ','+str(ygrid+numypts-1)+' '+surffile_orig+' '+surffile_new)
     
 #surffile_new_nc = NetCDF.NetCDFFile(surffile_new, "a")
@@ -319,8 +319,8 @@ ierr = nffun.putvar(surffile_new, 'MONTHLY_HEIGHT_TOP', monthly_height_top)
 ierr = nffun.putvar(surffile_new, 'MONTHLY_HEIGHT_BOT', monthly_height_bot)
 ierr = nffun.putvar(surffile_new, 'MONTHLY_LAI', monthly_lai)
 
-#os.system('cp '+options.ccsm_input+'/lnd/clm2/surfdata_map/surfdata_'+str(numxpts)+'x'+ \
-#              str(numypts)+'pt_'+options.mycase+'_simyr'+str(mysimyr)+'.nc '+options.ccsm_input+ \
+#os.system('cp '+ccsm_input+'/lnd/clm2/surfdata_map/surfdata_'+str(numxpts)+'x'+ \
+#              str(numypts)+'pt_'+options.mycase+'_simyr'+str(mysimyr)+'.nc '+ccsm_input+ \
 #              '/lnd/clm2/surfdata')
 
 #-------------------- create pftdyn surface data ----------------------------------
@@ -330,26 +330,26 @@ if ('20TR' in options.compset):
     print('Creating dynpft data')
 
 
-    #pftdyn_orig = options.ccsm_input+'/lnd/clm2/surfdata/' \
+    #pftdyn_orig = ccsm_input+'/lnd/clm2/surfdata/' \
     #  +'surfdata.pftdyn_0.5x0.5_simyr1850-2010_ACME.nc'
-    pftdyn_orig = options.ccsm_input+'/lnd/clm2/surfdata_map/' \
+    pftdyn_orig = ccsm_input+'/lnd/clm2/surfdata_map/' \
        +'landuse.timeseries_360x720cru_rcp4.5_simyr1850-2100_c141219.nc'
 
     print 'using '+surffile_new+' for 1850 information'
     if (options.clm40):
-        pftdyn_new = options.csmdir+'/cime/scripts-acme/pointclm/temp/' \
+        pftdyn_new = csmdir+'/cime/scripts-acme/pointclm/temp/' \
           +'surfdata.pftdyn_'+str(numxpts)+'x'+str(numypts)+'pt_'+options.mycase+'.nc'
     else:
-        pftdyn_new = options.csmdir+'/cime/scripts-acme/pointclm/temp/' \
+        pftdyn_new = csmdir+'/cime/scripts-acme/pointclm/temp/' \
           +'surfdata.pftdyn_'+str(numxpts)+'x'+str(numypts)+'pt_'+options.mycase+'.nc'
         
     print pftdyn_new
     if (os.path.isfile(pftdyn_new)):
         print('Warning:  Removing existing pftdyn file')
         os.system('rm -rf '+pftdyn_new)
-    os.system('ncks -d lsmlon,'+str(xgrid)+','+str(xgrid+numxpts-1)+' -d lsmlat,'+str(ygrid)+ \
+    os.system('ncks --fix_rec_dmn time -d lsmlon,'+str(xgrid)+','+str(xgrid+numxpts-1)+' -d lsmlat,'+str(ygrid)+ \
                   ','+str(ygrid+numypts-1)+' '+pftdyn_orig+' '+pftdyn_new)
-    print('ncks -d lsmlon,'+str(xgrid)+','+str(xgrid+numxpts-1)+' -d lsmlat,'+str(ygrid)+ \
+    print('ncks --fix_rec_dmn time -d lsmlon,'+str(xgrid)+','+str(xgrid+numxpts-1)+' -d lsmlat,'+str(ygrid)+ \
                   ','+str(ygrid+numypts-1)+' '+pftdyn_orig+' '+pftdyn_new)
     #pftdyn_new_nc = NetCDF.NetCDFFile(pftdyn_new, "a")
     landfrac     = nffun.getvar(pftdyn_new, 'LANDFRAC_PFT')
