@@ -2219,6 +2219,12 @@ Subgrid scaling factor for relative humidity in ice nucleation code.
 Default: set by build-namelist
 </entry>
 
+<entry id="so4_sz_thresh_icenuc" type="real" category="microphys"
+       group="nucleate_ice_nl" valid_values="" >
+ice nucleation SO2 size threshold for aitken mode
+Default: set by build-namelist
+</entry>
+
 <!-- hkconv Moist Convection -->
 <entry id="hkconv_cmftau" type="real" category="conv"
        group="hkconv_nl" valid_values="" >
@@ -2366,6 +2372,12 @@ Default: set by build-namelist
 <entry id="zmconv_tau" type="real" category="conv"
        group="zmconv_nl" valid_values="" >
 Relaxation time in ZM deep convection scheme.
+Default: set by build-namelist
+</entry>
+
+<entry id="zmconv_dmpdz" type="real" category="conv"
+       group="zmconv_nl" valid_values="" >
+Parcel fractional mass entrainment rate
 Default: set by build-namelist
 </entry>
 
@@ -3513,8 +3525,11 @@ Default: set by build-namelist
 
 <entry id="cam_chempkg" type="char*16" category="build"
        group="phys_ctl_nl" valid_values="waccm_mozart,waccm_ghg,trop_mozart,
-                                         trop_ghg,trop_bam,trop_mam3,trop_mam4,trop_mam4_mom,trop_mam7,trop_mam9,
-                                         linoz_mam3,linoz_mam4_resus,linoz_mam4_resus_mom,
+                                         trop_ghg,trop_bam,trop_mam3,trop_mam4,trop_mam4_resus_soag,
+					 trop_mam4_mom,trop_mam7,trop_mam9,
+                                         linoz_mam3,linoz_mam4_resus,
+					 linoz_mam4_resus_soag,linoz_mam4_resus_mom,
+					 linoz_mam4_resus_mom_soag,
                                          super_fast_llnl,super_fast_llnl_mam3,none " >
 Name of the CAM chemistry package.  N.B. this variable may not be set by
 the user.  It is set by build-namelist via information in the configure
@@ -3641,6 +3656,14 @@ Default: .false.
        group="phys_ctl_nl" valid_values="" >
 invokes new microphysics code (single call to amicphys routine) if > 0
 Default: 0
+</entry>
+
+
+<!-- number of so4(+nh4) monolayers needed to "age" a carbon particle -->
+<entry id="n_so4_monolayers_pcage" type="real"  category="scavenging"
+       group="phys_ctl_nl" valid_values="" >
+number of so4(+nh4) monolayers needed to "age" a carbon particle
+Default: Set by namelist
 </entry>
 
 
@@ -5611,6 +5634,12 @@ Default: Set by build-namelist.
 <entry id="max_hypervis_courant" type="real" category="se"
        group="ctl_nl" valid_values="" >
 Default: Set by build-namelist.
+</entry>
+
+<entry id="vthreads" type="integer" category="se"
+       group="ctl_nl" valid_values="" >
+Number of vertical threads.
+Default: 1.
 </entry>
 
 

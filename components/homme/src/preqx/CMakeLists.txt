@@ -2,7 +2,7 @@
 # holding source files needed for building the library
 # and executable preqx.
 
-
+macro(preqx_setup)
 
 SET(UTILS_SHARE_DIR ${HOMME_SOURCE_DIR}/utils/csm_share)
 SET(SRC_DIR         ${HOMME_SOURCE_DIR}/src)
@@ -11,18 +11,24 @@ SET(PHYSICS_DIR     ${HOMME_SOURCE_DIR}/physics)
 SET(UTILS_TIMING_DIR ${CMAKE_BINARY_DIR}/utils/timing)
 
 # Make INCLUDE_DIRS global so the tests can access it
-SET (PREQX_INCLUDE_DIRS ${PIO_INCLUDE_DIRS}
-                        ${UTILS_TIMING_DIR}
-                        ${SRC_SHARE_DIR} CACHE INTERNAL "include directories for preqx")
+SET (EXEC_INCLUDE_DIRS ${PIO_INCLUDE_DIRS}
+                        ${UTILS_TIMING_DIR} )
 
 SET(PREQX_SRCS_F90
-  ${SRC_SHARE_DIR}/openacc/bndry_openacc_mod.F90
-  ${SRC_SHARE_DIR}/openacc/derivative_openacc_mod.F90
-  ${SRC_SHARE_DIR}/openacc/edge_openacc_mod.F90
-  ${SRC_SHARE_DIR}/openacc/openacc_utils_mod.F90
-  ${SRC_SHARE_DIR}/openacc/prim_advection_openacc_mod.F90
-  ${SRC_SHARE_DIR}/openacc/viscosity_openacc_mod.F90
-  ${SRC_SHARE_DIR}/arch_switch_mod.F90
+  ${SRC_SHARE_DIR}/bndry_mod_base.F90
+  ${SRC_SHARE_DIR}/derivative_mod_base.F90
+  ${SRC_SHARE_DIR}/edge_mod_base.F90
+  ${SRC_SHARE_DIR}/prim_advection_mod_base.F90 
+  ${SRC_SHARE_DIR}/solver_init_mod_base.F90
+  ${SRC_SHARE_DIR}/vertremap_mod_base.F90
+  ${SRC_SHARE_DIR}/viscosity_mod_base.F90
+  ${SRC_DIR}/preqx/bndry_mod.F90
+  ${SRC_DIR}/preqx/derivative_mod.F90
+  ${SRC_DIR}/preqx/edge_mod.F90
+  ${SRC_DIR}/preqx/prim_advection_mod.F90 
+  ${SRC_DIR}/preqx/solver_init_mod.F90
+  ${SRC_DIR}/preqx/vertremap_mod.F90
+  ${SRC_DIR}/preqx/viscosity_mod.F90
   ${SRC_SHARE_DIR}/kinds.F90
   ${SRC_SHARE_DIR}/dimensions_mod.F90
   ${SRC_SHARE_DIR}/control_mod.F90
@@ -30,7 +36,6 @@ SET(PREQX_SRCS_F90
   ${SRC_SHARE_DIR}/coordinate_systems_mod.F90
   ${SRC_SHARE_DIR}/params_mod.F90
   ${SRC_SHARE_DIR}/gridgraph_mod.F90
-  ${SRC_SHARE_DIR}/edge_mod.F90
   ${SRC_SHARE_DIR}/element_mod.F90
   ${SRC_SHARE_DIR}/parallel_mod.F90
   ${SRC_SHARE_DIR}/hybrid_mod.F90
@@ -43,9 +48,6 @@ SET(PREQX_SRCS_F90
   ${SRC_SHARE_DIR}/schedtype_mod.F90 
   ${SRC_SHARE_DIR}/edgetype_mod.F90
   ${SRC_SHARE_DIR}/thread_mod.F90
-  ${SRC_SHARE_DIR}/bndry_mod.F90
-  ${SRC_SHARE_DIR}/derivative_mod.F90
-  ${SRC_SHARE_DIR}/viscosity_mod.F90
   ${SRC_SHARE_DIR}/unit_tests_mod.F90
   ${SRC_SHARE_DIR}/spacecurve_mod.F90
   ${SRC_SHARE_DIR}/cube_mod.F90
@@ -93,7 +95,6 @@ SET(PREQX_SRCS_F90
   ${SRC_DIR}/prim_restart_mod.F90 
   ${SRC_SHARE_DIR}/prim_si_ref_mod.F90 
   ${SRC_SHARE_DIR}/prim_advance_mod.F90 
-  ${SRC_SHARE_DIR}/prim_advection_mod.F90 
   ${SRC_DIR}/forcing_mod.F90 
   ${SRC_SHARE_DIR}/metis_mod.F90 
   ${SRC_SHARE_DIR}/prim_driver_mod.F90 
@@ -113,6 +114,7 @@ SET(PREQX_SRCS_F90
   ${PHYSICS_DIR}/column_types_mod.F90 
 )
 
+
 SET(PREQX_SRCS_C
   ${UTILS_SHARE_DIR}/shr_vmath_fwrap.c
   ${SRC_DIR}/jrio.c
@@ -124,7 +126,7 @@ IF (DEFINED PREQX_CUSTOM_FLAGS_FILE)
 ENDIF ()
 
 # Make SRCS global so the tests can access it
-SET(PREQX_SRCS ${PREQX_SRCS} ${PREQX_SRCS_C} ${PREQX_SRCS_F90} CACHE INTERNAL "Sources for preqx")
+SET(EXEC_SOURCES ${PREQX_SRCS} ${PREQX_SRCS_C} ${PREQX_SRCS_F90} )
 
 # Set up defaults
 IF (NOT PREQX_NP)
@@ -142,42 +144,28 @@ ENDIF ()
 IF (NOT PREQX_NC)
   SET (PREQX_NC 4)
 ENDIF ()
-IF (PREQX_QSIZE_D)
+IF (NOT QSIZE_D)
+  SET (QSIZE_D 4)
+ENDIF ()
+# for some of matt's old scripts which use preqx_qsize_d
+IF (PREQX_QSIZE_D)      
   SET (QSIZE_D ${PREQX_QSIZE_D})
 ENDIF ()
 
-MESSAGE(STATUS "Building preqx with:")
-MESSAGE(STATUS "  NP = ${PREQX_NP}")
-MESSAGE(STATUS "  NC = ${PREQX_NC}")
-MESSAGE(STATUS "  PLEV = ${PREQX_PLEV}")
-MESSAGE(STATUS "  PIO = ${PREQX_USE_PIO}")
-MESSAGE(STATUS "  ENERGY = ${PREQX_USE_ENERGY}")
-
-IF (${PREQX_USE_CUDA_FORTRAN})
-  SET(USE_CUDA_FORTRAN TRUE)
-  MESSAGE(STATUS "  Using CUDA Fortran")
-ENDIF ()
-
-IF (${PREQX_USE_OPENACC})
-  SET(USE_OPENACC TRUE)
-  MESSAGE(STATUS "  Using OpenACC")
-ENDIF ()
-
+SET(USE_OPENACC FALSE)
 IF (${ENABLE_HORIZ_OPENMP} AND ${ENABLE_COLUMN_OPENMP})
   SET(NESTED_OPENMP TRUE CACHE BOOL "Both horizontal and column threading")
 ENDIF ()
 
-# The following macro handles the compilation with the appropriate variables
+endmacro(preqx_setup)
+
+
+
+preqx_setup()
 ############################################################################
 # createTestExec(exec_name exec_type NP PLEV USE_PIO USE_ENERGY)
 ############################################################################
 createTestExec(preqx preqx ${PREQX_NP} ${PREQX_NC} ${PREQX_PLEV} 
-               ${PREQX_USE_PIO}  ${PREQX_USE_ENERGY})
+               ${PREQX_USE_PIO}  ${PREQX_USE_ENERGY} ${QSIZE_D})
 
-IF (${BUILD_PREQX_SPELT})
-  MESSAGE(STATUS "  Also building preqx_spelt")
-  createTestExec(preqx_spelt preqx ${PREQX_NP} ${PREQX_NC} ${PREQX_PLEV} 
-                 ${PREQX_USE_PIO}  ${PREQX_USE_ENERGY})
-  SET_TARGET_PROPERTIES(preqx_spelt PROPERTIES COMPILE_DEFINITIONS "_SPELT")
-ENDIF ()
 

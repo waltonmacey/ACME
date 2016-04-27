@@ -543,11 +543,6 @@ contains
        end if
     end do
 
-!    if (masterproc) then
-!       write(iulog,*) 'tcx rlats = ',rlats
-!       write(iulog,*) 'tcx rlatn = ',rlatn
-!    endif
-
     ! Set edge longitudes
     rlonw(:) = edgew
     rlone(:) = edgee
@@ -557,10 +552,7 @@ contains
        rlone(i-1) = rlonw(i)
     end do
 
-!    if (masterproc) then
-!       write(iulog,*) 'tcx rlonw = ',rlonw
-!       write(iulog,*) 'tcx rlone = ',rlone
-!    endif
+    call t_stopf ('mosarti_grid')
 
     !-------------------------------------------------------
     ! Determine mosart ocn/land mask (global, all procs)
@@ -1140,7 +1132,7 @@ contains
     do nt = 2,nt_rtm
        write(rList,'(a,i3.3)') trim(rList)//':tr',nt
     enddo
-    write(iulog,*) trim(subname),' MOSART initialize avect ',trim(rList)
+    if (masterproc) write(iulog,*) trim(subname),' MOSART initialize avect ',trim(rList)
     call mct_aVect_init(avsrc_dnstrm,rList=rList,lsize=rtmCTL%lnumr)
     call mct_aVect_init(avdst_dnstrm,rList=rList,lsize=rtmCTL%lnumr)
 
@@ -1251,7 +1243,7 @@ contains
     do nt = 2,nt_rtm
        write(rList,'(a,i3.3)') trim(rList)//':tr',nt
     enddo
-    write(iulog,*) trim(subname),' MOSART initialize avect ',trim(rList)
+    if (masterproc) write(iulog,*) trim(subname),' MOSART initialize avect ',trim(rList)
     call mct_aVect_init(avsrc_direct,rList=rList,lsize=rtmCTL%lnumr)
     call mct_aVect_init(avdst_direct,rList=rList,lsize=rtmCTL%lnumr)
 
@@ -2575,7 +2567,7 @@ contains
      do nt = 2,nt_rtm
         write(rList,'(a,i3.3)') trim(rList)//':tr',nt
      enddo
-     write(iulog,*) trim(subname),' MOSART initialize avect ',trim(rList)
+     if (masterproc) write(iulog,*) trim(subname),' MOSART initialize avect ',trim(rList)
      call mct_aVect_init(avsrc_eroutUp,rList=rList,lsize=rtmCTL%lnumr)
      call mct_aVect_init(avdst_eroutUp,rList=rList,lsize=rtmCTL%lnumr)
 

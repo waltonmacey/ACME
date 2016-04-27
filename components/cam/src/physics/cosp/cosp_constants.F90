@@ -86,8 +86,9 @@ MODULE MOD_COSP_CONSTANTS
 #else
     character*32, dimension(N_SIMULATORS) :: SIM_NAME = (/'Radar','Lidar','ISCCP','MISR ','MODIS','RTTOV','Stats'/)
 #endif
-    integer,dimension(N_SIMULATORS) :: tsim
-    data tsim/N_SIMULATORS*0.0/
+!   use of timer causes pgi_acc to fail 
+!   integer,dimension(N_SIMULATORS) :: tsim
+!   data tsim/N_SIMULATORS*0/
 
     !--- Radar constants
     ! CFAD constants

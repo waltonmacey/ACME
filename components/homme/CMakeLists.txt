@@ -56,6 +56,7 @@ ENDIF ()
 # Some options for conditional builds
 OPTION(BUILD_HOMME_SWEQX "Shallow water equations FEM" ON)
 OPTION(BUILD_HOMME_PREQX "Primitive equations FEM" ON)
+OPTION(BUILD_HOMME_PREQX_ACC "Primitive equations FEM with OpenACC" ON)
 OPTION(BUILD_HOMME_SWDGX "Shallow water equations DG" OFF)
 OPTION(BUILD_HOMME_PRIMDGX "Primitive equations DG" OFF)
 OPTION(BUILD_HOMME_SWIM  "Shallow water equations implicit" OFF)
@@ -167,12 +168,17 @@ ADD_SUBDIRECTORY(utils/cprnc)
 
 ADD_SUBDIRECTORY(utils/timing)
 
+SET(EXEC_LIST ""  CACHE INTERNAL "List of configured executables")
 IF(${BUILD_HOMME_SWEQX})
   ADD_SUBDIRECTORY(src/sweqx)
 ENDIF()
 
 IF(${BUILD_HOMME_PREQX})
   ADD_SUBDIRECTORY(src/preqx)
+ENDIF()
+
+IF(${BUILD_HOMME_PREQX_ACC})
+  ADD_SUBDIRECTORY(src/preqx_acc)
 ENDIF()
 
 IF(${BUILD_HOMME_SWDGX})
