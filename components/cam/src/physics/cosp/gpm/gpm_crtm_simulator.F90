@@ -9,6 +9,7 @@ module gpm_crtm_simulator_mod
    use MOD_COSP_TYPES, only: cosp_gridbox, cosp_sghydro
    use CRTM_Module, only: crtm_channelInfo_type, CRTM_ChannelInfo_n_Channels
    use GPM_CRTM_mod, only: crtm_multiprof 
+   use mod_cosp_constants, only : R_UNDEF
 !   use GPM_CRTM_result_mod, only: GPM_CRTM_result_type, GPM_CRTM_result_init, &
 !                                  GPM_CRTM_result_destroy, GPM_CRTM_result_inquire, &
 !                                  GPM_CRTM_result_set
@@ -24,8 +25,9 @@ module gpm_crtm_simulator_mod
      integer :: Npoints
      integer :: Ncolumns
      integer :: Nchannels
-     real, allocatable, public :: tbs(:,:,:) ! n_profiles x n_columns x n_channels
-     
+     real, allocatable, public :: tbs(:,:,:)    ! n_profiles x n_columns x n_channels
+     real, allocatable, public :: tbs_mean(:,:) ! n_profiles x n_channels 
+     real, allocatable, public :: tbs_cs(:,:)   ! n_profiles x [n_columns x n_channels]
      real, allocatable :: mr_hydro_sg(:,:,:,:)   ! (nprofiles x n_columns x n_layers x n_hydro)
      real, allocatable :: Reff_hydro_sg(:,:,:,:) ! (nprofiles x n_columns x n_layers x n_hydro)
 !     real, allocatable :: mr_hydro_sg_2mo(:,:,:,:)   ! (nprofiles x n_columns x n_layers x n_hydro)
@@ -46,7 +48,11 @@ contains
      x%Nchannels = Nchannels
 
      allocate(x%tbs(Npoints,Ncolumns,Nchannels))
+     allocate(x%tbs_mean(Npoints,Nchannels))
+     allocate(x%tbs_cs(Npoints, Nchannels*Ncolumns))
      x%tbs=0.0
+     x%tbs_mean=0.0
+     x%tbs_cs = 0.0
      if (present(Nlevels)) then
      allocate(x%mr_hydro_sg      (Npoints,Ncolumns,Nlevels,9))
      allocate(x%Reff_hydro_sg    (Npoints,Ncolumns,Nlevels,9))
@@ -66,6 +72,8 @@ end if
      x%Ncolumns  = 0
      x%Nchannels = 0
      deallocate(x%tbs)
+     deallocate(x%tbs_mean)
+     deallocate(x%tbs_cs)
      if(allocated(x%mr_hydro_sg)) deallocate(x%mr_hydro_sg)
      if(allocated(x%Reff_hydro_sg)) deallocate(x%Reff_hydro_sg)
 !     deallocate(x%mr_hydro_sg_2mo)
@@ -78,6 +86,9 @@ end if
      type(GPM_CRTM_result_type), intent(in) :: x
      type(GPM_CRTM_result_type), intent(inout) :: y
      y%tbs(iy(1):iy(2), :,:) = x%tbs(ix(1):ix(2), :, :)
+     y%tbs_mean(iy(1):iy(2),:) = x%tbs_mean(ix(1):ix(2),:)
+     y%tbs_cs(iy(1):iy(2),:) = x%tbs_cs(ix(1):ix(2), :)
+     
      y%mr_hydro_sg      (iy(1):iy(2), :,:,:) = x%mr_hydro_sg      (ix(1):ix(2), :, :,:)
      y%Reff_hydro_sg    (iy(1):iy(2), :,:,:) = x%Reff_hydro_sg    (ix(1):ix(2), :, :,:)
 !     y%mr_hydro_sg_2mo  (iy(1):iy(2), :,:,:) = x%mr_hydro_sg_2mo  (ix(1):ix(2), :, :,:)
@@ -141,10 +152,14 @@ end if
       integer :: i_cloud
       integer :: i_channel
       integer :: i_profile
+      integer :: ihsc
       real, allocatable :: tbs(:,:) ! temporary variable to store Tb result
       real, allocatable :: m_layer(:,:) ! mass per unit area of air in each layer [kg/m^2] 
       logical, allocatable :: filter_profile_local(:)
       logical, allocatable :: filter_column_local(:)
+      
+      real, allocatable :: tbgpmgmi_sum(:,:)
+      integer, allocatable :: tbgpmgmi_cnt(:,:)
       !--------------
       n_sensors = size(chinfo)
       ! obtain variable dimensions from gbx
@@ -171,6 +186,9 @@ end if
 
       allocate(filter_profile_local(n_profiles))
       allocate(filter_column_local(gbx%Ncolumns))
+
+
+
 
       if(present(filter_profile)) then
         filter_profile_local = filter_profile
@@ -202,29 +220,15 @@ end if
       longitude = gbx%longitude
 
       ! FIXME: get model year somehow
-      year = 2000
+      year = 2011
       month = 1
       day = 1
-!print *, "-----debug mr_hydro values -----"
-!print *, maxval(sghydro%mr_hydro)
-!print *, maxval(m_layer)
-!print *, minval(m_layer)
-!print *, maxval(gbx%pint), minval(gbx%pint)
-!print *, gbx%pint(1,(n_layers+1):2:-1)
-!print *, gbx%pint(1,n_layers:1:-1)
-
-  ! ------- calling crtm_multiprof() for each sensor ------
-  ! prepare outputs
-!print *, '--------- debug gpm_crtm_simulator.F90 -------'
-!print *, 'sensor scan angle', scan_angle
-!print *, 'sensor zenith angle', zenith_angle
-!print *, 'n_sensors:', n_sensors
-!call CRTM_ChannelInfo_Inspect(chinfo(1))
-!call CRTM_ChannelInfo_Inspect(chinfo(2))
   do n=1, n_sensors
      n_channels = CRTM_ChannelInfo_n_Channels(chinfo(n))
 
      allocate(tbs(n_channels, n_profiles))
+  allocate(tbgpmgmi_sum(n_profiles, n_channels) )
+  allocate(tbgpmgmi_cnt(n_profiles, n_channels) )
       do i_column = 1, gbx%Ncolumns
         if (filter_column_local(i_column) == .true. ) then
 !print *, "i_sensor, i_column:", n, i_column
@@ -236,66 +240,8 @@ end if
         water_content(:,:,i_cloud)= sghydro%mr_hydro(:, i_column, n_layers:1:-1, i_cloud) * m_layer
       end do
 
-if (.false. ) then      
-Reff_hydro(:,:,7) = Reff_hydro(:,:,7) * 10
-Reff_hydro(:,:,8) = Reff_hydro(:,:,8) * 10
-
-! turn off the clouds
-Reff_hydro(:,:,1) = 0
-Reff_hydro(:,:,2) = 0
-Reff_hydro(:,:,5) = 0
-Reff_hydro(:,:,6) = 0
-      
-water_content(:,:,1) = 0
-water_content(:,:,2) = 0
-water_content(:,:,5) = 0
-water_content(:,:,6) = 0
-end if
 
 
-if (.false.) then
-water_content = 0
-Reff_hydro = 0
-
-if (i_column <= 8 ) then
-water_content(:,:,i_column)= sghydro%mr_hydro(:, 1, n_layers:1:-1, i_column) * m_layer
-Reff_hydro(:,:,i_column)   = sghydro%Reff(    :, 1, n_layers:1:-1, i_column) * 1e6
-elseif (i_column == 10) then
-water_content(:,:,8)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 8) * m_layer
-Reff_hydro(:,:,8)   = sghydro%Reff(    :, 1, n_layers:1:-1, 8) * 1e6 * 10
-elseif (i_column == 11) then
-water_content(:,:,8)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 8) * m_layer
-Reff_hydro(:,:,8)   = 3000
-elseif (i_column == 12) then
-water_content(:,:,8)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 8) * m_layer
-Reff_hydro(:,:,8)   = 10000
-elseif (i_column == 13) then
-water_content(:,:,8)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 8) * m_layer * 10
-Reff_hydro(:,:,8)   = 10000
-elseif (i_column == 14) then
-water_content(:,:,8)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 8) * m_layer * 100
-Reff_hydro(:,:,8)   = 10000
-elseif (i_column == 15) then
-water_content(:,:,8)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 8) * m_layer * 1000
-Reff_hydro(:,:,8)   = 10000
-elseif (i_column == 16) then
-water_content(:,:,7)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 7) * m_layer
-Reff_hydro(:,:,7)   = sghydro%Reff(    :, 1, n_layers:1:-1, 7) * 1e6
-water_content(:,:,8)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 8) * m_layer * 10
-Reff_hydro(:,:,8)   = 10000
-elseif (i_column == 17) then
-water_content(:,:,7)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 7) * m_layer
-Reff_hydro(:,:,7)   = sghydro%Reff(    :, 1, n_layers:1:-1, 7) * 1e6
-water_content(:,:,8)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 8) * m_layer * 100
-Reff_hydro(:,:,8)   = 10000
-elseif (i_column == 18) then
-water_content(:,:,7)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 7) * m_layer
-Reff_hydro(:,:,7)   = sghydro%Reff(    :, 1, n_layers:1:-1, 7) * 1e6
-water_content(:,:,8)= sghydro%mr_hydro(:, 1, n_layers:1:-1, 8) * m_layer * 1000
-Reff_hydro(:,:,8)   = 10000
-end if
-mr_vapor = 0
-end if
 
 print *, 'icolumn=', i_column
 !if ( i_column >= 2 .AND. i_column <=10) then
@@ -333,59 +279,44 @@ print *, 'icolumn=', i_column
       filter_profile_local  & ! filter indicating if one profile is calculated
       )
 !print *, gpm_results(n)%tbs
-if (.false.) then
-do i_profile = 1, n_profiles
-if ( i_column == 1) then
-  print *, "latitude ", latitude(i_profile), "longitude", longitude(i_profile)
-  print *, "maximum water_content ",max( maxval(water_content(:,:,3:4)),  maxval(water_content(:,:,7:8)) )
-  write(*,*), water_content(i_profile, :, 3)
-  print *, "---"
-  write(*,*), water_content(i_profile, :, 4)
-  print *, "---"
-  write(*,*), water_content(i_profile, :, 7)
-  print *, "---"
-  write(*,*), water_content(i_profile, :, 8)
-
-  print *, "Reff "
-  write(*,*), Reff_hydro(i_profile, :, 3)
-  print *, "---"
-  write(*,*), Reff_hydro(i_profile, :, 4)
-  print *, "---"
-  write(*,*), Reff_hydro(i_profile, :, 7)
-  print *, "---"
-  write(*,*), Reff_hydro(i_profile, :, 8)
-
-end if
-end do
-end if
 !print *, 'in gpm_crtm_simulator'
 !print *, tbs
       ! Need to reshape the results
       do i_channel = 1, n_channels
         gpm_results(n)%tbs(:,i_column,i_channel) = tbs(i_channel,:)
       end do
-
       
-if (.false.) then    
-if (n_channels == 9) then
-gpm_results(n)%tbs(:,1:n_layers,1) = water_content(:,:,3)
-gpm_results(n)%tbs(:,1:n_layers,2) = water_content(:,:,4)
-gpm_results(n)%tbs(:,1:n_layers,3) = water_content(:,:,7)
-gpm_results(n)%tbs(:,1:n_layers,4) = water_content(:,:,8)
-end if 
-
-if (n_channels ==4) then
-gpm_results(n)%tbs(:,1:n_layers,1) = Reff_hydro(:,:,3)
-gpm_results(n)%tbs(:,1:n_layers,2) = Reff_hydro(:,:,4)
-gpm_results(n)%tbs(:,1:n_layers,3) = Reff_hydro(:,:,7)
-gpm_results(n)%tbs(:,1:n_layers,4) = Reff_hydro(:,:,8)
-endif
-end if
         end if ! filter_column
       end do ! i_column
+
+  ! calculate mean Tb
+  tbgpmgmi_sum = 0.0
+  tbgpmgmi_cnt = 0
+  do i_column = 1,gbx%Ncolumns
+    where (gpm_results(n)%tbs(:,i_column,:) /=R_UNDEF)
+      tbgpmgmi_sum = tbgpmgmi_sum + gpm_results(n)%tbs(:,i_column,:)
+      tbgpmgmi_cnt = tbgpmgmi_cnt + 1
+    end where
+  end do 
+  where (tbgpmgmi_cnt /= 0)
+    gpm_results(n)%tbs_mean = tbgpmgmi_sum / tbgpmgmi_cnt
+  elsewhere
+    gpm_results(n)%tbs_mean = R_UNDEF
+  endwhere
+! reshape to _cs version
+do i_profile = 1, n_profiles
+        do i_channel=1, n_channels
+          do i_column=1,gbx%Ncolumns
+            ihsc=(i_channel-1)*gbx%Ncolumns+i_column
+            gpm_results(n)%tbs_cs(i_profile,ihsc) = gpm_results(n)%tbs(i_profile, i_column, i_channel)
+          end do
+        end do
+end do
 !print *, "Maximum TB in sensor ", n, " is ", maxval(gpm_results(n)%tbs )
 !print *, "TB(1,1,1): ",gpm_results(n)%tbs(1,1,1)
     deallocate(tbs)
+    deallocate(tbgpmgmi_sum)
+    deallocate(tbgpmgmi_cnt)
   end do
    end subroutine gpm_crtm_simulator_run
 

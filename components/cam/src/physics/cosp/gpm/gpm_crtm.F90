@@ -119,32 +119,6 @@ contains
          atm(i_profile)%Absorber_Id(1:2)    = (/H2O_ID                 ,  O3_ID/)
          atm(i_profile)%Absorber_units(1:2) = (/MASS_MIXING_RATIO_UNITS,  VOLUME_MIXING_RATIO_UNITS/)
 
-!#ifdef GMI_DEBUG
-  if (.false. .and. i_profile == 11 ) then
-    print *, "pint"
-    print *, pint(i_profile,:)
-    print *, "p"
-    print *, p(i_profile, :)
-    print *, "T"
-    print *, T(i_profile, :)
-    print *, "mr_vapor"
-    print *, mr_vapor(i_profile, :)
-
-    print *, "o3"
-    print *, o3(i_profile, :)
-
-    print *, "Reff_hydro"
-    print *, Reff_hydro(i_profile, :,:)
-    print *, "water_content"
-    print *, water_content(i_profile, :,:)
-
-
-  end if
-
-
-
-!#endif
-
 
          ! Profile data
          ! COSP is from surface to top, but CRTM wants top to surface. Need to flip
@@ -247,11 +221,6 @@ contains
 ! For debug use
 do i_profile = 1, n_profiles
   if (filter(i_profile) ==.true. ) then
-!  print *, "i_profile", i_profile 
-!      call CRTM_Atmosphere_Inspect(atm(i_profile:i_profile))
-!      call CRTM_Geometry_Inspect(geo(i_profile))
-!      call CRTM_ChannelInfo_Inspect(chinfo)
-  
       err_stat = CRTM_Forward(atm(i_profile:i_profile), sfc(i_profile:i_profile), geo(i_profile:i_profile), chinfo(1:1),rts(:,i_profile:i_profile))
       !err_stat = CRTM_Forward(atm, sfc, geo, chinfo(1:1),rts)
 

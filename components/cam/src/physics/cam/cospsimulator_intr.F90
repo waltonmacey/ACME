@@ -144,12 +144,9 @@ module cospsimulator_intr
    real(r8),allocatable:: htmlscol_htmlmid_cosp(:)       ! (nhtml_cosp*nscol_cosp)
    real(r8),allocatable :: htmlscol_scol_cosp(:)         ! (nhtml_cosp*nscol_cosp)
 #ifdef GPM_GMI2
-   integer, parameter :: n_gmi_ch = 13
-   integer, parameter :: gmi_chidx(n_gmi_ch)  =&         ! GPM GMI channel index
-            (/1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13/)
-   integer, parameter :: n_tmi_ch = 9
-   integer, parameter :: tmi_chidx(n_tmi_ch) = (/1,2,3,4,5,6,7,8,9/)
-
+   integer  :: i_tmp
+   integer, parameter :: max_nch = 100
+   integer, parameter :: CRTM_chidx(max_nch) = (/ (i_tmp, i_tmp=1, max_nch) /)
 #endif
 
 !! The CAM and COSP namelists defaults are set below.  Some of the COSP namelist 
@@ -178,8 +175,9 @@ module cospsimulator_intr
    logical :: cosp_gpmka_sim = .false.      ! +YLu
 #endif
 #ifdef GPM_GMI2
-   logical :: cosp_gpmgmi_sim = .false.
-   logical :: cosp_trmmtmi_sim = .false.
+   character(1024) :: cosp_crtm_instruments = ''  ! COSP namelist variable
+                                                  ! can be changed from default
+                                                  ! by CAM namelist
 #endif
    logical :: cosp_llidar_sim = .false.      ! CAM namelist variable default
    logical :: cosp_lisccp_sim = .false.      ! CAM namelist variable default
@@ -207,8 +205,10 @@ module cospsimulator_intr
    logical :: lgpmka_sim = .false.             ! GPM Ka band radar simulator   ! +YLu
 #endif
 #ifdef GPM_GMI2
-   logical :: lgpmgmi_sim = .false.
-   logical :: ltrmmtmi_sim = .false.
+   logical :: lcrtm_sim = .false.     ! flag if run crtm simulations. Determined
+                                      ! by value of cosp_crtm_instruments. If no
+                                      ! crtm instruments is set through
+                                      ! namelist, then lcrtm_sim remains false.
 #endif
 
 
@@ -259,8 +259,8 @@ module cospsimulator_intr
    logical :: ldbzegpmka = .false.    ! GPM Ka dBz      ! +YLu
 #endif
 #ifdef GPM_GMI2
-   logical :: ltbgpmgmi = .false.
-   logical :: ltbtrmmtmi = .false.
+   logical :: lcrtmtb = .false.    ! flag for CRTM mean TB outputs
+   logical :: lcrtmtbcs = .false.  ! flag for CRTM subcolumn TB outputs
 #endif
    logical :: ltauisccp = .false.
    logical :: ltclisccp = .false.
@@ -625,6 +625,9 @@ subroutine cospsimulator_intr_readnl(nlfile)
 #ifdef GPM_KA
         cosp_gpmka_sim, &                                    ! +Ylu
 #endif
+#ifdef GPM_GMI2
+        cosp_crtm_instruments, &
+#endif
         cosp_nradsteps, cosp_passive, cosp_sample_atrain, cosp_runall
 
 
@@ -679,8 +682,7 @@ subroutine cospsimulator_intr_readnl(nlfile)
    call mpibcast(cosp_gpmka_sim,      1,  mpilog, 0, mpicom)  ! +YLu
 #endif
 #ifdef GPM_GMI2
-   call mpibcast(cosp_gpmgmi_sim,     1,  mpilog, 0, mpicom)
-   call mpibcast(cosp_trmmtmi_sim,    1,  mpilog, 0, mpicom)
+   call mpibcast(cosp_crtm_instruments, len(cosp_crtm_instruments), mpichar, 0, mpicom)
 #endif
 
 #endif
@@ -734,11 +736,8 @@ subroutine cospsimulator_intr_readnl(nlfile)
    end if                      ! +YLu
 #endif
 #ifdef GPM_GMI2
-   if (cosp_gpmgmi_sim) then
-      lgpmgmi_sim = .true.
-   endif
-   if (cosp_trmmtmi_sim) then
-      ltrmmtmi_sim = .true.
+   if (len(trim(cosp_crtm_instruments)) .NE. 0) then
+      lcrtm_sim = .true.
    endif
 #endif
    if (cosp_histfile_aux .and. cosp_histfile_aux_num == -1) then
@@ -810,14 +809,6 @@ subroutine cospsimulator_intr_readnl(nlfile)
          lgpmka_sim = .true.
       endif
 #endif
-#ifdef GPM_GMI2
-   if (lradar_sim) then
-     lgpmgmi_sim = .true.
-   endif
-   if (lradar_sim) then
-     ltrmmtmi_sim = .true.
-   endif
-#endif
    !! reset COSP namelist variables based on input from cam namelist variables
    if (cosp_ncolumns .ne. ncolumns) then
       ncolumns = cosp_ncolumns
@@ -845,11 +836,9 @@ subroutine cospsimulator_intr_readnl(nlfile)
    end if                                                   ! +YLu
 #endif
 #ifdef GPM_GMI2
-   if (lgpmgmi_sim) then
-      ltbgpmgmi = .true.
-   endif
-   if (ltrmmtmi_sim) then
-      ltbtrmmtmi = .true.
+   if (lcrtm_sim) then
+      lcrtmtb = .true.
+      lcrtmtbcs = .true.
    endif
 #endif
 
@@ -950,13 +939,21 @@ subroutine cospsimulator_intr_init
 #ifdef USE_COSP
    use mod_cosp_constants,  only : R_UNDEF    
 #ifdef GPM_GMI2
-   use GPM_CRTM_sensor_mod, only: GPM_CRTM_sensor_add, GPM_CRTM_sensor_init, GPM_CRTM_sensor_add_byproperties
+   use GPM_CRTM_sensor_mod, only: GPM_CRTM_sensor_add, GPM_CRTM_sensor_init, GPM_CRTM_sensor_add_byproperties, n_sensors, sensor_list
+   use GPM_CRTM_Constants,  only: maxlen_camhistfld_name
 #endif
 #else
    real(r8),parameter :: R_UNDEF = -1.0E30_r8
 #endif
    integer ncid,latid,lonid,did,hrid,minid,secid, istat
+   character(maxlen_camhistfld_name) :: gmi_camhistfldname
+   character(16) :: gmi_chidxname 
+   character(2) :: tmpstr 
+   character(1024) :: tmpstr_ins = ''
+   integer :: idx1, idx2
+   integer :: i, i_gmi_sensor
    !------------------------------------------------------------------------------
+   gmi_camhistfldname = ''
 #ifdef COSP_ATRAIN
 if (cosp_sample_atrain) then
 
@@ -1364,38 +1361,6 @@ endif
       call add_default('DBZEGPMKA_CS',cosp_histfile_num,' ')
    end if
 #endif
-#ifdef GPM_GMI2
-!!! GPM GMI simulator outputs 
-   if (lgpmgmi_sim) then
-    ! Add coordinates
-    call add_hist_coord('gmi_chidx',n_gmi_ch  ,'GPM GMI channel index', &
-                   '1',gmi_chidx)
-    call add_hist_coord('tmi_chidx',n_tmi_ch  ,'TRMM TMI channel index', &
-                   '1',tmi_chidx)
-    ! add field
-    ! GPM GMI
-    call addfld('GPM_GMI_TB_CS',(/'cosp_scol','gmi_chidx'/),'I','K',&
-                   'simulated GPM GMI brightness temperature, subcolumn',&
-                   flag_xyfill=.true., fill_value=R_UNDEF)
-    call addfld('GPM_GMI_TB',   (/'gmi_chidx'/),'I','K',&
-                   'simulated GPM GMI brightness temperature',&
-                   flag_xyfill=.true., fill_value=R_UNDEF)
-    ! TRMM TMI
-    call addfld('TRMM_TMI_TB_CS',(/'cosp_scol','tmi_chidx'/),'I','K',&
-                   'simulated TRMM TMI brightness temperature, subcolumn',&
-                   flag_xyfill=.true., fill_value=R_UNDEF)
-    call addfld('TRMM_TMI_TB',   (/'tmi_chidx'/),'I','K',&
-                   'simulated TRMM TMI brightness temperature',&
-                   flag_xyfill=.true., fill_value=R_UNDEF)
-    
-    call add_default('GPM_GMI_TB_CS', cosp_histfile_num, ' ')
-    call add_default('GPM_GMI_TB',    cosp_histfile_num, ' ')
-    call add_default('TRMM_TMI_TB_CS',cosp_histfile_num, ' ')
-    call add_default('TRMM_TMI_TB',   cosp_histfile_num, ' ')
-    
-   endif 
-
-#endif
 
 
 !!! MISR SIMULATOR OUTPUTS
@@ -1765,14 +1730,53 @@ endif
 
     ! GPM GMI sensor information
     
-  if (lgpmgmi_sim) then
+  if (lcrtm_sim) then
     ! Add GPM GMI sensor to senser list in GPM_CRTM_sensor_mod
 #ifdef GPM_GMI2
-    call GPM_CRTM_sensor_add('gpm-gmi-lowfreq')
-    call GPM_CRTM_sensor_add('gpm-gmi-highfreq')
-    call GPM_CRTM_sensor_add('trmm-tmi')
+   ! Add CRTM sensors based on namelist variable cosp_crtm_instruments 
+   idx1 = 0
+   idx2 = 0
+   do
+     idx2 = index(cosp_crtm_instruments(idx1+1:),':')
+     if (idx2 == 0) exit
+     tmpstr_ins = cosp_crtm_instruments(idx1+1:idx1+idx2-1)
+     if(len(trim(tmpstr_ins)) .NE. 0)   call GPM_CRTM_sensor_add(trim(tmpstr_ins))
+     idx1 = idx1+idx2
+   end do
+   tmpstr_ins = cosp_crtm_instruments(idx1+1:) 
+   if(len(trim(tmpstr_ins)) .NE. 0)   call GPM_CRTM_sensor_add(trim(tmpstr_ins))
+
     ! initialize GPM GMI sensors
     call GPM_CRTM_sensor_init()
+
+    ! Add COSP CRTM output fields 
+    if (lcrtmtb .OR. lcrtmtbcs) then
+      do i_gmi_sensor = 1, n_sensors
+        
+        gmi_camhistfldname = sensor_list(i_gmi_sensor)%cam_histfld_name
+        write (tmpstr, "(I2)" ) i_gmi_sensor
+        gmi_chidxname = 'CRTM_' // trim(adjustl(tmpstr)) // '_chidx'   
+        call add_hist_coord(gmi_chidxname, sensor_list(i_gmi_sensor)%n_channels, &
+                            trim(gmi_camhistfldname) // ' channel index', '1',    &
+                            CRTM_chidx(1:sensor_list(i_gmi_sensor)%n_channels )  )
+        ! Add mean brightness temperature fields
+        if (lcrtmtb) then
+          call addfld(trim(gmi_camhistfldname) // '_TB', (/gmi_chidxname  /), &
+                       'I', 'K',               &
+                       trim(gmi_camhistfldname) // ' brightness temperature',  & 
+                       flag_xyfill=.true., fill_value=R_UNDEF)
+          call add_default(trim(gmi_camhistfldname) // '_TB', cosp_histfile_num, ' ')
+        end if
+        ! Add sub-column brightness temperature fields
+        if (lcrtmtbcs) then
+          call addfld(trim(gmi_camhistfldname) // '_TB_CS', (/'cosp_scol', gmi_chidxname  /), &
+                       'I', 'K',               &
+                       trim(gmi_camhistfldname) // ' brightness temperature, subcolumn',  & 
+                       flag_xyfill=.true., fill_value=R_UNDEF)
+          call add_default(trim(gmi_camhistfldname) // '_TB_CS', cosp_histfile_num, ' ')
+        end if
+      end do
+    end if
 #endif
   end if
 
@@ -1828,7 +1832,7 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    use GPM_CRTM_simulator_mod, only: GPM_CRTM_result_type,&
                                      construct_GPM_CRTM_result,&
                                      free_GPM_CRTM_result
-   use GPM_CRTM_sensor_mod,    only: n_sensors, chinfo_list
+   use GPM_CRTM_sensor_mod,    only: n_sensors, chinfo_list, sensor_list
    use CRTM_Module,            only: CRTM_ChannelInfo_n_Channels
 #endif
 #else
@@ -1997,6 +2001,9 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
 #endif
 #ifdef GPM_GMI2
    type(GPM_CRTM_result_type), allocatable :: sggpmgmi(:)
+   real(r8), allocatable :: tmptb(:,:)
+   real(r8), allocatable :: tmptb_cs(:,:)
+   integer :: maxnch 
 #endif
    type(cosp_modis)   :: modis                          ! Output from MODIS simulator (new in cosp v1.3)
    !!!type(cosp_rttov)   :: rttov                       ! Output from RTTOV (not using)
@@ -2208,12 +2215,9 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    real(r8) :: dbzegpmka(pcols,nscol_cosp,nhtml_cosp)  ! dbzegpmka(time,height_mlev,column,profile) ! +YLu
 #endif
 #ifdef GPM_GMI2
-   integer, parameter :: ngmichannels= 13
-   integer :: i_gmi_channel
-   real(r8) :: tbgpmgmi(pcols,nscol_cosp,ngmichannels)
-   integer, parameter :: ntmichannels= 9
-   integer :: i_tmi_channel
-   real(r8) :: tbtrmmtmi(pcols,nscol_cosp,ntmichannels)
+   integer :: ihydro               ! used to save cloud/precipitation information
+   integer :: i_crtm_channel       ! will be read in based on channel info
+   real(r8), allocatable :: tbcrtm(:,:,:)
 #endif
 
    real(r8) :: atb532(pcols,nscol_cosp,nhtml_cosp)      ! atb532 (time,height_mlev,column,profile)
@@ -2272,14 +2276,6 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    real(r8) :: dbzegpmka_cs(pcols,nhtml_cosp*nscol_cosp)
 #endif
 #ifdef GPM_GMI2
-   real(r8) :: tbgpmgmi_cs(pcols,ngmichannels*nscol_cosp)
-   real(r8) :: tbgpmgmi_avg(pcols,ngmichannels)
-   real(r8) :: tbgpmgmi_sum(pcols,ngmichannels)
-   integer  :: tbgpmgmi_cnt(pcols,ngmichannels)
-   real(r8) :: tbtrmmtmi_cs(pcols,ntmichannels*nscol_cosp)
-   real(r8) :: tbtrmmtmi_avg(pcols,ntmichannels)
-   real(r8) :: tbtrmmtmi_sum(pcols,ntmichannels)
-   integer  :: tbtrmmtmi_cnt(pcols,ntmichannels)
 
    real(r8) :: crtm_mr_hydro(pcols,nhtml_cosp*nscol_cosp,9)
    real(r8) :: crtm_Reff_hydro(pcols,nhtml_cosp*nscol_cosp,9)
@@ -2335,10 +2331,6 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    cfad_dbzegpmka(1:pcols,1:ndbze_cosp,1:nht_cosp)=R_UNDEF ! +YLu
    dbzegpmka(1:pcols,1:nscol_cosp,1:nhtml_cosp)=R_UNDEF    ! +YLu
 #endif
-#ifdef GPM_GMI2
-   tbgpmgmi(1:pcols,1:nscol_cosp,1:ngmichannels) = R_UNDEF
-   tbtrmmtmi(1:pcols,1:nscol_cosp,1:ntmichannels) = R_UNDEF
-#endif
    cfad_lidarsr532(1:pcols,1:nsr_cosp,1:nht_cosp)=R_UNDEF
    dbze94(1:pcols,1:nscol_cosp,1:nhtml_cosp)=R_UNDEF
    atb532(1:pcols,1:nscol_cosp,1:nhtml_cosp)=R_UNDEF
@@ -2388,16 +2380,6 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
 #ifdef GPM_KA
    cfad_dbzegpmka_cs(1:pcols,1:nht_cosp*ndbze_cosp)=R_UNDEF
    dbzegpmka_cs(1:pcols,1:nhtml_cosp*nscol_cosp)=R_UNDEF
-#endif
-#ifdef GPM_GMI2
-   tbgpmgmi_cs(1:pcols,1:ngmichannels*nscol_cosp)=R_UNDEF
-   tbgpmgmi_avg(1:pcols,1:ngmichannels)=R_UNDEF
-   tbgpmgmi_sum(1:pcols,1:ngmichannels)=0
-   tbgpmgmi_cnt(1:pcols,1:ngmichannels)=0
-   tbtrmmtmi_cs (1:pcols,1:ntmichannels*nscol_cosp)=R_UNDEF
-   tbtrmmtmi_avg(1:pcols,1:ntmichannels)=R_UNDEF
-   tbtrmmtmi_sum(1:pcols,1:ntmichannels)=0
-   tbtrmmtmi_cnt(1:pcols,1:ntmichannels)=0
 #endif
    cldtot_calcs(1:pcols)=R_UNDEF
    cldtot_cs(1:pcols)=R_UNDEF
@@ -3465,11 +3447,6 @@ if (cosp_runall) then
    dbzegpmka(1:ncol,1:nscol_cosp,1:nhtml_cosp) = sggpmka%Ze_tot
    cfad_dbzegpmka(1:ncol,1:ndbze_cosp,1:nhtml_cosp) = stgpmka%cfad_ze
 #endif
-#ifdef GPM_GMI2
-   tbgpmgmi(1:ncol,1:nscol_cosp,1:9) = sggpmgmi(1)%tbs
-   tbgpmgmi(1:ncol,1:nscol_cosp,10:13) = sggpmgmi(2)%tbs
-   tbtrmmtmi(1:ncol, 1:nscol_cosp,1:9) = sggpmgmi(3)%tbs
-#endif
    !! modis variables
    cltmodis(1:ncol)=modis%Cloud_Fraction_Total_Mean
    clwmodis(1:ncol)=modis%Cloud_Fraction_Water_Mean
@@ -3557,33 +3534,17 @@ if (cosp_runall) then
         end do
 #endif
 #ifdef GPM_GMI2
-        ! GMI
-        do i_gmi_channel=1, ngmichannels
-          do isc=1,nscol_cosp
-            ihsc=(i_gmi_channel-1)*nscol_cosp+isc
-            tbgpmgmi_cs(i,ihsc) = tbgpmgmi(i, isc, i_gmi_channel)
+
+        do ihydro = 1,9  ! loop through cloud/precipitation 
+          do ihml=1,nhtml_cosp
+            do isc=1,nscol_cosp
+               ihsc= (nhtml_cosp-ihml)*nscol_cosp+isc   !  (ihml-1)*nscol_cosp+isc                 ! need to flip nlevels
+               crtm_mr_hydro(i,ihsc,ihydro)       = sggpmgmi(1)%mr_hydro_sg(i,isc,ihml,ihydro)                
+               crtm_Reff_hydro(i,ihsc,ihydro)     = sggpmgmi(1)%Reff_hydro_sg(i,isc,ihml,ihydro)                
+    !           crtm_mr_hydro_2mo(i,ihsc,ihydro)   = sggpmgmi(1)%mr_hydro_sg_2mo(i,isc,ihml,ihydro)                
+    !           crtm_Reff_hydro_2mo(i,ihsc,ihydro) = sggpmgmi(1)%Reff_hydro_sg_2mo(i,isc,ihml,ihydro)                
+            end do
           end do
-        end do
-        ! TMI
-        do i_tmi_channel=1, ntmichannels
-          do isc=1,nscol_cosp
-            ihsc=(i_tmi_channel-1)*nscol_cosp+isc
-            tbtrmmtmi_cs(i,ihsc) = tbtrmmtmi(i, isc, i_tmi_channel)
-          end do
-        end do
-
-
-
-        do i_gmi_channel = 1,9  ! should be loop through types of hydrometers. But I am too lazy to declare a new variable
-        do ihml=1,nhtml_cosp
-        do isc=1,nscol_cosp
-           ihsc= (nhtml_cosp-ihml)*nscol_cosp+isc   !  (ihml-1)*nscol_cosp+isc                 ! need to flip nlevels
-           crtm_mr_hydro(i,ihsc,i_gmi_channel)       = sggpmgmi(1)%mr_hydro_sg(i,isc,ihml,i_gmi_channel)                
-           crtm_Reff_hydro(i,ihsc,i_gmi_channel)     = sggpmgmi(1)%Reff_hydro_sg(i,isc,ihml,i_gmi_channel)                
-!           crtm_mr_hydro_2mo(i,ihsc,i_gmi_channel)   = sggpmgmi(1)%mr_hydro_sg_2mo(i,isc,ihml,i_gmi_channel)                
-!           crtm_Reff_hydro_2mo(i,ihsc,i_gmi_channel) = sggpmgmi(1)%Reff_hydro_sg_2mo(i,isc,ihml,i_gmi_channel)                
-        end do
-        end do
         end do
 
 #endif
@@ -3616,29 +3577,6 @@ if (cosp_runall) then
         end do
         end do
    end do
-#ifdef GPM_GMI2
-   do isc = 1, nscol_cosp
-        where (tbgpmgmi(:,isc,:) /= R_UNDEF)
-           tbgpmgmi_sum = tbgpmgmi_sum + tbgpmgmi(:,isc,:)
-           tbgpmgmi_cnt = tbgpmgmi_cnt + 1
-        endwhere
-        where (tbtrmmtmi(:,isc,:) /= R_UNDEF)
-           tbtrmmtmi_sum = tbtrmmtmi_sum + tbtrmmtmi(:,isc,:)
-           tbtrmmtmi_cnt = tbtrmmtmi_cnt + 1
-        endwhere
-   end do
-   where (tbgpmgmi_cnt /= 0)
-      tbgpmgmi_avg = tbgpmgmi_sum / tbgpmgmi_cnt
-   elsewhere
-      tbgpmgmi_avg = R_UNDEF
-   endwhere
-   where (tbtrmmtmi_cnt /= 0)
-     tbtrmmtmi_avg = tbtrmmtmi_sum / tbtrmmtmi_cnt
-   elsewhere
-     tbtrmmtmi_avg = R_UNDEF
-   endwhere
-
-#endif
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ! DEALLOCATE MEMORY for running with all columns
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -3654,12 +3592,6 @@ if (cosp_runall) then
 #ifdef GPM_KA
    call free_cosp_sggpmdpr(sggpmka)
    call free_cosp_gpmdprstats(stgpmka)
-#endif
-#ifdef GPM_GMI2
-   do i_gmi_sensor = 1,n_sensors
-      call free_gpm_crtm_result(sggpmgmi(i_gmi_sensor) )
-   end do
-   deallocate(sggpmgmi)
 #endif
    call free_cosp_sglidar(sglidar)
    call free_cosp_lidarstats(stlidar)
@@ -5434,11 +5366,7 @@ end if  !!! END RUNNING COSP ONLY RADAR/LIDAR
       end if
 #endif
 #ifdef GPM_GMI2
-      if (lgpmgmi_sim) then
-         call outfld('GPM_GMI_TB_CS',tbgpmgmi_cs, pcols, lchnk)
-         call outfld('GPM_GMI_TB',tbgpmgmi_avg, pcols, lchnk)
-         call outfld('TRMM_TMI_TB_CS',tbtrmmtmi_cs, pcols, lchnk)
-         call outfld('TRMM_TMI_TB',tbtrmmtmi_avg, pcols, lchnk)
+      if (lcrtm_sim) then
 
          call outfld('CRTM_MR_HYDRO_1', crtm_mr_hydro(:,:,1), pcols, lchnk)
          call outfld('CRTM_MR_HYDRO_2', crtm_mr_hydro(:,:,2), pcols, lchnk)
@@ -5479,8 +5407,44 @@ end if  !!! END RUNNING COSP ONLY RADAR/LIDAR
 !         call outfld('CRTM_REFF_HYDRO_2MO_7', crtm_reff_hydro_2mo(:,:,7), pcols, lchnk)
 !         call outfld('CRTM_REFF_HYDRO_2MO_8', crtm_reff_hydro_2mo(:,:,8), pcols, lchnk)
 !         call outfld('CRTM_REFF_HYDRO_2MO_9', crtm_reff_hydro_2mo(:,:,9), pcols, lchnk)
+      ! look for maximum number of channels for all the sensors
+      maxnch = -1
+      do i_gmi_sensor = 1, n_sensors
+        if (maxnch < sensor_list(i_gmi_sensor)%n_channels) then
+          maxnch =sensor_list(i_gmi_sensor)%n_channels
+        end if 
+      end do
 
-      end if
+      allocate(tmptb(pcols, maxnch))
+      allocate(tmptb_cs(pcols, maxnch*nscol_cosp))
+
+      do i_gmi_sensor = 1, n_sensors
+        ! mean brightness temperature
+        if (lcrtmtb) then
+          tmptb = R_UNDEF
+          tmptb(1:size(sggpmgmi(i_gmi_sensor)%tbs_mean, 1), 1:sensor_list(i_gmi_sensor)%n_channels) = &
+                sggpmgmi(i_gmi_sensor)%tbs_mean 
+          call outfld(trim(sensor_list(i_gmi_sensor)%cam_histfld_name)//'_TB', &
+                tmptb(:,1:sensor_list(i_gmi_sensor)%n_channels), pcols,  lchnk)            
+        end if
+        ! subcolumn brightness temperature
+        if (lcrtmtbcs) then
+          tmptb_cs = R_UNDEF
+          tmptb_cs(1:size(sggpmgmi(i_gmi_sensor)%tbs_cs, 1), 1:size(sggpmgmi(i_gmi_sensor)%tbs_cs, 2)) = &
+                sggpmgmi(i_gmi_sensor)%tbs_cs
+          call outfld(trim(sensor_list(i_gmi_sensor)%cam_histfld_name)//'_TB_CS', &
+                tmptb_cs(:,1:sensor_list(i_gmi_sensor)%n_channels*nscol_cosp), pcols,  lchnk)            
+        end if
+      end do
+      deallocate(tmptb)
+      deallocate(tmptb_cs)
+   end if
+#endif
+#ifdef GPM_GMI2
+   do i_gmi_sensor = 1,n_sensors
+      call free_gpm_crtm_result(sggpmgmi(i_gmi_sensor) )
+   end do
+   deallocate(sggpmgmi)
 #endif
 
    end if
@@ -5508,9 +5472,9 @@ subroutine gpmsimulator_intr_finalize()
   character(len=*),  parameter :: subroutinename = &
             'gpmsimulator_intr_finalize'   
   ! destroy the sensor structures
-  if (lgpmgmi_sim) then
+  if (lcrtm_sim) then
     call GPM_CRTM_sensor_destroy() 
-    lgpmgmi_sim  = .FALSE.
+    lcrtm_sim  = .FALSE.
   end if
 
 !  if (lgpmdpr_sim) then

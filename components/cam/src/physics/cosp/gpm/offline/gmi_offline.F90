@@ -4,6 +4,7 @@
 
 
 program gmioffline
+  use CRTM_MODULE, only: CRTM_ChannelInfo_n_Channels
   use netcdf
   use shr_kind_mod, only: r8 => shr_kind_r8
   use mod_cosp_types
@@ -16,22 +17,29 @@ program gmioffline
                                     free_GPM_CRTM_result
   implicit none
 
+  logical, parameter :: l_useCAPTQ = .true. ! flag use Q fields from capt input file
+
+
   ! local variables
   character (len=*), parameter :: inputfile = &
   "/global/cscratch1/sd/yxl232/acme_scratch/gpm_capt.v0.1.0.ne30_ne30/run/gpm_capt.v0.1.0.ne30_ne30.cam.h0.2011-01-01-00000.nc" 
+  character (len=*), parameter :: inputfile_capt = &
+  "/global/cscratch1/sd/yxl232/CAPT/NUV_ACMEv04i_interim_FC5_ne30_ne30_M4CLM45.cam.i.2011-01-01-00000.nc"
   character (len=*), parameter :: outputfile = &
   "/global/cscratch1/sd/yxl232/acme_scratch/gpm_capt.v0.1.0.ne30_ne30/run/gpm_capt.v0.1.0.ne30_ne30.cam.out.2011-01-01-00000.nc" 
   integer                      :: ncol
   integer                      :: cosp_scol
   integer                      :: lev
   integer                      :: time
-  integer, parameter :: nch=9
+  integer       :: nch
   ! used for loops
   integer                      :: itime , icol, iscol
   integer :: ncid, varid, dimid
+  integer :: ncid_capt, varid_capt
   integer :: ncid_out, ncol_id, scol_id, ch_id, time_id
   integer :: lat_varid, lon_varid, tmi_varid, tmi_varid2, scol_varid, ch_varid
   real(r8), allocatable :: tmp2d(:), tmp3d(:,:), tmp4d(:,:,:)
+  real(r8), allocatable :: capt_q(:,:)
   logical, allocatable  :: filter_profile(:)
   logical, allocatable  :: filter_column(:)
   real(r8)  :: tmp
@@ -40,14 +48,21 @@ program gmioffline
   type(cosp_sghydro) :: sghydro
   type(GPM_CRTM_result_type) :: sggpmgmi(1)
   type(GPM_CRTM_result_type) :: sggpmgmi2(1)
+  real(r8), allocatable :: tbs(:,:,:)
   
-  ! prepare CRTM sensors
-  call GPM_CRTM_sensor_add('trmm-tmi')
-  call GPM_CRTM_sensor_init()
+  integer :: i
 
+  ! prepare CRTM sensors
+  !call GPM_CRTM_sensor_add('trmm-tmi')
+  call GPM_CRTM_sensor_add('ssmis_f16')
+  call GPM_CRTM_sensor_init()
+  nch = CRTM_ChannelInfo_n_Channels( chinfo_list(1))
+  print *, nch
   ! open NC file for read
   call check( nf90_open(inputfile, NF90_NOWRITE, ncid) )
-
+  if (l_useCAPTQ) then
+  call check( nf90_open(inputfile_capt, NF90_NOWRITE, ncid_capt) )
+  end if
   ! inquire dimension
   call check( nf90_inq_dimid(ncid, "ncol", dimid) )
   call check( nf90_inquire_dimension(ncid, dimid, len=ncol) )
@@ -69,6 +84,11 @@ program gmioffline
   allocate(filter_profile(ncol) )
   allocate(filter_column(cosp_scol))
 
+  allocate(tbs(ncol, cosp_scol, nch))
+  tbs = 0
+  if(l_useCAPTQ) then
+    allocate(capt_q(ncol, lev) )
+  end if
   ! load variables
   call check( nf90_inq_varid(ncid, "lat",     varid) )
   call check( nf90_get_var(ncid, varid, gbx%latitude )) 
@@ -148,8 +168,6 @@ filter_column = .true.
     call check( nf90_inq_varid(ncid, "CRTM_WIND_DIR",   varid) )
     call check( nf90_get_var(ncid, varid, gbx%gpmsurface%Wind_Direction,        start=(/1, itime/), count=(/ncol, 1/)  )) 
 
-    call check( nf90_inq_varid(ncid, "PINT0_COSP",   varid) )
-    call check( nf90_get_var(ncid, varid, tmp2d,        start=(/1, itime/), count=(/ncol, 1/)  )) 
 
 
 
@@ -186,8 +204,20 @@ filter_column = .true.
     call check( nf90_get_var(ncid, varid, tmp3d,        start=(/1, 1, itime/), count=(/ncol,lev, 1/)  )) 
     gbx%mr_ozone = tmp3d(:, lev:1:-1) 
 
+    call check( nf90_inq_varid(ncid, "PINT0_COSP",   varid) )
+    call check( nf90_get_var(ncid, varid, tmp2d,        start=(/1, itime/), count=(/ncol, 1/)  )) 
     gbx%pint(:,1:lev) = gbx%ph(:,1:lev)
     gbx%pint(:,lev+1) = tmp2d(:)
+
+
+    ! if use Q field from CAPT input files
+    if (l_useCAPTQ) then
+    call check( nf90_inq_varid(ncid_capt, "Q",   varid_capt) )
+    print *, ncid_capt, varid_capt
+    call check( nf90_get_var(ncid_capt, varid_capt, tmp3d  ))
+    capt_q       = tmp3d(:, lev:1:-1) 
+    end if
+
 
     ! sub-grid hydrometer
     call check( nf90_inq_varid(ncid, "CRTM_MR_HYDRO_1",   varid) )
@@ -253,30 +283,56 @@ filter_column = .true.
   sghydro%mr_hydro(:,2:cosp_scol,:,:) = 0
   sghydro%Reff    (:,2:cosp_scol,:,:) = 0
 ! then turn on one hydrometer for one column
-  do iscol = 1,9
+  do iscol = 1,8
   sghydro%mr_hydro(:,iscol+1,:,iscol) = sghydro%mr_hydro(:,1,:,iscol)
   end do
 
-
+filter_column = .true.
   call gpm_crtm_simulator_run(gbx,sghydro,chinfo_list(1:n_sensors),  &
                               sensor_scan_angle_list(1:n_sensors),   &
                               sensor_zenith_angle_list(1:n_sensors), &
                               sggpmgmi,                              &
                               filter_profile=filter_profile,         &
                               filter_column =filter_column  ) 
+
+                              
 ! turn off water vapor
-  gbx%sh = 0 
-  call gpm_crtm_simulator_run(gbx,sghydro,chinfo_list(1:n_sensors),  &
+!  gbx%sh = 0 
+! turn off hydrometeor
+  sghydro%Reff = 0
+  sghydro%mr_hydro = 0
+! modify water vapor
+  
+
+filter_column  = .false.
+filter_column(1) = .true.
+tmp3d = gbx%sh 
+do iscol = 1,7
+gbx%sh = tmp3d * (1+(iscol-4)*0.1)
+call gpm_crtm_simulator_run(gbx,sghydro,chinfo_list(1:n_sensors),  &
                               sensor_scan_angle_list(1:n_sensors),   &
                               sensor_zenith_angle_list(1:n_sensors), &
                               sggpmgmi2,                             &
                               filter_profile=filter_profile,         &
                               filter_column =filter_column  ) 
+tbs(:,iscol,:) = sggpmgmi2(1)%tbs(:,1,:)
+end do
+gbx%sh = capt_Q 
+call gpm_crtm_simulator_run(gbx,sghydro,chinfo_list(1:n_sensors),  &
+                              sensor_scan_angle_list(1:n_sensors),   &
+                              sensor_zenith_angle_list(1:n_sensors), &
+                              sggpmgmi2,                             &
+                              filter_profile=filter_profile,         &
+                              filter_column =filter_column  ) 
+tbs(:,10,:) = sggpmgmi2(1)%tbs(:,1,:)
+tbs(:,9,:)  = tbs(:,4,:) - tbs(:,10,:)
 
 
-
-  call check( nf90_put_var(ncid_out, tmi_varid,   sggpmgmi(1)%tbs ,  start=(/1, 1, 1, itime/), count=(/ncol, cosp_scol, nch, 1/) ) )
-  call check( nf90_put_var(ncid_out, tmi_varid2, sggpmgmi2(1)%tbs ,  start=(/1, 1, 1, itime/), count=(/ncol, cosp_scol, nch, 1/) ) )
+do iscol = 1,9
+sggpmgmi(1)%tbs(:,iscol,:) = sggpmgmi(1)%tbs(:,iscol,:) - sggpmgmi(1)%tbs(:,10,:)
+end do
+  call check( nf90_put_var(ncid_out, tmi_varid,   sggpmgmi(1)%tbs ,  start=(/1, 1, 1, itime-2/), count=(/ncol, cosp_scol, nch, 1/) ) )
+  call check( nf90_put_var(ncid_out, tmi_varid2, tbs ,  start=(/1, 1, 1, itime-2/), count=(/ncol, cosp_scol, nch, 1/) ) )
 
 
 
@@ -286,6 +342,9 @@ filter_column = .true.
   call free_gpm_crtm_result(sggpmgmi(1))
   call free_gpm_crtm_result(sggpmgmi2(1))
   call check( nf90_close(ncid))
+  if (l_useCAPTQ) then
+  call check( nf90_close(ncid_capt))
+  end if
   call check( nf90_close(ncid_out))
 
 contains

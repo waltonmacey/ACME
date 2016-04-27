@@ -336,16 +336,25 @@ contains
       !----------
       select case (sensorname)
          case ('gpm-gmi-lowfreq')
-            call GPM_CRTM_sensor_create(gmi, 'gmi_gpm','GPM_GMI_LOWFREQ',52.8, 48.5,&
+            call GPM_CRTM_sensor_create(gmi, 'gmi_gpm','CRTM_GMI_GPM_LF',52.8, 48.5,&
                       channel_subset = (/(i,i=1,9)/)  )
          case ('gpm-gmi-highfreq')
-            call GPM_CRTM_sensor_create(gmi, 'gmi_gpm','GPM_GMI_LOWFREQ',49.19, 45.36,&
+            call GPM_CRTM_sensor_create(gmi, 'gmi_gpm','CRTM_GMI_GPM_HF',49.19, 45.36,&
                       channel_subset = (/(i,i=10,13)/)  )
          case ('trmm-tmi')
-            call GPM_CRTM_sensor_create(gmi, 'tmi_trmm','TRMM_TMI',53.3, 49.0 )
+            call GPM_CRTM_sensor_create(gmi, 'tmi_trmm','CRTM_TMI_TRMM',53.3, 49.0 )
+         case ('ssmis_f16')
+            call GPM_CRTM_sensor_create(gmi, 'ssmis_f16','CRTM_SSMIS_F16',53.1, 45.0 )
+         case ('ssmis_f17')
+            call GPM_CRTM_sensor_create(gmi, 'ssmis_f17','CRTM_SSMIS_F17',53.1, 45.0 )
+         case ('ssmis_f18')
+            call GPM_CRTM_sensor_create(gmi, 'ssmis_f18','CRTM_SSMIS_F18',53.1, 45.0 )
+         case ('ssmis_f19')
+            call GPM_CRTM_sensor_create(gmi, 'ssmis_f19','CRTM_SSMIS_F19',53.1, 45.0 )
+         case ('ssmis_f20')
+            call GPM_CRTM_sensor_create(gmi, 'ssmis_f20','CRTM_SSMIS_F20',53.1, 45.0 )
          case default
-            print *, 'error: sensor not implemented in default list'
-            stop
+            call GPM_CRTM_sensor_create(gmi, sensorname, sensorname, 0.0, 0.0)
       end select
    end subroutine GPM_CRTM_sensor_createdefault
 !============================================

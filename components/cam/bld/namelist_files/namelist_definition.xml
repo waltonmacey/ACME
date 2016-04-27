@@ -1866,6 +1866,13 @@ This default logical is set in cospsimulator_intr.F90.
 Default: FALSE
 </entry>
 
+<entry id="cosp_crtm_instruments" type="char*1024"  category="cosp"
+       group="cospsimulator_nl" valid_values="">
+COSP CRTM instrument names seperated by ':'
+Example: 'gpm-gmi-lowfreq:trmm-tmi'       
+Default: ''
+</entry>
+
 <entry id="cosp_active" type="logical"  category="cosp"
        group="cospsimulator_nl" valid_values="">
 If true, the active COSP cloud simulators are run to produce 
