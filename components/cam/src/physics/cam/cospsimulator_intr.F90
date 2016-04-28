@@ -59,7 +59,7 @@ module cospsimulator_intr
         cospsimulator_intr_register, &
         cospsimulator_intr_init,    &
         cospsimulator_intr_run,     &
-        gpmsimulator_intr_finalize
+        crtmsimulator_intr_finalize
    logical, public :: docosp = .false.  ! whether to do COSP calcs and I/O, default is false
                                         ! if docosp is specified in the atm_in namelist,
                                         ! this value is overwritten and cosp is run
@@ -1008,14 +1008,14 @@ subroutine cospsimulator_intr_init
    real(r8),parameter :: R_UNDEF = -1.0E30_r8
 #endif
    integer ncid,latid,lonid,did,hrid,minid,secid, istat
-   character(maxlen_camhistfld_name) :: gmi_camhistfldname
+   character(maxlen_camhistfld_name) :: crtm_camhistfldname
    character(16) :: gmi_chidxname 
    character(2) :: tmpstr 
    character(1024) :: tmpstr_ins = ''
    integer :: idx1, idx2
-   integer :: i, i_gmi_sensor
+   integer :: i, i_crtm_sensor
    !------------------------------------------------------------------------------
-   gmi_camhistfldname = ''
+   crtm_camhistfldname = ''
 #ifdef COSP_ATRAIN
 if (cosp_sample_atrain) then
 
@@ -1763,34 +1763,34 @@ endif
    tmpstr_ins = cosp_crtm_instruments(idx1+1:) 
    if(len(trim(tmpstr_ins)) .NE. 0)   call GPM_CRTM_sensor_add(trim(tmpstr_ins))
 
-    ! initialize GPM GMI sensors
+    ! initialize COSP CRTM sensors
     call GPM_CRTM_sensor_init()
 
     ! Add COSP CRTM output fields 
     if (lcrtmtb .OR. lcrtmtbcs) then
-      do i_gmi_sensor = 1, n_sensors
+      do i_crtm_sensor = 1, n_sensors
         
-        gmi_camhistfldname = sensor_list(i_gmi_sensor)%cam_histfld_name
-        write (tmpstr, "(I2)" ) i_gmi_sensor
+        crtm_camhistfldname = sensor_list(i_crtm_sensor)%cam_histfld_name
+        write (tmpstr, "(I2)" ) i_crtm_sensor
         gmi_chidxname = 'CRTM_' // trim(adjustl(tmpstr)) // '_chidx'   
-        call add_hist_coord(gmi_chidxname, sensor_list(i_gmi_sensor)%n_channels, &
-                            trim(gmi_camhistfldname) // ' channel index', '1',    &
-                            CRTM_chidx(1:sensor_list(i_gmi_sensor)%n_channels )  )
+        call add_hist_coord(gmi_chidxname, sensor_list(i_crtm_sensor)%n_channels, &
+                            trim(crtm_camhistfldname) // ' channel index', '1',    &
+                            CRTM_chidx(1:sensor_list(i_crtm_sensor)%n_channels )  )
         ! Add mean brightness temperature fields
         if (lcrtmtb) then
-          call addfld(trim(gmi_camhistfldname) // '_TB', (/gmi_chidxname  /), &
+          call addfld(trim(crtm_camhistfldname) // '_TB', (/gmi_chidxname  /), &
                        'I', 'K',               &
-                       trim(gmi_camhistfldname) // ' brightness temperature',  & 
+                       trim(crtm_camhistfldname) // ' brightness temperature',  & 
                        flag_xyfill=.true., fill_value=R_UNDEF)
-          call add_default(trim(gmi_camhistfldname) // '_TB', cosp_histfile_num, ' ')
+          call add_default(trim(crtm_camhistfldname) // '_TB', cosp_histfile_num, ' ')
         end if
         ! Add sub-column brightness temperature fields
         if (lcrtmtbcs) then
-          call addfld(trim(gmi_camhistfldname) // '_TB_CS', (/'cosp_scol', gmi_chidxname  /), &
+          call addfld(trim(crtm_camhistfldname) // '_TB_CS', (/'cosp_scol', gmi_chidxname  /), &
                        'I', 'K',               &
-                       trim(gmi_camhistfldname) // ' brightness temperature, subcolumn',  & 
+                       trim(crtm_camhistfldname) // ' brightness temperature, subcolumn',  & 
                        flag_xyfill=.true., fill_value=R_UNDEF)
-          call add_default(trim(gmi_camhistfldname) // '_TB_CS', cosp_histfile_num, ' ')
+          call add_default(trim(crtm_camhistfldname) // '_TB_CS', cosp_histfile_num, ' ')
         end if
       end do
     end if
@@ -2017,7 +2017,7 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    type(cosp_gpmdprstats) :: stgpmka
 #endif
 #ifdef GPM_GMI2
-   type(GPM_CRTM_result_type), allocatable :: sggpmgmi(:)
+   type(GPM_CRTM_result_type), allocatable :: crtmresults(:)
    real(r8), allocatable :: tmptb(:,:)
    real(r8), allocatable :: tmptb_cs(:,:)
    integer :: maxnch 
@@ -2323,7 +2323,7 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    type(interp_type)  :: interp_wgts
    integer, parameter :: extrap_method = 1              ! sets extrapolation method to boundary value (1)
 
-   integer :: i_gmi_sensor
+   integer :: i_crtm_sensor
   !---------------- End of declaration of variables --------------
    !! find the chunk and ncol from the state vector
    lchnk = state%lchnk   !! state variable contains a number of columns, one chunk
@@ -3289,8 +3289,8 @@ if (cosp_runall) then
    gbx%gpmsurface%LAI                   = cam_in%gpm_lai(1:Npoints)
    gbx%gpmsurface%Soil_Type         = getGFSSoilType(      cam_in%gpm_sandfrac(1:Npoints), cam_in%gpm_clayfrac(1:Npoints))
    gbx%gpmsurface%Vegetation_Type   = getGFSVegetationType(cam_in%gpm_vegrho(1:Npoints),   cam_in%gpm_vegmge(1:Npoints)  )
-!   do i_gmi_sensor=1,Npoints
-!print *, "soil type: ", gbx%gpmsurface(i_gmi_sensor)%Soil_Type,  "vegetation type: ", gbx%gpmsurface(i_gmi_sensor)%Vegetation_Type
+!   do i_crtm_sensor=1,Npoints
+!print *, "soil type: ", gbx%gpmsurface(i_crtm_sensor)%Soil_Type,  "vegetation type: ", gbx%gpmsurface(i_crtm_sensor)%Vegetation_Type
 !   end do
    ! water surface properties
    gbx%gpmsurface%water_temperature = gbx%skt !gbx%T(:,1) !cam_in%sst(1:Npoints)
@@ -3308,11 +3308,11 @@ if (cosp_runall) then
 
 
    ! allocate gpm output structures
-   allocate(sggpmgmi(n_sensors))
-   do i_gmi_sensor = 1,n_sensors
+   allocate(crtmresults(n_sensors))
+   do i_crtm_sensor = 1,n_sensors
       call construct_gpm_crtm_result(Npoints, ncolumns,&
-                    CRTM_ChannelInfo_n_Channels(chinfo_list(i_gmi_sensor)), &
-                    sggpmgmi(i_gmi_sensor) , Nlevels)
+                    CRTM_ChannelInfo_n_Channels(chinfo_list(i_crtm_sensor)), &
+                    crtmresults(i_crtm_sensor) , Nlevels)
    end do
 #endif
 
@@ -3398,7 +3398,7 @@ if (cosp_runall) then
             ,sggpmka, stgpmka &
 #endif
 #ifdef GPM_GMI2
-            ,sggpmgmi &
+            ,crtmresults &
 #endif
             )
 
@@ -3556,10 +3556,10 @@ if (cosp_runall) then
           do ihml=1,nhtml_cosp
             do isc=1,nscol_cosp
                ihsc= (nhtml_cosp-ihml)*nscol_cosp+isc   !  (ihml-1)*nscol_cosp+isc                 ! need to flip nlevels
-               crtm_mr_hydro(i,ihsc,ihydro)       = sggpmgmi(1)%mr_hydro_sg(i,isc,ihml,ihydro)                
-               crtm_Reff_hydro(i,ihsc,ihydro)     = sggpmgmi(1)%Reff_hydro_sg(i,isc,ihml,ihydro)                
-    !           crtm_mr_hydro_2mo(i,ihsc,ihydro)   = sggpmgmi(1)%mr_hydro_sg_2mo(i,isc,ihml,ihydro)                
-    !           crtm_Reff_hydro_2mo(i,ihsc,ihydro) = sggpmgmi(1)%Reff_hydro_sg_2mo(i,isc,ihml,ihydro)                
+               crtm_mr_hydro(i,ihsc,ihydro)       = crtmresults(1)%mr_hydro_sg(i,isc,ihml,ihydro)                
+               crtm_Reff_hydro(i,ihsc,ihydro)     = crtmresults(1)%Reff_hydro_sg(i,isc,ihml,ihydro)                
+    !           crtm_mr_hydro_2mo(i,ihsc,ihydro)   = crtmresults(1)%mr_hydro_sg_2mo(i,isc,ihml,ihydro)                
+    !           crtm_Reff_hydro_2mo(i,ihsc,ihydro) = crtmresults(1)%Reff_hydro_sg_2mo(i,isc,ihml,ihydro)                
             end do
           end do
         end do
@@ -3992,7 +3992,7 @@ end do
             ,sggpmka, stgpmka &
 #endif
 #ifdef GPM_GMI2
-            ,sggpmgmi &
+            ,crtmresults &
 #endif
             )
 
@@ -4751,7 +4751,7 @@ if (((.not.cosp_sample_atrain) .and. Natrain .gt. 0) .or. ((cosp_sample_atrain) 
             ,sggpmka, stgpmka &
 #endif
 #ifdef GPM_GMI2
-            ,sggpmgmi &
+            ,crtmresults &
 #endif
             )
 
@@ -5426,31 +5426,31 @@ end if  !!! END RUNNING COSP ONLY RADAR/LIDAR
 !         call outfld('CRTM_REFF_HYDRO_2MO_9', crtm_reff_hydro_2mo(:,:,9), pcols, lchnk)
       ! look for maximum number of channels for all the sensors
       maxnch = -1
-      do i_gmi_sensor = 1, n_sensors
-        if (maxnch < sensor_list(i_gmi_sensor)%n_channels) then
-          maxnch =sensor_list(i_gmi_sensor)%n_channels
+      do i_crtm_sensor = 1, n_sensors
+        if (maxnch < sensor_list(i_crtm_sensor)%n_channels) then
+          maxnch =sensor_list(i_crtm_sensor)%n_channels
         end if 
       end do
 
       allocate(tmptb(pcols, maxnch))
       allocate(tmptb_cs(pcols, maxnch*nscol_cosp))
 
-      do i_gmi_sensor = 1, n_sensors
+      do i_crtm_sensor = 1, n_sensors
         ! mean brightness temperature
         if (lcrtmtb) then
           tmptb = R_UNDEF
-          tmptb(1:size(sggpmgmi(i_gmi_sensor)%tbs_mean, 1), 1:sensor_list(i_gmi_sensor)%n_channels) = &
-                sggpmgmi(i_gmi_sensor)%tbs_mean 
-          call outfld(trim(sensor_list(i_gmi_sensor)%cam_histfld_name)//'_TB', &
-                tmptb(:,1:sensor_list(i_gmi_sensor)%n_channels), pcols,  lchnk)            
+          tmptb(1:size(crtmresults(i_crtm_sensor)%tbs_mean, 1), 1:sensor_list(i_crtm_sensor)%n_channels) = &
+                crtmresults(i_crtm_sensor)%tbs_mean 
+          call outfld(trim(sensor_list(i_crtm_sensor)%cam_histfld_name)//'_TB', &
+                tmptb(:,1:sensor_list(i_crtm_sensor)%n_channels), pcols,  lchnk)            
         end if
         ! subcolumn brightness temperature
         if (lcrtmtbcs) then
           tmptb_cs = R_UNDEF
-          tmptb_cs(1:size(sggpmgmi(i_gmi_sensor)%tbs_cs, 1), 1:size(sggpmgmi(i_gmi_sensor)%tbs_cs, 2)) = &
-                sggpmgmi(i_gmi_sensor)%tbs_cs
-          call outfld(trim(sensor_list(i_gmi_sensor)%cam_histfld_name)//'_TB_CS', &
-                tmptb_cs(:,1:sensor_list(i_gmi_sensor)%n_channels*nscol_cosp), pcols,  lchnk)            
+          tmptb_cs(1:size(crtmresults(i_crtm_sensor)%tbs_cs, 1), 1:size(crtmresults(i_crtm_sensor)%tbs_cs, 2)) = &
+                crtmresults(i_crtm_sensor)%tbs_cs
+          call outfld(trim(sensor_list(i_crtm_sensor)%cam_histfld_name)//'_TB_CS', &
+                tmptb_cs(:,1:sensor_list(i_crtm_sensor)%n_channels*nscol_cosp), pcols,  lchnk)            
         end if
       end do
       deallocate(tmptb)
@@ -5458,10 +5458,10 @@ end if  !!! END RUNNING COSP ONLY RADAR/LIDAR
    end if
 #endif
 #ifdef GPM_GMI2
-   do i_gmi_sensor = 1,n_sensors
-      call free_gpm_crtm_result(sggpmgmi(i_gmi_sensor) )
+   do i_crtm_sensor = 1,n_sensors
+      call free_gpm_crtm_result(crtmresults(i_crtm_sensor) )
    end do
-   deallocate(sggpmgmi)
+   deallocate(crtmresults)
 #endif
 
    end if
@@ -5477,7 +5477,7 @@ end if  !!! END RUNNING COSP ONLY RADAR/LIDAR
 end subroutine cospsimulator_intr_run
 
 !#######################################################################
-subroutine gpmsimulator_intr_finalize()
+subroutine crtmsimulator_intr_finalize()
 #ifdef GPM_GMI2
   !------------------
   ! Environment setup
@@ -5487,7 +5487,7 @@ subroutine gpmsimulator_intr_finalize()
   ! Disable implicit typing
   implicit none
   character(len=*),  parameter :: subroutinename = &
-            'gpmsimulator_intr_finalize'   
+            'crtmsimulator_intr_finalize'   
   ! destroy the sensor structures
   if (lcrtm_sim) then
     call GPM_CRTM_sensor_destroy() 
@@ -5499,7 +5499,7 @@ subroutine gpmsimulator_intr_finalize()
 !  end if
   ! reset initialization flag and instrument flag
 #endif
-end subroutine gpmsimulator_intr_finalize
+end subroutine crtmsimulator_intr_finalize
 
 !#######################################################################
 #ifdef GPM_GMI2
