@@ -1140,6 +1140,7 @@ contains
 
        found = .false.
        i=1
+       res = 1 !BSINGH- default value for res, I need to confirm this with somebody
        do while (i<=fac%numfact .and. (.not. found))
           if(fac%used(i) == 0) then
                 res = fac%factors(i)
