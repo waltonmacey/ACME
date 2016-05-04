@@ -825,6 +825,7 @@
 
 <!-- BSINGH - ice nucleation option by PNNL -->
 <demott_ice_nuc>.false.</demott_ice_nuc>
+<pergro>.false.</pergro>
 
 
 <!-- sub-column switches for physics packages -->

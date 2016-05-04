@@ -2607,7 +2607,7 @@ add_default($nl, 'sscav_tuning');
 add_default($nl, 'convproc_do_gas');
 add_default($nl, 'demott_ice_nuc');
 #BSINGH - ENDS
-
+add_default($nl, 'pergro');
 
 # Microphysics scheme
 add_default($nl, 'use_subcol_microp');
