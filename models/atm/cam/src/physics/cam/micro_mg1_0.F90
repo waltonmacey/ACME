@@ -272,9 +272,11 @@ f2r = 0.32_r8
 dcs = dcs_in
 
 ! smallest mixing ratio considered in microphysics
-
-qsmall = 1.e-18_r8  
-
+if(pergro) then
+   qsmall = 1.e-8_r8   !1.e-18_r8  !BSINGH: Changed the threshold for pergro [this mod is climate changing ]
+else
+   qsmall = 1.e-18_r8
+endif
 ! immersion freezing parameters, bigg 1953
 
 bimm = 100._r8
@@ -971,6 +973,10 @@ do k=top_lev,pver
 
       icldm(i,k)=max(icecldf(i,k),mincld)
       lcldm(i,k)=max(liqcldf(i,k),mincld)
+      if(pergro) then
+         !pjr - BSINGH - Added by phil as a temporary solution to avoid temprature jump         
+         if (cldm(i,k).gt.0.9999999_r8) cldm(i,k) = 0.9999999_r8 !BSINGH
+      endif
 
       ! subcolumns, set cloud fraction variables to one
       ! if cloud water or ice is present, if not present
