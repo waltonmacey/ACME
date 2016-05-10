@@ -101,14 +101,14 @@ sub main
 	
     #----------------------
 	
-    $time_sec1 = time;
+   #$time_sec1 = time;
 
-    $batchutils->submitJobs("sta_ok",$lastjobid);
+   #$batchutils->submitJobs("sta_ok",$lastjobid);
 
-    $time_sec2 = time;
-    $time_diff = $time_sec2 - $time_sec1;
-    print "\n CASE_SUBMIT___SUBMIT_JOB___WALL_SEC $time_diff \n\n";
-    print "\n CASE_SUBMIT___FINISHED_AT $time_sec2 \n\n";
+   #$time_sec2 = time;
+   #$time_diff = $time_sec2 - $time_sec1;
+   #print "\n CASE_SUBMIT___SUBMIT_JOB___WALL_SEC $time_diff \n\n";
+   #print "\n CASE_SUBMIT___FINISHED_AT $time_sec2 \n\n";
 
 }
 

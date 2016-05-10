@@ -229,22 +229,24 @@ sub doPreRunChecks()
 	print $CS "run started $sdate\n";
 	close $CS;
 	
-	print "-------------------------------------------------------------------------\n";
-	print " CESM BUILDNML SCRIPT STARTING\n";
-	print " - To prestage restarts, untar a restart.tar file into $config{'RUNDIR'}\n";
-	
-	# Run preview namelists.. should turn this into a module at some point..
-	my @previewoutput = qx("./preview_namelists");
-	map { print $_ } @previewoutput;
-	
-	if($?)
-	{
-		print "ERROR from preview namelist - EXITING\n";
-		exit(-1);
-	}
-	
-	print " CESM BUILDNML SCRIPT HAS FINISHED SUCCESSFULLY\n";
-	print "-------------------------------------------------------------------------\n\n";
+#print "-------------------------------------------------------------------------\n";
+#print " CESM BUILDNML SCRIPT STARTING\n";
+#print " - To prestage restarts, untar a restart.tar file into $config{'RUNDIR'}\n";
+#
+## Run preview namelists.. should turn this into a module at some point..
+#my @previewoutput = qx("./preview_namelists");
+#map { print $_ } @previewoutput;
+#
+#if($?)
+#{
+#	print "ERROR from preview namelist - EXITING\n";
+#	exit(-1);
+#}
+#
+#print " CESM BUILDNML SCRIPT HAS FINISHED SUCCESSFULLY\n";
+#print "-------------------------------------------------------------------------\n\n";
+	print " CESM BUILDNML SCRIPT WAS SKIPPED\n";
+
 	print "-------------------------------------------------------------------------\n";
 	print " CESM PRESTAGE SCRIPT STARTING\n";
 	print " - Case input data directory, DIN_LOC_ROOT, is $config{'DIN_LOC_ROOT'}\n";
