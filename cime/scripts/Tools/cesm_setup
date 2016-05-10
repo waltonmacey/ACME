@@ -49,8 +49,16 @@ OPTIONS
 EOF
 }
 
+# declare local variables
+
+my $time_sec1 = time;
+my $time_sec2 = time;
+my $time_diff = time;
 #-----------------------------------------------------------------------------------------------
 # Parse command-line options.
+
+$time_sec1 = time;
+
 my %opts = ();
 
 GetOptions(
@@ -117,6 +125,10 @@ if ($fail_setup) {
     die "Correct above and issue cesm_setup again \n";
 }
 
+$time_sec2 = time;
+$time_diff = $time_sec2 - $time_sec1;
+print "\n CESM_SETUP___PARSE_OPT___WALL_SEC $time_diff \n\n";
+
 #-----------------------------------------------------------------------------------------------
 # Create batch script 
 #-----------------------------------------------------------------------------------------------
@@ -129,6 +141,8 @@ if (! $clean ) {
     #--------------------------------------------------------------------------
     # Create Macros file only if it does not exist
     #--------------------------------------------------------------------------
+    $time_sec1 = time;
+
     if (!-f "./Macros") {
 	print "Creating Macros file for $mach$eol";
 	SetupTools::set_compiler($xmlvars{OS},"$xmlvars{CCSM_MACHDIR}/config_compilers.xml",
@@ -172,7 +186,15 @@ if (! $clean ) {
     my $sysmod = "./xmlchange BUILD_THREADED=$build_threaded";
     system($sysmod) == 0 or die "ERROR cesm_setup: $sysmod failed: $?\n";
 
+    $time_sec2 = time;
+    $time_diff = $time_sec2 - $time_sec1;
+    print "\n CESM_SETUP___MARCOS_AND_PE___WALL_SEC $time_diff \n\n";
 
+    #--------------------------------------------------------------
+    # create batch file
+    #--------------------------------------------------------------
+    $time_sec1 = time;
+	
     if (-f "$caseroot/$case.run") {
 	print "Machine/Decomp/Pes configuration has already been done ...skipping$eol ";
 
@@ -263,9 +285,15 @@ if (! $clean ) {
 	}
     }
 
+    $time_sec2 = time;
+    $time_diff = $time_sec2 - $time_sec1;
+    print "\n CESM_SETUP___CREATE_CASE_RUN___WALL_SEC $time_diff \n\n";
+
     #--------------------------------------------------------------------------
     # Create user_nl files for the required number of instances
     #--------------------------------------------------------------------------
+    $time_sec1 = time;
+
     if (!-f "./user_nl_cpl") {
 	print "Creating user_nl_xxx files for components and cpl$eol";
     }
@@ -281,19 +309,30 @@ if (! $clean ) {
 	}
     }
 
+    $time_sec2 = time;
+    $time_diff = $time_sec2 - $time_sec1;
+    print "\n CESM_SETUP___CREATE_USER_NL___WALL_SEC $time_diff \n\n";
 
     #--------------------------------------------------------------------------
     # Run preview namelists for scripts
     #--------------------------------------------------------------------------
+    $time_sec1 = time;
+
     print "Running preview_namelist script $eol";
     my $sysmod = "$caseroot/preview_namelists";
     system($sysmod) == 0 or die "ERROR: $sysmod failed: $?\n";
     print "See ./CaseDoc for component namelists $eol";
     print "If an old case build already exists, might want to run ${case}.clean_build before building $eol";
 
+    $time_sec2 = time;
+    $time_diff = $time_sec2 - $time_sec1;
+    print "\n CESM_SETUP___PREVIEW_NAMELIST___WALL_SEC $time_diff \n\n";
+
     #--------------------------------------------------------------------------
     # Create test script if appropriate
     #--------------------------------------------------------------------------
+    $time_sec1 = time;
+	
     if( -e "$caseroot/env_test.xml") {
 	if ( -e "$caseroot/$case.test") {
 	    # do nothing
@@ -304,6 +343,10 @@ if (! $clean ) {
 	    print "Finished testcase_setup \n";
 	}
     }
+
+    $time_sec2 = time;
+    $time_diff = $time_sec2 - $time_sec1;
+    print "\n CESM_SETUP___CREATE_TEST_SCRIPT___WALL_SEC $time_diff \n\n";
 
 }
     

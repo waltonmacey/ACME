@@ -43,7 +43,17 @@ if (defined $opts{'jobid'}) {
 
 sub main
 {
+
+    # declare local variables
+
+    my $time_sec1 = time;
+    my $time_sec2 = time;
+    my $time_diff = time;
+
 	# Check the case only once..
+	
+    $time_sec1 = time;
+
 	print "checking the case..\n";
 	open(my $CHECKCASE, "-|", "./check_case");
 	while(<$CHECKCASE>)
@@ -57,10 +67,26 @@ sub main
         exit(-1);
     }
 	
+    $time_sec2 = time;
+    $time_diff = $time_sec2 - $time_sec1;
+    print "\n CASE_SUBMIT___CHECK_CASE___WALL_SEC $time_diff \n\n";
+
+    #----------------------
+	
+    $time_sec1 = time;
+
 	my $moduleloader = new Module::ModuleLoader(machine => $config{'MACH'}, compiler => $config{'COMPILER'},
                                             mpilib => $config{'MPILIB'}, debug => $config{'DEBUG'},
                                             scriptsroot => $config{'SCRIPTSROOT'}, caseroot => $config{'CASEROOT'});
     $moduleloader->loadModules();
+	
+    $time_sec2 = time;
+    $time_diff = $time_sec2 - $time_sec1;
+    print "\n CASE_SUBMIT___LOAD_MODULES___WALL_SEC $time_diff \n\n";
+
+    #----------------------
+	
+    $time_sec1 = time;
 
 	#my $batchutils = new Batch::BatchUtils(machine => $machine, machroot => $machroot, caseconfig => \%config);
 	my $batchutils = Batch::BatchUtilsFactory::getBatchUtils( case => $case, caseconfig => \%config, caseroot => $caseroot, 
@@ -68,7 +94,22 @@ sub main
                                             machroot => $machroot, mpilib => $mpilib, scriptsroot => $scriptsroot );
 	
 	$batchutils->dependencyCheck("sta_ok");
+	
+    $time_sec2 = time;
+    $time_diff = $time_sec2 - $time_sec1;
+    print "\n CASE_SUBMIT___DEPENDENCY_CHECK___WALL_SEC $time_diff \n\n";
+	
+    #----------------------
+	
+    $time_sec1 = time;
+
     $batchutils->submitJobs("sta_ok",$lastjobid);
+
+    $time_sec2 = time;
+    $time_diff = $time_sec2 - $time_sec1;
+    print "\n CASE_SUBMIT___SUBMIT_JOB___WALL_SEC $time_diff \n\n";
+    print "\n CASE_SUBMIT___FINISHED_AT $time_sec2 \n\n";
+
 }
 
 main(@ARGV) unless caller();

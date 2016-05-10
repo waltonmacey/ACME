@@ -55,12 +55,66 @@ my $LID;
 # -------------------------------------------------------------------------
 sub main
 {
+    # declare local variables
+	my $time_sec1 = time;
+	my $time_sec2 = time;
+	my $time_diff = time;
+
+	print "\n CASE_RUN___STARTED_AT $time_sec2 \n\n";
+	#------
+	$time_sec1 = time;
+
 	getOptions();
+
+	$time_sec2 = time;
+	$time_diff = $time_sec2 - $time_sec1;
+	print "\n CASE_RUN___GET_OPTIONS___WALL_SEC $time_diff \n\n";
+
+	#------
+	$time_sec1 = time;
+
 	doPreRunChecks();
+
+	$time_sec2 = time;
+	$time_diff = $time_sec2 - $time_sec1;
+	print "\n CASE_RUN___DO_PRE_RUN_CHECKS___WALL_SEC $time_diff \n\n";
+
+	#------
+	$time_sec1 = time;
+
 	checkInputData();
+
+	$time_sec2 = time;
+	$time_diff = $time_sec2 - $time_sec1;
+	print "\n CASE_RUN___CHECK_INPUT_DATA___WALL_SEC $time_diff \n\n";
+
+	#------
+	$time_sec1 = time;
+
 	runCESM();
+
+	$time_sec2 = time;
+	$time_diff = $time_sec2 - $time_sec1;
+	print "\n CASE_RUN___RUN_CESM___WALL_SEC $time_diff \n\n";
+
+	#------
+	$time_sec1 = time;
+
 	postRun();
+
+	$time_sec2 = time;
+	$time_diff = $time_sec2 - $time_sec1;
+	print "\n CASE_RUN___POSTRUN___WALL_SEC $time_diff \n\n";
+
+	#------
+	$time_sec1 = time;
+
 	resubmitCheck();
+
+	$time_sec2 = time;
+	$time_diff = $time_sec2 - $time_sec1;
+	print "\n CASE_RUN___RESUBMIT_CHECK___WALL_SEC $time_diff \n\n";
+
 	exit(0);
 }
 main(@ARGV) unless caller();
