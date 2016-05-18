@@ -128,6 +128,7 @@ real(r8)          :: micro_mg_berg_eff_factor    = 1.0_r8        ! berg efficien
 
 logical, public :: do_cldliq ! Prognose cldliq flag
 logical, public :: do_cldice ! Prognose cldice flag
+integer, public :: nsed_substep
 
 integer :: num_steps ! Number of MG substeps
 
@@ -258,6 +259,8 @@ subroutine micro_mg_cam_readnl(nlfile)
   logical :: micro_mg_do_cldice = .true. ! do_cldice = .true., MG microphysics is prognosing cldice
   logical :: micro_mg_do_cldliq = .true. ! do_cldliq = .true., MG microphysics is prognosing cldliq
   integer :: micro_mg_num_steps = 1      ! Number of substepping iterations done by MG (1.5 only for now).
+  integer :: micro_mg_nsed_substep = 1   ! scale factor of the sedimentation substeps applied on top of
+                                         ! the dynamically determined values
 
 
   ! Local variables
@@ -266,6 +269,7 @@ subroutine micro_mg_cam_readnl(nlfile)
 
   namelist /micro_mg_nl/ micro_mg_version, micro_mg_sub_version, &
        micro_mg_do_cldice, micro_mg_do_cldliq, micro_mg_num_steps, &
+       micro_mg_nsed_substep, &
 !!== KZ_DCS
        micro_mg_dcs_tdep, & 
 !!== KZ_DCS
@@ -290,6 +294,8 @@ subroutine micro_mg_cam_readnl(nlfile)
      do_cldice = micro_mg_do_cldice
      do_cldliq = micro_mg_do_cldliq
      num_steps = micro_mg_num_steps
+
+     nsed_substep = micro_mg_nsed_substep
 
      ! Verify that version numbers are valid.
      select case (micro_mg_version)
@@ -325,6 +331,7 @@ subroutine micro_mg_cam_readnl(nlfile)
   call mpibcast(do_cldliq,                   1, mpilog, 0, mpicom)
   call mpibcast(micro_mg_dcs_tdep,           1, mpilog, 0, mpicom)
   call mpibcast(num_steps,                   1, mpiint, 0, mpicom)
+  call mpibcast(nsed_substep,                1, mpiint, 0, mpicom)
   call mpibcast(microp_uniform,              1, mpilog, 0, mpicom)
   call mpibcast(micro_mg_dcs,                1, mpir8,  0, mpicom)
   call mpibcast(micro_mg_berg_eff_factor,    1, mpir8,  0, mpicom)
@@ -665,7 +672,7 @@ subroutine micro_mg_cam_init(pbuf2d)
               tmelt, latvap, latice, rhmini, &
               micro_mg_dcs,                  &
               micro_mg_dcs_tdep,             &
-              microp_uniform, do_cldice, use_hetfrz_classnuc, &
+              microp_uniform, do_cldice, use_hetfrz_classnuc, nsed_substep, &
               micro_mg_precip_frac_method, micro_mg_berg_eff_factor, &
               allow_sed_supersat, errstring)
       end select

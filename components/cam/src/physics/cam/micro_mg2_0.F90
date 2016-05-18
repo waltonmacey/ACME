@@ -186,6 +186,8 @@ logical :: microp_uniform
 logical :: do_cldice
 logical :: use_hetfrz_classnuc
 
+integer :: nsed_substep
+
 real(r8) :: rhosu       ! typical 850mn air density
 
 real(r8) :: icenuct     ! ice nucleation temperature: currently -5 degrees C
@@ -218,7 +220,7 @@ subroutine micro_mg_init( &
 !!== KZ_DCS 
      rhmini_in, micro_mg_dcs, micro_mg_dcs_tdep, &
 !!== KZ_DCS 
-     microp_uniform_in, do_cldice_in, use_hetfrz_classnuc_in, &
+     microp_uniform_in, do_cldice_in, use_hetfrz_classnuc_in, nsed_substep_in, &
      micro_mg_precip_frac_method_in, micro_mg_berg_eff_factor_in, &
      allow_sed_supersat_in, errstring)
 
@@ -253,6 +255,8 @@ subroutine micro_mg_init( &
                                             ! .false. = skip all processes affecting
                                             !           cloud ice
   logical,  intent(in)  :: use_hetfrz_classnuc_in ! use heterogeneous freezing
+
+  integer,  intent(in)  :: nsed_substep_in
 
   character(len=16),intent(in)  :: micro_mg_precip_frac_method_in  ! type of precipitation fraction method
   real(r8),         intent(in)  :: micro_mg_berg_eff_factor_in     ! berg efficiency factor
@@ -297,6 +301,8 @@ subroutine micro_mg_init( &
   microp_uniform = microp_uniform_in
   do_cldice  = do_cldice_in
   use_hetfrz_classnuc = use_hetfrz_classnuc_in
+
+  nsed_substep = nsed_substep_in
 
   ! typical air density at 850 mb
 
@@ -2183,6 +2189,7 @@ subroutine micro_mg_tend ( &
           maxval(fni/pdel(i,:))) &
           * deltat)
 
+     nstep = nstep * nsed_substep
      nstep_cldi(i) = nstep     ! save for output
 
      ! loop over sedimentation sub-time step to ensure stability
@@ -2266,6 +2273,7 @@ subroutine micro_mg_tend ( &
           maxval(fnc/pdel(i,:))) &
           * deltat)
 
+     nstep = nstep * nsed_substep
      nstep_cldl(i) = nstep     ! save for output
 
      ! loop over sedimentation sub-time step to ensure stability
@@ -2329,6 +2337,7 @@ subroutine micro_mg_tend ( &
           maxval(fnr/pdel(i,:))) &
           * deltat)
 
+     nstep = nstep * nsed_substep
      nstep_rain(i) = nstep     ! save for output
 
      ! loop over sedimentation sub-time step to ensure stability
@@ -2382,6 +2391,7 @@ subroutine micro_mg_tend ( &
           maxval(fns/pdel(i,:))) &
           * deltat)
 
+     nstep = nstep * nsed_substep
      nstep_snow(i) = nstep     ! save for output
 
      ! loop over sedimentation sub-time step to ensure stability

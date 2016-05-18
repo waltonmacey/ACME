@@ -2099,6 +2099,13 @@ Number of substeps over MG microphysics.
 Default: 1
 </entry>
 
+<entry id="micro_mg_nsed_substep" type="integer" category="microphys"
+       group="micro_mg_nl" valid_values="" >
+Scale factor applied on top of the dynamically determined
+sedimentation substeps (MG2 only)
+Default: 1
+</entry>
+
 <entry id="micro_mg_precip_frac_method" type="char*16" category="microphys"
        group="micro_mg_nl" valid_values="max_overlap,in_cloud" >
 Type of precipitation fraction.
