@@ -926,14 +926,14 @@ else:
     os.chdir(casedir) 
 
 #move site data to run directory
-os.system('mv '+csmdir+'/cime/scripts-acme/pointclm/temp/*'+casename+'* ' \
+os.system('mv '+csmdir+'/cime/scripts-acme/pointclm/temp/*'+casename+'*.nc ' \
            +runroot+'/'+casename+'/run/')
 if (options.nopointdata == False):
    os.system('mv '+csmdir+'/cime/scripts-acme/pointclm/temp/domain*'+options.site+'* ' \
           +runroot+'/'+casename+'/run/')
 else:
    os.system('cp '+options.ccsm_input+'/share/domains/domain.clm/domain*'+options.site+'* ' \
-	+runroot+'/'+casename+'/run/'
+	+runroot+'/'+casename+'/run/')
 #os.system('cp -f ../microbepar_in ' +csmdir+'/run/'+casename+'/run/')
 
 #submit job if requested
@@ -958,8 +958,12 @@ if (options.ensemble_file != '' or options.mc_ensemble != -1):
         for s in input:
 	    if (s):
                 param_names.append(s.split()[0])
-                param_min.append(float(s.split()[2]))
-                param_max.append(float(s.split()[3]))
+                if (len(s.split()) == 3):
+                  param_min.append(float(s.split()[1]))
+                  param_max.append(float(s.split()[2]))
+                else:
+                  param_min.append(float(s.split()[2]))
+                  param_max.append(float(s.split()[3]))
         input.close() 
         n_parameters = len(param_names)
 
@@ -983,7 +987,8 @@ if (options.ensemble_file != '' or options.mc_ensemble != -1):
         for i in range(0,nsamples):
             for j in range(0,n_parameters):
                 samples[j][i] = param_min[j]+(param_max[j]-param_min[j])*numpy.random.rand(1)
-        numpy.savetxt('mcsamples_'+casename+'.txt', numpy.transpose(samples))    
+        numpy.savetxt('mcsamples_'+casename+'.txt', numpy.transpose(samples))
+        options.ensemble_file = 'mcsamples_'+casename+'.txt'
 
     print str(n_parameters)+' parameters are being modified' 
     print str(nsamples)+' parameter samples provided'
@@ -997,21 +1002,19 @@ if (options.ensemble_file != '' or options.mc_ensemble != -1):
     #create ensemble directories 
     if (not options.ensemble_nocopy):
         for i in range(0,nsamples):
-            thisdata = samples[0:n_parameters,i]
-	    print 'Creating run directory for ensemble member '+str(i+1)
-            numpy.savetxt('parm_data', thisdata)
-            os.system('python ensemble_copy.py --case '+casename+' --runroot '+runroot \
-	         +' --ens_num '+str(i+1))
-
             #write the PBS script(s) to do the ensemble for this case
             if (i % int(options.ng) == 0):
                 input = open(caseroot+'/'+casename+'/'+casename+'.run')
                 numst=str(1000+num)
-                output = open(csmdir+'/cime/scripts-acme/pointclm/temp/ensemble_run'+numst[1:]+'.pbs','w')
+                print csmdir+'/cime/scripts-acme/pointclm/temp/ensemble_run_'+casename+ \
+                                  '_'+numst[1:]+'.pbs'
+
+                output = open(csmdir+'/cime/scripts-acme/pointclm/temp/ensemble_run_'+casename+ \
+                                  '_'+numst[1:]+'.pbs','w')
                 for s in input:
                     if ("perl" in s):
 	                output.write("#!/bin/csh -f\n")
-                    if ("#PBS" in s or "#!" in s):
+                    elif ("#PBS" in s or "#!" in s):
                         #edit number of required nodes for ensemble runs
                         if ('nodes' in s):
                             if ('oic2' in options.machine):
@@ -1034,27 +1037,31 @@ if (options.ensemble_file != '' or options.mc_ensemble != -1):
                 output.write('head -'+str(myline_end)+' $PBS_NODEFILE | tail -1 > '+csmdir+ \
                               '/cime/scripts-acme/pointclm/temp/mynodefile'+ngst[1:]+'\n')
             est=str(100000+i+1)
-            orig_dir = runroot+'/'+casename+'/bld'       #assume location of bld dir
             ens_dir  = runroot+'/UQ/'+casename+'/g'+est[1:]
             if (int(est)-100000 <= math.ceil(float(nsamples)/options.ninst)):
-                #if (options.mpilib == 'mpi-serial'):
-                #  output.write(orig_dir+'/cesm.exe > ccsm_log.txt &\n')
-                #else:
                if ('oic' in options.machine):
-                  output.write('cd '+ens_dir+'\n')
-                  output.write('mkdir -p timing/checkpoints\n')
-                  output.write('mpirun -np '+str(options.np)+' --hostfile '+ \
-                       csmdir+'/cime/scripts-acme/pointclm/temp/mynodefile'+ngst[1:]+ \
-                           ' '+orig_dir+'/cesm.exe > ccsm_log.txt &\n')
+                   output.write('cd '+csmdir+'/cime/scripts-acme/pointclm/\n')
+                   output.write('python ensemble_copy.py --case '+casename+' --runroot '+runroot \
+	         +' --ens_num '+str(i+1)+' --ens_file '+options.ensemble_file+'\n')
+                   output.write('cd '+ens_dir+'\n')
+                   output.write('mkdir -p timing/checkpoints\n')
+                   output.write('mpirun -np '+str(options.np)+' --hostfile '+ \
+                                    csmdir+'/cime/scripts-acme/pointclm/temp/mynodefile'+ngst[1:]+ \
+                                    ' '+exeroot+'/cesm.exe > ccsm_log.txt &\n')
                elif ('titan' in options.machine and int(options.ninst) == 1):
                   #use wraprun utility on titan to manage the ensemble
                   output.write('mkdir -p '+ens_dir+'/timing/checkpoints\n')
+                  output.write('cd '+csmdir+'/cime/scripts-acme/pointclm/\n')
+                  output.write('python ensemble_copy.py --case '+casename+' --runroot '+runroot \
+                                   +' --ens_num '+str(i+1)+' --ens_file '+options.ensemble_file+'\n')
+                  output.write('cd '+ens_dir+'\n')
                   if ( (i % 16) == 0):
-                    cmd = 'wraprun -n 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 --w-cd '+ens_dir
+                      #ADD COMMAND FOR ENSEMBLE COPY HERE 
+                      cmd = 'wraprun -n 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 --w-cd '+ens_dir
                   elif ( (i % 16) < 15):
-                    cmd = cmd+','+ens_dir
+                      cmd = cmd+','+ens_dir
                   else:
-                    output.write(cmd+','+ens_dir+' '+orig_dir+'/cesm.exe > ccsm_log.txt &\n')
+                    output.write(cmd+','+ens_dir+' '+exeroot+'/cesm.exe > ccsm_log.txt &\n')
 
             if ((i+1) % int(options.ng) == 0 or (i+1) == nsamples):          
                 output.write('wait\n')
@@ -1062,14 +1069,15 @@ if (options.ensemble_file != '' or options.mc_ensemble != -1):
 
                 if (not options.no_submit):
                     if (num == 0):
-                        os.system('qsub '+csmdir+'/cime/scripts-acme/pointclm/temp/ensemble_run'+ \
-                                      numst[1:]+'.pbs > '+csmdir+'/cime/scripts-acme/pointclm/temp/jobinfo')
+                        os.system('qsub '+csmdir+'/cime/scripts-acme/pointclm/temp/ensemble_run_'+ \
+                                      casename+'_'+numst[1:]+'.pbs > '+csmdir+ \
+                                      '/cime/scripts-acme/pointclm/temp/jobinfo')
                     else:
                         myinput = open(csmdir+'/cime/scripts-acme/pointclm/temp/jobinfo')
                         for s in myinput:
                             lastjob = s.split('.')[0]
                         myinput.close()
                         os.system('qsub -W depend=afterok:'+lastjob+' '+csmdir+ \
-                              '/cime/scripts-acme/pointclm/temp/ensemble_run'+ \
+                              '/cime/scripts-acme/pointclm/temp/ensemble_run_'+casename+'_'+ \
                               numst[1:]+'.pbs > '+csmdir+'/cime/scripts-acme/pointclm/temp/jobinfo')
                 num = num+1

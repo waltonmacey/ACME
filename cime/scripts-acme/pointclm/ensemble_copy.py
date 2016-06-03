@@ -19,10 +19,12 @@ parser = OptionParser()
 
 parser.add_option("--runroot", dest="runroot", default="../../run", \
                   help="Directory where the run would be created")
-parser.add_option("--ens_num", dest="ensnum", default=1, \
+parser.add_option("--ens_num", dest="ens_num", default=1, \
                   help="Ensemble member number")
 parser.add_option("--case", dest="casename", default="", \
                   help="Name of case")
+parser.add_option("--ens_file", dest="ens_file", default="", \
+                  help="Name of samples file")
 
 (options, args) = parser.parse_args()
 
@@ -37,23 +39,37 @@ casename = options.casename
 for s in myinput:
    pdata = s.split()
    parm_names.append(pdata[0])
-   parm_indices.append(int(pdata[1]))
+   if (len(pdata) == 3):
+     parm_indices.append(-1)
+   else:
+     parm_indices.append(int(pdata[1]))
 myinput.close()
 
 #get parameter values
-myinput = open('./parm_data', 'r')
-for s in myinput:    
-    parm_values.append(float(s))
-myinput.close()
-os.system('rm ./parm_data')
+if (options.ens_file == ''):
+   myinput = open('./parm_data', 'r')
+   for s in myinput:    
+      parm_values.append(float(s))
+   myinput.close()
+   os.system('rm ./parm_data')
+else:
+   myinput = open(options.ens_file, 'r')
+   linenum = 1
+   for s in myinput:
+      if (int(options.ens_num) == linenum):
+         parm_values_str = s.split()
+         for v in parm_values_str:
+            parm_values.append(float(v))
+      linenum = linenum+1
+   myinput.close()
 
 n_parameters = len(parm_names)
-gst=str(100000+int(options.ensnum))
+gst=str(100000+int(options.ens_num))
 
 #create ensemble directory from original case 
+est = str(100000+int(options.ens_num))
 orig_dir = str(os.path.abspath(options.runroot)+'/'+casename+'/run')
 ens_dir  = os.path.abspath(options.runroot)+'/UQ/'+casename+'/g'+gst[1:]
-est = str(100000+int(options.ensnum))
 		
 os.system('mkdir -p '+options.runroot+'/UQ/'+casename+'/g'+gst[1:]+'/timing/checkpoints')
 os.system('cp  '+orig_dir+'/*_in* '+ens_dir)
@@ -93,29 +109,43 @@ for f in os.listdir(ens_dir):
                       pnum = pnum+1
             elif ('finidat = ' in s):
                 finidat_file_orig = ((s.split()[2]).strip("'"))
-                finidat_file_new  = ens_dir+'/'+(finidat_file_orig.split('/')[-1:])[0]
-                if (finidat_file_orig[0:2] == './'):
-                    finidat_file_orig = orig_dir+'/'+finidat_file_orig[2:]
-                os.system('cp '+finidat_file_orig+' '+finidat_file_new)
-                pnum = 0
-                #Apply scaling factor for soil organic carbon (slowest  pool only)
-                if ('BGC' in casename):
-                    scalevars = ['soil3c_vr','soil3n_vr','soil3p_vr']
-                else:
-                    scalevars = ['soil4c_vr','soil4n_vr','soil4p_vr']
-                sumvars = ['totsomc','totsomp','totcolc','totcoln','totcolp']
-                for p in parm_names:
-                    if ('.nc' in finidat_file_new and 'INI_somfac' in p):
-                        for v in scalevars:
+                if (finidat_file_orig.strip() != ''):
+                   finidat_file_new  = ens_dir+'/'+(finidat_file_orig.split('/')[-1:])[0]
+                   if (finidat_file_orig[0:2] == './'):
+                      finidat_file_orig = orig_dir+'/'+finidat_file_orig[2:]
+                   #get finidat files from previous ensemble cases if available
+                   if ('1850' in casename and not ('ad_spinup' in casename)): 
+                      finidat_file_path = os.path.abspath(options.runroot)+'/UQ/'+casename+'_ad_spinup/g'+gst[1:]
+                      if (os.path.exists(finidat_file_path)):
+	                  finidat_file_orig = finidat_file_path+'/*.clm2.r.*.nc'
+                          print finidat_file_orig
+                   if ('20TR' in casename):
+                      finidat_file_path = os.path.abspath(options.runroot)+'/UQ/'+casename.replace('20TR','1850')+'/g'+gst[1:]
+                      if (os.path.exists(finidat_file_path)):
+                          finidat_file_orig = finidat_file_path+'/*.clm2.r.*.nc'
+                          os.system('rm '+finidat_file_path+'/*ad_spinup*.clm2.r.*.nc')
+                   os.system('cp '+finidat_file_orig+' '+finidat_file_new)
+                   pnum = 0
+                   #Apply scaling factor for soil organic carbon (slowest  pool only)
+                   if ('BGC' in casename):
+                      scalevars = ['soil3c_vr','soil3n_vr','soil3p_vr']
+                   else:
+                      scalevars = ['soil4c_vr','soil4n_vr','soil4p_vr']
+                   sumvars = ['totsomc','totsomp','totcolc','totcoln','totcolp']
+                   for p in parm_names:
+                      if ('.nc' in finidat_file_new and 'INI_somfac' in p):
+                         for v in scalevars:
                             myvar = nffun.getvar(finidat_file_new, v)
                             myvar = parm_values[pnum] * myvar
                             ierr = nffun.putvar(finidat_file_new, v, myvar)
                         #TEMPORARY - add 3 gN to npool
-                        myvar = nffun.getvar(finidat_file_new,'npool')
-                        myvar = myvar+3.
-                        ierr = nffun.putvar(finidat_file_new,'npool',myvar)
-                    pnum=pnum+1
-                myoutput.write(" finidat = '"+finidat_file_new+"'\n")
+                      myvar = nffun.getvar(finidat_file_new,'npool')
+                      myvar = myvar+3.
+                      ierr = nffun.putvar(finidat_file_new,'npool',myvar)
+                      pnum=pnum+1
+                   myoutput.write(" finidat = '"+finidat_file_new+"'\n")
+                else:
+                   myoutput.write(s)
             elif ('logfile =' in s):
                 os.system('date +%y%m%d-%H%M%S > mytime')
                 mytinput=open('./mytime','r')

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, sys, csv
+import os, sys, csv, math
 from optparse import OptionParser
 
 parser = OptionParser();
@@ -100,6 +100,12 @@ parser.add_option("--cpl_bypass", dest = "cpl_bypass", default=False, \
                   help = "Bypass couplwer", action="store_true")
 parser.add_option("--spinup_vars", dest = "spinup_vars", default=False, help = "limit output variables for spinup", action="store_true")
 parser.add_option("--cn_only", dest="cn_only", default=False, help='Carbon/Nitrogen only (saturated P)', action ="store_true")
+parser.add_option("--ensemble_file", dest="ensemble_file", default='', \
+                  help = 'Parameter sample file to generate ensemble')
+parser.add_option("--mc_ensemble", dest="mc_ensemble", default=-1, \
+                  help = 'Monte Carlo ensemble (argument is # of simulations)')
+parser.add_option("--ng", dest="ng", default=64, \
+                  help = 'number of groups to run in ensemble mode')
 
 (options, args) = parser.parse_args()
 
@@ -214,6 +220,9 @@ for row in AFdatareader:
             basecmd = basecmd+' --caseroot '+options.caseroot
         if (options.runroot != ''):
             basecmd = basecmd+' --runroot '+options.runroot
+        if (options.ensemble_file != ''):
+            basecmd = basecmd+' --ensemble_file '+options.ensemble_file
+        basecmd = basecmd + ' --ng '+str(options.ng)
         basecmd = basecmd + ' --np '+str(options.np)
         basecmd = basecmd + ' --tstep '+str(options.tstep)
         basecmd = basecmd + ' --co2_file '+options.co2_file
@@ -356,7 +365,7 @@ for row in AFdatareader:
         
         output = open('./temp/site_fullrun.pbs','w')
 
-        #Create a .PBS script to launch the full job (all 3 cases)
+        #Create a .PBS site fullrun script to launch the full job (all 3 cases)
         if (options.cpl_bypass):
           input = open('../../scripts/'+basecase+"_I1850CLM45CB"+mybgc+ \
                   '/'+basecase+"_I1850CLM45CB"+mybgc+'.run')
@@ -400,9 +409,47 @@ for row in AFdatareader:
         output.close()
 
 
-        #submit
-        if ('edison' in options.machine):
-            os.system('sbatch temp/site_fullrun.pbs')
-        else:
-            os.system('qsub temp/site_fullrun.pbs')
+        #if ensemble simulations requested, submit jobs created by pointclm.py in correct order
+        if (options.ensemble_file != ''):
+            nsamples = 0
+            myinput = open(options.csmdir+'/cime/scripts-acme/pointclm/'+options.ensemble_file)
+            #count number of samples
+            for s in myinput:
+                nsamples = nsamples+1
+            myinput.close()
+            n_qsub_files = int(math.ceil(nsamples*1.0/int(options.ng)))
+            #submit first ensemble file
+            os.system('qsub temp/ensemble_run_'+basecase+'_I1850'+modelst+'_ad_spinup_000.pbs > '+ \
+                          ' temp/jobinfo')
+            #submit rest of ad_spinup jobs
+            for i in range(1,n_qsub_files):
+                myinput = open(options.csmdir+'/cime/scripts-acme/pointclm/temp/jobinfo')
+                for s in myinput:
+                    lastjob = s.split('.')[0]
+                myinput.close()
+                os.system('qsub -W depend=afterok:'+lastjob+' temp/ensemble_run_'+basecase+ \
+                              '_I1850'+modelst+'ad_spinup_'+str(1000+i)[1:]+'.pbs > temp/jobinfo')
+            #note - need to add adjust_restart.py (at end of ad_spinup run)
+            #submit final spinup jobs
+            for i in range(0,n_qsub_files):
+                myinput = open(options.csmdir+'/cime/scripts-acme/pointclm/temp/jobinfo')
+                for s in myinput:
+                    lastjob = s.split('.')[0]
+                myinput.close()
+                os.system('qsub -W depend=afterok:'+lastjob+' temp/ensemble_run_'+basecase+ \
+                              '_I1850'+modelst+'_'+str(1000+i)[1:]+'.pbs > temp/jobinfo')
+            #submit transient jobs
+            for i in range(0,n_qsub_files):
+                myinput = open(options.csmdir+'/cime/scripts-acme/pointclm/temp/jobinfo')
+                for s in myinput:
+                    lastjob = s.split('.')[0]
+                myinput.close()
+                os.system('qsub -W depend=afterok:'+lastjob+' temp/ensemble_run_'+basecase+ \
+                              '_I20TR'+modelst+'_'+str(1000+i)[1:]+'.pbs > temp/jobinfo')
+
+        else:  #submit single job
+            if ('edison' in options.machine):
+                os.system('sbatch temp/site_fullrun.pbs')
+            else:
+                os.system('qsub temp/site_fullrun.pbs')
         isfirstsite = False
