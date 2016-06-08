@@ -428,7 +428,7 @@ for row in AFdatareader:
                     lastjob = s.split('.')[0]
                 myinput.close()
                 os.system('qsub -W depend=afterok:'+lastjob+' temp/ensemble_run_'+basecase+ \
-                              '_I1850'+modelst+'ad_spinup_'+str(1000+i)[1:]+'.pbs > temp/jobinfo')
+                              '_I1850'+modelst+'_ad_spinup_'+str(1000+i)[1:]+'.pbs > temp/jobinfo')
             #note - need to add adjust_restart.py (at end of ad_spinup run)
             #submit final spinup jobs
             for i in range(0,n_qsub_files):

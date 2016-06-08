@@ -710,6 +710,7 @@ for i in range(1,int(options.ninst)+1):
             output.write(" flanduse_timeseries = './surfdata.pftdyn_"+str(numxpts)+'x' \
                          +str(numypts)+"pt_"+casename+".nc'\n")
         output.write(' check_finidat_fsurdat_consistency = .false.\n')
+        output.write(' check_finidat_year_consistency = .false.\n')
     #pft-physiology file
     output.write(" paramfile = './clm_params."+pftphys_stamp+"."+ \
                      casename+".nc'\n")

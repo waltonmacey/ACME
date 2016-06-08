@@ -31,6 +31,8 @@ parser.add_option('--ensnum_start', dest='ensnum_start', default=1, \
                       help='Beginning ensemble member number to start')
 parser.add_option('--ens_size', dest="ens_size", default=-1, \
                       help='Ensemble size to process')
+parser.add_option('--avpd', dest="avpd", default=1, help='Averaging period')
+
 (options, args) = parser.parse_args()
 
 casedir = options.UQ_rundir+'/'+options.case
@@ -107,9 +109,11 @@ for v in var_list:
                 print('Error: '+fname+' does not exist')
                 sys.exit()
         myvarst=''
-        vartemp=0.0
-        for i in range(0,len(myvar)):
-            vartemp = vartemp+myvar[i]/len(myvar) 
-        myvarst  = myvarst+(str(float(vartemp)))+' '
+        avpd = int(options.avpd)
+        for i in range(0,len(myvar)/avpd):
+            vartemp=0.0
+            for j in range(0,avpd):
+                vartemp = vartemp+myvar[i*avpd+j]/avpd 
+            myvarst  = myvarst+(str(float(vartemp)))+' '
         output.write(myvarst+'\n')
    output.close()
