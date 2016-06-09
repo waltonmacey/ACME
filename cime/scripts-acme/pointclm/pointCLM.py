@@ -2,6 +2,7 @@
 
 import netcdf_functions as nffun
 import os, sys, csv, time, math, numpy
+import subprocess
 from optparse import OptionParser
 #from Numeric import *
 
@@ -359,12 +360,13 @@ print("CASE directory is: "+casedir+"\n")
 
 #Construct case build and run directory
 if (options.exeroot == '' or (os.path.exists(options.exeroot) == False)):
-    blddir=runroot+'/'+casename	
     exeroot = runroot+'/'+casename+'/bld'
+    #if ('titan' in options.machine):
+    #    exeroot = os.path.abspath(os.environ['HOME']+ \
+    #	    '/acme_scratch/pointclm/'+casename+'/bld')
 else:
-    blddir=options.exeroot
     exeroot=options.exeroot
-print("CASE exeroot is: "+blddir+"\n")
+print("CASE exeroot is: "+exeroot+"\n")
 rundir=runroot+'/'+casename+'/run'
 print("CASE rundir is: "+rundir+"\n")
 
@@ -935,6 +937,8 @@ if (options.nopointdata == False):
 else:
    os.system('cp '+options.ccsm_input+'/share/domains/domain.clm/domain*'+options.site+'* ' \
 	+runroot+'/'+casename+'/run/')
+if ('titan' in options.machine):
+   os.system('cp '+exeroot+'/cesm.exe '+csmdir+'/cime/scripts-acme/pointclm/temp/')
 #os.system('cp -f ../microbepar_in ' +csmdir+'/run/'+casename+'/run/')
 
 #submit job if requested
@@ -1025,7 +1029,7 @@ if (options.ensemble_file != '' or options.mc_ensemble != -1):
                                 output.write('#PBS -l nodes='+str(int(math.ceil(np_total/32.0)))+ \
                                                  ':ppn=32\n')
                             elif('titan' in options.machine):
-                                output.write('#PBS -l nodes='+str(int(math.ceil(np_total/16.0))))
+                                output.write('#PBS -l nodes='+str(int(math.ceil(np_total/16.0)))+'\n')
                         else:
                             output.write(s)
                 input.close()
@@ -1070,15 +1074,15 @@ if (options.ensemble_file != '' or options.mc_ensemble != -1):
 
                 if (not options.no_submit):
                     if (num == 0):
-                        os.system('qsub '+csmdir+'/cime/scripts-acme/pointclm/temp/ensemble_run_'+ \
+                        subprocess.call('qsub '+csmdir+'/cime/scripts-acme/pointclm/temp/ensemble_run_'+ \
                                       casename+'_'+numst[1:]+'.pbs > '+csmdir+ \
-                                      '/cime/scripts-acme/pointclm/temp/jobinfo')
+                                      '/cime/scripts-acme/pointclm/temp/jobinfo', shell=True)
                     else:
                         myinput = open(csmdir+'/cime/scripts-acme/pointclm/temp/jobinfo')
                         for s in myinput:
                             lastjob = s.split('.')[0]
                         myinput.close()
-                        os.system('qsub -W depend=afterok:'+lastjob+' '+csmdir+ \
+                        subprocess.call('qsub -W depend=afterok:'+lastjob+' '+csmdir+ \
                               '/cime/scripts-acme/pointclm/temp/ensemble_run_'+casename+'_'+ \
-                              numst[1:]+'.pbs > '+csmdir+'/cime/scripts-acme/pointclm/temp/jobinfo')
+                              numst[1:]+'.pbs > '+csmdir+'/cime/scripts-acme/pointclm/temp/jobinfo', shell=True)
                 num = num+1

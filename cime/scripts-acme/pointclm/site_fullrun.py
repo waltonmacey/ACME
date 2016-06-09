@@ -2,6 +2,7 @@
 
 import os, sys, csv, math
 from optparse import OptionParser
+import subprocess
 
 parser = OptionParser();
 
@@ -41,9 +42,13 @@ parser.add_option("--nyears_final_spinup", dest="nyears_final_spinup", default='
                   help="base no. of years for final spinup")
 parser.add_option("--clean_build", action="store_true", default=False, \
                   help="Perform a clean build")
-parser.add_option("--hist_mfilt", dest="hist_mfilt", default="365", \
+parser.add_option("--hist_mfilt_trans", dest="hist_mfilt", default="365", \
                   help = 'number of output timesteps per file (transient only)')
-parser.add_option("--hist_nhtfrq", dest="hist_nhtfrq", default="-24", \
+parser.add_option("--hist_nhtfrq_trans", dest="hist_nhtfrq", default="-24", \
+                  help = 'output file timestep (transient only)')
+parser.add_option("--hist_mfilt_spinup", dest="hist_mfilt_spinup", default="-999", \
+                  help = 'number of output timesteps per file (transient only)')
+parser.add_option("--hist_nhtfrq_spinup", dest="hist_nhtfrq_spinup", default="-999", \
                   help = 'output file timestep (transient only)')
 parser.add_option("--parm_file", dest="parm_file", default="", \
                   help = 'parameter file to use')
@@ -235,8 +240,13 @@ for row in AFdatareader:
 
         #AD spinup
         cmd_adsp = basecmd+' --ad_spinup --nyears_ad_spinup '+ \
-            str(options.ny_ad)+' --hist_mfilt 1 --hist_nhtfrq -'+ \
-            str((endyear-startyear+1)*8760)+' --align_year '+str(year_align+1)
+            str(options.ny_ad)+' --align_year '+str(year_align+1)
+        if (int(options.hist_mfilt_spinup) == -999):
+            cmd_adsp = cmd_adsp+' --hist_mfilt 1 --hist_nhtfrq -'+ \
+            str((endyear-startyear+1)*8760)
+        else:
+            cmd_adsp = cmd_adsp+' --hist_mfilt '+str(options.hist_mfilt_spinup) \
+                   +' --hist_nhtfrq '+str(options.hist_nhtfrq_spinup)
         if (not isfirstsite):
 	  cmd_adsp = cmd_adsp+' --exeroot '+ad_exeroot+' --no_build'
         if (options.clm40):
@@ -286,21 +296,24 @@ for row in AFdatareader:
         if (options.clm40):
            cmd_fnsp = basecmd+' --finidat_case '+basecase+'_exit_spinup '+ \
                 '--finidat_year '+str(int(options.ny_ad)+2)+' --run_units nyears --run_n '+ \
-                str(fsplen)+' --hist_mfilt 1 --hist_nhtfrq -'+ \
-                str((endyear-startyear+1)*8760)
+                str(fsplen)
         else:
             if (options.noad):
-                cmd_fnsp = basecmd+' --run_units nyears --run_n '+str(fsplen)+' --hist_mfilt 1 '+ \
-                    '--hist_nhtfrq -'+str((endyear-startyear+1)*8760)+' --align_year '+ \
+                cmd_fnsp = basecmd+' --run_units nyears --run_n '+str(fsplen)+' --align_year '+ \
                     str(year_align+1)+' --coldstart'
                 if (not isfirstsite):
                     cmd_fnsp = cmd_fnsp+' --exeroot '+ad_exeroot+' --no_build'
             else:
                 cmd_fnsp = basecmd+' --finidat_case '+basecase+'_ad_spinup '+ \
                     '--finidat_year '+str(int(options.ny_ad)+1)+' --run_units nyears --run_n '+ \
-                    str(fsplen)+' --hist_mfilt 1 --hist_nhtfrq -'+ \
-                    str((endyear-startyear+1)*8760)+' --align_year '+str(year_align+1)+' --no_build' + \
+                    str(fsplen)+' --align_year '+str(year_align+1)+' --no_build' + \
                     ' --exeroot '+ad_exeroot
+        if (int(options.hist_mfilt_spinup) == -999):
+            cmd_adsp = cmd_adsp+' --hist_mfilt 1 --hist_nhtfrq -'+ \
+            str((endyear-startyear+1)*8760)
+        else:
+            cmd_adsp = cmd_adsp+' --hist_mfilt '+str(options.hist_mfilt_spinup) \
+                   +' --hist_nhtfrq '+str(options.hist_nhtfrq_spinup)
         if (options.clm40):
             cmd_fnsp = cmd_fnsp+' --compset I1850CN'
         elif (options.cpl_bypass):
@@ -419,16 +432,16 @@ for row in AFdatareader:
             myinput.close()
             n_qsub_files = int(math.ceil(nsamples*1.0/int(options.ng)))
             #submit first ensemble file
-            os.system('qsub temp/ensemble_run_'+basecase+'_I1850'+modelst+'_ad_spinup_000.pbs > '+ \
-                          ' temp/jobinfo')
+            subprocess.call('qsub temp/ensemble_run_'+basecase+'_I1850'+modelst+'_ad_spinup_000.pbs > '+ \
+                          ' temp/jobinfo', shell=True)
             #submit rest of ad_spinup jobs
             for i in range(1,n_qsub_files):
                 myinput = open(options.csmdir+'/cime/scripts-acme/pointclm/temp/jobinfo')
                 for s in myinput:
                     lastjob = s.split('.')[0]
                 myinput.close()
-                os.system('qsub -W depend=afterok:'+lastjob+' temp/ensemble_run_'+basecase+ \
-                              '_I1850'+modelst+'_ad_spinup_'+str(1000+i)[1:]+'.pbs > temp/jobinfo')
+                subprocess.call('qsub -W depend=afterok:'+lastjob+' temp/ensemble_run_'+basecase+ \
+                              '_I1850'+modelst+'_ad_spinup_'+str(1000+i)[1:]+'.pbs > temp/jobinfo', shell=True)
             #note - need to add adjust_restart.py (at end of ad_spinup run)
             #submit final spinup jobs
             for i in range(0,n_qsub_files):
@@ -436,16 +449,16 @@ for row in AFdatareader:
                 for s in myinput:
                     lastjob = s.split('.')[0]
                 myinput.close()
-                os.system('qsub -W depend=afterok:'+lastjob+' temp/ensemble_run_'+basecase+ \
-                              '_I1850'+modelst+'_'+str(1000+i)[1:]+'.pbs > temp/jobinfo')
+                subprocess.call('qsub -W depend=afterok:'+lastjob+' temp/ensemble_run_'+basecase+ \
+                              '_I1850'+modelst+'_'+str(1000+i)[1:]+'.pbs > temp/jobinfo', shell=True)
             #submit transient jobs
             for i in range(0,n_qsub_files):
                 myinput = open(options.csmdir+'/cime/scripts-acme/pointclm/temp/jobinfo')
                 for s in myinput:
                     lastjob = s.split('.')[0]
                 myinput.close()
-                os.system('qsub -W depend=afterok:'+lastjob+' temp/ensemble_run_'+basecase+ \
-                              '_I20TR'+modelst+'_'+str(1000+i)[1:]+'.pbs > temp/jobinfo')
+                subprocess.call('qsub -W depend=afterok:'+lastjob+' temp/ensemble_run_'+basecase+ \
+                              '_I20TR'+modelst+'_'+str(1000+i)[1:]+'.pbs > temp/jobinfo', shell=True)
 
         else:  #submit single job
             if ('edison' in options.machine):
