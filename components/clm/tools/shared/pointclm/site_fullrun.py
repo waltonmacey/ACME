@@ -22,10 +22,10 @@ parser.add_option("--compiler", dest="compiler", default = 'gnu', \
                   help = "compiler to use (pgi*, gnu)")
 parser.add_option("--mpilib", dest="mpilib", default="mpi-serial", \
                       help = "mpi library (openmpi*, mpich, ibm, mpi-serial)")
-parser.add_option("--csmdir", dest="csmdir", default='../../..', \
+parser.add_option("--csmdir", dest="csmdir", default='../../../../..', \
                   help = "base CESM directory (default = ../../..)")
 parser.add_option("--ccsm_input", dest="ccsm_input", \
-                  default='../../../../ccsm_inputdata', \
+                  default='../../../../../../ccsm_inputdata', \
                   help = "input data directory for CESM (required)")
 parser.add_option("--clm40", dest="clm40", action="store_true", \
                   default=False, help="Use CLM 4.0 code")
@@ -52,6 +52,8 @@ parser.add_option("--hist_nhtfrq_spinup", dest="hist_nhtfrq_spinup", default="-9
                   help = 'output file timestep (transient only)')
 parser.add_option("--parm_file", dest="parm_file", default="", \
                   help = 'parameter file to use')
+parser.add_option("--nopftdyn", action="store_true", dest="nopftdyn", \
+                      default=False, help='Do not use dynamic PFT file')
 parser.add_option("--nofire", dest="nofire", default=False, \
                   action="store_true", help='Turn off fire algorithms')
 parser.add_option("--regional", action="store_true", \
@@ -130,9 +132,11 @@ if (options.bgc):
 else:
     mybgc='CN'
 
+csmdir = os.getcwd()+'/'+options.csmdir
+
 #case run root directory
 if (options.runroot == '' or (os.path.exists(options.runroot) == False)):
-    runroot = options.csmdir+'/run'
+    runroot = csmdir+'/run'
 else:
     runroot = os.path.abspath(options.runroot)
 
@@ -203,6 +207,8 @@ for row in AFdatareader:
             basecmd = basecmd+' --nofire'
         if (options.harvmod):
             basecmd = basecmd+' --harvmod'
+        if (options.nopftdyn):
+            basecmd = basecmd+' --nopftdyn'
         if (options.no_dynroot):
             basecmd = basecmd+' --no_dynroot'
         if (options.bulk_denitrif):
@@ -380,10 +386,10 @@ for row in AFdatareader:
 
         #Create a .PBS site fullrun script to launch the full job (all 3 cases)
         if (options.cpl_bypass):
-          input = open('../../scripts/'+basecase+"_I1850CLM45CB"+mybgc+ \
+          input = open(csmdir+'/cime/scripts/'+basecase+"_I1850CLM45CB"+mybgc+ \
                   '/'+basecase+"_I1850CLM45CB"+mybgc+'.run')
         else:
-          input = open('../../scripts/'+basecase+"_I1850CLM45"+mybgc+ \
+          input = open(csmdir+'/cime/scripts/'+basecase+"_I1850CLM45"+mybgc+ \
                            '/'+basecase+"_I1850CLM45"+mybgc+'.run')
         for s in input:
             if ("perl" in s):
@@ -404,7 +410,7 @@ for row in AFdatareader:
         if (mycaseid != ''):
                 basecase = mycaseid+'_'+site
         if (options.noad == False):
-            output.write("cd "+os.path.abspath("../../scripts/"+basecase+"_I1850"+modelst+"_ad_spinup\n"))
+            output.write("cd "+os.path.abspath(csmdir+"/cime/scripts/"+basecase+"_I1850"+modelst+"_ad_spinup\n"))
             output.write("./"+basecase+"_I1850"+modelst+"_ad_spinup.run\n")
             output.write("cd "+os.path.abspath(".")+'\n')
             if (options.bgc):
@@ -414,10 +420,10 @@ for row in AFdatareader:
             else:
                 output.write("python adjust_restart.py --rundir "+os.path.abspath(runroot)+'/'+ad_case+ \
                                  '/run/ --casename '+ad_case+' --restart_year '+str(int(options.ny_ad)+1)+'\n')
-        output.write("cd "+os.path.abspath("../../scripts/"+basecase+"_I1850"+modelst+"\n"))
+        output.write("cd "+os.path.abspath(csmdir+"/cime/scripts/"+basecase+"_I1850"+modelst+"\n"))
         output.write("./"+basecase+"_I1850"+modelst+".run\n")
         if (options.notrans == False):
-            output.write("cd "+os.path.abspath("../../scripts/"+basecase+"_I20TR"+modelst+"\n"))
+            output.write("cd "+os.path.abspath(csmdir+"/cime/scripts/"+basecase+"_I20TR"+modelst+"\n"))
             output.write("./"+basecase+"_I20TR"+modelst+".run\n")
         output.close()
 
@@ -425,7 +431,7 @@ for row in AFdatareader:
         #if ensemble simulations requested, submit jobs created by pointclm.py in correct order
         if (options.ensemble_file != ''):
             nsamples = 0
-            myinput = open(options.csmdir+'/cime/scripts-acme/pointclm/'+options.ensemble_file)
+            myinput = open(options.csmdir+'/components/clm/tools/shared/pointclm/'+options.ensemble_file)
             #count number of samples
             for s in myinput:
                 nsamples = nsamples+1
@@ -436,7 +442,7 @@ for row in AFdatareader:
                           ' temp/jobinfo', shell=True)
             #submit rest of ad_spinup jobs
             for i in range(1,n_qsub_files):
-                myinput = open(options.csmdir+'/cime/scripts-acme/pointclm/temp/jobinfo')
+                myinput = open(options.csmdir+'/components/clm/tools/shared/pointclm/temp/jobinfo')
                 for s in myinput:
                     lastjob = s.split('.')[0]
                 myinput.close()
@@ -445,7 +451,7 @@ for row in AFdatareader:
             #note - need to add adjust_restart.py (at end of ad_spinup run)
             #submit final spinup jobs
             for i in range(0,n_qsub_files):
-                myinput = open(options.csmdir+'/cime/scripts-acme/pointclm/temp/jobinfo')
+                myinput = open(options.csmdir+'/components/clm/tools/shared/pointclm/temp/jobinfo')
                 for s in myinput:
                     lastjob = s.split('.')[0]
                 myinput.close()
@@ -453,7 +459,7 @@ for row in AFdatareader:
                               '_I1850'+modelst+'_'+str(1000+i)[1:]+'.pbs > temp/jobinfo', shell=True)
             #submit transient jobs
             for i in range(0,n_qsub_files):
-                myinput = open(options.csmdir+'/cime/scripts-acme/pointclm/temp/jobinfo')
+                myinput = open(options.csmdir+'/components/clm/tools/shared/pointclm/temp/jobinfo')
                 for s in myinput:
                     lastjob = s.split('.')[0]
                 myinput.close()

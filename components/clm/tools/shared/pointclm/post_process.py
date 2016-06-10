@@ -7,7 +7,7 @@ from optparse import OptionParser
 
 parser = OptionParser()
 
-parser.add_option('--UQ_rundir', dest='UQ_rundir', default="../../../run/UQ", \
+parser.add_option('--UQ_rundir', dest='UQ_rundir', default="../../../../../run/UQ", \
                       help="location of UQ run directory")
 parser.add_option('--case', dest='case', default='' , \
                       help="full case name")

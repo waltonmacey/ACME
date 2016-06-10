@@ -1,0 +1,283 @@
+#!/bin/csh -f
+#PBS  -N US-UMB_I1850CLM45CBCN_ad_spinup
+#PBS  -q batch
+#PBS  -l walltime=02:00:00
+#PBS  -r n 
+#PBS  -j oe 
+#PBS  -m ae 
+#PBS  -S /bin/bash 
+#PBS -A cli112
+#PBS -l nodes=4
+#!/bin/csh -f
+#!/bin/csh -f
+
+
+source $MODULESHOME/init/csh
+module load python
+module unload PrgEnv-pgi
+module load PrgEnv-gnu
+module load python_numpy/1.9.2
+module load python_scipy/0.15.1
+module load wraprun
+
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00001/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 1 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00001
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00002/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 2 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00002
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00003/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 3 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00003
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00004/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 4 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00004
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00005/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 5 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00005
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00006/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 6 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00006
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00007/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 7 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00007
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00008/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 8 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00008
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00009/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 9 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00009
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00010/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 10 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00010
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00011/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 11 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00011
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00012/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 12 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00012
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00013/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 13 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00013
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00014/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 14 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00014
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00015/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 15 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00015
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00016/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 16 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00016
+wraprun -n 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 --w-cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00001,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00002,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00003,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00004,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00005,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00006,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00007,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00008,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00009,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00010,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00011,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00012,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00013,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00014,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00015,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00016 /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/temp/cesm.exe > ccsm_log.txt &
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00017/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 17 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00017
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00018/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 18 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00018
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00019/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 19 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00019
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00020/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 20 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00020
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00021/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 21 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00021
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00022/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 22 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00022
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00023/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 23 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00023
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00024/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 24 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00024
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00025/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 25 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00025
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00026/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 26 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00026
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00027/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 27 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00027
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00028/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 28 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00028
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00029/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 29 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00029
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00030/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 30 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00030
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00031/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 31 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00031
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00032/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 32 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00032
+wraprun -n 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 --w-cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00017,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00018,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00019,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00020,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00021,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00022,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00023,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00024,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00025,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00026,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00027,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00028,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00029,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00030,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00031,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00032 /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/temp/cesm.exe > ccsm_log.txt &
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00033/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 33 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00033
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00034/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 34 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00034
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00035/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 35 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00035
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00036/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 36 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00036
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00037/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 37 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00037
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00038/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 38 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00038
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00039/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 39 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00039
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00040/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 40 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00040
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00041/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 41 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00041
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00042/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 42 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00042
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00043/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 43 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00043
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00044/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 44 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00044
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00045/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 45 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00045
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00046/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 46 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00046
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00047/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 47 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00047
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00048/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 48 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00048
+wraprun -n 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 --w-cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00033,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00034,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00035,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00036,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00037,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00038,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00039,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00040,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00041,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00042,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00043,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00044,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00045,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00046,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00047,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00048 /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/temp/cesm.exe > ccsm_log.txt &
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00049/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 49 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00049
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00050/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 50 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00050
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00051/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 51 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00051
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00052/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 52 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00052
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00053/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 53 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00053
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00054/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 54 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00054
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00055/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 55 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00055
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00056/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 56 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00056
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00057/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 57 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00057
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00058/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 58 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00058
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00059/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 59 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00059
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00060/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 60 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00060
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00061/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 61 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00061
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00062/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 62 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00062
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00063/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 63 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00063
+mkdir -p /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00064/timing/checkpoints
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/
+python ensemble_copy.py --case US-UMB_I1850CLM45CBCN_ad_spinup --runroot /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run --ens_num 64 --ens_file ptrain.dat
+cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00064
+wraprun -n 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 --w-cd /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00049,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00050,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00051,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00052,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00053,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00054,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00055,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00056,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00057,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00058,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00059,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00060,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00061,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00062,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00063,/lustre/atlas1/cli112/proj-shared/zdr/models/ACME/run/UQ/US-UMB_I1850CLM45CBCN_ad_spinup/g00064 /lustre/atlas1/cli112/proj-shared/zdr/models/ACME/cime/scripts-acme/pointclm/temp/cesm.exe > ccsm_log.txt &
+wait

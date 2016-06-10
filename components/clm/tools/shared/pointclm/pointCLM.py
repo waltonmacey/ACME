@@ -63,10 +63,10 @@ parser.add_option("--ad_spinup", action="store_true", \
 parser.add_option("--exit_spinup", action="store_true", \
                   dest="exit_spinup", default=False, \
                   help = 'Run exit spinup (CLM 4.0 only)')
-parser.add_option("--csmdir", dest="csmdir", default='../../..', \
+parser.add_option("--csmdir", dest="csmdir", default='/../../../../..', \
                   help = "base CESM directory (default = ../../..)")
 parser.add_option("--ccsm_input", dest="ccsm_input", \
-                  default='../../../../ccsm_inputdata', \
+                  default='../../../../../../ccsm_inputdata', \
                   help = "input data directory for CESM (required)")
 parser.add_option("--finidat_case", dest="finidat_case", default='', \
                   help = "case containing initial data file to use" \
@@ -138,6 +138,8 @@ parser.add_option("--nopointdata", action="store_true", \
 #                   default=False,action="store_true")
 parser.add_option("--nofire", action="store_true", dest="nofire", default=False, \
                     help="To turn off wildfires")
+parser.add_option("--nopftdyn", action="store_true", dest="nopftdyn", \
+                      default = False, help='Do not use dynamic PFT file')
 parser.add_option("--harvmod", action="store_true", dest="harvmod", \
                       default=False, help = "Turn on harvest modificaton" \
                       "All harvest is performed in first timestep")
@@ -196,9 +198,8 @@ if (os.path.exists(options.csmdir) == False):
     print('Error:  invalid CESM root directory')
     sys.exit()
 else:
-    csmdir=os.path.abspath(options.csmdir)
+    csmdir=os.path.abspath(PTCLMdir+'/'+options.csmdir)
     scriptsdir = csmdir+'/cime/scripts'
-
 #case directory
 if (options.caseroot == '' or (os.path.exists(options.caseroot) == False)):
     caseroot = csmdir+'/cime/scripts'
@@ -361,9 +362,9 @@ print("CASE directory is: "+casedir+"\n")
 #Construct case build and run directory
 if (options.exeroot == '' or (os.path.exists(options.exeroot) == False)):
     exeroot = runroot+'/'+casename+'/bld'
-    #if ('titan' in options.machine):
-    #    exeroot = os.path.abspath(os.environ['HOME']+ \
-    #	    '/acme_scratch/pointclm/'+casename+'/bld')
+    if ('titan' in options.machine):
+        exeroot = os.path.abspath(os.environ['HOME']+ \
+    	    '/acme_scratch/pointclm/'+casename+'/bld')
 else:
     exeroot=options.exeroot
 print("CASE exeroot is: "+exeroot+"\n")
@@ -437,15 +438,14 @@ mysimyr=1850
 if (options.compset == 'ICLM45CN' or options.compset == 'ICLM45BGC' or '2000' in compset):
     mysimyr=2000
 
-#parameter (pft-phys) modifications if desiredi
-os.system('mkdir -p '+csmdir+'/cime/scripts-acme/pointclm/temp')
+#parameter (pft-phys) modifications if desired
+tmpdir = csmdir+'/components/clm/tools/shared/pointclm/temp'
+os.system('mkdir -p '+tmpdir)
 os.system('cp '+options.ccsm_input+'/lnd/clm2/paramdata/clm_params.'+pftphys_stamp+'.nc ' \
-              +csmdir+'/cime/scripts-acme/pointclm/temp/clm_params.'+pftphys_stamp+'.'+ \
-              casename+'.nc')
-os.system('chmod u+w ' +csmdir+'/cime/scripts-acme/pointclm/temp/clm_params.'+pftphys_stamp+'.'+ \
-              casename+'.nc')
+              +tmpdir+'/clm_params.'+pftphys_stamp+'.'+casename+'.nc')
+os.system('chmod u+w ' +tmpdir+'/clm_params.'+pftphys_stamp+'.'+casename+'.nc')
 if (options.parm_file != ''):
-    pftfile = csmdir+'/cime/scripts-acme/pointclm/temp/clm_params.'+pftphys_stamp+'.'+casename+'.nc'
+    pftfile = tmpdir+'/clm_params.'+pftphys_stamp+'.'+casename+'.nc'
     input   = open(os.path.abspath(options.parm_file))
     for s in input:
         if s[0:1] != '#':
@@ -457,10 +457,8 @@ if (options.parm_file != ''):
 
 #parameter (soil order dependent) modifications if desired    ::X.YANG 
 os.system('cp '+options.ccsm_input+'/lnd/clm2/paramdata/CNP_parameters_'+CNPstamp+'.nc ' \
-              +csmdir+'/cime/scripts-acme/pointclm/temp/CNP_parameters_'+CNPstamp+ \
-              casename+'.nc')
-os.system('chmod u+w ' +csmdir+'/cime/scripts-acme/pointclm/temp/CNP_parameters_'+CNPstamp+ \
-              casename+'.nc')
+              +tmpdir+'/CNP_parameters_'+CNPstamp+casename+'.nc')
+os.system('chmod u+w ' +tmpdir+'/CNP_parameters_'+CNPstamp+casename+'.nc')
 if (options.parm_file_P != ''):
     soilorderfile = options.ccsm_input+'/lnd/clm2/paramdata/CNP_parameters_'+CNPstamp+casename+'.nc'
     input   = open(os.path.abspath(options.parm_file_P))
@@ -599,7 +597,7 @@ if ('20TR' in compset):
                       +'RUN_STARTDATE -val 1850-01-01')
     
 #no PIO on oic
-if ('oic' in options.machine or 'edison' in options.machine):
+if ('oic' in options.machine or 'eos' in options.machine or 'edison' in options.machine):
     os.system('./xmlchange -file env_run.xml -id ' \
                   +'PIO_TYPENAME -val netcdf')
 
@@ -705,12 +703,15 @@ for i in range(1,int(options.ninst)+1):
                          str(numypts)+"pt_"+casename+"_simyr"+str(mysimyr)+".nc'\n")
     #pft dynamics file for transient run
     if ('20TR' in compset):
-        if (options.nopointdata):
-	    output.write(" flanduse_timeseries = '"+options.ccsm_input+"/lnd/clm2/"+surfdir+ \
-              "/surfdata.pftdyn_"+str(numxpts)+'x'+str(numypts)+"pt_"+options.site+".nc'\n")
+        if (options.nopftdyn):
+            output.write(" flanduse_timeseries = ' '\n") 
         else:
-            output.write(" flanduse_timeseries = './surfdata.pftdyn_"+str(numxpts)+'x' \
-                         +str(numypts)+"pt_"+casename+".nc'\n")
+            if (options.nopointdata):
+	        output.write(" flanduse_timeseries = '"+options.ccsm_input+"/lnd/clm2/"+surfdir+ \
+                  "/surfdata.pftdyn_"+str(numxpts)+'x'+str(numypts)+"pt_"+options.site+".nc'\n")
+            else:
+                output.write(" flanduse_timeseries = './surfdata.pftdyn_"+str(numxpts)+'x' \
+                             +str(numypts)+"pt_"+casename+".nc'\n")
         output.write(' check_finidat_fsurdat_consistency = .false.\n')
         output.write(' check_finidat_year_consistency = .false.\n')
     #pft-physiology file
@@ -929,17 +930,15 @@ else:
     os.chdir(casedir) 
 
 #move site data to run directory
-os.system('mv '+csmdir+'/cime/scripts-acme/pointclm/temp/*'+casename+'*.nc ' \
-           +runroot+'/'+casename+'/run/')
+os.system('mv '+tmpdir+'/*'+casename+'*.nc '+runroot+'/'+casename+'/run/')
 if (options.nopointdata == False):
-   os.system('mv '+csmdir+'/cime/scripts-acme/pointclm/temp/domain*'+options.site+'* ' \
-          +runroot+'/'+casename+'/run/')
+   os.system('mv '+tmpdir+'/domain*'+options.site+'* '+runroot+'/'+casename+'/run/')
 else:
    os.system('cp '+options.ccsm_input+'/share/domains/domain.clm/domain*'+options.site+'* ' \
 	+runroot+'/'+casename+'/run/')
 if ('titan' in options.machine):
-   os.system('cp '+exeroot+'/cesm.exe '+csmdir+'/cime/scripts-acme/pointclm/temp/')
-#os.system('cp -f ../microbepar_in ' +csmdir+'/run/'+casename+'/run/')
+   os.system('cp '+exeroot+'/cesm.exe '+csmdir+'/components/clm/tools/shared/pointclm/temp/')
+os.system('cp -f ../microbepar_in ' +csmdir+'/run/'+casename+'/run/')
 
 #submit job if requested
 if (options.no_submit == False and options.mc_ensemble < 0 and options.ensemble_file == ''):
@@ -1011,11 +1010,7 @@ if (options.ensemble_file != '' or options.mc_ensemble != -1):
             if (i % int(options.ng) == 0):
                 input = open(caseroot+'/'+casename+'/'+casename+'.run')
                 numst=str(1000+num)
-                print csmdir+'/cime/scripts-acme/pointclm/temp/ensemble_run_'+casename+ \
-                                  '_'+numst[1:]+'.pbs'
-
-                output = open(csmdir+'/cime/scripts-acme/pointclm/temp/ensemble_run_'+casename+ \
-                                  '_'+numst[1:]+'.pbs','w')
+                output = open(tmpdir+'/ensemble_run_'+casename+'_'+numst[1:]+'.pbs','w')
                 for s in input:
                     if ("perl" in s):
 	                output.write("#!/bin/csh -f\n")
@@ -1039,24 +1034,24 @@ if (options.ensemble_file != '' or options.mc_ensemble != -1):
             if ('oic' in options.machine):
                 #need to distribute jobs to nodes manually on oic
                 myline_end = int(options.np)*((i % int(options.ng))+1)*int(options.ninst)
-                output.write('head -'+str(myline_end)+' $PBS_NODEFILE | tail -1 > '+csmdir+ \
-                              '/cime/scripts-acme/pointclm/temp/mynodefile'+ngst[1:]+'\n')
+                output.write('head -'+str(myline_end)+' $PBS_NODEFILE | tail -1 > '+tmpdir+ \
+                              '/mynodefile'+ngst[1:]+'\n')
             est=str(100000+i+1)
             ens_dir  = runroot+'/UQ/'+casename+'/g'+est[1:]
             if (int(est)-100000 <= math.ceil(float(nsamples)/options.ninst)):
                if ('oic' in options.machine):
-                   output.write('cd '+csmdir+'/cime/scripts-acme/pointclm/\n')
+                   output.write('cd '+csmdir+'/components/clm/shared/pointclm/\n')
                    output.write('python ensemble_copy.py --case '+casename+' --runroot '+runroot \
 	         +' --ens_num '+str(i+1)+' --ens_file '+options.ensemble_file+'\n')
                    output.write('cd '+ens_dir+'\n')
                    output.write('mkdir -p timing/checkpoints\n')
                    output.write('mpirun -np '+str(options.np)+' --hostfile '+ \
-                                    csmdir+'/cime/scripts-acme/pointclm/temp/mynodefile'+ngst[1:]+ \
+                                    tmpdir+'/mynodefile'+ngst[1:]+ \
                                     ' '+exeroot+'/cesm.exe > ccsm_log.txt &\n')
                elif ('titan' in options.machine and int(options.ninst) == 1):
                   #use wraprun utility on titan to manage the ensemble
                   output.write('mkdir -p '+ens_dir+'/timing/checkpoints\n')
-                  output.write('cd '+csmdir+'/cime/scripts-acme/pointclm/\n')
+                  output.write('cd '+csmdir+'/components/clm/shared/pointclm/\n')
                   output.write('python ensemble_copy.py --case '+casename+' --runroot '+runroot \
                                    +' --ens_num '+str(i+1)+' --ens_file '+options.ensemble_file+'\n')
                   output.write('cd '+ens_dir+'\n')
@@ -1074,15 +1069,15 @@ if (options.ensemble_file != '' or options.mc_ensemble != -1):
 
                 if (not options.no_submit):
                     if (num == 0):
-                        subprocess.call('qsub '+csmdir+'/cime/scripts-acme/pointclm/temp/ensemble_run_'+ \
-                                      casename+'_'+numst[1:]+'.pbs > '+csmdir+ \
-                                      '/cime/scripts-acme/pointclm/temp/jobinfo', shell=True)
+                        subprocess.call('qsub '+tmpdir+'/ensemble_run_'+ \
+                                      casename+'_'+numst[1:]+'.pbs > '+tmpdir+ \
+                                      '/jobinfo', shell=True)
                     else:
-                        myinput = open(csmdir+'/cime/scripts-acme/pointclm/temp/jobinfo')
+                        myinput = open(tmpdir+'/jobinfo')
                         for s in myinput:
                             lastjob = s.split('.')[0]
                         myinput.close()
-                        subprocess.call('qsub -W depend=afterok:'+lastjob+' '+csmdir+ \
-                              '/cime/scripts-acme/pointclm/temp/ensemble_run_'+casename+'_'+ \
-                              numst[1:]+'.pbs > '+csmdir+'/cime/scripts-acme/pointclm/temp/jobinfo', shell=True)
+                        subprocess.call('qsub -W depend=afterok:'+lastjob+' '+tmpdir+ \
+                              '/ensemble_run_'+casename+'_'+ \
+                              numst[1:]+'.pbs > '+tmpdir+'/jobinfo', shell=True)
                 num = num+1

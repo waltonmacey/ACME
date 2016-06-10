@@ -16,7 +16,7 @@ if (-e /opt/modules/default/init/csh) then
   source /opt/modules/default/init/csh
 #  module rm PrgEnv-cray 
 #  module rm PrgEnv-gnu
-  module rm intel
+#  module rm intel
   module rm cray
   module rm cray-parallel-netcdf
   module rm cray-libsci
@@ -30,7 +30,7 @@ endif
 
 if ( $COMPILER == "intel" ) then
 #    module load PrgEnv-intel/5.2.40
-    module load    intel/14.0.2.144
+#    module load    intel/14.0.2.144
 endif    
 if ( $COMPILER == "cray" ) then
     module load PrgEnv-cray

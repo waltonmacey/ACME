@@ -76,7 +76,7 @@ for row in AFdatareader:
            #lon=lon-resx/2
         if (options.makemet):
             print(" Making meteorological data for site")
-            metcmd = 'python '+csmdir+'/cime/scripts-acme/makemetdata.py' \
+            metcmd = 'python '+csmdir+'/components/clm/tools/shared/pointclm/makemetdata.py' \
                           +' --site '+options.site+' --lat '+row[4]+' --lon '+ \
                           row[3]+' --ccsm_input '+ccsm_input+ \
                           ' --startyear '+row[6]+' --endyear '+row[7]+' --numxpts '+ \
@@ -103,10 +103,10 @@ ygrid_T62     = int((lat+90)/1.9)
 #---------------------Create domain data --------------------------------------------------
 
 print('Creating domain data')
-os.system('mkdir -p '+csmdir+'/cime/scripts-acme/pointclm/temp')
+os.system('mkdir -p '+csmdir+'/components/clm/tools/shared/pointclm/temp')
 domainfile_orig = ccsm_input+'/atm/datm7/domain.clm/' \
     +'domain.360x720_ORCHIDEE0to360.100409.nc'
-domainfile_new = csmdir+'/cime/scripts-acme/pointclm/temp/' \
+domainfile_new = csmdir+'/components/clm/tools/shared/pointclm/temp/' \
     +'domain.lnd.'+str(numxpts)+'x'+str(numypts)+'pt_'+options.site+'_navy.nc'
 if (os.path.isfile(domainfile_new)):
     print('Warning:  Removing existing domain file')
@@ -160,12 +160,12 @@ if (options.compset == 'I2000CN'):
 #    +'surfdata_0.5x0.5_simyr1850.nc'
 if (options.clm40):
     surffile_orig = ccsm_input+'/lnd/clm2/surfdata/surfdata_360x720_nourb_simyr1850_c120717.nc'
-    surffile_new  = csmdir+'/cime/scripts-acme/pointclm/temp/surfdata_'+str(numxpts)+'x' \
+    surffile_new  = csmdir+'/components/clm/tools/shared/pointclm/temp/surfdata_'+str(numxpts)+'x' \
                     +str(numypts)+'pt_'+options.mycase+'_simyr'+str(mysimyr)+'.nc'
 else:
     #surffile_orig = ccsm_input+'/lnd/clm2/surfdata_map/surfdata_360x720cru_simyr1850_c130415.nc'
     surffile_orig = ccsm_input+'/lnd/clm2/surfdata_map/surfdata_360x720cru_simyr1850_c150626.nc'
-    surffile_new =  csmdir+'/cime/scripts-acme/pointclm/temp/surfdata_'+str(numxpts)+'x'+str(numypts)+'pt_'+ \
+    surffile_new =  csmdir+'/components/clm/tools/shared/pointclm/temp/surfdata_'+str(numxpts)+'x'+str(numypts)+'pt_'+ \
                     options.mycase+'_simyr'+str(mysimyr)+'.nc'
 
 print(surffile_orig)
@@ -337,10 +337,10 @@ if ('20TR' in options.compset):
 
     print 'using '+surffile_new+' for 1850 information'
     if (options.clm40):
-        pftdyn_new = csmdir+'/cime/scripts-acme/pointclm/temp/' \
+        pftdyn_new = csmdir+'/components/clm/tools/shared/pointclm/temp/' \
           +'surfdata.pftdyn_'+str(numxpts)+'x'+str(numypts)+'pt_'+options.mycase+'.nc'
     else:
-        pftdyn_new = csmdir+'/cime/scripts-acme/pointclm/temp/' \
+        pftdyn_new = csmdir+'/components/clm/tools/shared/pointclm/temp/' \
           +'surfdata.pftdyn_'+str(numxpts)+'x'+str(numypts)+'pt_'+options.mycase+'.nc'
         
     print pftdyn_new
