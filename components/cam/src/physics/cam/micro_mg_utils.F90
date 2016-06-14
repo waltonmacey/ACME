@@ -681,7 +681,7 @@ elemental subroutine kk2000_liq_autoconversion(microp_uniform, qcic, &
      ! switch for sub-columns, don't include sub-grid qc
 
      prc = prc_coef * &
-          1350._r8 * qcic**2.47_r8 * (ncic*1.e-6_r8*rho)**(-1.79_r8)
+          91656._r8 * qcic**3.19_r8 * (ncic*1.e-6_r8*rho)**(-1.42_r8)
      nprc = prc * (1._r8/droplet_mass_25um)
      nprc1 = prc*ncic/qcic
 
