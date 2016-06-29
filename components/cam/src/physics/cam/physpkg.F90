@@ -1777,6 +1777,7 @@ subroutine tphysbc (l_is_first_chunk, ztodt,               &
     !
 
     type(physics_ptend)   :: ptend            ! indivdual parameterization tendencies
+    type(physics_ptend)   :: ptend_mac_scaled ! ptend from macrophysics, scaled by 1/cld_macmic_num_steps 
     type(physics_state)   :: state_sc         ! state for sub-columns
     type(physics_ptend)   :: ptend_sc         ! ptend for sub-columns
     type(physics_ptend)   :: ptend_aero       ! ptend for microp_aero
@@ -2197,16 +2198,8 @@ end if
      end if !l_st_mac
 
     elseif( microp_scheme == 'MG' ) then
-       ! Start co-substepping of macrophysics and microphysics
-       cld_macmic_ztodt = ztodt/cld_macmic_num_steps
 
-       ! Clear precip fields that should accumulate.
-       prec_sed_macmic = 0._r8
-       snow_sed_macmic = 0._r8
-       prec_pcw_macmic = 0._r8
-       snow_pcw_macmic = 0._r8
-
-       do macmic_it = 1, cld_macmic_num_steps
+      !do macmic_it = 1, cld_macmic_num_steps
 
           if (micro_do_icesupersat) then 
 
@@ -2214,10 +2207,8 @@ end if
             ! Aerosol Activation
             !===================================================
             call t_startf('microp_aero_run')
-            call microp_aero_run(state, ptend, cld_macmic_ztodt, pbuf, lcldo)
+            call microp_aero_run(state, ptend, ztodt, pbuf, lcldo)
             call t_stopf('microp_aero_run')
-
-            call physics_ptend_scale(ptend, 1._r8/cld_macmic_num_steps, ncol)
 
             call physics_update(state, ptend, ztodt, tend)
             call check_energy_chng(state, tend, "mp_aero_tend", nstep, ztodt, zero, zero, zero, zero)      
@@ -2233,7 +2224,7 @@ end if
           if (macrop_scheme .ne. 'CLUBB_SGS') then
 
              call macrop_driver_tend( &
-                  state,           ptend,          cld_macmic_ztodt, &
+                  state,           ptend,          ztodt, &
                   cam_in%landfrac, cam_in%ocnfrac, cam_in%snowhland, & ! sediment
                   dlf,             dlf2,                             & ! detrain
                   cmfmc,           cmfmc2,                           &
@@ -2246,16 +2237,6 @@ end if
              flx_cnd(:ncol) = -1._r8*rliq(:ncol) 
              flx_heat(:ncol) = det_s(:ncol)
 
-             ! Unfortunately, physics_update does not know what time period
-             ! "tend" is supposed to cover, and therefore can't update it
-             ! with substeps correctly. For now, work around this by scaling
-             ! ptend down by the number of substeps, then applying it for
-             ! the full time (ztodt).
-             call physics_ptend_scale(ptend, 1._r8/cld_macmic_num_steps, ncol)          
-             call physics_update(state, ptend, ztodt, tend)
-             call check_energy_chng(state, tend, "macrop_tend", nstep, ztodt, &
-                  zero, flx_cnd/cld_macmic_num_steps, &
-                  det_ice/cld_macmic_num_steps, flx_heat/cld_macmic_num_steps)
        
           else ! Calculate CLUBB macrophysics
 
@@ -2265,7 +2246,7 @@ end if
    
             !if (masterproc.and.l_is_first_chunk) write(iulog,*) "--- calling clubb_tend_cam"
 
-             call clubb_tend_cam(l_is_first_chunk,state,ptend,pbuf,cld_macmic_ztodt,&
+             call clubb_tend_cam(l_is_first_chunk,state,ptend,pbuf,ztodt,&
                 cmfmc, cam_in, sgh30, macmic_it, cld_macmic_num_steps, & 
                 dlf, det_s, det_ice)
 
@@ -2273,23 +2254,60 @@ end if
                 !    to account for it in the energy checker
                 flx_cnd(:ncol) = -1._r8*rliq(:ncol) 
                 flx_heat(:ncol) = cam_in%shf(:ncol) + det_s(:ncol)
-
-                ! Unfortunately, physics_update does not know what time period
-                ! "tend" is supposed to cover, and therefore can't update it
-                ! with substeps correctly. For now, work around this by scaling
-                ! ptend down by the number of substeps, then applying it for
-                ! the full time (ztodt).
-                call physics_ptend_scale(ptend, 1._r8/cld_macmic_num_steps, ncol)
-                !    Update physics tendencies and copy state to state_eq, because that is 
-                !      input for microphysics              
-                call physics_update(state, ptend, ztodt, tend)
-                call check_energy_chng(state, tend, "clubb_tend", nstep, ztodt, &
-                     cam_in%lhf/latvap/cld_macmic_num_steps, flx_cnd/cld_macmic_num_steps, &
-                     det_ice/cld_macmic_num_steps, flx_heat/cld_macmic_num_steps)
  
           endif
 
-          call t_stopf('macrop_tend')
+       ! save ptend/cld_macmic_num_steps as ptend_mac_scaled for later use 
+       ! before each call of microphysics;
+
+       call physics_ptend_copy(ptend,ptend_mac_scaled)
+       call physics_ptend_scale(ptend_mac_scaled, 1._r8/cld_macmic_num_steps, ncol)          
+
+       ! Deallocate ptend. This is usually done near the end of physics_update;
+       ! Here we do it explicitly to avoid allocation problem when
+       ! calling physics_ptend_copy(ptend_mac_scaled,ptend) before each call of microphysics.
+ 
+       call physics_ptend_dealloc(ptend)  
+
+       !=====================================
+       call t_stopf('macrop_tend')
+
+       ! Start co-substepping of macrophysics tendency and microphysics
+       cld_macmic_ztodt = ztodt/cld_macmic_num_steps
+
+       ! Clear precip fields that should accumulate.
+       prec_sed_macmic = 0._r8
+       snow_sed_macmic = 0._r8
+       prec_pcw_macmic = 0._r8
+       snow_pcw_macmic = 0._r8
+
+       do macmic_it = 1, cld_macmic_num_steps
+
+          !=====================================================
+          ! Apply macrop tend
+          !=====================================================
+          ! Unfortunately, physics_update does not know what time period
+          ! "tend" is supposed to cover, and therefore can't update it
+          ! with substeps correctly. For now, work around this by scaling
+          ! ptend down by the number of substeps, then applying it for
+          ! the full time (ztodt).
+
+          call physics_ptend_copy(ptend_mac_scaled,ptend)
+          call physics_update(state, ptend, ztodt, tend)
+
+          if (macrop_scheme .ne. 'CLUBB_SGS') then
+
+             call check_energy_chng(state, tend, "macrop_tend", nstep, ztodt, &
+                  zero, flx_cnd/cld_macmic_num_steps, &
+                  det_ice/cld_macmic_num_steps, flx_heat/cld_macmic_num_steps)
+
+          else ! using CLUBB macrophysics
+
+              call check_energy_chng(state, tend, "clubb_tend", nstep, ztodt, &
+                   cam_in%lhf/latvap/cld_macmic_num_steps, flx_cnd/cld_macmic_num_steps, &
+                   det_ice/cld_macmic_num_steps, flx_heat/cld_macmic_num_steps)
+ 
+          endif
 
           !===================================================
           ! Calculate cloud microphysics 
