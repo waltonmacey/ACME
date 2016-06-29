@@ -708,7 +708,7 @@
 	 <MAX_TASKS_PER_NODE>24</MAX_TASKS_PER_NODE>
 	 <batch_system type="slurm" version="x.y">
 	   <queues>
-	     <queue jobmin="1" jobmax="9999" default="true">batch</queue>
+	     <queue jobmin="1" jobmax="9999" default="true">short</queue>
 	   </queues>
 	   <walltimes>
 	     <walltime default="true">0:59:00</walltime>
