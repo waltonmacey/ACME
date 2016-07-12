@@ -1,0 +1,119 @@
+#!/usr/bin/env python
+
+"""
+Script to build a case.
+"""
+
+from standard_script_setup import *
+from CIME.SystemTests.eri import ERI
+from CIME.SystemTests.erp import ERP
+from CIME.SystemTests.err import ERR
+from CIME.SystemTests.ers import ERS
+from CIME.SystemTests.nck import NCK
+from CIME.SystemTests.ncr import NCR
+from CIME.SystemTests.noc import NOC
+from CIME.SystemTests.pea import PEA
+from CIME.SystemTests.pem import PEM
+from CIME.SystemTests.pet import PET
+from CIME.SystemTests.pfs import PFS
+from CIME.SystemTests.seq import SEQ
+from CIME.SystemTests.sms import SMS
+from CIME.SystemTests.ssp import SSP
+from CIME.SystemTests.system_tests_common import *
+
+import CIME.build as build
+from CIME.case import Case
+from CIME.utils           import expect, append_status
+from CIME.XML.files       import Files
+from CIME.XML.component   import Component
+
+###############################################################################
+def parse_command_line(args, description):
+###############################################################################
+    parser = argparse.ArgumentParser(
+        usage="""\n%s [--verbose]
+OR
+%s --help
+OR
+%s --test
+
+\033[1mEXAMPLES:\033[0m
+    \033[1;32m# Build case \033[0m
+    > %s
+""" % ((os.path.basename(args[0]), ) * 4),
+        description=description,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    CIME.utils.setup_standard_logging_options(parser)
+
+    parser.add_argument("caseroot", nargs="?", default=os.getcwd(),
+                        help="Case directory to build")
+
+    parser.add_argument("--sharedlib-only", action="store_true",
+                        help="Only build sharedlibs")
+
+    parser.add_argument("-m", "--model-only", action="store_true",
+                        help="Assume shared libs already built")
+
+    files = Files()
+    config_file = files.get_value("CONFIG_DRV_FILE")
+    component = Component(config_file)
+    comps = [x.lower() for x in component.get_valid_model_components()]
+    comps = [x.replace('drv', 'cpl') for x in comps]
+    libs  = ["csmshare", "mct", "pio", "gptl"]
+    allobjs = comps + libs
+
+    parser.add_argument("--clean", nargs="*", choices=allobjs,
+                        help="objects to clean"
+                        "if no arguments then clean all objects other than csmshare, mct, pio, and gptl")
+
+    parser.add_argument("--clean-all", action="store_true",
+                        help="clean all objects ")
+
+    args = parser.parse_args(args[1:])
+
+    cleanlist = allobjs if args.clean_all else []
+    if args.clean is not None:
+        cleanlist = args.clean if args.clean else comps
+
+    CIME.utils.handle_standard_logging_options(args)
+
+    return args.caseroot, args.sharedlib_only, args.model_only, cleanlist
+
+###############################################################################
+def _main_func(description):
+###############################################################################
+    if "--test" in sys.argv:
+        test_results = doctest.testmod(verbose=True)
+        sys.exit(1 if test_results.failed > 0 else 0)
+
+    caseroot, sharedlib_only, model_only, cleanlist = parse_command_line(sys.argv, description)
+    logging.info("calling build.case_build with caseroot=%s" %caseroot)
+
+    case = Case(caseroot)
+    testname = case.get_value('TESTCASE')
+
+    if cleanlist:
+        build.clean(case, cleanlist)
+    elif(testname is not None):
+        logging.warn("Building test for %s in directory %s" % (testname, caseroot))
+        try:
+            test = globals()[testname](case)
+        except KeyError:
+            expect(False, "Could not find a test called '%s'" % testname)
+        append_status("case.testbuild starting ",
+                     caseroot=caseroot,sfile="CaseStatus")
+        test.build(sharedlib_only=sharedlib_only, model_only=model_only)
+        append_status("case.testbuild complete",
+                     caseroot=caseroot,sfile="CaseStatus")
+    else:
+        append_status("case.build starting",
+                     caseroot=caseroot,sfile="CaseStatus")
+        build.case_build(caseroot, case=case, sharedlib_only=sharedlib_only,
+                     model_only=model_only)
+        append_status("case.build complete",
+                     caseroot=caseroot,sfile="CaseStatus")
+
+if __name__ == "__main__":
+    _main_func(__doc__)
