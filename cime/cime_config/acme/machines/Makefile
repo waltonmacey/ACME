@@ -685,36 +685,24 @@ test_esmf: test_esmf.o
 	$(LD) -o $@ test_esmf.o $(LDFLAGS)
 
 #-------------------------------------------------------------------------------
-# create list of component libraries - hard-wired for current ccsm components
+# create list of component libraries 
 #-------------------------------------------------------------------------------
+CLMVER = $(filter $(CLM_CONFIG_OPTS), clm5_0 clm4_5)
+ifeq ($(CLMVER),$(null))
+  LNDOBJDIR = $(EXEROOT)/lnd/obj
+  LNDLIBDIR=$(LIBROOT)
+  LNDLIB := liblnd.a
+else
+  LNDOBJDIR = $(SHAREDPATH)/$(COMP_INTERFACE)/$(ESMFDIR)/clm/obj
+  LNDLIBDIR = $(SHAREDPATH)/$(COMP_INTERFACE)/$(ESMFDIR)/lib
+  LNDLIB := libclm.a
+endif
+INCLDIR += -I$(LNDOBJDIR)
 
-ifeq ($(ULIBDEP),$(null))
    ifneq ($(LIBROOT),$(null))
      ULIBDEP += $(LIBROOT)/libatm.a
      ULIBDEP += $(LIBROOT)/libice.a
-     ifeq ($(findstring clm5_0,$(CLM_CONFIG_OPTS)),clm5_0)
-          LNDLIB := libclm.a
-     else
-          ifeq ($(findstring clm4_5,$(CLM_CONFIG_OPTS)),clm4_5)
-               LNDLIB := libclm.a
-          else
-               LNDLIB := liblnd.a
-          endif
-     endif
-     ifeq ($(findstring libclm.a,$(LNDLIB)),libclm.a)
-        ULIBDEP += $(SHAREDPATH)/$(COMP_INTERFACE)/$(ESMFDIR)/lib/$(LNDLIB)
-     else
-        ULIBDEP += $(LIBROOT)/$(LNDLIB)
-     endif
-     ifeq ($(MODEL),driver)
-         ifeq ($(findstring libclm.a,$(LNDLIB)),libclm.a)
-             INCLDIR += -I$(SHAREDPATH)/$(COMP_INTERFACE)/$(ESMFDIR)/clm/obj
-         else
-             INCLDIR += -I$(EXEROOT)/lnd/obj
-         endif
-     endif
-
-
+     ULIBDEP += $(LNDLIBDIR)/$(LNDLIB)
      ULIBDEP += $(LIBROOT)/libocn.a
      ULIBDEP += $(LIBROOT)/librof.a
      ULIBDEP += $(LIBROOT)/libglc.a
@@ -729,7 +717,6 @@ ifeq ($(ULIBDEP),$(null))
      ifeq ($(OCN_SUBMODEL),moby)
        ULIBDEP += $(LIBROOT)/libmoby.a
      endif
-   endif
 endif
 
 ifdef COSP_LIBDIR
