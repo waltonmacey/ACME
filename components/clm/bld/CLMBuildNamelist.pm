@@ -392,7 +392,7 @@ sub check_for_perl_utils {
   my $perl5lib_dir = "$cesmroot/cime/utils/perl5lib";
 
   # The root diretory for the perl SetupTools.pm module
-  my $SetupTools_dir = "$cesmroot/cime/scripts/Tools";
+  my $SetupTools_dir = "$perl5lib_dir/Config/";
   (-f "$SetupTools_dir/SetupTools.pm")  or
       fatal_error("Cannot find perl module \"SetupTools.pm\" in directory\n" .
 		  "\"$SetupTools_dir\" \n");
