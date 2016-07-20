@@ -8,11 +8,7 @@ if ($#ARGV == -1) {
 my ($CASEROOT) = @ARGV;
 chdir "${CASEROOT}";
 
-my @dirs = ("$CASEROOT/Tools");
-unshift @INC, @dirs;
-require SetupTools;
-my $sysmod; 
-
+my $CIMEROOT            = `./xmlquery  CIMEROOT            -value`;
 my $ATM_GRID		= `./xmlquery  ATM_GRID			-value`;
 my $ATM_NCPL		= `./xmlquery  ATM_NCPL			-value`;
 my $BUILD_COMPLETE	= `./xmlquery  BUILD_COMPLETE		-value`;
@@ -23,7 +19,7 @@ my $CAM_DYCORE		= `./xmlquery  CAM_DYCORE		-value`;
 my $CAM_TARGET		= `./xmlquery  CAM_TARGET		-value`;
 my $CASEBUILD		= `./xmlquery  CASEBUILD		-value`;
 my $CCSM_CO2_PPMV	= `./xmlquery  CCSM_CO2_PPMV		-value`;
-my $CCSMROOT		= `./xmlquery  CCSMROOT			-value`;
+my $SRCROOT		= `./xmlquery  SRCROOT			-value`;
 my $COMP_INTERFACE	= `./xmlquery  COMP_INTERFACE		-value`;
 my $COMP_OCN		= `./xmlquery  COMP_OCN			-value`;
 my $DEBUG		= `./xmlquery  DEBUG			-value`;
@@ -45,6 +41,11 @@ my $RUN_REFTOD	        = `./xmlquery  RUN_REFTOD		-value`;
 my $UTILROOT		= `./xmlquery  UTILROOT			-value`;
 my $DOCN_MODE		= `./xmlquery  DOCN_MODE		-value`;
 my $COMPILER		= `./xmlquery  COMPILER                 -value`; # for chem preprocessor 
+
+my @dirs = ("$CIMEROOT/utils/perl5lib");
+unshift @INC, @dirs;
+require Config::SetupTools;
+my $sysmod; 
 
 if (! -d "$CASEBUILD/camconf" ) {
     $sysmod = "mkdir $CASEBUILD/camconf";
@@ -85,7 +86,7 @@ if ($BUILD_COMPLETE eq 'FALSE') {
 	$ATM_GRID = $1;
 	$nlev="-nlev $3";
     }
-    $sysmod = "$CCSMROOT/components/cam/bld/configure -s -ccsm_seq -ice none -ocn $ocn -comp_intf $comp $scm -spmd $spmd -smp $smp -dyn $CAM_DYCORE -dyn_target $CAM_TARGET -res $ATM_GRID $nlev $CAM_LIB_DIRS $CAM_CONFIG_OPTS";
+    $sysmod = "$SRCROOT/components/cam/bld/configure -s -ccsm_seq -ice none -ocn $ocn -comp_intf $comp $scm -spmd $spmd -smp $smp -dyn $CAM_DYCORE -dyn_target $CAM_TARGET -res $ATM_GRID $nlev $CAM_LIB_DIRS $CAM_CONFIG_OPTS";
     system($sysmod) == 0 or die "ERROR cam.buildnml: $sysmod failed: $?\n";
 
 } else {
@@ -175,7 +176,7 @@ while ($inst_counter <= $NINST_ATM) {
 	system($sysmod) == 0 or die "ERROR cam.buildnml: $sysmod failed: $?\n";
     }
 
-    $sysmod = "$CCSMROOT/components/cam/bld/build-namelist ";
+    $sysmod = "$SRCROOT/components/cam/bld/build-namelist ";
     $sysmod = "$sysmod -infile $CASEBUILD/camconf/cesm_namelist ";
     $sysmod = "$sysmod -csmdata $DIN_LOC_ROOT $ignore $usecase ";
     $sysmod = "$sysmod -inputdata $CASEBUILD/cam.input_data_list";
