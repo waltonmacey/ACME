@@ -8,14 +8,10 @@ if ($#ARGV == -1) {
 my ($CASEROOT) = @ARGV;
 chdir "${CASEROOT}";
 
-my @dirs = ("$CASEROOT/Tools");
-unshift @INC, @dirs;
-require SetupTools;
-my $sysmod; 
-
+my $CIMEROOT            = `./xmlquery  CIMEROOT          -value`;
 my $CASEBUILD		= `./xmlquery  CASEBUILD	 -value`;
 my $CASEROOT		= `./xmlquery  CASEROOT		 -value`;
-my $CCSMROOT		= `./xmlquery  CCSMROOT		 -value`;
+my $SRCROOT		= `./xmlquery  SRCROOT		 -value`;
 my $DIN_LOC_ROOT	= `./xmlquery  DIN_LOC_ROOT	 -value`;
 my $NINST_ROF		= `./xmlquery  NINST_ROF	 -value`;
 my $GET_REFCASE		= `./xmlquery  GET_REFCASE	 -value`;
@@ -30,6 +26,11 @@ my $RUN_REFDATE	        = `./xmlquery  RUN_REFDATE	 -value`;
 my $RUN_REFTOD	        = `./xmlquery  RUN_REFTOD 	 -value`;
 my $SCRIPTSROOT		= `./xmlquery  SCRIPTSROOT	 -value`;
 my $UTILROOT		= `./xmlquery  UTILROOT		 -value`;
+
+my @dirs = ("$CIMEROOT/utils/perl5lib");
+unshift @INC, @dirs;
+require Config::SetupTools;
+my $sysmod;
 
 if (! -d "$CASEBUILD/mosartconf" ) {
     $sysmod = "mkdir $CASEBUILD/mosartconf";
@@ -132,7 +133,7 @@ while ($inst_counter <= $NINST_ROF) {
     # call build-namelist
     # -----------------------------------------------------
     
-    $sysmod = "$CCSMROOT/components/mosart/bld/build-namelist ";
+    $sysmod = "$SRCROOT/components/mosart/bld/build-namelist ";
     $sysmod = "$sysmod -infile $CASEBUILD/mosartconf/cesm_namelist";
     $sysmod = "$sysmod -caseroot $CASEROOT";
     $sysmod = "$sysmod -scriptsroot $SCRIPTSROOT";  
