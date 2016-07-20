@@ -345,6 +345,7 @@
     <DOUT_S_ROOT>$CESMSCRATCHROOT/archive/$CASE</DOUT_S_ROOT>
     <DOUT_L_MSROOT>csm/$CASE</DOUT_L_MSROOT>
     <CCSM_BASELINE>/sems-data-store/ACME/baselines</CCSM_BASELINE>
+    <SAVE_TIMING_DIR>/sems-data-store/ACME/timings</SAVE_TIMING_DIR>
     <CCSM_CPRNC>/sems-data-store/ACME/cprnc/build/cprnc</CCSM_CPRNC>
     <SUPPORTED_BY>jgfouca at sandia dot gov</SUPPORTED_BY>
 <!--    <GMAKE>make</GMAKE> <- this doesn't actually work! -->
@@ -500,6 +501,7 @@
   <DOUT_L_MSROOT>USERDEFINED_optional_run</DOUT_L_MSROOT>           <!-- complete path to a long term archiving directory -->
   <CCSM_BASELINE>/projects/ccsm/ccsm_baselines</CCSM_BASELINE>
   <CCSM_CPRNC>/projects/ccsm/cprnc/build/cprnc_wrap</CCSM_CPRNC>                <!-- path to the cprnc tool used to compare netcdf history files in testing -->
+  <SAVE_TIMING_DIR>/projects/ccsm/timings</SAVE_TIMING_DIR>
   <BATCH_SYSTEM>slurm</BATCH_SYSTEM>
   <SUPPORTED_BY>jgfouca at sandia dot gov</SUPPORTED_BY>
   <GMAKE_J>8</GMAKE_J>
@@ -587,11 +589,12 @@
 
 <machine MACH="blues">
          <DESC>ANL/LCRC Linux Cluster</DESC>
-         <NODENAME_REGEX>(blogin|^b\d)</NODENAME_REGEX>
+         <NODENAME_REGEX>b.*.lcrc.anl.gov</NODENAME_REGEX>
          <TESTS>acme_integration</TESTS>
          <COMPILERS>gnu,pgi,intel,nag</COMPILERS>
          <MPILIBS>mvapich,mpich,openmpi,mpi-serial</MPILIBS>
          <CESMSCRATCHROOT>/lcrc/project/$PROJECT/$USER/acme_scratch</CESMSCRATCHROOT>
+	 <SAVE_TIMING_DIR>/lcrc/project/$PROJECT</SAVE_TIMING_DIR>
 	 <RUNDIR>$CESMSCRATCHROOT/$CASE/run</RUNDIR>
 	 <EXEROOT>$CESMSCRATCHROOT/$CASE/bld</EXEROOT>
          <DIN_LOC_ROOT>/home/ccsm-data/inputdata</DIN_LOC_ROOT>
@@ -817,7 +820,6 @@
                <arg name="bg_threadlayout"> --envs BG_THREADLAYOUT=1</arg>
                <arg name="omp_stacksize"> --envs OMP_STACKSIZE=64M</arg>
                <arg name="thread_count"> --envs OMP_NUM_THREADS={{ thread_count }}</arg>
-               <arg name="colon">:</arg>
              </arguments>
          </mpirun>
     <module_system type="soft">

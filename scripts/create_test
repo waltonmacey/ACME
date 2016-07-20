@@ -12,9 +12,8 @@ from Tools.standard_script_setup import *
 
 import update_acme_tests
 from CIME.system_test import SystemTest, RUN_PHASE
-from CIME.utils import expect, convert_to_seconds, compute_total_time, convert_to_babylonian_time, run_cmd
+from CIME.utils import expect, convert_to_seconds, compute_total_time, convert_to_babylonian_time, run_cmd_no_fail
 from CIME.XML.machines import Machines
-from CIME.XML.batch import Batch
 from CIME.case import Case
 
 import argparse, math, glob
@@ -76,6 +75,9 @@ OR
 
     parser.add_argument("-u", "--use-existing", action="store_true",
                         help="Use pre-existing case directories. Requires test-id")
+
+    parser.add_argument("--save-timing", action="store_true",
+                        help="Enable archiving of performance data.")
 
     parser.add_argument("--no-batch", action="store_true",
                         help="Do not submit jobs to batch system, run locally."
@@ -208,7 +210,7 @@ OR
         args.test_root, args.baseline_root, args.clean, args.compare, args.generate, \
         args.baseline_name, args.namelists_only, args.project, args.test_id, args.parallel_jobs, \
         args.xml_machine, args.xml_compiler, args.xml_category, args.xml_testlist, args.walltime, \
-        args.single_submit, args.proc_pool, args.use_existing
+        args.single_submit, args.proc_pool, args.use_existing, args.save_timing
 
 ###############################################################################
 def single_submit_impl(machine_name, test_id, proc_pool, project, args, job_cost_map, wall_time, test_root):
@@ -256,12 +258,12 @@ def single_submit_impl(machine_name, test_id, proc_pool, project, args, job_cost
     testcase_dirs = glob.glob("%s/*%s*/TestStatus" % (test_root, test_id))
     expect(testcase_dirs, "No test case dirs found!?")
     first_case = os.path.abspath(os.path.dirname(testcase_dirs[0]))
-    case = Case(first_case)
-    env_batch = env_batch = case._get_env("batch")
+    with Case(first_case, read_only=False) as case:
+        env_batch = case._get_env("batch")
 
-    directives = env_batch.get_batch_directives(case, "case.run", raw=True)
-    submit_cmd  = env_batch.get_value("batch_submit", subgroup=None)
-    submit_args = env_batch.get_submit_args(case, "case.run")
+        directives = env_batch.get_batch_directives(case, "case.run", raw=True)
+        submit_cmd  = env_batch.get_value("batch_submit", subgroup=None)
+        submit_args = env_batch.get_submit_args(case, "case.run")
 
     tasks_per_node = int(mach.get_value("PES_PER_NODE"))
     num_nodes = int(math.ceil(float(proc_pool) / tasks_per_node))
@@ -307,14 +309,14 @@ def single_submit_impl(machine_name, test_id, proc_pool, project, args, job_cost
     submit_cmd = "%s %s" % (submit_cmd, submit_args)
     logger.info("Script:\n%s" % script)
 
-    run_cmd(submit_cmd, input_str=script, arg_stdout=None, arg_stderr=None, verbose=True)
+    run_cmd_no_fail(submit_cmd, input_str=script, arg_stdout=None, arg_stderr=None, verbose=True)
 
 ###############################################################################
 def create_test(testargs, compiler, machine_name, no_run, no_build, no_batch, test_root,
                 baseline_root, clean, compare, generate,
                 baseline_name, namelists_only, project, test_id, parallel_jobs,
                 xml_machine, xml_compiler, xml_category, xml_testlist, walltime,
-                single_submit, proc_pool, use_existing):
+                single_submit, proc_pool, use_existing, save_timing):
 ###############################################################################
     if testargs and machine_name is None and compiler is None:
         for test in testargs:
@@ -341,7 +343,7 @@ def create_test(testargs, compiler, machine_name, no_run, no_build, no_batch, te
                       project=project, parallel_jobs=parallel_jobs,
                       xml_machine=xml_machine, xml_compiler=xml_compiler,
                       xml_category=xml_category, xml_testlist=xml_testlist, walltime=walltime,
-                      proc_pool=proc_pool, use_existing=use_existing)
+                      proc_pool=proc_pool, use_existing=use_existing, save_timing=save_timing)
 
     success = impl.system_test()
 
@@ -354,7 +356,7 @@ def create_test(testargs, compiler, machine_name, no_run, no_build, no_batch, te
         for test in impl._tests:
             test_dir = impl._get_test_dir(test)
             procs_needed = impl._get_procs_needed(test, RUN_PHASE)
-            time_needed = convert_to_seconds(run_cmd("./xmlquery JOB_WALLCLOCK_TIME -value", from_dir=test_dir))
+            time_needed = convert_to_seconds(run_cmd_no_fail("./xmlquery JOB_WALLCLOCK_TIME -value", from_dir=test_dir))
             job_cost_map[test] = (procs_needed, time_needed)
             if procs_needed > largest_case:
                 largest_case = procs_needed
@@ -373,20 +375,20 @@ def create_test(testargs, compiler, machine_name, no_run, no_build, no_batch, te
 def _main_func(description):
 ###############################################################################
     if "--test" in sys.argv:
-        CIME.utils.run_cmd("python -m doctest %s/CIME/system_test.py -v" %
-                           CIME.utils.get_python_libs_root(), arg_stdout=None, arg_stderr=None)
+        CIME.utils.run_cmd_no_fail("python -m doctest %s/CIME/system_test.py -v" %
+                                   CIME.utils.get_python_libs_root(), arg_stdout=None, arg_stderr=None)
         return
 
     testargs, compiler, machine_name, no_run, no_build, no_batch, test_root, baseline_root, clean, \
         compare, generate, baseline_name, namelists_only, project, test_id, parallel_jobs, \
         xml_machine, xml_compiler, xml_category, xml_testlist, walltime, single_submit, proc_pool, \
-        use_existing \
+        use_existing, save_timing \
         = parse_command_line(sys.argv, description)
 
     sys.exit(create_test(testargs, compiler, machine_name, no_run, no_build, no_batch, test_root,
                          baseline_root, clean, compare, generate, baseline_name, namelists_only,
                          project, test_id, parallel_jobs, xml_machine, xml_compiler, xml_category,
-                         xml_testlist, walltime, single_submit, proc_pool, use_existing))
+                         xml_testlist, walltime, single_submit, proc_pool, use_existing, save_timing))
 
 ###############################################################################
 

@@ -42,12 +42,13 @@ def build_xcpl_nml(argv, compclass):
 
     caseroot = parse_input(argv)
 
-    case = Case(caseroot)
-
-    rundir = case.get_value("RUNDIR")
-    ninst  = case.get_value("NINST_%s" % compclass.upper())
-    nx     = case.get_value("%s_NX" % compclass.upper())
-    ny     = case.get_value("%s_NY" % compclass.upper())
+    with Case(caseroot) as case:
+        rundir = case.get_value("RUNDIR")
+        ninst  = case.get_value("NINST_%s" % compclass.upper())
+        nx     = case.get_value("%s_NX" % compclass.upper())
+        ny     = case.get_value("%s_NY" % compclass.upper())
+        if compname == "xrof":
+            flood_mode = case.get_value('XROF_FLOOD_MODE')
 
     extras = []
     dtype = 1
@@ -69,7 +70,6 @@ def build_xcpl_nml(argv, compclass):
         dtype = 4
     elif compname == "xrof":
         dtype = 11
-        flood_mode = Case('XROF_FLOOD_MODE')
         if flood_mode == "ACTIVE":
             extras = [[".true.", "flood flag"]]
         else:
@@ -81,7 +81,7 @@ def build_xcpl_nml(argv, compclass):
         if ninst == 1:
             filename = os.path.join(rundir, "%s_in" % compname)
         else:
-            filename = os.path.join(rundir, "%s_in%4.4d" % (compname, i))
+            filename = os.path.join(rundir, "%s_in_%4.4d" % (compname, i))
 
         with open(filename, 'w') as infile:
             infile.write("%-20d ! i-direction global dimension\n" % nx)
@@ -98,10 +98,15 @@ def build_xcpl_nml(argv, compclass):
 ###############################################################################
 def build_data_nml(argv, compclass):
 ###############################################################################
-
+    # This function is just a wrapper for the one below, to avoid having to
+    # indent everything for the "with" block.
     caseroot = parse_input(argv)
+    with Case(caseroot) as case:
+        _build_data_nml(case, caseroot, compclass)
 
-    case = Case(caseroot)
+###############################################################################
+def _build_data_nml(case, caseroot, compclass):
+###############################################################################
 
     cimeroot = case.get_value("CIMEROOT")
     rundir   = case.get_value("RUNDIR")
@@ -147,7 +152,7 @@ def build_data_nml(argv, compclass):
         cmd = "%s -caseroot %s -cimeroot %s -inst_string %s -infile %s -user_xml_dir %s" \
             % (bldnamelist, caseroot, cimeroot, inst_string_label, namelist_infile, user_xml_dir)
 
-        rc, out, err = run_cmd(cmd, from_dir=confdir, ok_to_fail=True)
+        rc, out, err = run_cmd(cmd, from_dir=confdir)
         expect(rc==0,"Command %s failed rc=%d\nout=%s\nerr=%s"%(cmd,rc,out,err))
 
         # copy namelist files and stream text files, to rundir
@@ -188,7 +193,7 @@ def create_namelist_infile(case, user_nl_file, namelist_infile, infile_text=""):
     for line in lines_input:
         match1 = re.search(r"^[\&\/\!]", line)
         match2 = re.search(r"\$([\w\_])+", line)
-	if match1 is None and match2 is not None:
+        if match1 is None and match2 is not None:
             line = case.get_resolved_value(line)
         if match1 is None:
             lines_output.append(line)
