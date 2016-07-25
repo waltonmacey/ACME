@@ -3,21 +3,16 @@ use strict;
 use Cwd;
 
 if ($#ARGV == -1) {
-    die " ERROR mpas-o.buildnml: must specify a caseroot input argument";
+    die " ERROR mpas-o buildnml: must specify a caseroot input argument";
 }
 my ($CASEROOT) = @ARGV;
 chdir "${CASEROOT}";
 
-my @dirs = ("$CASEROOT/Tools");
-unshift @INC, @dirs;
-require SetupTools;
-my $sysmod;
-
+my $CIMEROOT            = `./xmlquery  CIMEROOT            -value`;
 my $CASEROOT		= `./xmlquery  CASEROOT			-value`;
 my $CASEBUILD		= `./xmlquery  CASEBUILD		-value`;
-my $CCSMROOT		= `./xmlquery  CCSMROOT			-value`;
+my $SRCROOT		= `./xmlquery  SRCROOT			-value`;
 my $OBJROOT		    = `./xmlquery  OBJROOT			-value`;
-my $SCRIPTSROOT		= `./xmlquery  SCRIPTSROOT		-value`;
 my $COMP_INTERFACE	= `./xmlquery  COMP_INTERFACE	-value`;
 my $DIN_LOC_ROOT    = `./xmlquery  DIN_LOC_ROOT     -value`;
 my $OCN_GRID		= `./xmlquery  OCN_GRID			-value`;
@@ -27,9 +22,14 @@ my $NINST_OCN = 1; # Change if you want multiple instances... though this isn't 
 my $RUNDIR		    = `./xmlquery  RUNDIR			-value`;
 my $STREAM_NAME     = 'streams.ocean';
 
+my @dirs = ("$CIMEROOT/utils/perl5lib");
+unshift @INC, @dirs;
+require Config::SetupTools;
+my $sysmod;
+
 if (! -d "$CASEBUILD/mpas-oconf" ) {
     $sysmod = "mkdir $CASEBUILD/mpas-oconf";
-    system($sysmod) == 0 or die "ERROR mpas-o.buildnml: $sysmod failed: $?\n";
+    system($sysmod) == 0 or die "ERROR mpas-o buildnml: $sysmod failed: $?\n";
 }
 
 #--------------------------------------------------------------------
@@ -106,7 +106,7 @@ while ($inst_counter <= $NINST_OCN) {
 		# for each instance
 		if ( (! -e "$RUNDIR/rpointer.ocn${inst_string}") && (-e "$RUNDIR/rpointer.ocn") ) {
 				$sysmod = "cp -v $RUNDIR/rpointer.ocn $RUNDIR/rpointer.ocn${inst_string}";
-				system($sysmod) == 0 or die "ERROR mpas-o.buildnml: $sysmod failed: $?\n";
+				system($sysmod) == 0 or die "ERROR mpas-o buildnml: $sysmod failed: $?\n";
 		}
     }
 
@@ -115,33 +115,33 @@ while ($inst_counter <= $NINST_OCN) {
     # -----------------------------------------------------
 
     SetupTools::create_namelist_infile("$CASEROOT", 
-				       "$CASEROOT/user_nl_mpas-o${inst_string}", 
+				       "$CASEROOT/user_nl_mpaso${inst_string}", 
 				       "$CASEBUILD/mpas-oconf/cesm_namelist"); 
 
     # -----------------------------------------------------
     # call build-namelist- output will go in $CASEBUILD/mpas-oconf/mpas-o_in
     # -----------------------------------------------------
 
-    #$sysmod = "$CCSMROOT/components/mpas-o/bld/build-namelist";
+    #$sysmod = "$SRCROOT/components/mpas-o/bld/build-namelist";
     #$sysmod = "$sysmod -infile $CASEBUILD/mpas-oconf/cesm_namelist";
     #$sysmod = "$sysmod -inputdata $CASEBUILD/mpas-o.input_data_list";
     #$sysmod = "$sysmod -rundir $RUNDIR";
     #$sysmod = "$sysmod -caseroot $CASEROOT";
-    #$sysmod = "$sysmod -scriptsroot $SCRIPTSROOT";
+    #$sysmod = "$sysmod -cimeroot $CIMEROOT";
     #$sysmod = "$sysmod -inst_string \"$inst_string\"";
     #$sysmod = "$sysmod -namelist \"\&cice $CICE_NAMELIST_OPTS\/\" ";
     #$sysmod = "$sysmod -config config_cache.xml";
 
-    $sysmod =  "$CCSMROOT/components/mpas-o/bld/build-namelist";
+    $sysmod =  "$SRCROOT/components/mpas-o/bld/build-namelist";
 	$sysmod .= " -infile $CASEBUILD/mpas-oconf/cesm_namelist";
 	$sysmod .= " -caseroot $CASEROOT";
 	$sysmod .= " -casebuild $CASEBUILD";
-	$sysmod .= " -scriptsroot $SCRIPTSROOT";
+	$sysmod .= " -cimeroot $CIMEROOT";
 	$sysmod .= " -inst_string '$inst_string'";
 	$sysmod .= " -date_stamp '$grid_date'";
 	$sysmod .= " -ocn_grid '$OCN_GRID'";
 
-    system($sysmod) == 0 or die "ERROR mpas-o.buildnml: $sysmod failed: $?\n";
+    system($sysmod) == 0 or die "ERROR mpas-o buildnml: $sysmod failed: $?\n";
 
     # -----------------------------------------------------
     # Copy resolved namelist to $RUNDIR
@@ -151,7 +151,7 @@ while ($inst_counter <= $NINST_OCN) {
     my $in_filename = "${default_in_filename}${inst_string}";
     if ( -d ${RUNDIR} ) {
 	$sysmod = "cp $CASEBUILD/mpas-oconf/mpas-o_in ${RUNDIR}/$in_filename";
-	system($sysmod) == 0 or die "ERROR mpas-o.buildnml: $sysmod failed: $?\n";
+	system($sysmod) == 0 or die "ERROR mpas-o buildnml: $sysmod failed: $?\n";
     }
 
     # -----------------------------------------------------
@@ -165,7 +165,7 @@ while ($inst_counter <= $NINST_OCN) {
 
 if ( -e "$CASEROOT/SourceMods/src.mpas-o/$STREAM_NAME" ) {
 	$sysmod = "cp $CASEROOT/SourceMods/src.mpas-o/$STREAM_NAME $RUNDIR/$STREAM_NAME";
-	system($sysmod) == 0 or die "ERROR mpas-o.buildnml: $sysmod fails: $?\n";
+	system($sysmod) == 0 or die "ERROR mpas-o buildnml: $sysmod fails: $?\n";
 } else {
 	open(my $stream_file, "+>", "$RUNDIR/$STREAM_NAME");
 	print $stream_file '<streams>' . "\n";
