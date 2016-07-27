@@ -3,19 +3,15 @@ use strict;
 use Cwd;
 
 if ($#ARGV == -1) {
-    die " ERROR mpas-cice.buildnml: must specify a caseroot input argument";
+    die " ERROR mpas-cice buildnml: must specify a caseroot input argument";
 }
 my ($CASEROOT) = @ARGV;
 chdir "${CASEROOT}";
 
-my @dirs = ("$CASEROOT/Tools");
-unshift @INC, @dirs;
-require SetupTools;
-my $sysmod;
-
+my $CIMEROOT            = `./xmlquery  CIMEROOT            -value`;
 my $CASEROOT        = `./xmlquery  CASEROOT		-value`;
 my $CASEBUILD       = `./xmlquery  CASEBUILD		-value`;
-my $CCSMROOT        = `./xmlquery  CCSMROOT		-value`;
+my $SRCROOT        = `./xmlquery  SRCROOT		-value`;
 my $OBJROOT         = `./xmlquery  OBJROOT		-value`;
 my $SCRIPTSROOT	    = `./xmlquery  SCRIPTSROOT		-value`;
 my $COMP_INTERFACE  = `./xmlquery  COMP_INTERFACE	-value`;
@@ -27,9 +23,15 @@ my $NINST_ICE       = 1; # Change if you want multiple instances... though this 
 my $RUNDIR          = `./xmlquery  RUNDIR		-value`;
 my $STREAM_NAME     = 'streams.cice';
 
+my @dirs = ("$CIMEROOT/utils/perl5lib");
+unshift @INC, @dirs;
+require Config::SetupTools;
+my $sysmod;
+
+
 if (! -d "$CASEBUILD/mpas-ciceconf" ) {
     $sysmod = "mkdir $CASEBUILD/mpas-ciceconf";
-    system($sysmod) == 0 or die "ERROR mpas-cice.buildnml: $sysmod failed: $?\n";
+    system($sysmod) == 0 or die "ERROR mpas-cice buildnml: $sysmod failed: $?\n";
 }
 
 #--------------------------------------------------------------------
@@ -111,14 +113,14 @@ while ($inst_counter <= $NINST_ICE) {
     # -----------------------------------------------------
 
     SetupTools::create_namelist_infile("$CASEROOT", 
-				       "$CASEROOT/user_nl_mpas-cice${inst_string}", 
+				       "$CASEROOT/user_nl_mpascice${inst_string}", 
 				       "$CASEBUILD/mpas-ciceconf/cesm_namelist"); 
 
     # -----------------------------------------------------
     # call build-namelist- output will go in $CASEBUILD/mpas-ciceconf/mpas-cice_in
     # -----------------------------------------------------
 
-    #$sysmod = "$CCSMROOT/components/mpas-cice/bld/build-namelist";
+    #$sysmod = "$SRCROOT/components/mpas-cice/bld/build-namelist";
     #$sysmod = "$sysmod -infile $CASEBUILD/mpas-ciceconf/cesm_namelist";
     #$sysmod = "$sysmod -inputdata $CASEBUILD/mpas-cice.input_data_list";
     #$sysmod = "$sysmod -rundir $RUNDIR";
@@ -128,11 +130,11 @@ while ($inst_counter <= $NINST_ICE) {
     #$sysmod = "$sysmod -namelist \"\&cice $CICE_NAMELIST_OPTS\/\" ";
     #$sysmod = "$sysmod -config config_cache.xml";
 
-    $sysmod =  "$CCSMROOT/components/mpas-cice/bld/build-namelist";
+    $sysmod =  "$SRCROOT/components/mpas-cice/bld/build-namelist";
 	$sysmod .= " -infile $CASEBUILD/mpas-ciceconf/cesm_namelist";
 	$sysmod .= " -caseroot $CASEROOT";
 	$sysmod .= " -casebuild $CASEBUILD";
-	$sysmod .= " -scriptsroot $SCRIPTSROOT";
+	$sysmod .= " -cimeroot $CIMEROOT";
 	$sysmod .= " -inst_string '$inst_string'";
 	$sysmod .= " -date_stamp '$grid_date'";
 	$sysmod .= " -ice_grid '$ICE_GRID'";
