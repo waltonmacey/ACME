@@ -3440,19 +3440,6 @@
     <desc>2**n relative cost of compset where B is 1 (DO NOT EDIT)</desc>
   </entry>
 
-  <entry id="GLC_NEC">
-    <type>integer</type>
-    <valid_values>0,1,3,5,10,36</valid_values>
-    <default_value>10</default_value>
-    <values>
-      <value compset="_SGLC">0</value>
-    </values>
-    <group>run_glc</group>
-    <file>env_run.xml</file>
-    <desc>Glacier model number of elevation classes, 0 implies no glacier land unit in clm
-    Used by both CLM and CISM (even if CISM is not running, and only SGLC is used).</desc>
-  </entry>
-
   <entry id="CLM_USE_PETSC">
     <type>logical</type>
     <valid_values>TRUE,FALSE</valid_values>
@@ -3466,55 +3453,6 @@
       when building the ACME executable. This occurs if this variable
       is set to TRUE. Note that is only available on a limited set of
       machines/compilers.</desc>
-  </entry>
-
-  <entry id="MPASLI_CONFIG_OPTS">
-    <type>char</type>
-    <valid_values></valid_values>
-    <default_value></default_value>
-    <group>build_component_mpasli</group>
-    <file>env_build.xml</file>
-    <desc>MPASLI configure options. Currently not used</desc>
-  </entry>
-
-  <entry id="MPASLI_USE_ALBANY">
-    <type>logical</type>
-    <valid_values>TRUE,FALSE</valid_values>
-    <default_value>FALSE</default_value>
-    <group>build_component_mpasli</group>
-    <file>env_build.xml</file>
-    <desc>TRUE implies MPASLI is built with support for the Albany
-      library The first-order velocity solver in MPASLI uses the
-      Albany library.  In order to use that velocity solver, MPASLI
-      must be built with Albany support and linking to Albany must
-      occur when building the ACME executable.  This occurs if this
-      variable is set to TRUE.  Note that is only available on a
-      limited set of machines/compilers.  This must remain FALSE to
-      run MPASLI on a machine that does not have Albany, or for which
-      the CIME scripts are not aware of the existence of
-      Albany.</desc>
-  </entry>
-
-  <entry id="GLC_TWO_WAY_COUPLING">
-    <type>logical</type>
-    <valid_values>TRUE,FALSE</valid_values>
-    <default_value>FALSE</default_value>
-    <values>
-      <value compset="_CLM45.+CISM\d">TRUE</value>
-      <value compset="_CLM50.+CISM\d">TRUE</value>
-      <!-- Turn on two-way coupling for TG compsets - even though there are no
-	   feedbacks for a TG compset, this will give us additional diagnostics -->
-      <value compset="_DLND.+CISM\d">TRUE</value>
-    </values>
-    <group>run_glc</group>
-    <file>env_run.xml</file>
-    <desc>Whether the glacier component feeds back to the rest of the system
-      This affects:
-      (1) Whether CLM updates its areas based on glacier areas sent from GLC
-      (2) Whether GLC sends fluxes (e.g., calving fluxes) to the coupler
-      Note that this is set to TRUE by default for TG compsets - even though there are
-      no feedbacks for TG compsets, this enables extra coupler diagnostics for these
-      compsets.</desc>
   </entry>
 
   <entry id="CCSM_GCOST">
