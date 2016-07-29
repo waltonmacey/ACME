@@ -266,6 +266,8 @@
     <default_value>unset</default_value>
     <values>
       <value component="mpasli">$SRCROOT/components/mpasli/cime_config/config_component.xml</value>
+      <value component="mpaslisia">$SRCROOT/components/mpasli/cime_config/config_component.xml</value>
+      <value component="mpaslialb">$SRCROOT/components/mpasli/cime_config/config_component.xml</value>
       <value component="cism">$SRCROOT/components/cism/cime_config/config_component.xml</value>
       <value component="dglc">$CIMEROOT/components/data_comps/dglc/cime_config/config_component.xml</value>
       <value component="sglc">$CIMEROOT/components/stub_comps/sglc/cime_config/config_component.xml</value>
