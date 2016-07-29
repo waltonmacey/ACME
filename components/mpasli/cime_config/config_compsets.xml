@@ -10,13 +10,13 @@
   </compset>
 
   <compset>
-    <alias>MPASLIA</alias>
+    <alias>MPASLISIA</alias>
     <lname>RCP8_SATM_SLND_SICE_SOCN_SROF_MPASLISIA_SWAV</lname>
   </compset>
 
   <compset>
-    <alias>MPASLIB</alias>
-    <lname>RCP8_SATM_SLND_SICE_SOCN_SROF_MPASLISIB_SWAV</lname>
+    <alias>MPASLIALB</alias>
+    <lname>RCP8_SATM_SLND_SICE_SOCN_SROF_MPASLIALB_SWAV</lname>
   </compset>
 
 </compsets>
