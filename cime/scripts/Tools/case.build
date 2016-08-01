@@ -19,6 +19,7 @@ from CIME.SystemTests.pfs import PFS
 from CIME.SystemTests.seq import SEQ
 from CIME.SystemTests.sms import SMS
 from CIME.SystemTests.ssp import SSP
+from CIME.SystemTests.homme import HOMME
 from CIME.SystemTests.system_tests_common import *
 
 import CIME.build as build

@@ -18,6 +18,7 @@ from CIME.SystemTests.pfs import PFS # pylint: disable=unused-import
 from CIME.SystemTests.sms import SMS # pylint: disable=unused-import
 from CIME.SystemTests.seq import SEQ # pylint: disable=unused-import
 from CIME.SystemTests.ssp import SSP # pylint: disable=unused-import
+from CIME.SystemTests.homme import HOMME # pylint: disable=unused-import
 
 from CIME.SystemTests.system_tests_common import *
 
