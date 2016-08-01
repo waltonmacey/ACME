@@ -79,6 +79,15 @@
     Used by both CLM and CISM (even if CISM is not running, and only SGLC is used).</desc>
   </entry>
 
+  <entry id="GLC_SMB">
+    <type>logical</type>
+    <valid_values>true,false</valid_values>
+    <default_value>true</default_value>
+    <group>run_component_cism</group>
+    <file>env_run.xml</file>
+    <desc>true => do surface mass balance, false => PDD, nec_glc is set to 1</desc>
+  </entry>
+
   <description>
     <desc compset="_MPASLI">mpas ice default:</desc>
     <desc compset="_MPASLISIA" >MPAS Land Ice (shallow ice solver):</desc>
