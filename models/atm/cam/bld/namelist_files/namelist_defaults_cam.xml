@@ -846,6 +846,12 @@
 <subcol_silhs_weight >.true.</subcol_silhs_weight>
 <subcol_silhs_numsubcol >4</subcol_silhs_numsubcol>
 
+<!-- ================================================================ -->
+<!-- ProcOrdering - AaronDonahue - (08/03/2016):                      -->
+<!-- Add default process ordering that reflects baseline code set up  -->
+<proc_order_bc>1,2,3,4,5</proc_order_bc>
+<!-- ================================================================ -->
+
 <!-- Deep convection scheme -->
 <deep_scheme>ZM</deep_scheme>
 

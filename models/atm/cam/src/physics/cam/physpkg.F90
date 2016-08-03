@@ -160,6 +160,13 @@ subroutine phys_register
 
     integer :: nmodes
 
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/03/2016):
+! Variable for controlling the process order in the tphysbc subroutine.
+    integer :: proc_order_bc(5)
+    call phys_getopts( proc_order_bc_out = proc_order_bc )
+!======================================================================= 
+
     call phys_getopts( microp_scheme_out = microp_scheme )
     call phys_getopts( do_clubb_sgs_out  = do_clubb_sgs )
 
@@ -1922,7 +1929,16 @@ subroutine tphysbc (ztodt,               &
     logical :: l_rad
     !HuiWan (2014/15): added for a short-term time step convergence test ==
 
-
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/03/2016):
+! Variables to control the order of physics processes in the tphysbc 
+! subroutine. 
+! NOTE: For purposes of stability, the first time step will always use
+!       the standard default order of Deep Convection/Shallow Convection
+!       first.
+    integer, dimension(5) :: proc_order_bc, proc_order
+    integer               :: procidx, loc_proc
+!======================================================================= 
     call phys_getopts( microp_scheme_out      = microp_scheme, &
                        macrop_scheme_out      = macrop_scheme, &
                        use_subcol_microp_out  = use_subcol_microp, &
@@ -1933,9 +1949,11 @@ subroutine tphysbc (ztodt,               &
                       ,l_st_mac_out           = l_st_mac           &
                       ,l_st_mic_out           = l_st_mic           &
                       ,l_rad_out              = l_rad              &
+                      ,proc_order_bc_out      = proc_order_bc      & ! ProcOrdering - AaronDonahue - (08/03/2016) Load process order from namelist
                       )
     
     !-----------------------------------------------------------------------
+
     call t_startf('bc_init')
 
     zero = 0._r8

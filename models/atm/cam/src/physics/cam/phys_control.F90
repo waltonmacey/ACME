@@ -121,6 +121,21 @@ logical :: l_st_mac        = .true.
 logical :: l_st_mic        = .true.
 logical :: l_rad           = .true.
 
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/03/2016):
+! Variable to handle namelist variable associated with the process order
+! choice for this run.
+!
+! This is a vector of integers that has 5 elements, each entry is 
+! selected from the numbers 1-5 where each element represents a choice
+! of order such that:
+!       1 - Deep Convection (BC)
+!       2 - Shallow Convection (BC)
+!       3 - Macrophysics (BC)
+!       4 - Microphysics/Wet Deposition (BC)
+!       5 - Radiation (BC)
+integer :: proc_order_bc(5)
+!======================================================================= 
 
 !======================================================================= 
 contains
@@ -147,7 +162,8 @@ subroutine phys_ctl_readnl(nlfile)
       ssalt_tuning, resus_fix, convproc_do_aer, convproc_do_gas, convproc_method_activate, & !BSINGH(09/16/2014):Added ssalt_tuning,resus_fix,convproc_do_aer,convproc_do_gas
       liqcf_fix, regen_fix, demott_ice_nuc, &                                                !BSINGH(09/16/2014):liqcf_fix,regen_fix,demott_ice_nuc
       l_tracer_aero, l_vdiff, l_rayleigh, l_gw_drag, l_ac_energy_chk, &
-      l_bc_energy_fix, l_dry_adj, l_st_mac, l_st_mic, l_rad
+      l_bc_energy_fix, l_dry_adj, l_st_mac, l_st_mic, l_rad, &
+      proc_order_bc                                                                          ! ProcOrdering - AaronDonahue - (08/03/2016): Added proc_order_bc to control process order
    !-----------------------------------------------------------------------------
 
    if (masterproc) then
@@ -329,6 +345,7 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
                         liqcf_fix_out, regen_fix_out,demott_ice_nuc_out      & !BSINGH added cliqcf_fix,regen_fix,demott_ice_nuc
                        ,l_tracer_aero_out, l_vdiff_out, l_rayleigh_out, l_gw_drag_out, l_ac_energy_chk_out  &
                        ,l_bc_energy_fix_out, l_dry_adj_out, l_st_mac_out, l_st_mic_out, l_rad_out  &
+                       ,proc_order_bc_out &                                    ! ProcOrdering - AaronDonahue - (08/03/2016): Added proc_order_bc to control process order
                         )
 !-----------------------------------------------------------------------
 ! Purpose: Return runtime settings
@@ -383,6 +400,11 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
    logical,           intent(out), optional :: l_st_mic_out
    logical,           intent(out), optional :: l_rad_out
 
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/03/2016):
+! Include a call to retrieve the proc_order_bc component from namelist.
+   integer,dimension(5),intent(in),optional :: proc_order_bc_out
+!======================================================================= 
    if ( present(deep_scheme_out         ) ) deep_scheme_out          = deep_scheme
    if ( present(shallow_scheme_out      ) ) shallow_scheme_out       = shallow_scheme
    if ( present(eddy_scheme_out         ) ) eddy_scheme_out          = eddy_scheme
@@ -425,6 +447,7 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
    if ( present(l_st_mac_out            ) ) l_st_mac_out          = l_st_mac
    if ( present(l_st_mic_out            ) ) l_st_mic_out          = l_st_mic
    if ( present(l_rad_out               ) ) l_rad_out             = l_rad
+   if ( present(proc_order_bc_out       ) ) proc_order_bc_out     = proc_order_bc ! ProcOrdering - AaronDonahue - (08/03/2016): Get process order from namelist
 
 end subroutine phys_getopts
 
