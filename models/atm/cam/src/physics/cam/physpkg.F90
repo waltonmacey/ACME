@@ -73,6 +73,20 @@ module physpkg
   integer :: sh_frac_idx        = 0 
   integer :: dp_frac_idx        = 0 
   !BSINGH -Ends
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/04/2016): 
+! Variables for use by the Process Ordering additions to the code.
+! -- These variables are used for writing the output after each process
+!    call.
+  integer :: nout                
+  integer :: nstage              = 5
+  character(len=2),dimension(20)  :: ProcOrderStage
+  character(len=40),dimension(20) :: ProcOrderStageLng
+  character(len=20),dimension(20) :: ProcOrderName
+  character(len=10),dimension(20) :: ProcOrderUnit
+  integer,dimension(20)           :: ProcOrderSize
+  character(len=80),dimension(20) :: ProcOrderLong
+!======================================================================= 
 
   save
 
@@ -747,6 +761,12 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
     call check_energy_init()
 
     call tracers_init()
+
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/04/2016):
+! Add Process Ordering specific fields to the history file to be written
+! after each process is realized.
+    call ProcOrdering_addflds
 
     ! age of air tracers
     call aoa_tracers_init()
@@ -1939,6 +1959,10 @@ subroutine tphysbc (ztodt,               &
     integer, dimension(5) :: proc_order_bc, proc_order
     integer               :: procidx, loc_proc
 !======================================================================= 
+! ProcOrdering - AaronDonahue - (08/04/2016):
+! Write output before tphysbc subroutine 
+call ProcOrdering_wrtflds(pbuf,state,14)  ! 14 - corresponds to BC
+!======================================================================= 
     call phys_getopts( microp_scheme_out      = microp_scheme, &
                        macrop_scheme_out      = macrop_scheme, &
                        use_subcol_microp_out  = use_subcol_microp, &
@@ -2091,6 +2115,16 @@ if (l_dry_adj) then
     call t_stopf('dry_adjustment')
 
 end if
+
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/04/2016):
+! Write output before tphysbc subroutine process paramterizations
+call ProcOrdering_wrtflds(pbuf,state,6)  ! 7 - corresponds to IN
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/04/2016):
+! Begin Deep Convection computation
+!======================================================================= 
+
     !
     !===================================================
     ! Moist convection
@@ -2129,6 +2163,16 @@ end if
     ! Check energy integrals, including "reserved liquid"
     flx_cnd(:ncol) = prec_dp(:ncol) + rliq(:ncol)
     call check_energy_chng(state, tend, "convect_deep", nstep, ztodt, zero, flx_cnd, snow_dp, zero)
+
+
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/04/2016):
+! Finished with Deep Convection computation 
+call ProcOrdering_wrtflds(pbuf,state,1)  ! 1 - corresponds to DC
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/04/2016):
+! Begin Shallow Convection computation
+!======================================================================= 
 
     !
     ! Call Hack (1994) convection scheme to deal with shallow/mid-level convection
@@ -2187,6 +2231,14 @@ if (l_tracer_aero) then
 
 end if
 
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/04/2016):
+! Finished with Shallow Convection computation 
+call ProcOrdering_wrtflds(pbuf,state,2)  ! 2 - corresponds to SC
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/04/2016):
+! Begin Macrophysics computation
+!======================================================================= 
 
     if( microp_scheme == 'RK' ) then
 
@@ -2261,6 +2313,15 @@ end if
        call t_stopf('macrop_tend') 
      end if ! l_st_mac
 
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/04/2016):
+! Finished with Macrophysics Computation 
+call ProcOrdering_wrtflds(pbuf,state,3)  ! 3 - corresponds to Ma
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/04/2016):
+! Begin Microphysics/wet Deposition computation
+!=======================================================================
+ 
      if (l_st_mic) then
        !===================================================
        ! Calculate cloud microphysics 
@@ -2413,6 +2474,15 @@ if (l_tracer_aero) then
    endif
 end if ! l_tracer_aero
 
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/04/2016):
+! Finished with Microphysics/Wet Deposition Computation 
+call ProcOrdering_wrtflds(pbuf,state,4)  ! 4 - corresponds to Mi
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/04/2016):
+! Begin Radiation computation
+!======================================================================= 
+
     !===================================================
     ! Moist physical parameteriztions complete: 
     ! send dynamical variables, and derived variables to history file
@@ -2457,6 +2527,11 @@ if (l_rad) then
     call t_stopf('radiation')
 
 end if ! l_rad
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/04/2016):
+! Finished with Radiation Computation 
+call ProcOrdering_wrtflds(pbuf,state,5)  ! 5 - corresponds to Ra
+!======================================================================= 
 
     ! Diagnose the location of the tropopause and its location to the history file(s).
     call t_startf('tropopause')
@@ -2472,6 +2547,12 @@ end if ! l_rad
     call t_startf('diag_export')
     call diag_export(cam_out)
     call t_stopf('diag_export')
+
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/04/2016):
+! Write output after tphysbc subroutine has completed
+call ProcOrdering_wrtflds(pbuf,state,7)  ! 7 - corresponds to FI
+!======================================================================= 
 
 end subroutine tphysbc
 
@@ -2581,4 +2662,304 @@ subroutine phys_timestep_init(phys_state, cam_out, pbuf2d)
 
 end subroutine phys_timestep_init
 
+!==========================================================================!
+! ProcOrdering - AaronDonahue - (08/04/2016): This subroutine is meant to
+! include a set of outputs to be written to the netcdf that are associated 
+! with the state at the end of each process.
+!==========================================================================!
+subroutine ProcOrdering_addflds
+
+  use cam_history,      only : addfld, phys_decomp, add_default
+  use spmd_utils,       only : masterproc
+
+  integer                     :: m,n,mstage
+
+  mstage = 1
+  ProcOrderStage(1) = 'DC'
+  ProcOrderStageLng(1) = 'Deep Convection'
+  mstage = mstage + 1
+  ProcOrderStage(2) = 'SC'
+  ProcOrderStageLng(2) = 'Shallow Convection'
+  mstage = mstage + 1
+  ProcOrderStage(3) = 'Ma'
+  ProcOrderStageLng(3) = 'Macrophysics'
+  mstage = mstage + 1
+  ProcOrderStage(4) = 'Mi'
+  ProcOrderStageLng(4) = 'Micro Physics + Wet Deposition'
+  mstage = mstage + 1
+  ProcOrderStage(5) = 'Ra'
+  ProcOrderStageLng(5) = 'Radiation'
+  mstage = mstage + 1
+  ProcOrderStage(6) = 'IN'
+  ProcOrderStageLng(6) = 'Initial, before processes'
+  mstage = mstage + 1
+  ProcOrderStage(7) = 'FI'
+  ProcOrderStageLng(7) = 'Final, after all processes'
+  mstage = mstage + 1
+  ProcOrderStage(8) = 'SU'
+  ProcOrderStageLng(8) = 'After surface coupling'
+  mstage = mstage + 1
+  ProcOrderStage(9) = 'AC'
+  ProcOrderStageLng(9) = 'After tphysac call'
+  mstage = mstage + 1
+  ProcOrderStage(10) = 'AT'
+  ProcOrderStageLng(10) = 'Advected tracers in AC'
+  mstage = mstage + 1
+  ProcOrderStage(11) = 'DI'
+  ProcOrderStageLng(11) = 'Diffusion, AC'
+  mstage = mstage + 1
+  ProcOrderStage(12) = 'RF'
+  ProcOrderStageLng(12) = 'Rayleigh Friction, AC'
+  mstage = mstage + 1
+  ProcOrderStage(13) = 'GW'
+  ProcOrderStageLng(13) = 'Gravity Wave, AC'
+  mstage = mstage + 1
+  ProcOrderStage(14) = 'BC'
+  ProcOrderStageLng(14) = 'Before tphysbc call'
+
+  nout = 0
+
+  nout = nout + 1
+  ProcOrderName(nout) = 'T_'
+  ProcOrderUnit(nout) = 'K '
+  ProcOrderSize(nout) = pver
+  ProcOrderLong(nout) = 'Temperature'
+
+  nout = nout + 1
+  ProcOrderName(nout) = 'Q_'
+  ProcOrderUnit(nout) = 'kg/kg '
+  ProcOrderSize(nout) = pver
+  ProcOrderLong(nout) = 'Specific humidity'
+
+  nout = nout + 1
+  ProcOrderName(nout) = 'CLDLIQ_'
+  ProcOrderUnit(nout) = 'kg/kg '
+  ProcOrderSize(nout) = pver
+  ProcOrderLong(nout) = 'Grid box averaged cloud liquid amount'
+
+  nout = nout + 1
+  ProcOrderName(nout) = 'CLDICE_'
+  ProcOrderUnit(nout) = 'kg/kg '
+  ProcOrderSize(nout) = pver
+  ProcOrderLong(nout) = 'Grid box averaged cloud ice amount'
+
+  nout = nout + 1
+  ProcOrderName(nout) = 'NUMLIQ_'
+  ProcOrderUnit(nout) = '1/kg '
+  ProcOrderSize(nout) = pver
+  ProcOrderLong(nout) = 'Grid box averaged cloud liquid number'
+
+  nout = nout + 1
+  ProcOrderName(nout) = 'NUMICE_'
+  ProcOrderUnit(nout) = '1/kg '
+  ProcOrderSize(nout) = pver
+  ProcOrderLong(nout) = 'Grid box averaged cloud ice number'
+
+  nout = nout + 1
+  ProcOrderName(nout) = 'TGCLDCWP_'
+  ProcOrderUnit(nout) = 'kg/m2 '
+  ProcOrderSize(nout) = 1
+  ProcOrderLong(nout) = 'Total water path'
+
+  nout = nout + 1
+  ProcOrderName(nout) = 'TGCLDLWP_'
+  ProcOrderUnit(nout) = 'kg/m2 '
+  ProcOrderSize(nout) = 1
+  ProcOrderLong(nout) = 'Liquid water path'
+
+  nout = nout + 1
+  ProcOrderName(nout) = 'TGCLDIWP_'
+  ProcOrderUnit(nout) = 'kg/m2 '
+  ProcOrderSize(nout) = 1
+  ProcOrderLong(nout) = 'Ice water path'
+
+  nout = nout + 1
+  ProcOrderName(nout) = 'TMQ_'
+  ProcOrderUnit(nout) = 'kg/m2'
+  ProcOrderSize(nout) = 1
+  ProcOrderLong(nout) = 'Total (vertically integrated) precipitable water'
+
+  nout = nout + 1
+  ProcOrderName(nout) = 'TST_'
+  ProcOrderUnit(nout) = 'unitless'
+  ProcOrderSize(nout) = 1
+  ProcOrderLong(nout) = 'Test average'
+
+!  This is a template for adding a variable to list. Simply copy and paste:
+!
+!  nout = nout + 1
+!  ProcOrderName(nout) = 'T_'
+!  ProcOrderUnit(nout) = 'K '
+!  ProcOrderSize(nout) = pver
+!  ProcOrderLong(nout) = 'Temperature'
+
+  if (masterproc) then
+    write(iulog,*) 'ProcOrdering - Adding ', nout, ' Output Fields for ',mstage,' stages:'
+  end if
+  do n = 1,mstage
+  do m = 1,nout
+    if (masterproc) then
+      write(iulog,*) '(',m,n,'): ',trim(ProcOrderName(m)) //trim(ProcOrderStage(n))
+    end if
+    call addfld(trim(ProcOrderName(m)) // trim(ProcOrderStage(n)),ProcOrderUnit(m) ,ProcOrderSize(m) , 'A', &
+                 trim(ProcOrderLong(m))  // ' after process: '//trim(ProcOrderStageLng(n)),phys_decomp)
+    if (masterproc) then
+      write(iulog,*) 'break'
+    end if
+    call add_default(trim(ProcOrderName(m))  // trim(ProcOrderStage(n)), 1, ' ')
+  end do
+  end do
+
+return
+end subroutine ProcOrdering_addflds
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/04/2016):
+! This subroutine is meant to write a set of outputs to the history file 
+! that are associated with the state at the end of each process.
+subroutine ProcOrdering_wrtflds(pbuf,state,n)
+
+  use cam_history,      only : outfld
+  use physics_types,    only : physics_state
+  use spmd_utils,       only : masterproc
+  use physics_buffer,   only : physics_buffer_desc
+
+  type(physics_buffer_desc), pointer :: pbuf(:)
+  type(physics_state), intent(in) :: state
+  integer,intent(in)              :: n
+  character(len=10)               :: fullname
+  integer                         :: lchnk,m
+
+  lchnk = state%lchnk
+
+  ! write output for model states, always make sure the order corresponds with
+  ! the ProcOrderName vector.
+!  call outfld(trim(ProcOrderName(1)) // trim(ProcOrderStage(n)),state%t , pcols,lchnk  )
+  do m = 1,5
+!    call outfld(trim(ProcOrderName(1+m)) //trim(ProcOrderStage(n)),state%q(1,1,m),pcols ,lchnk )
+  end do
+
+  ! write output for Liquid/Ice Water Path
+!  call ProcOrdering_wrt_tgcld(pbuf,state,n)
+
+return
+end subroutine ProcOrdering_wrtflds
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/04/2016):
+! This subroutine is meant to write a set of outputs to the history file
+! for the liquid and ice water path.
+subroutine ProcOrdering_wrt_tgcld(pbuf,state,n)
+
+    use physconst,      only : gravit,rga
+    use phys_control,   only : phys_getopts
+    use cam_history,    only : outfld
+    use conv_water,     only : conv_water_4rad
+    use physics_buffer, only : pbuf_get_index,physics_buffer_desc,pbuf_get_field
+    use spmd_utils,     only : masterproc
+    use ref_pres,       only : top_lev=>trop_cloud_top_lev
+    use cam_abortutils, only : endrun
+    use time_manager,   only : get_nstep
+
+    type(physics_state), intent(in)    :: state
+    integer,intent(in)                 :: n
+    type(physics_buffer_desc), pointer :: pbuf(:)
+    ! Local Variables
+    integer  :: i,k,nstep
+    integer  :: lchnk,ncol,conv_water_in_rad
+    real(r8) :: allcld_liq(pcols,pver)
+    real(r8) :: allcld_ice(pcols,pver)
+    real(r8) :: gicewp(pcols,pver)
+    real(r8) :: gliqwp(pcols,pver)
+    real(r8) :: tgicewp(pcols)
+    real(r8) :: tgliqwp(pcols)
+    real(r8) :: tgwp(pcols)
+    integer  :: ixcldice, ixcldliq
+    integer  :: rei_idx
+    real(r8), pointer, dimension(:,:) :: rei        ! ice effective radius
+    logical :: do_cld_diag, mg_clouds, rk_clouds, camrt_rad
+    character(len=16) :: rad_pkg, microp_pgk
+    character(len=100) :: myerr
+    real(r8) :: tmp(pcols)
+    ! Local Variables for precipitable water TMQ
+    real(r8) ftem(pcols,pver) ! temporary workspace
+
+    ncol  = state%ncol
+    lchnk = state%lchnk
+
+
+    ! Calculate precipitable water
+    ftem(:ncol,:) = state%q(:ncol,:,1) * state%pdel(:ncol,:) * rga
+    do k=2,pver
+       ftem(:ncol,1) = ftem(:ncol,1) + ftem(:ncol,k)
+    end do
+    call outfld ('TMQ_'//trim(ProcOrderStage(n)),ftem, pcols   ,lchnk     )
+
+    ! Calculate Liquid/Ice Water Path
+    call phys_getopts( conv_water_in_rad_out = conv_water_in_rad )
+    rei_idx     = pbuf_get_index('REI')
+    call cnst_get_ind('CLDLIQ', ixcldliq)
+    call cnst_get_ind('CLDICE', ixcldice)
+
+    call phys_getopts(radiation_scheme_out=rad_pkg,microp_scheme_out=microp_pgk)
+    camrt_rad = rad_pkg .eq. 'camrt'
+    rk_clouds = microp_pgk == 'RK'
+    mg_clouds = microp_pgk == 'MG'
+
+    if(mg_clouds) then
+
+       ! ----------------------------------------------------------- !
+       ! Adjust in-cloud water values to take account of convective  !
+       ! in-cloud water. It is used to calculate the values of       !
+       ! iclwp and iciwp to pass to the radiation.                   !
+       ! ----------------------------------------------------------- !
+       if( conv_water_in_rad /= 0 ) then
+          allcld_ice(:ncol,:) = 0._r8 ! Grid-avg all cloud liquid
+          allcld_liq(:ncol,:) = 0._r8 ! Grid-avg all cloud ice
+
+          call conv_water_4rad( state, pbuf, conv_water_in_rad, allcld_liq,allcld_ice )
+       else
+          allcld_liq(:ncol,top_lev:pver) = state%q(:ncol,top_lev:pver,ixcldliq) ! Grid-ave all cloud liquid
+          allcld_ice(:ncol,top_lev:pver) = state%q(:ncol,top_lev:pver,ixcldice) !           "        ice
+       end if
+
+    elseif(rk_clouds) then
+
+       if (conv_water_in_rad /= 0) then
+          call conv_water_4rad(state,pbuf,conv_water_in_rad,allcld_liq,allcld_ice)
+       else
+          allcld_liq = state%q(:,:,ixcldliq)
+          allcld_ice = state%q(:,:,ixcldice)
+       end if
+
+    endif
+
+   gicewp(:,:) = 0._r8
+   gliqwp(:,:) = 0._r8
+   tgicewp(:) = 0._r8
+   tgliqwp(:) = 0._r8
+   tmp(:) = 1.0_r8
+
+   nstep = get_nstep()
+   if (nstep.gt.1) then
+     do k=1,pver
+       do i = 1,ncol
+          gicewp(i,k) = allcld_ice(i,k)*state%pdel(i,k)/gravit  ! Grid box ice water path.
+          gliqwp(i,k) = allcld_liq(i,k)*state%pdel(i,k)/gravit  ! Grid box liquid water path.          
+          tgicewp(i)  = tgicewp(i) + gicewp(i,k)
+          tgliqwp(i)  = tgliqwp(i) + gliqwp(i,k)
+       end do
+    end do
+
+    tgwp(:ncol) = tgicewp(:ncol) + tgliqwp(:ncol)
+
+    if (nstep.gt.3) then
+      call outfld('TGCLDCWP_'//trim(ProcOrderStage(n)),tgwp   , pcols,lchnk)
+      call outfld('TGCLDLWP_'//trim(ProcOrderStage(n)),tgliqwp, pcols,lchnk)
+      call outfld('TGCLDIWP_'//trim(ProcOrderStage(n)),tgicewp, pcols,lchnk)
+      call outfld('TST_'//trim(ProcOrderStage(n)),tmp, pcols,lchnk)
+     end if
+   end if
+
+return
+end subroutine ProcOrdering_wrt_tgcld
+!=======================================================================
 end module physpkg
