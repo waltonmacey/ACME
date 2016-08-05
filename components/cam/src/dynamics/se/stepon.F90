@@ -526,6 +526,11 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
                        dyn_out%elem(ie)%state%Qdp(i,j,k,ic,tl_fQdp) = &
                             dyn_out%elem(ie)%state%Qdp(i,j,k,ic,tl_fQdp) + &
                             dtime*dyn_in%elem(ie)%derived%FQ(i,j,k,ic,1)
+
+		       !KLUDGE TO MAKE SURE CONSTITUENTS ARE >0 (THIS BREAKS CONSERVATION):
+		       dyn_out%elem(ie)%state%Qdp(i,j,k,ic,tl_fQdp) = &
+		            max(0._r8,dyn_out%elem(ie)%state%Qdp(i,j,k,ic,tl_fQdp))
+
                     enddo
 
                     ! force V, T, both timelevels
