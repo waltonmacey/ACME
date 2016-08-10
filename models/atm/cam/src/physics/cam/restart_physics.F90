@@ -498,6 +498,13 @@ module restart_physics
      use prescribed_volcaero,only: read_prescribed_volcaero_restart
      use subcol_utils,       only: is_subcol_on
      use subcol,             only: subcol_read_restart
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/08/2016):
+! Added module to keep track of whether or not this is a restart step.
+! This is needed to address an issue with different process orders after
+! a restart.
+     use cam_logfile,        only: pror_phys_restart
+!======================================================================= 
      !
      ! Arguments
      !
@@ -517,6 +524,12 @@ module restart_physics
      type(var_desc_t) :: vardesc
      integer :: ierr, csize, vsize
      !-----------------------------------------------------------------------
+
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/08/2016):
+! If this is being called it means that this is a restart step.
+     pror_phys_restart = 1
+!======================================================================= 
 
      ! Allocate memory in physics buffer, buffer, comsrf, and radbuffer modules.
      ! (This is done in subroutine initial_conds for an initial run.)

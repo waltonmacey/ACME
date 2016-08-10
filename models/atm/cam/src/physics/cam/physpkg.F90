@@ -86,6 +86,27 @@ module physpkg
   character(len=10),dimension(20) :: ProcOrderUnit
   integer,dimension(20)           :: ProcOrderSize
   character(len=80),dimension(20) :: ProcOrderLong
+! -- Physics buffer indices
+  integer :: pror_dlf_idx        = 0
+  integer :: pror_dlf1_idx       = 0
+  integer :: pror_dlf2_idx       = 0
+  integer :: pror_rliq1_idx      = 0
+  integer :: pror_rliq2_idx      = 0
+  integer :: pror_zdu_idx        = 0
+  integer :: pror_cmfmc1_idx     = 0
+  integer :: pror_cmfmc2_idx     = 0
+  integer :: pror_mu_idx         = 0
+  integer :: pror_eu_idx         = 0
+  integer :: pror_du_idx         = 0
+  integer :: pror_md_idx         = 0
+  integer :: pror_ed_idx         = 0
+  integer :: pror_dp_idx         = 0
+  integer :: pror_dsubcld_idx    = 0
+  integer :: pror_jt_idx         = 0
+  integer :: pror_maxg_idx       = 0
+  integer :: pror_ideep_idx      = 0
+  integer :: pror_lengath_idx    = 0
+  integer :: pror_sheedratio_idx = 0
 !======================================================================= 
 
   save
@@ -117,7 +138,8 @@ subroutine phys_register
     ! 
     !-----------------------------------------------------------------------
     use physics_buffer,     only: pbuf_init_time
-    use physics_buffer,     only: pbuf_add_field, dtype_r8, pbuf_register_subcol
+    use physics_buffer,     only: pbuf_add_field, dtype_r8, pbuf_register_subcol &
+                                  ,dtype_i4 ! ProcOrdering - AaronDonahue - (08/08/2016) : Added for new pointer variables
     use shr_kind_mod,       only: r8 => shr_kind_r8
     use spmd_utils,         only: masterproc
     use constituents,       only: pcnst, cnst_add, cnst_chk_dim, cnst_name
@@ -177,8 +199,8 @@ subroutine phys_register
 !======================================================================= 
 ! ProcOrdering - AaronDonahue - (08/03/2016):
 ! Variable for controlling the process order in the tphysbc subroutine.
-    integer :: proc_order_bc(5)
-    call phys_getopts( proc_order_bc_out = proc_order_bc )
+!    integer :: proc_order_bc(5)
+!    call phys_getopts( proc_order_bc_out = proc_order_bc )
 !======================================================================= 
 
     call phys_getopts( microp_scheme_out = microp_scheme )
@@ -206,6 +228,34 @@ subroutine phys_register
     call pbuf_add_field('QINI',      'physpkg', dtype_r8, (/pcols,pver/), qini_idx)
     call pbuf_add_field('CLDLIQINI', 'physpkg', dtype_r8, (/pcols,pver/), cldliqini_idx)
     call pbuf_add_field('CLDICEINI', 'physpkg', dtype_r8, (/pcols,pver/), cldiceini_idx)
+
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/08/2016):
+! Fields added in order to allow for certain processes within the tphysbc
+! subroutine can be moved without interfering with 'local' variable
+! connectivity.
+    call pbuf_add_field('PrOrDLF',        'global', dtype_r8,(/pcols,pver/) ,pror_dlf_idx)
+    call pbuf_add_field('PrOrDLF1',       'global', dtype_r8,(/pcols,pver/) ,pror_dlf1_idx)
+    call pbuf_add_field('PrOrDLF2',       'global', dtype_r8,(/pcols,pver/) ,pror_dlf2_idx)
+    call pbuf_add_field('PrOrRLIQ1',      'global', dtype_r8,(/pcols/)      ,pror_rliq1_idx)
+    call pbuf_add_field('PrOrRLIQ2',      'global', dtype_r8,(/pcols/)      ,pror_rliq2_idx)
+    call pbuf_add_field('PrOrZDU',        'global', dtype_r8,(/pcols,pver/) ,pror_zdu_idx)
+    call pbuf_add_field('PrOrCMFMC1',     'global', dtype_r8,(/pcols,pverp/),pror_cmfmc1_idx)
+    call pbuf_add_field('PrOrCMFMC2',     'global', dtype_r8,(/pcols,pverp/),pror_cmfmc2_idx)
+    call pbuf_add_field('PrOrMU',         'global', dtype_r8,(/pcols,pver/) ,pror_mu_idx)
+    call pbuf_add_field('PrOrEU',         'global', dtype_r8,(/pcols,pver/) ,pror_eu_idx)
+    call pbuf_add_field('PrOrDU',         'global', dtype_r8,(/pcols,pver/) ,pror_du_idx)
+    call pbuf_add_field('PrOrMD',         'global', dtype_r8,(/pcols,pver/) ,pror_md_idx)
+    call pbuf_add_field('PrOrED',         'global', dtype_r8,(/pcols,pver/) ,pror_ed_idx)
+    call pbuf_add_field('PrOrDP',         'global', dtype_r8,(/pcols,pver/) ,pror_dp_idx)
+    call pbuf_add_field('PrOrDSUBCLD',    'global', dtype_r8,(/pcols/)      ,pror_dsubcld_idx)
+    call pbuf_add_field('PrOrJT',         'global', dtype_i4,(/pcols/)      ,pror_jt_idx)
+    call pbuf_add_field('PrOrMAXG',       'global', dtype_i4,(/pcols/)      ,pror_maxg_idx)
+    call pbuf_add_field('PrOrIDEEP',      'global', dtype_i4,(/pcols/)      ,pror_ideep_idx)
+    call pbuf_add_field('PrOrLENGATH',    'physpkg', dtype_i4,(/1/)          ,pror_lengath_idx)
+    call pbuf_add_field('PrOrSHEEDRATIO', 'global', dtype_r8,(/pcols,pver/) ,pror_sheedratio_idx)
+
+!======================================================================= 
 
     ! check energy package
     call check_energy_register
@@ -1402,6 +1452,12 @@ subroutine tphysac (ztodt,   cam_in,  &
     !
     !-----------------------------------------------------------------------
     !
+
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/09/2016):    
+! Write output before tphysac call
+call ProcOrdering_wrtflds(pbuf,state,8)  ! 8 - corresponds to SU
+!======================================================================= 
     lchnk = state%lchnk
     ncol  = state%ncol
 
@@ -1512,6 +1568,12 @@ if (l_tracer_aero) then
 
 end if ! l_tracer_aero
 
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/09/2016):    
+! Write output after advected tracers
+call ProcOrdering_wrtflds(pbuf,state,10)  ! 10 - corresponds to AT
+!======================================================================= 
+
 if (l_vdiff) then
     !===================================================
     ! Vertical diffusion/pbl calculation
@@ -1550,6 +1612,12 @@ if (l_vdiff) then
 
 end if ! l_vdiff
 
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/09/2016):    
+! Write output vertical diffusion/pbl call
+call ProcOrdering_wrtflds(pbuf,state,11)  ! 11 - corresponds to DI
+!=======================================================================
+ 
 if (l_rayleigh) then
     !===================================================
     ! Rayleigh friction calculation
@@ -1601,6 +1669,12 @@ if (l_tracer_aero) then
 
 end if ! l_tracer_aero
 
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/09/2016):    
+! Write output after rayleigh friction call
+call ProcOrdering_wrtflds(pbuf,state,12)  ! 12 - corresponds to RF
+!=======================================================================
+ 
 if (l_gw_drag) then
     !===================================================
     ! Gravity wave drag
@@ -1642,6 +1716,12 @@ if (l_gw_drag) then
 
 end if ! l_gw_drag
 
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/09/2016):    
+! Write output after gravity wave  call
+call ProcOrdering_wrtflds(pbuf,state,13)  ! 13 - corresponds to GW
+!=======================================================================
+ 
 if (l_ac_energy_chk) then
     !-------------- Energy budget checks vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 
@@ -1703,6 +1783,12 @@ end if ! l_ac_energy_chk
 
     call clybry_fam_set( ncol, lchnk, map2chm, state%q, pbuf )
 
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/09/2016):    
+! Write output after tphysac call
+call ProcOrdering_wrtflds(pbuf,state,9)  ! 9 - corresponds to AC
+!=======================================================================
+ 
 end subroutine tphysac
 
 subroutine tphysbc (ztodt,               &
@@ -1772,6 +1858,11 @@ subroutine tphysbc (ztodt,               &
     use subcol,          only: subcol_gen, subcol_ptend_avg
     use subcol_utils,    only: subcol_ptend_copy, is_subcol_on
     use modal_aero_convproc, only:ma_convproc_intr !BSINGH(09/22/2014): Added for unified convective transport
+    !======================================================================= 
+    ! ProcOrdering - AaronDonahue - (08/03/2016):
+    ! Extra modules needed for process ordering work.
+    use spmd_utils,        only: masterproc
+    use cam_logfile,       only: pror_phys_restart
 
     implicit none
 
@@ -1810,13 +1901,15 @@ subroutine tphysbc (ztodt,               &
 
     real(r8) :: net_flx(pcols)
 
-    real(r8) :: zdu(pcols,pver)               ! detraining mass flux from deep convection
+!    real(r8) :: zdu(pcols,pver)               ! detraining mass flux from deep convection
     real(r8) :: cmfmc(pcols,pverp)            ! Convective mass flux--m sub c
+!    real(r8) :: cmfmc1(pcols,pverp)            ! Convective mass flux--m sub c
 
     real(r8) cmfcme(pcols,pver)                ! cmf condensation - evaporation
-    real(r8) cmfmc2(pcols,pverp)               ! Moist convection cloud mass flux
-    real(r8) dlf(pcols,pver)                   ! Detraining cld H20 from shallow + deep convections
-    real(r8) dlf2(pcols,pver)                  ! Detraining cld H20 from shallow convections
+!    real(r8) cmfmc2(pcols,pverp)               ! Moist convection cloud mass flux
+!    real(r8) dlf(pcols,pver)                   ! Detraining cld H20 from shallow + deep convections
+!    real(r8) dlf1(pcols,pver)                   ! Detraining cld H20 from shallow + deep convections
+!    real(r8) dlf2(pcols,pver)                  ! Detraining cld H20 from shallow convections
     real(r8) pflx(pcols,pverp)                 ! Conv rain flux thru out btm of lev
     real(r8) rtdt                              ! 1./ztodt
 
@@ -1878,14 +1971,15 @@ subroutine tphysbc (ztodt,               &
 
     real(r8) :: evapcdpsum(pcols), rprddpsum(pcols)
     real(r8) :: evapcshsum(pcols), rprdshsum(pcols)
-    real(r8) :: sh_e_ed_ratio(pcols,pver)       ! shallow conv [ent/(ent+det)] ratio  !RCE  
+!    real(r8) :: sh_e_ed_ratio(pcols,pver)       ! shallow conv [ent/(ent+det)] ratio  !RCE  
     !BSINGH -ENDS
 
     ! energy checking variables
     real(r8) :: zero(pcols)                    ! array of zeros
     real(r8) :: zero_sc(pcols*psubcols)        ! array of zeros
     real(r8) :: rliq(pcols)                    ! vertical integral of liquid not yet in q(ixcldliq)
-    real(r8) :: rliq2(pcols)                   ! vertical integral of liquid from shallow scheme
+!    real(r8) :: rliq1(pcols)                    ! vertical integral of liquid not yet in q(ixcldliq)
+!    real(r8) :: rliq2(pcols)                   ! vertical integral of liquid from shallow scheme
     real(r8) :: det_s  (pcols)                 ! vertical integral of detrained static energy from ice
     real(r8) :: det_ice(pcols)                 ! vertical integral of detrained ice
     real(r8) :: flx_cnd(pcols)
@@ -1909,27 +2003,27 @@ subroutine tphysbc (ztodt,               &
     ! zm_conv_intr but Lahey Compiler didn't like that (blows up while compiling physpkg.F90 due to 
     ! insufficient memory)
 
-    real(r8):: mu(pcols,pver) 
-    real(r8):: eu(pcols,pver)
-    real(r8):: du(pcols,pver)
-    real(r8):: md(pcols,pver)
-    real(r8):: ed(pcols,pver)
-    real(r8):: dp(pcols,pver)
+!    real(r8):: mu(pcols,pver) 
+!    real(r8):: eu(pcols,pver)
+!    real(r8):: du(pcols,pver)
+!    real(r8):: md(pcols,pver)
+!    real(r8):: ed(pcols,pver)
+!    real(r8):: dp(pcols,pver)
     
     ! wg layer thickness in mbs (between upper/lower interface).
-    real(r8):: dsubcld(pcols)
+!    real(r8):: dsubcld(pcols)
     
     ! wg layer thickness in mbs between lcl and maxi.    
-    integer :: jt(pcols)
+!    integer :: jt(pcols)
     
     ! wg top  level index of deep cumulus convection.
-    integer :: maxg(pcols)
+!    integer :: maxg(pcols)
     
     ! wg gathered values of maxi.
-    integer :: ideep(pcols)
+!    integer :: ideep(pcols)
     
     ! w holds position of gathered points vs longitude index
-    integer :: lengath
+!    integer :: lengath
 
     !BSINGH(09/22/2014): Added for unified convective transport
     real(r8) :: aerdepwetis(pcols,pcnst) 
@@ -1958,6 +2052,31 @@ subroutine tphysbc (ztodt,               &
 !       first.
     integer, dimension(5) :: proc_order_bc, proc_order
     integer               :: procidx, loc_proc
+! Pointer variables for "local" variables
+! NOTE: These variables have been redefined as pointers and are thus
+!       commented out in the above variable designations.
+    real(r8), pointer, dimension(:,:) :: zdu                   ! detraining massflux from deep convection
+    real(r8), pointer, dimension(:,:) :: cmfmc1                ! Convective massflux--m sub c
+    real(r8), pointer, dimension(:,:) :: cmfmc2                ! Moistconvection cloud mass flux
+    real(r8), pointer, dimension(:,:) :: dlf                   ! Detraining cldH20 from shallow + deep convections
+    real(r8), pointer, dimension(:,:) :: dlf1                  ! Detraining cldH20 from deep convections
+    real(r8), pointer, dimension(:,:) :: dlf2                  ! Detraining cldH20 from shallow convections
+    real(r8), pointer, dimension(:  ) :: rliq1                  ! Vertical integral of liquid not yet in q(ixcldliq) 
+    real(r8), pointer, dimension(:  ) :: rliq2                 ! Vertical integral of liquid from shallow scheme
+    real(r8), pointer, dimension(:,:) :: mu
+    real(r8), pointer, dimension(:,:) :: eu
+    real(r8), pointer, dimension(:,:) :: du
+    real(r8), pointer, dimension(:,:) :: md
+    real(r8), pointer, dimension(:,:) :: ed
+    real(r8), pointer, dimension(:,:) :: dp
+    real(r8), pointer, dimension(:  ) :: dsubcld
+    integer,  pointer, dimension(:  ) :: jt
+    integer,  pointer, dimension(:  ) :: maxg
+    integer,  pointer, dimension(:  ) :: ideep
+    integer,  pointer, dimension(:  ) :: lengath_vec
+    real(r8), pointer, dimension(:,:) :: sh_e_ed_ratio       ! shallowconv[ent/(ent+det)] ratio  
+    integer,  pointer                 :: lengath
+    character(len=50)                 :: errmsg
 !======================================================================= 
 ! ProcOrdering - AaronDonahue - (08/04/2016):
 ! Write output before tphysbc subroutine 
@@ -1978,6 +2097,43 @@ call ProcOrdering_wrtflds(pbuf,state,14)  ! 14 - corresponds to BC
     
     !-----------------------------------------------------------------------
 
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/08/2016):
+! Use pbuf_get_field subroutine to load in global values or specific
+! "local" variables.
+    call pbuf_get_field(pbuf, pror_dlf_idx,        dlf)
+    call pbuf_get_field(pbuf, pror_dlf1_idx,       dlf1)
+    call pbuf_get_field(pbuf, pror_dlf2_idx,       dlf2)
+    call pbuf_get_field(pbuf, pror_rliq1_idx,      rliq1)
+    call pbuf_get_field(pbuf, pror_rliq2_idx,      rliq2)
+    call pbuf_get_field(pbuf, pror_zdu_idx,        zdu)
+    call pbuf_get_field(pbuf, pror_cmfmc1_idx,     cmfmc1)
+    call pbuf_get_field(pbuf, pror_cmfmc2_idx,     cmfmc2)
+    call pbuf_get_field(pbuf, pror_mu_idx,         mu)
+    call pbuf_get_field(pbuf, pror_eu_idx,         eu)
+    call pbuf_get_field(pbuf, pror_du_idx,         du)
+    call pbuf_get_field(pbuf, pror_md_idx,         md)
+    call pbuf_get_field(pbuf, pror_ed_idx,         ed)
+    call pbuf_get_field(pbuf, pror_dp_idx,         dp)
+    call pbuf_get_field(pbuf, pror_dsubcld_idx,    dsubcld)
+    call pbuf_get_field(pbuf, pror_jt_idx,         jt)
+    call pbuf_get_field(pbuf, pror_maxg_idx,       maxg)
+    call pbuf_get_field(pbuf, pror_ideep_idx,      ideep)
+    call pbuf_get_field(pbuf, pror_lengath_idx,    lengath_vec)
+    call pbuf_get_field(pbuf, pror_sheedratio_idx, sh_e_ed_ratio)
+    lengath => lengath_vec(1) ! Note: had some trouble with lengath pointer so had to break it into two steps
+! Moved these pbuf_get_field calls from deep convection since they are used in
+! other processes as well.
+    call pbuf_get_field(pbuf, prec_str_idx, prec_str)
+    call pbuf_get_field(pbuf, snow_str_idx, snow_str)
+    call pbuf_get_field(pbuf, prec_sed_idx, prec_sed)
+    call pbuf_get_field(pbuf, snow_sed_idx, snow_sed)
+
+    if (use_subcol_microp) then
+      call pbuf_get_field(pbuf, prec_str_idx, prec_str_sc, col_type=col_type_subcol)
+      call pbuf_get_field(pbuf, snow_str_idx, snow_str_sc, col_type=col_type_subcol)
+    end if
+!======================================================================= 
     call t_startf('bc_init')
 
     zero = 0._r8
@@ -2117,12 +2273,61 @@ if (l_dry_adj) then
 end if
 
 !======================================================================= 
+! ProcOrdering - AaronDonahue - (08/08/2016):
+! For the first step of the simulation or for the first step of a restart
+! use standard baseline order, otherwise adopt the process ordering 
+! specified by the proc_order_bc variable in the user_nl_cam namelist.
+
+  if (nstep.eq.0.or.pror_phys_restart.eq.1) then
+    proc_order = (/ 1, 2, 3, 4, 5 /)
+    if (masterproc) then
+      write(iulog,*) 'ProcOrdering - AaronDonahue: First step, setting process order to standard order ...'
+      write(iulog,*) 'proc_order = ', proc_order
+    end if
+    pror_phys_restart = 0
+  else
+    proc_order = proc_order_bc
+    if (nstep.eq.1) then
+      if (masterproc) then
+        write(iulog,*) 'ProcOrdering - AaronDonahue: Second step, adopting new  process order ...'
+        write(iulog,*) 'proc_order = ', proc_order
+      end if
+    end if
+  end if
+
 ! ProcOrdering - AaronDonahue - (08/04/2016):
 ! Write output before tphysbc subroutine process paramterizations
-call ProcOrdering_wrtflds(pbuf,state,6)  ! 7 - corresponds to IN
+call ProcOrdering_wrtflds(pbuf,state,6)  ! 6 - corresponds to IN
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/09/2016):
+! Begin process re-ordering:
+  do ProcIDX = 1,5
+    select case (proc_order(ProcIDX))
+      case (1)
+        goto 110
+      case (2)
+        goto 120
+      case (3)
+        goto 130
+      case (4)
+        goto 140
+      case (5)
+        goto 150
+      case default
+        if (masterproc) then
+          write(iulog,*) 'ERROR - AaronDonahue'
+          write(iulog,*) 'proc_order = ', proc_order
+          write(iulog,*) 'proc_order_bc = ', proc_order_bc
+          write(iulog,*) 'ProcIDX = ', ProcIDX
+        end if
+        write(errmsg,*) 'ERROR: procIDX = ', ProcIDX
+        call endrun(errmsg)
+    end select
+
 !======================================================================= 
 ! ProcOrdering - AaronDonahue - (08/04/2016):
 ! Begin Deep Convection computation
+110 continue
 !======================================================================= 
 
     !
@@ -2136,32 +2341,30 @@ call ProcOrdering_wrtflds(pbuf,state,6)  ! 7 - corresponds to IN
     !
     call t_startf ('convect_deep_tend')
     call convect_deep_tend(  &
-         cmfmc,      cmfcme,             &
-         dlf,        pflx,    zdu,       &
-         rliq,    &
+         cmfmc1,      cmfcme,             &
+         dlf1,        pflx,    zdu,       &
+         rliq1,   &
          ztodt,   &
          state,   ptend, cam_in%landfrac, pbuf, mu, eu, du, md, ed, dp,   &
          dsubcld, jt, maxg, ideep, lengath) !BSINGH -  Add 11 new args ('mu' to 'lengath') for unified convective transport
     call t_stopf('convect_deep_tend')
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/09/2016):
+! To ensure consistentcy, just in case shallow convection doesn't occur
+! next be sure to update dlf, cmfmc and rliq to reflect both the deep
+! and shallow convection contribution.
+    dlf   = dlf1   + dlf2
+    cmfmc = cmfmc1 + cmfmc2
+    rliq  = rliq1  + rliq2
+!=======================================================================
 
     call physics_update(state, ptend, ztodt, tend)
 
     call pbuf_get_field(pbuf, prec_dp_idx, prec_dp )
     call pbuf_get_field(pbuf, snow_dp_idx, snow_dp )
-    call pbuf_get_field(pbuf, prec_sh_idx, prec_sh )
-    call pbuf_get_field(pbuf, snow_sh_idx, snow_sh )
-    call pbuf_get_field(pbuf, prec_str_idx, prec_str)
-    call pbuf_get_field(pbuf, snow_str_idx, snow_str)
-    call pbuf_get_field(pbuf, prec_sed_idx, prec_sed)
-    call pbuf_get_field(pbuf, snow_sed_idx, snow_sed)
-
-    if (use_subcol_microp) then
-      call pbuf_get_field(pbuf, prec_str_idx, prec_str_sc, col_type=col_type_subcol)
-      call pbuf_get_field(pbuf, snow_str_idx, snow_str_sc, col_type=col_type_subcol)
-    end if
 
     ! Check energy integrals, including "reserved liquid"
-    flx_cnd(:ncol) = prec_dp(:ncol) + rliq(:ncol)
+    flx_cnd(:ncol) = prec_dp(:ncol) + rliq1(:ncol)
     call check_energy_chng(state, tend, "convect_deep", nstep, ztodt, zero, flx_cnd, snow_dp, zero)
 
 
@@ -2169,9 +2372,11 @@ call ProcOrdering_wrtflds(pbuf,state,6)  ! 7 - corresponds to IN
 ! ProcOrdering - AaronDonahue - (08/04/2016):
 ! Finished with Deep Convection computation 
 call ProcOrdering_wrtflds(pbuf,state,1)  ! 1 - corresponds to DC
+goto 199
 !======================================================================= 
 ! ProcOrdering - AaronDonahue - (08/04/2016):
 ! Begin Shallow Convection computation
+120 continue
 !======================================================================= 
 
     !
@@ -2179,12 +2384,24 @@ call ProcOrdering_wrtflds(pbuf,state,1)  ! 1 - corresponds to DC
     !
     call t_startf ('convect_shallow_tend')
 
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/09/2016):
+! Carry over dlf1, rliq1 and cmfmc1 value from deep convection.
+    dlf   = dlf1
+    cmfmc = cmfmc1
+    rliq  = rliq1
+!=======================================================================
     call convect_shallow_tend (ztodt   , cmfmc,  cmfmc2  ,&
-         dlf        , dlf2   ,  rliq   , rliq2, & 
+         dlf       , dlf2   ,  rliq   , rliq2, & 
          state      , ptend  ,  pbuf   , sh_e_ed_ratio) !BSINGH(09/22/2014): Added sh_e_ed_ratio for unified convective transport
     call t_stopf ('convect_shallow_tend')
 
     call physics_update(state, ptend, ztodt, tend)
+
+! ProcOrdering - AaronDonahue - (08/09/2016):
+! Moved this call of pbuf_get_field from deep convection to shallow convection
+    call pbuf_get_field(pbuf, prec_sh_idx, prec_sh )
+    call pbuf_get_field(pbuf, snow_sh_idx, snow_sh )
 
     flx_cnd(:ncol) = prec_sh(:ncol) + rliq2(:ncol)
     call check_energy_chng(state, tend, "convect_shallow", nstep, ztodt, zero, flx_cnd, snow_sh, zero)
@@ -2214,14 +2431,14 @@ if (l_tracer_aero) then
     call t_startf('carma_timestep_tend')
 
     if (carma_do_cldice .or. carma_do_cldliq) then
-       call carma_timestep_tend(state, cam_in, cam_out, ptend, ztodt, pbuf, dlf=dlf, rliq=rliq, &
+       call carma_timestep_tend(state, cam_in, cam_out, ptend, ztodt, pbuf, dlf=dlf, rliq=rliq1, &
             prec_str=prec_str, snow_str=snow_str, prec_sed=prec_sed_carma, snow_sed=snow_sed_carma)
        call physics_update(state, ptend, ztodt, tend)
 
        ! Before the detrainment, the reserved condensate is all liquid, but if CARMA is doing
        ! detrainment, then the reserved condensate is snow.
        if (carma_do_detrain) then
-          call check_energy_chng(state, tend, "carma_tend", nstep, ztodt, zero, prec_str+rliq, snow_str+rliq, zero)
+          call check_energy_chng(state, tend, "carma_tend", nstep, ztodt, zero, prec_str+rliq1, snow_str+rliq1, zero)
        else
           call check_energy_chng(state, tend, "carma_tend", nstep, ztodt, zero, prec_str, snow_str, zero)
        end if
@@ -2235,9 +2452,11 @@ end if
 ! ProcOrdering - AaronDonahue - (08/04/2016):
 ! Finished with Shallow Convection computation 
 call ProcOrdering_wrtflds(pbuf,state,2)  ! 2 - corresponds to SC
+goto 199
 !======================================================================= 
 ! ProcOrdering - AaronDonahue - (08/04/2016):
 ! Begin Macrophysics computation
+130 continue
 !======================================================================= 
 
     if( microp_scheme == 'RK' ) then
@@ -2252,8 +2471,8 @@ call ProcOrdering_wrtflds(pbuf,state,2)  ! 2 - corresponds to SC
             cam_in%icefrac, cam_in%landfrac, cam_in%ocnfrac, &
             landm, cam_in%snowhland, & ! sediment
             dlf, dlf2, & ! detrain
-            rliq  , & ! check energy after detrain
-            cmfmc,   cmfmc2, &
+            rliq1  , & ! check energy after detrain
+            cmfmc1,   cmfmc2, &
             cam_in%ts,      cam_in%sst,        zdu)
 
        call physics_update(state, ptend, ztodt, tend)
@@ -2277,13 +2496,13 @@ call ProcOrdering_wrtflds(pbuf,state,2)  ! 2 - corresponds to SC
                cam_in%landfrac, cam_in%ocnfrac, &
                cam_in%snowhland, & ! sediment
                dlf, dlf2, & ! detrain
-               cmfmc,   cmfmc2, &
+               cmfmc1,   cmfmc2, &
                cam_in%ts,      cam_in%sst, zdu,  pbuf, &
                det_s, det_ice, lcldo ) !BSINGH(09/22/2014): Added lcldo for liq cld frac bug fix
 
           !  Since we "added" the reserved liquid back in this routine, we need 
 	  !    to account for it in the energy checker
-          flx_cnd(:ncol) = -1._r8*rliq(:ncol) 
+          flx_cnd(:ncol) = -1._r8*rliq1(:ncol) 
 	  flx_heat(:ncol) = det_s(:ncol)
           
           call physics_update(state, ptend, ztodt, tend)
@@ -2296,11 +2515,11 @@ call ProcOrdering_wrtflds(pbuf,state,2)  ! 2 - corresponds to SC
           ! =====================================================  
    
           call clubb_tend_cam(state,ptend,pbuf,1.0_r8*ztodt,&
-             cmfmc, cmfmc2, cam_in, sgh30, dlf, det_s, det_ice)
+             cmfmc1, cmfmc2, cam_in, sgh30, dlf, det_s, det_ice)
 
           !  Since we "added" the reserved liquid back in this routine, we need 
 	  !    to account for it in the energy checker
-          flx_cnd(:ncol) = -1._r8*rliq(:ncol) 
+          flx_cnd(:ncol) = -1._r8*rliq1(:ncol) 
 	  flx_heat(:ncol) = cam_in%shf(:ncol) + det_s(:ncol)
 
           !    Update physics tendencies and copy state to state_eq, because that is 
@@ -2317,9 +2536,11 @@ call ProcOrdering_wrtflds(pbuf,state,2)  ! 2 - corresponds to SC
 ! ProcOrdering - AaronDonahue - (08/04/2016):
 ! Finished with Macrophysics Computation 
 call ProcOrdering_wrtflds(pbuf,state,3)  ! 3 - corresponds to Ma
+goto 199
 !======================================================================= 
 ! ProcOrdering - AaronDonahue - (08/04/2016):
 ! Begin Microphysics/wet Deposition computation
+140 continue
 !=======================================================================
  
      if (l_st_mic) then
@@ -2478,9 +2699,11 @@ end if ! l_tracer_aero
 ! ProcOrdering - AaronDonahue - (08/04/2016):
 ! Finished with Microphysics/Wet Deposition Computation 
 call ProcOrdering_wrtflds(pbuf,state,4)  ! 4 - corresponds to Mi
+goto 199
 !======================================================================= 
 ! ProcOrdering - AaronDonahue - (08/04/2016):
 ! Begin Radiation computation
+150 continue
 !======================================================================= 
 
     !===================================================
@@ -2531,6 +2754,12 @@ end if ! l_rad
 ! ProcOrdering - AaronDonahue - (08/04/2016):
 ! Finished with Radiation Computation 
 call ProcOrdering_wrtflds(pbuf,state,5)  ! 5 - corresponds to Ra
+goto 199
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/04/2016):
+! End of DO LOOP for process ordering
+199 continue
+  end do
 !======================================================================= 
 
     ! Diagnose the location of the tropopause and its location to the history file(s).
