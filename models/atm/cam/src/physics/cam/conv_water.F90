@@ -101,7 +101,7 @@
 
    end subroutine conv_water_init
 
-   subroutine conv_water_4rad( state, pbuf,  conv_water_mode, totg_liq, totg_ice )
+   subroutine conv_water_4rad( state, pbuf,  conv_water_mode, totg_liq, totg_ice, pror_flag )
 
    ! --------------------------------------------------------------------- ! 
    ! Purpose:                                                              !
@@ -124,6 +124,9 @@
    use physics_types,   only: physics_state
    use cam_history,     only: outfld
    use phys_control,    only: phys_getopts
+
+   use spmd_utils,       only : masterproc
+   use cam_logfile,     only: iulog
    
    implicit none
 
@@ -141,6 +144,13 @@
    real(r8), intent(out):: totg_ice(pcols,pver)   ! Total GBA in-cloud ice
    real(r8), intent(out):: totg_liq(pcols,pver)   ! Total GBA in-cloud liquid
 
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/10/2016):
+! Added optional flag for updating pbuf variables or not.  This is needed
+! for the after-each-process writing subroutine that has been added.
+   logical,  intent(in), optional :: pror_flag
+!=======================================================================
+ 
    ! --------------- !
    ! Local Workspace !
    ! --------------- !
@@ -306,6 +316,14 @@
 
    end do
    end do
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/10/2016):
+! Only update the variables during the macrophysics call, which is when
+! they are updated in the standard version of the code.  This flag is
+! needed to make sure that the variables are not updated more than once
+! per time step due to the writing to the history file of the model state
+! after each process.
+   if ( .not.present(pror_flag) ) then
 
 !add pbuff calls for COSP
    call pbuf_get_field(pbuf, sh_cldliq1_idx, sh_cldliq  )
@@ -320,6 +338,10 @@
    call outfld( 'ICIMRCU ', conv_ice  , pcols, lchnk )
    call outfld( 'ICLMRTOT', tot_liq   , pcols, lchnk )
    call outfld( 'ICIMRTOT', tot_ice   , pcols, lchnk )
+
+   end if
+! Finish with optional flag 'if' statement. - ProcOrdering - AaronDonahue
+!======================================================================= 
 
   end subroutine conv_water_4rad
 

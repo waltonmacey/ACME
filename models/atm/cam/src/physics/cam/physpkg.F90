@@ -2372,6 +2372,9 @@ call ProcOrdering_wrtflds(pbuf,state,6)  ! 6 - corresponds to IN
 ! ProcOrdering - AaronDonahue - (08/04/2016):
 ! Finished with Deep Convection computation 
 call ProcOrdering_wrtflds(pbuf,state,1)  ! 1 - corresponds to DC
+     if (masterproc) then
+       write(iulog,*) 'ProcOrd - Deep Convection'
+     end if
 goto 199
 !======================================================================= 
 ! ProcOrdering - AaronDonahue - (08/04/2016):
@@ -2452,6 +2455,9 @@ end if
 ! ProcOrdering - AaronDonahue - (08/04/2016):
 ! Finished with Shallow Convection computation 
 call ProcOrdering_wrtflds(pbuf,state,2)  ! 2 - corresponds to SC
+     if (masterproc) then
+       write(iulog,*) 'ProcOrd - Shallow Convection'
+     end if
 goto 199
 !======================================================================= 
 ! ProcOrdering - AaronDonahue - (08/04/2016):
@@ -2536,6 +2542,9 @@ goto 199
 ! ProcOrdering - AaronDonahue - (08/04/2016):
 ! Finished with Macrophysics Computation 
 call ProcOrdering_wrtflds(pbuf,state,3)  ! 3 - corresponds to Ma
+     if (masterproc) then
+       write(iulog,*) 'ProcOrd - Macrophysics'
+     end if
 goto 199
 !======================================================================= 
 ! ProcOrdering - AaronDonahue - (08/04/2016):
@@ -2699,6 +2708,9 @@ end if ! l_tracer_aero
 ! ProcOrdering - AaronDonahue - (08/04/2016):
 ! Finished with Microphysics/Wet Deposition Computation 
 call ProcOrdering_wrtflds(pbuf,state,4)  ! 4 - corresponds to Mi
+     if (masterproc) then
+       write(iulog,*) 'ProcOrd - Microphysics'
+     end if
 goto 199
 !======================================================================= 
 ! ProcOrdering - AaronDonahue - (08/04/2016):
@@ -2754,6 +2766,9 @@ end if ! l_rad
 ! ProcOrdering - AaronDonahue - (08/04/2016):
 ! Finished with Radiation Computation 
 call ProcOrdering_wrtflds(pbuf,state,5)  ! 5 - corresponds to Ra
+     if (masterproc) then
+       write(iulog,*) 'ProcOrd - Radiation'
+     end if
 goto 199
 !======================================================================= 
 ! ProcOrdering - AaronDonahue - (08/04/2016):
@@ -3062,13 +3077,13 @@ subroutine ProcOrdering_wrtflds(pbuf,state,n)
 
   ! write output for model states, always make sure the order corresponds with
   ! the ProcOrderName vector.
-!  call outfld(trim(ProcOrderName(1)) // trim(ProcOrderStage(n)),state%t , pcols,lchnk  )
+  call outfld(trim(ProcOrderName(1)) // trim(ProcOrderStage(n)),state%t , pcols,lchnk  )
   do m = 1,5
-!    call outfld(trim(ProcOrderName(1+m)) //trim(ProcOrderStage(n)),state%q(1,1,m),pcols ,lchnk )
+    call outfld(trim(ProcOrderName(1+m)) //trim(ProcOrderStage(n)),state%q(1,1,m),pcols ,lchnk )
   end do
 
   ! write output for Liquid/Ice Water Path
-!  call ProcOrdering_wrt_tgcld(pbuf,state,n)
+  call ProcOrdering_wrt_tgcld(pbuf,state,n)
 
 return
 end subroutine ProcOrdering_wrtflds
@@ -3133,6 +3148,10 @@ subroutine ProcOrdering_wrt_tgcld(pbuf,state,n)
     rk_clouds = microp_pgk == 'RK'
     mg_clouds = microp_pgk == 'MG'
 
+    if (masterproc) then 
+      write(iulog,*) 'conv_water_in_rad = ',conv_water_in_rad
+    end if
+
     if(mg_clouds) then
 
        ! ----------------------------------------------------------- !
@@ -3144,7 +3163,7 @@ subroutine ProcOrdering_wrt_tgcld(pbuf,state,n)
           allcld_ice(:ncol,:) = 0._r8 ! Grid-avg all cloud liquid
           allcld_liq(:ncol,:) = 0._r8 ! Grid-avg all cloud ice
 
-          call conv_water_4rad( state, pbuf, conv_water_in_rad, allcld_liq,allcld_ice )
+          call conv_water_4rad( state, pbuf, conv_water_in_rad, allcld_liq,allcld_ice,.true. )
        else
           allcld_liq(:ncol,top_lev:pver) = state%q(:ncol,top_lev:pver,ixcldliq) ! Grid-ave all cloud liquid
           allcld_ice(:ncol,top_lev:pver) = state%q(:ncol,top_lev:pver,ixcldice) !           "        ice
@@ -3153,7 +3172,7 @@ subroutine ProcOrdering_wrt_tgcld(pbuf,state,n)
     elseif(rk_clouds) then
 
        if (conv_water_in_rad /= 0) then
-          call conv_water_4rad(state,pbuf,conv_water_in_rad,allcld_liq,allcld_ice)
+          call conv_water_4rad(state,pbuf,conv_water_in_rad,allcld_liq,allcld_ice,.true.)
        else
           allcld_liq = state%q(:,:,ixcldliq)
           allcld_ice = state%q(:,:,ixcldice)
