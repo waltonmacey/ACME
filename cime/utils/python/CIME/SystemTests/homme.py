@@ -3,7 +3,7 @@ CIME HOMME test. This class inherits from SystemTestsCommon
 """
 from CIME.XML.standard_module_setup import *
 from CIME.SystemTests.system_tests_common import SystemTestsCommon
-from CIME.build import post_build, case_build
+from CIME.build import post_build
 
 import shutil
 
@@ -17,7 +17,7 @@ class HOMME(SystemTestsCommon):
         """
         SystemTestsCommon.__init__(self, case)
 
-    def build(self, sharedlib_only=False, model_only=False):
+    def build_phase(self, sharedlib_only=False, model_only=False):
         if not sharedlib_only:
             # Build HOMME
             srcroot  = self._case.get_value("SRCROOT")
@@ -37,39 +37,26 @@ class HOMME(SystemTestsCommon):
 
             post_build(self._case, [os.path.join(exeroot, "homme.bldlog")])
 
-    def run(self):
-        try:
-            rundir   = self._case.get_value("RUNDIR")
-            exeroot  = self._case.get_value("EXEROOT")
-            baseline = self._case.get_value("CCSM_BASELINE")
-            compare  = self._case.get_value("COMPARE_BASELINE")
-            generate = self._case.get_value("GENERATE_BASELINE")
-            basegen  = self._case.get_value("BASEGEN_CASE")
+    def run_phase(self):
 
-            log = os.path.join(rundir, "homme.log")
-            if os.path.exists(log):
-                os.remove(log)
+        rundir   = self._case.get_value("RUNDIR")
+        exeroot  = self._case.get_value("EXEROOT")
+        baseline = self._case.get_value("CCSM_BASELINE")
+        compare  = self._case.get_value("COMPARE_BASELINE")
+        generate = self._case.get_value("GENERATE_BASELINE")
+        basegen  = self._case.get_value("BASEGEN_CASE")
 
-            if generate:
-                full_baseline_dir = os.path.join(baseline, basegen, "tests", "baseline")
-                run_cmd_no_fail("make -j 4 baseline >& %s" % log, from_dir=exeroot)
-                if os.path.isdir(full_baseline_dir):
-                    shutil.rmtree(full_baseline_dir)
-                shutil.copytree(os.path.join(exeroot, "tests", "baseline"), full_baseline_dir)
-            elif compare:
-                run_cmd_no_fail("make -j 4 check >& %s" % log, from_dir=exeroot)
-            else:
-                run_cmd_no_fail("make -j 4 baseline >& %s" % log, from_dir=exeroot)
+        log = os.path.join(rundir, "homme.log")
+        if os.path.exists(log):
+            os.remove(log)
 
-            success = True
-            self.pass_test()
-
-        except:
-            success = False
-            self.fail_test()
-            logger.warning("Exception during run: %s" % (sys.exc_info()[1]))
-
-        return success
-
-    def report(self):
-        pass
+        if generate:
+            full_baseline_dir = os.path.join(baseline, basegen, "tests", "baseline")
+            run_cmd_no_fail("make -j 4 baseline >& %s" % log, from_dir=exeroot)
+            if os.path.isdir(full_baseline_dir):
+                shutil.rmtree(full_baseline_dir)
+            shutil.copytree(os.path.join(exeroot, "tests", "baseline"), full_baseline_dir)
+        elif compare:
+            run_cmd_no_fail("make -j 4 check >& %s" % log, from_dir=exeroot)
+        else:
+            run_cmd_no_fail("make -j 4 baseline >& %s" % log, from_dir=exeroot)
