@@ -88,7 +88,7 @@ _TEST_SUITES = {
                          "HOMME_P24.f19_g16_rx1.A",
                          "NCK.f19_g16_rx1.A",
                          "SMS.ne30_f19_g16_rx1.A",
-                         "ERS_Ld5.T62_oQU120.C_MPAS_NORMAL_YEAR",
+                         "ERS_Ld5.T62_oQU120.CMPASO-NYF",
                          "ERS.f09_g16_g.MPASLI_ONLY",
                          "ERS_Ld5.ne16_ne16.FC5ATMMODCOSP",
                          "SMS.T62_oQU120_ais20.MPAS_LISIO_TEST",
@@ -214,6 +214,8 @@ def get_full_test_names(testargs, machine, compiler):
     negations = set()
 
     for testarg in testargs:
+        # remove any whitespace in name
+        testarg = testarg.strip()
         if (testarg.startswith("^")):
             negations.add(testarg[1:])
         elif (testarg in acme_test_suites):

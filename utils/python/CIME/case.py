@@ -8,7 +8,7 @@ from copy   import deepcopy
 import glob, os, shutil, traceback
 from CIME.XML.standard_module_setup import *
 
-from CIME.utils                     import expect, get_cime_root
+from CIME.utils                     import expect, get_cime_root, append_status
 from CIME.utils                     import convert_to_type, get_model, get_project
 from CIME.XML.machines              import Machines
 from CIME.XML.pes                   import Pes
@@ -443,7 +443,7 @@ class Case(object):
                   project=None, pecount=None, compiler=None, mpilib=None,
                   user_compset=False, pesfile=None,
                   user_grid=False, gridfile=None, ninst=1, test=False,
-                  walltime=None):
+                  walltime=None, queue=None):
 
         #--------------------------------------------
         # compset, pesfile, and compset components
@@ -538,11 +538,34 @@ class Case(object):
         #--------------------------------------------
         # pe payout
         #--------------------------------------------
-        pesobj = Pes(self._pesfile)
+        match1 = re.match('([0-9]+)x([0-9]+)', "" if pecount is None else pecount)
+        match2 = re.match('([0-9]+)', "" if pecount is None else pecount)
+        pes_ntasks = {}
+        pes_nthrds = {}
+        pes_rootpe = {}
+        if match1:
+            opti_tasks = match1.group(1)
+            opti_thrds = match1.group(2)
+        elif match2:
+            opti_tasks = match2.group(1)
+            opti_thrds = 1
 
-        #FIXME - add pesize_opts as optional argument below
-        pes_ntasks, pes_nthrds, pes_rootpe = pesobj.find_pes_layout(self._gridname, self._compsetname,
+        if match1 or match2:
+            for component_class in self._component_classes:
+                if component_class == "DRV":
+                    component_class = "CPL"
+                string = "NTASKS_" + component_class
+                pes_ntasks[string] = opti_tasks
+                string = "NTHRDS_" + component_class
+                pes_nthrds[string] = opti_thrds
+                string = "ROOTPE_" + component_class
+                pes_rootpe[string] = 0
+        else:
+            pesobj = Pes(self._pesfile)
+
+            pes_ntasks, pes_nthrds, pes_rootpe = pesobj.find_pes_layout(self._gridname, self._compsetname,
                                                                     machine_name, pesize_opts=pecount)
+
         mach_pes_obj = self.get_env("mach_pes")
         totaltasks = {}
         for key, value in pes_ntasks.items():
@@ -591,7 +614,7 @@ class Case(object):
         env_batch = self.get_env("batch")
         env_batch.set_batch_system(batch, batch_system_type=batch_system_type)
         env_batch.create_job_groups(bjobs)
-        env_batch.set_job_defaults(bjobs, pesize=maxval, walltime=walltime)
+        env_batch.set_job_defaults(bjobs, pesize=maxval, walltime=walltime, force_queue=queue)
         self.schedule_rewrite(env_batch)
 
         self.set_value("COMPSET",self._compsetname)
@@ -650,6 +673,7 @@ class Case(object):
                     os.path.join(toolsdir, "preview_namelists"),
                     os.path.join(toolsdir, "check_input_data"),
                     os.path.join(toolsdir, "check_case"),
+                    os.path.join(toolsdir, "taskmaker"),
                     os.path.join(toolsdir, "archive_metadata.sh"),
                     os.path.join(toolsdir, "xmlchange"),
                     os.path.join(toolsdir, "xmlquery"))
@@ -664,7 +688,6 @@ class Case(object):
         toolfiles = (os.path.join(toolsdir, "check_lockedfiles"),
                      os.path.join(toolsdir, "lt_archive.sh"),
                      os.path.join(toolsdir, "getTiming"),
-                     os.path.join(machines_dir,"taskmaker.pl"),
                      os.path.join(machines_dir,"Makefile"),
                      os.path.join(machines_dir,"mkSrcfiles"),
                      os.path.join(machines_dir,"mkDepends"))
@@ -756,9 +779,22 @@ class Case(object):
         for newdir in newdirs:
             os.makedirs(newdir)
         # Open a new README.case file in $self._caseroot
-        with open(os.path.join(self._caseroot,"README.case"), "w") as fd:
-            for arg in sys.argv:
-                fd.write(" %s"%arg)
+
+        append_status(" ".join(sys.argv), caseroot=self._caseroot, sfile="README.case")
+        append_status("Compset longname is %s"%self.get_value("COMPSET"),
+                      caseroot=self._caseroot, sfile="README.case")
+        append_status("Compset specification file is %s" %
+                      (self.get_value("COMPSETS_SPEC_FILE")),
+                      caseroot=self._caseroot, sfile="README.case")
+        append_status("Pes     specification file is %s" %
+                      (self.get_value("PES_SPEC_FILE")),
+                      caseroot=self._caseroot, sfile="README.case")
+        for component_class in self._component_classes:
+            if component_class == "DRV":
+                continue
+            comp_grid = "%s_GRID"%component_class
+            append_status("%s is %s"%(comp_grid,self.get_value(comp_grid)),
+                          caseroot=self._caseroot, sfile="README.case")
         if not clone:
             self._create_caseroot_sourcemods()
         self._create_caseroot_tools()
