@@ -813,6 +813,8 @@
 	 </mpirun>
 
 </machine>
+
+
 <machine MACH="oic2">
          <DESC>ORNL XK6, os is Linux, 8 pes/node, batch system is PBS</DESC>
          <NODENAME_REGEX>oic2</NODENAME_REGEX>
@@ -828,6 +830,7 @@
          <OS>LINUX</OS>
          <BATCHQUERY>qstat -f</BATCHQUERY>
          <BATCHSUBMIT>qsub</BATCHSUBMIT>
+	 <BATCHREDIRECT></BATCHREDIRECT>
          <SUPPORTED_BY>dmricciuto</SUPPORTED_BY>
          <GMAKE_J>8</GMAKE_J>
          <MAX_TASKS_PER_NODE>8</MAX_TASKS_PER_NODE>
@@ -843,7 +846,7 @@
               <executable args="default">/projects/cesm/devtools/mpich-3.0.4-gcc4.8.1/bin/mpirun </executable>
 	      <arguments>
 			<arg name="num_tasks"> -np {{ num_tasks }}</arg>
-			<arg name="machine_file">-hostfile $ENV{'PBS_NODEFILE'}</arg>
+			<arg name="machine_file">-f $ENV{'PBS_NODEFILE'}</arg>
 	      </arguments>
          </mpirun>
          <mpirun mpilib = "mpi-serial">
@@ -852,7 +855,7 @@
 </machine>
 
 <machine MACH="oic5">
-         <DESC>ORNL XK6, os is Linux, 8 pes/node, batch system is PBS</DESC>
+         <DESC>ORNL XK6, os is Linux, 32 pes/node, batch system is PBS</DESC>
          <NODENAME_REGEX>oic5</NODENAME_REGEX>
          <TESTS>acme_developer</TESTS>
          <COMPILERS>gnu</COMPILERS>
@@ -866,6 +869,7 @@
          <OS>LINUX</OS>
          <BATCHQUERY>qstat -f</BATCHQUERY>
          <BATCHSUBMIT>qsub</BATCHSUBMIT>
+	 <BATCHREDIRECT></BATCHREDIRECT>
          <SUPPORTED_BY>dmricciuto</SUPPORTED_BY>
          <GMAKE_J>32</GMAKE_J>
          <MAX_TASKS_PER_NODE>32</MAX_TASKS_PER_NODE>
@@ -888,6 +892,47 @@
          <mpirun mpilib = "mpi-serial">
               <executable> </executable>
          </mpirun>
+</machine>
+
+<machine MACH="cades">
+   <!-- customize these fields as appropriate for your system (max tasks) and
+                              desired layout (change '${group}/${USER}' to your
+        prefered location). -->
+      <DESC> OR-CONDO, CADES-CCSI, os is Linux, 32 pes/nodes, batch system is PBS</DESC>
+      <NODENAME_REGEX>cades</NODENAME_REGEX>
+      <TESTS>acme_developer</TESTS>
+      <OS>LINUX</OS>
+      <COMPILERS>gnu,intel</COMPILERS>
+      <MPILIBS>openmpi,mpi-serial</MPILIBS>
+      <RUNDIR>/lustre/pfs1/cades-ccsi/scratch/$USER/$CASE/run</RUNDIR>
+      <EXEROOT>/lustre/pfs1/cades-ccsi/scratch/$USER/$CASE/bld</EXEROOT>
+      <DIN_LOC_ROOT>/lustre/pfs1/cades-ccsi/proj-shared/project_acme/ACME_inputdata</DIN_LOC_ROOT>
+      <DIN_LOC_ROOT_CLMFORC>/lustre/pfs1/cades-ccsi/proj-shared/project_acme/ACME_inputdata/atm/datm7</DIN_LOC_ROOT_CLMFORC>
+      <DOUT_S_ROOT>/lustre/pfs1/cades-ccsi/proj-shared/project_acme/archives/$CASE</DOUT_S_ROOT>
+      <DOUT_L_MSROOT>csm/$CASE</DOUT_L_MSROOT>
+      <CESMSCRATCHROOT>/lustre/pfs1/cades-ccsi/scratch</CESMSCRATCHROOT>
+      <CCSM_BASELINE>/lustre/pfs1/cades-ccsi/proj-shared/project_acme/baselines</CCSM_BASELINE>
+      <CCSM_CPRNC>$CIMEROOT/tools/cprnc/build/cprnc</CCSM_CPRNC>
+      <BATCHQUERY>qstat -f </BATCHQUERY>
+      <BATCHSUBMIT>qsub </BATCHSUBMIT>
+      <BATCHREDIRECT></BATCHREDIRECT>
+      <SUPPORTED_BY>Fengming Yuan</SUPPORTED_BY>
+      <GMAKE_J>4</GMAKE_J>
+      <MAX_TASKS_PER_NODE>32</MAX_TASKS_PER_NODE>
+      <PES_PER_NODE>32</PES_PER_NODE>
+      <batch_system type="pbs" version="x.y">
+        <queues></queues>
+        <walltimes> <walltime default="true">48:00:00</walltime> </walltimes>
+      </batch_system>
+      <mpirun mpilib="openmpi" compiler="gnu">
+        <executable args="default">/software/tools/spack/opt/spack/linux-x86_64/gcc-5.3.0/openmpi-1.10.2-w26llp27jmybo7wlgoqxjrtptltmripg/bin/mpirun</executable>
+        <arguments>
+          <arg name="num_tasks"> -np {{ num_tasks }}</arg>
+        </arguments>
+      </mpirun>
+        <mpirun mpilib = "mpi-serial">
+        <executable> </executable>
+      </mpirun>
 </machine>
 
 <machine MACH="titan">
