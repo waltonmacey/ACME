@@ -199,6 +199,12 @@
          </directives>
    </batch_system>
 
+   <batch_system MACH="cades" version="x.y">
+         <directives>
+                 <directive>-l nodes={{ num_nodes }}:ppn={{ tasks_per_node }}</directive>
+         </directives>
+   </batch_system>
+
    <batch_system MACH="titan" version="x.y">
      <jobid_pattern>(\d+)</jobid_pattern>
      <directives>
