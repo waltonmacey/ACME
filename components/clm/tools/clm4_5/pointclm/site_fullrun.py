@@ -109,6 +109,8 @@ parser.add_option("--spinup_vars", dest = "spinup_vars", default=False, help = "
 parser.add_option("--cn_only", dest="cn_only", default=False, help='Carbon/Nitrogen only (saturated P)', action ="store_true")
 parser.add_option("--ensemble_file", dest="ensemble_file", default='', \
                   help = 'Parameter sample file to generate ensemble')
+parser.add_option("--parm_list", dest="parm_list", default='parm_list', \
+                  help = 'File containing list of parameters to vary')
 parser.add_option("--mc_ensemble", dest="mc_ensemble", default=-1, \
                   help = 'Monte Carlo ensemble (argument is # of simulations)')
 parser.add_option("--ng", dest="ng", default=64, \
@@ -251,8 +253,9 @@ for row in AFdatareader:
             basecmd = basecmd+' --caseroot '+options.caseroot
         if (options.runroot != ''):
             basecmd = basecmd+' --runroot '+options.runroot
-        if (options.ensemble_file != ''):
+        if (options.ensemble_file != ''):   
             basecmd = basecmd+' --ensemble_file '+options.ensemble_file
+            basecmd = basecmd+' --parm_list '+options.parm_list
         if (options.archiveroot !=''):
             basecmd = basecmd+' --archiveroot '+options.archiveroot
         if (options.mod_parm_file !=''):
@@ -364,7 +367,9 @@ for row in AFdatareader:
         else:
             cmd_trns = cmd_trns+' --compset I20TRCLM45'+mybgc
         if (options.spinup_vars):
-               cmd_trns = cmd_trns + ' --spinup_vars'
+            cmd_trns = cmd_trns + ' --spinup_vars'
+        if (options.ensemble_file != ''):  #Transient post-processing
+            cmd_trns = cmd_trns + ' --postproc_file postproc_vars'
         #transient phase 2 (CRU-NCEP only)
         if (options.cruncep and not options.cpl_bypass):
             basecase=basecase.replace('1850','20TR')+'_phase1'
@@ -454,13 +459,6 @@ for row in AFdatareader:
 
         #if ensemble simulations requested, submit jobs created by pointclm.py in correct order
         if (options.ensemble_file != ''):
-            nsamples = 0
-            myinput = open(options.csmdir+'/components/clm/tools/clm4_5/pointclm/'+options.ensemble_file)
-            #count number of samples
-            for s in myinput:
-                nsamples = nsamples+1
-            myinput.close()
-            n_qsub_files = int(math.ceil(nsamples*1.0/int(options.ng)))
             cases=[]
             #build list of cases for fullrun
             if (options.noad == False):
@@ -468,21 +466,10 @@ for row in AFdatareader:
             cases.append(basecase+'_I1850'+modelst)
             if (options.notrans == False):
                 cases.append(basecase+'_I20TR'+modelst)
-                
-            job_depend_copy = ''
-            job_depend_run = ''
+            
+            job_depend_run=''    
             for thiscase in cases:
-                for i in range(0,n_qsub_files):
-                    if (i == 0):
-                        job_depend_copy = submit('temp/ensemble_copy_'+thiscase+'_'+str(1000+i)[1:]+'.pbs', \
-                                                     job_depend=job_depend_run)
-                        job_depend_run = submit('temp/ensemble_run_'+thiscase+'_'+str(1000+i)[1:]+'.pbs', \
-                                                    job_depend=job_depend_copy)
-                    else:
-                        job_depend_copy = submit('temp/ensemble_copy_'+thiscase+'_'+str(1000+i)[1:]+'.pbs', \
-                                                     job_depend=job_depend_copy)
-                        job_depend_run = submit('temp/ensemble_run_'+thiscase+'_'+str(1000+i)[1:]+'.pbs', \
-                                                    job_depend=job_depend_run)         
+                job_depend_run = submit('temp/ensemble_run_'+thiscase+'.pbs',job_depend=job_depend_run)
         else:  #submit single job
             if ('edison' in options.machine):
                 job_fullrun = submit('temp/site_fullrun.pbs', submit_type='sbatch')

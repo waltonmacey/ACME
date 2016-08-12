@@ -189,6 +189,10 @@ parser.add_option("--archiveroot", dest="archiveroot", default='', \
 #Added by Kirk to include the modified parameter file
 parser.add_option("--mod_parm_file", dest="mod_parm_file", default='', \
                   help = "adding the path to the modified parameter file")
+parser.add_option("--parm_list", dest="parm_list", default='parm_list', \
+                  help = 'File containing list of parameters to vary')
+parser.add_option("--postproc_file", dest="postproc_file", default="", \
+                  help = 'File for ensemble post processing')
 
 (options, args) = parser.parse_args()
 
@@ -980,20 +984,21 @@ if (options.no_submit == False and options.mc_ensemble < 0 and options.ensemble_
     else:
         os.system("qsub "+casename+".run")
 
-    
+
+
 #------------------------- Code to generate and run parameter ensembles --------------------------------------
 
 os.chdir(PTCLMdir)
 
 if (options.ensemble_file != '' or options.mc_ensemble != -1):
-    if (not(os.path.isfile('parm_list'))):
+    if (not(os.path.isfile(options.parm_list))):
 	print('parm_list file does not exist')
         sys.exit()
     else:
         param_names=[]
         param_min=[]
         param_max=[]
-        input = open('parm_list','r')
+        input = open(options.parm_list,'r')
         for s in input:
 	    if (s):
                 param_names.append(s.split()[0])
@@ -1038,107 +1043,38 @@ if (options.ensemble_file != '' or options.mc_ensemble != -1):
     n_scripts = int(math.ceil(nsamples/float(options.ninst*options.ng)))
  
     num=0
-    #create ensemble directories 
+    #Launch ensemble if requested 
     if (options.ensemble_file != '' or options.mc_ensemble != -1):
-        for i in range(0,nsamples):
-            #write the PBS scripts to copy directories and run the ensembles for this case
-            if (i % int(options.ng) == 0):
-                input = open(caseroot+'/'+casename+'/'+casename+'.run')
-                numst=str(1000+num)
-                output_copy = open(tmpdir+'/ensemble_copy_'+casename+'_'+numst[1:]+'.pbs','w')
-                output_run  = open(tmpdir+'/ensemble_run_'+casename+'_'+numst[1:]+'.pbs','w')
-                for s in input:
-                    if ("perl" in s):
-                        output_copy.write("#!/bin/csh -f\n")
-                        output_run.write("#!/bin/csh -f\n")
-                    elif ("#PBS" in s or "#!" in s):
-                        #edit number of required nodes for ensemble runs
-                        if ('nodes' in s):
-                            output_copy.write('#PBS -l nodes=1:ppn='+str(ppn)+'\n')
-                            output_run.write('#PBS -l nodes='+str(int(math.ceil(np_total/(ppn*1.0))))+ \
-                                             ':ppn='+str(ppn)+'\n')
-                        elif ('walltime' in s): 
-                            output_copy.write('#PBS -l walltime=3:00:00\n')
-                            output_run.write('#PBS -l walltime=3:00:00\n')
-                        else:
-                            output_copy.write(s)
-                            output_run.write(s)
-                input.close()
-                output_copy.write("\n")
-                output_run.write("\n")
-            ngst=str(100000+(i % int(options.ng))+1)
-            if ('oic' in options.machine or 'cades' in options.machine):
-                #need to distribute jobs to nodes manually on oic
-                myline_end = int(options.np)*((i % int(options.ng))+1)*int(options.ninst)
-                output_run.write('head -'+str(myline_end)+' $PBS_NODEFILE | tail -1 > '+tmpdir+ \
-                              '/mynodefile'+ngst[1:]+'\n')
-            est=str(100000+i+1)
-            ens_dir  = runroot+'/UQ/'+casename+'/g'+est[1:]
-            if (int(est)-100000 <= math.ceil(float(nsamples)/options.ninst)):
-              output_copy.write('cd '+csmdir+'/components/clm/tools/clm4_5/pointclm/\n')
-              output_copy.write('python ensemble_copy.py --case '+casename+' --runroot '+runroot \
-                                    +' --ens_num '+str(i+1)+' --ens_file '+options.ensemble_file+' &\n')
-              if ((i+1) % ppn == 0 or (i == nsamples-1)):
-	        output_copy.write('wait\n')
-	        
-              output_copy.write('mkdir -p '+ens_dir+'/timing/checkpoints\n')
-              if ('oic' in options.machine or 'cades' in options.machine):
-                   mpi_args = ' -np '+str(options.np)+' --hostfile '+tmpdir+'/mynodefile'+ngst[1:]
-                   if ('cades' in options.machine):        #NOTE - will work with np=1 only
-                  	mpi_args = mpi_args+' --cpu-set '+str(i % ppn)
-                   output_run.write('cd '+ens_dir+'\n')
-                   output_run.write('mpirun '+mpi_args+' '+exeroot+'/cesm.exe > ccsm_log.txt &\n')
-              elif (('titan' in options.machine or 'eos' in options.machine) and int(options.ninst) == 1):
-                  #use wraprun utility on nccs to manage the ensemble
-                  output_run.write('cd '+ens_dir+'\n')
-                  if ( (i % ppn) == 0):
-                      cmd = 'wraprun -n '
-                      for pp in range(0,ppn-1):
-                          cmd = cmd+'1,'
-                      cmd = cmd+'1 --w-cd '+ens_dir
-                  elif ( (i % ppn) < (ppn-1)):
-                      cmd = cmd+','+ens_dir
-                  else:
-                    output_run.write(cmd+','+ens_dir+' '+exeroot+'/cesm.exe > ccsm_log.txt &\n')
+        #write the PBS scripts to copy directories and run the ensembles for this case
+        myinput = open(caseroot+'/'+casename+'/'+casename+'.run')
+        output_run  = open(tmpdir+'/ensemble_run_'+casename+'.pbs','w')
+        for s in myinput:
+            if ("perl" in s):
+                output_run.write("#!/bin/csh -f\n")
+            elif ("#PBS" in s or "#!" in s):
+                #edit number of required nodes for ensemble runs
+                if ('nodes' in s):
+                    output_run.write('#PBS -l nodes='+str(int(math.ceil(np_total/(ppn*1.0))))+ \
+                                     ':ppn='+str(ppn)+'\n')
+                elif ('walltime' in s): 
+                    output_run.write('#PBS -l walltime=24:00:00\n')
+                else:
+                    output_run.write(s)
+        myinput.close()
 
-            if ((i+1) % int(options.ng) == 0 or (i+1) == nsamples):          
-                output_copy.write('wait\n')
-                output_run.write('wait\n')
-                                 
-                output_copy.close()
-                output_run.close()
-
-                if (not options.no_submit):
-                    if (num == 0):
-                        if (not options.ensemble_nocopy):
-                            subprocess.call('qsub '+tmpdir+'/ensemble_copy_'+ \
-                                                casename+'_'+numst[1:]+'.pbs > '+tmpdir+ \
-                                                '/jobinfo_copy', shell=True)
-                            myinput = open(tmpdir+'/jobinfo_copy')
-                            for s in myinput:
-                                lastjob = s.split('.')[0]
-                            myinput.close()
-                            subprocess.call('qsub -W depend=afterok '+lastjob+' '+tmpdir+'/ensemble_run_'+ \
-                                                casename+'_'+numst[1:]+'.pbs > '+tmpdir+ \
-                                                '/jobinfo_run', shell=True)
-                        else:
-                            subprocess.call('qsub '+tmpdir+'/ensemble_run_'+ \
-                                                casename+'_'+numst[1:]+'.pbs > '+tmpdir+ \
-                                                '/jobinfo_run', shell=True) 
-                    else:
-                        if (not options.ensemble_nocopy):
-                            myinput = open(tmpdir+'/jobinfo_copy')
-                            for s in myinput:
-                                lastjob = s.split('.')[0]
-                            myinput.close()
-                            subprocess.call('qsub '+tmpdir+'/ensemble_copy_'+ \
-                                                casename+'_'+numst[1:]+'.pbs > '+tmpdir+ \
-                                                '/jobinfo_copy', shell=True)
-                        myinput = open(tmpdir+'/jobinfo_run')
-                        for s in myinput:
-                            lastjob = s.split('.')[0]
-                        myinput.close()
-                        subprocess.call('qsub -W depend=afterok:'+lastjob+' '+tmpdir+ \
-                              '/ensemble_run_'+casename+'_'+ \
-                              numst[1:]+'.pbs > '+tmpdir+'/jobinfo_run', shell=True)
-                num = num+1
+        output_run.write("\n")
+        output_run.write('cd '+csmdir+'/components/clm/tools/clm4_5/pointclm/\n')
+        if ('oic' in options.machine or 'cades' in options.machine):
+            cmd = 'mpirun -np '+str(np_total)+' --hostfile $PBS_NODEFILE python manage_ensemble.py ' \
+               +'--case '+casename+' --runroot '+runroot+' --n_ensemble '+str(nsamples)+' --ens_file '+ \
+               options.ensemble_file+' --exeroot '+exeroot+' --parm_list '+options.parm_list
+        elif (('titan' in options.machine or 'eos' in options.machine) and int(options.ninst) == 1):
+            cmd = 'aprun -n '+str(np_total)+' python manage_ensemble.py ' \
+               +'--case '+casename+' --runroot '+runroot+' --n_ensemble '+str(nsamples)+' --ens_file '+ \
+               options.ensemble_file+' --exeroot '+exeroot+' --parm_list '+options.parm_list
+        if (options.postproc_file != ''): 
+            cmd = cmd + ' --postproc_file '+options.postproc_file
+        output_run.write(cmd+'\n')
+        output_run.close()
+        if (options.no_submit == False):
+            os.system('qsub '+tmpdir+'/ensemble_run_'+casename+'_'+numst[1:]+'.pbs')

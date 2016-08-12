@@ -472,7 +472,7 @@ output.close()
 
 #execute gnuplot script
 os.system('gnuplot -persist plotmyvar.p')
-os.system('mkdir -p '+cesmdir+'/components/clm/tools/clm4_5/pointclm/plots/'+site+'_'+compset)
+os.system('mkdir '+cesmdir+'/components/clm/tools/clm4_5/pointclm/plots/'+site+'_'+compset)
 if (terminal == 'postscript'):
     os.system('ps2pdf '+plotfile+' '+plotfile[:-4]+'.pdf')
     os.system('mv '+plotfile[:-4]+'.pdf '+cesmdir+'/components/clm/tools/clm4_5/pointclm/plots/'+ \

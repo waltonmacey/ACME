@@ -25,14 +25,15 @@ parser.add_option("--case", dest="casename", default="", \
                   help="Name of case")
 parser.add_option("--ens_file", dest="ens_file", default="", \
                   help="Name of samples file")
-
+parser.add_option("--parm_list", dest="parm_list", default='parm_list', \
+                  help = 'File containing list of parameters to vary')
 (options, args) = parser.parse_args()
 
 
 parm_names=[]
 parm_indices=[]
 parm_values=[]
-myinput = open('./parm_list', 'r')
+myinput = open(options.parm_list, 'r')
 casename = options.casename
 
 #get parameter names and PFT information

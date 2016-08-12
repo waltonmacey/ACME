@@ -40,6 +40,8 @@ if (options.ninst == 1):
     input_fname = casedir+'/g00001/lnd_in'
 else:
     input_fname = casedir+'/g00001/lnd_in_0001'
+print casedir
+
 
 #get timestep info from lnd_in file
 if (os.path.isfile(input_fname)):
@@ -92,9 +94,9 @@ for v in var_list:
             yst = str(10000+int(options.start_year)+(n_years/n_files)*i)[1:]
             if (int(h0_nhtfrq) == 0):
                 mst = str(100+options.start_month + (i%n_years))[1:]
-                fname = casedir+'/'+ensstr+'/'+options.case+'.clm2.h0.'+yst+'-'+mst+'.nc'
+                fname = ensstr+'/'+options.case+'.clm2.h0.'+yst+'-'+mst+'.nc'
             else:
-                fname = casedir+'/'+ensstr+'/'+options.case+'.clm2.h0.'+yst+'-01-01-00000.nc'
+                fname = ensstr+'/'+options.case+'.clm2.h0.'+yst+'-01-01-00000.nc'
             if (os.path.isfile(fname)):
                 var = nffun.getvar(fname, v)
                 #convert carbon fluxes to gC/m2/day
