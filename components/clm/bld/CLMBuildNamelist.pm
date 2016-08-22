@@ -286,7 +286,7 @@ sub process_commandline {
                chk_res               => undef,
                note                  => undef,
                drydep                => 0,
-               megan                 => 1,
+               megan                 => 0,
                irrig                 => "default",
                res                   => "default",
                silent                => 0,
