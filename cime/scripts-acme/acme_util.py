@@ -33,6 +33,7 @@ _MACHINE_PROJECTS = {
     "skybridge" : "fy150001",
     "edison"    : "acme",
     "corip1"    : "acme",
+    "carl"      : "acme",
     "blues"     : "ACME",
     "titan"     : "cli115",
     "mira"      : "HiRes_EarthSys_2",
