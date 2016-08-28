@@ -12,7 +12,7 @@ module physics_types
   use phys_grid,    only: get_ncols_p, get_rlon_all_p, get_rlat_all_p, get_gcol_all_p
   use cam_logfile,  only: iulog
   use cam_abortutils,   only: endrun
-  use phys_control, only: waccmx_is, use_mass_borrower
+  use phys_control, only: waccmx_is
   use shr_const_mod,only: shr_const_rwv
   use perf_mod,     only: t_startf, t_stopf
 
@@ -331,8 +331,7 @@ contains
     call cnst_get_ind('NUMLIQ', ixnumliq, abort=.false.)
     call cnst_get_ind('NUMRAI', ixnumrain, abort=.false.)
     call cnst_get_ind('NUMSNO', ixnumsnow, abort=.false.)
-
-
+  
     do m = 1, pcnst
        if(ptend%lq(m)) then
           do k = ptend%top_level, ptend%bot_level
@@ -344,12 +343,7 @@ contains
           if (m /= ixnumice  .and.  m /= ixnumliq .and. &
               m /= ixnumrain .and.  m /= ixnumsnow ) then
              name = trim(ptend%name) // '/' // trim(cnst_name(m))
-!!== KZ_WATCON 
-             if(use_mass_borrower) then 
-                call massborrow(trim(name), state%lchnk, state%psetcols, ncol, m, m, state%q(1,1,m), state%pdel)
-             end if 
              call qneg3(trim(name), state%lchnk, ncol, state%psetcols, pver, m, m, qmin(m), state%q(1,1,m))
-!!== KZ_WATCON 
           else
              do k = ptend%top_level, ptend%bot_level
                 ! checks for number concentration
