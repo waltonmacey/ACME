@@ -15,18 +15,20 @@ module solver_init_mod
 contains
 
 
-  subroutine solver_init2( elem , deriv )
+  subroutine solver_init2( elem , hvcoord , deriv )
     use element_mod, only: element_t, state_qdp, derived_vn0, derived_divdp, derived_divdp_proj
     use derivative_mod, only: derivative_t
+    use hybvcoord_mod, only : hvcoord_t
     implicit none
     type(element_t)   , intent(in) :: elem(:)
     type(derivative_t), intent(in) :: deriv
+    type(hvcoord_t)   , intent(in) :: hvcoord
     integer :: ie
     !$omp barrier
     !$omp master
 
     !$acc enter data pcreate(state_Qdp,derived_vn0,derived_divdp,derived_divdp_proj)
-    !$acc enter data pcopyin(elem(1:nelemd),deriv)
+    !$acc enter data pcopyin(elem(1:nelemd),deriv,hvcoord)
     do ie = 1 , nelemd
       !$acc enter data pcopyin(elem(ie)%desc)
       !$acc enter data pcopyin(elem(ie)%desc%putmapP,elem(ie)%desc%getmapP,elem(ie)%desc%reverse)

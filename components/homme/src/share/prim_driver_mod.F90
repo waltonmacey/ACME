@@ -1046,7 +1046,7 @@ contains
     if (hybrid%masterthread) write(iulog,*) "initial state:"
     call prim_printstate(elem, tl, hybrid,hvcoord,nets,nete, fvm)
 
-    call solver_init2(elem(:), deriv(hybrid%ithr))
+    call solver_init2( elem(:) , hvcoord , deriv(hybrid%ithr) )
     call Prim_Advec_Init2(elem(:), hvcoord, hybrid)
 
   end subroutine prim_init2

@@ -5,11 +5,12 @@
 module prim_advance_mod
   use prim_advance_mod_base, only: prim_advance_si, preq_robert3,applyCAMforcing_dynamics, applyCAMforcing, smooth_phis, overwrite_SEdensity
 
-  use edgetype_mod, only : EdgeDescriptor_t, EdgeBuffer_t
-  use kinds       , only : real_kind, iulog
-  use perf_mod    , only: t_startf, t_stopf, t_barrierf, t_adj_detailf ! _EXTERNAL
-  use parallel_mod, only : abortmp, parallel_t, iam
-  use control_mod , only : se_prescribed_wind_2d
+  use edgetype_mod  , only: EdgeDescriptor_t, EdgeBuffer_t
+  use kinds         , only: real_kind, iulog
+  use perf_mod      , only: t_startf, t_stopf, t_barrierf, t_adj_detailf ! _EXTERNAL
+  use parallel_mod  , only: abortmp, parallel_t, iam
+  use control_mod   , only: se_prescribed_wind_2d
+  use dimensions_mod, only: np, nlev, nelemd
   implicit none
   private
   save
@@ -22,6 +23,16 @@ module prim_advance_mod
   real (kind=real_kind) :: initialized_for_dt   = 0
   real (kind=real_kind), allocatable :: ur_weights(:)
 
+
+
+  real (kind=real_kind),allocatable :: p (:,:,:,:)         ! pressure
+  real (kind=real_kind),allocatable :: dp(:,:,:,:)         ! delta pressure
+  real (kind=real_kind),allocatable :: grad_p(:,:,:,:,:)
+  real (kind=real_kind),allocatable :: vgrad_p(:,:,:,:)    ! v.grad(p)
+  real (kind=real_kind),allocatable :: vdp(:,:,:,:,:)       !                            
+  real (kind=real_kind),allocatable :: grad_p_m_pmet(:,:,:,:,:)  ! gradient(p - p_met)
+  real (kind=real_kind),allocatable :: divdp(:,:,:,:)
+
 contains
 
 
@@ -29,7 +40,6 @@ contains
   subroutine prim_advance_init(par, elem,integration)
     use edge_mod, only : initEdgeBuffer
     use element_mod, only : element_t
-    use dimensions_mod, only : nlev, nelemd
     use control_mod, only : qsplit,rsplit
     implicit none
     
@@ -57,6 +67,13 @@ contains
          ur_weights(i)=2.0d0/qsplit
        enddo
     endif
+    allocate(p (np,np,nlev,nelemd))
+    allocate(dp(np,np,nlev,nelemd))
+    allocate(grad_p(np,np,2,nlev,nelemd))
+    allocate(vgrad_p(np,np,nlev,nelemd))
+    allocate(vdp(np,np,2,nlev,nelemd))
+    allocate(grad_p_m_pmet(np,np,2,nlev,nelemd))
+    allocate(divdp(np,np,nlev,nelemd))
   end subroutine prim_advance_init
 
 
@@ -271,8 +288,8 @@ contains
     use kinds             , only : real_kind
     use dimensions_mod    , only : np, nc, nlev, ntrac, max_corner_elem
     use hybrid_mod        , only : hybrid_t
-    use element_mod       , only : element_t,PrintElem
-    use derivative_mod    , only : derivative_t, divergence_sphere, gradient_sphere, vorticity_sphere
+    use element_mod       , only : element_t,PrintElem, derived_vn0
+    use derivative_mod    , only : derivative_t, divergence_sphere, gradient_sphere, vorticity_sphere, gradient_sphere_openacc, divergence_sphere_openacc
     use derivative_mod    , only : subcell_div_fluxes, subcell_dss_fluxes
     use edge_mod          , only : edgevpack, edgevunpack, edgeDGVunpack
     use edgetype_mod      , only : edgedescriptor_t
@@ -298,23 +315,15 @@ contains
     ! local
     real (kind=real_kind), dimension(np,np,nlev)     :: omega_p
     real (kind=real_kind), dimension(np,np,nlev)     :: T_v
-    real (kind=real_kind), dimension(np,np,nlev)     :: divdp
     real (kind=real_kind), dimension(np,np,nlev+1)   :: eta_dot_dpdn  ! half level vertical velocity on p-grid
     real (kind=real_kind), dimension(np,np)          :: sdot_sum   ! temporary field
     real (kind=real_kind), dimension(np,np,2)        :: vtemp     ! generic gradient storage
-    real (kind=real_kind), dimension(np,np,2,nlev)   :: vdp       !                            
     real (kind=real_kind), dimension(np,np,2     )   :: v         !                            
     real (kind=real_kind), dimension(np,np)          :: vgrad_T    ! v.grad(T)
     real (kind=real_kind), dimension(np,np)          :: Ephi       ! kinetic energy + PHI term
     real (kind=real_kind), dimension(np,np,2)        :: grad_ps    ! lat-lon coord version
-    real (kind=real_kind), dimension(np,np,2,nlev)   :: grad_p
-    real (kind=real_kind), dimension(np,np,2,nlev)   :: grad_p_m_pmet  ! gradient(p - p_met)
     real (kind=real_kind), dimension(np,np,nlev)     :: vort       ! vorticity
-    real (kind=real_kind), dimension(np,np,nlev)     :: p          ! pressure
-    real (kind=real_kind), dimension(np,np,nlev)     :: dp         ! delta pressure
-    real (kind=real_kind), dimension(np,np,nlev)     :: rdp        ! inverse of delta pressure
     real (kind=real_kind), dimension(np,np,nlev)     :: T_vadv     ! temperature vertical advection
-    real (kind=real_kind), dimension(np,np,nlev)     :: vgrad_p    ! v.grad(p)
     real (kind=real_kind), dimension(np,np,nlev+1)   :: ph               ! half level pressures on p-grid
     real (kind=real_kind), dimension(np,np,2,nlev)   :: v_vadv   ! velocity vertical advection
     real (kind=real_kind) :: kappa_star(np,np,nlev)
@@ -331,7 +340,15 @@ contains
     integer :: i,j,k,kptr,ie
 
     call t_startf('compute_and_apply_rhs')
-    do ie=nets,nete
+    !$omp barrier
+    !$omp master
+    !$acc enter data pcreate(dp,p,grad_p,vgrad_p,vdp,divdp)
+    do ie = 1 , nelemd
+      !$acc update device(elem(ie)%state%dp3d(:,:,:,n0),elem(ie)%state%v(:,:,:,:,n0))
+    enddo
+    !$acc update device(derived_vn0)
+    !$acc parallel loop gang vector collapse(4) present(dp,elem)
+    do ie=1,nelemd
       ! ============================
       ! compute p and delta p
       ! ============================
@@ -344,43 +361,82 @@ contains
         !
         ! p(k+1)-p(k) = ph(k+1)-ph(k) + (dp(k+1)-dp(k))/2
         !             = dp(k) + (dp(k+1)-dp(k))/2 = (dp(k+1)+dp(k))/2
-        dp(:,:,k) = elem(ie)%state%dp3d(:,:,k,n0)
-        if (k==1) then
-          p(:,:,k)=hvcoord%hyai(k)*hvcoord%ps0 + dp(:,:,k)/2
-        else
-          p(:,:,k)=p(:,:,k-1) + dp(:,:,k-1)/2 + dp(:,:,k)/2
-        endif
-        grad_p(:,:,:,k) = gradient_sphere(p(:,:,k),deriv,elem(ie)%Dinv)
-        rdp(:,:,k) = 1.0D0/dp(:,:,k)
-        ! ============================
-        ! compute vgrad_lnps
-        ! ============================
+        do j = 1 , np
+          do i = 1 , np
+            dp(i,j,k,ie) = elem(ie)%state%dp3d(i,j,k,n0)
+          enddo
+        enddo
+      enddo
+    enddo
+    !$acc parallel loop gang vector collapse(3) present(p,hvcoord,dp)
+    do ie=1,nelemd
+      do j = 1 , np
+        do i = 1 , np
+          do k=1,nlev
+            if (k==1) then
+              p(i,j,k,ie)=hvcoord%hyai(k)*hvcoord%ps0 + dp(i,j,k,ie)/2
+            else
+              p(i,j,k,ie)=p(i,j,k-1,ie) + dp(i,j,k-1,ie)/2 + dp(i,j,k,ie)/2
+            endif
+          enddo
+        enddo
+      enddo
+    enddo
+    call gradient_sphere_openacc(p,deriv,elem,grad_p,nlev,1,nelemd,1,1)
+    ! ============================
+    ! compute vgrad_lnps
+    ! ============================
+    !$acc parallel loop gang vector collapse(4) private(v1,v2) present(elem,vgrad_p,grad_p,vdp,dp)
+    do ie=1,nelemd
+      do k=1,nlev
         do j=1,np
           do i=1,np
             v1 = elem(ie)%state%v(i,j,1,k,n0)
             v2 = elem(ie)%state%v(i,j,2,k,n0)
-            vgrad_p(i,j,k) = (v1*grad_p(i,j,1,k) + v2*grad_p(i,j,2,k))
-            vdp(i,j,1,k) = v1*dp(i,j,k)
-            vdp(i,j,2,k) = v2*dp(i,j,k)
+            vgrad_p(i,j,k,ie) = (v1*grad_p(i,j,1,k,ie) + v2*grad_p(i,j,2,k,ie))
+            vdp(i,j,1,k,ie) = v1*dp(i,j,k,ie)
+            vdp(i,j,2,k,ie) = v2*dp(i,j,k,ie)
           enddo
         enddo
-#       if ( defined CAM )
-          ! ============================
-          ! compute grad(P-P_met)
-          ! ============================
-          if (se_met_nudge_p.gt.0.D0) then
-            grad_p_m_pmet(:,:,:,k) = grad_p(:,:,:,k) - hvcoord%hybm(k)* &
+      enddo
+    enddo
+#   if ( defined CAM )
+      if (se_met_nudge_p.gt.0.D0) then
+        !$acc update host(grad_p)
+        do ie=1,nelemd
+          do k=1,nlev
+            ! ============================
+            ! compute grad(P-P_met)
+            ! ============================
+            grad_p_m_pmet(:,:,:,k,ie) = grad_p(:,:,:,k,ie) - hvcoord%hybm(k)* &
                  gradient_sphere( elem(ie)%derived%ps_met(:,:)+tevolve*elem(ie)%derived%dpsdt_met(:,:),deriv,elem(ie)%Dinv)
-          endif
-#       endif
-        ! ================================
-        ! Accumulate mean Vel_rho flux in vn0
-        ! ================================
-        elem(ie)%derived%vn0(:,:,:,k)=elem(ie)%derived%vn0(:,:,:,k)+eta_ave_w*vdp(:,:,:,k)
+          enddo
+        enddo
+      endif
+#   endif
+    ! ================================
+    ! Accumulate mean Vel_rho flux in vn0
+    ! ================================
+    !$acc parallel loop gang vector collapse(4) present(elem,vdp,derived_vn0)
+    do ie=1,nelemd
+      do k=1,nlev
+        do j=1,np
+          do i=1,np
+            derived_vn0(i,j,1,k,ie)=derived_vn0(i,j,1,k,ie)+eta_ave_w*vdp(i,j,1,k,ie)
+            derived_vn0(i,j,2,k,ie)=derived_vn0(i,j,2,k,ie)+eta_ave_w*vdp(i,j,2,k,ie)
+          enddo
+        enddo
+      enddo
+    enddo
+    call divergence_sphere_openacc(vdp,deriv,elem,divdp,nlev,1,nelemd,1,1)
+    !$acc update host(dp,p,grad_p,vgrad_p,vdp,derived_vn0,divdp)
+    !$omp end master
+    !$omp barrier
+    do ie=nets,nete
+      do k=1,nlev
         ! =========================================
         ! Compute relative vorticity and divergence
         ! =========================================
-        divdp(:,:,k)=divergence_sphere(vdp(:,:,:,k),deriv,elem(ie))
         vort(:,:,k)=vorticity_sphere(elem(ie)%state%v(:,:,:,k,n0),deriv,elem(ie))
       enddo
       ! compute T_v for timelevel n0
@@ -398,7 +454,7 @@ contains
           do j=1,np
             do i=1,np
               ! Qt = elem(ie)%state%Q(i,j,k,1)
-              Qt = elem(ie)%state%Qdp(i,j,k,1,qn0)/dp(i,j,k)
+              Qt = elem(ie)%state%Qdp(i,j,k,1,qn0)/dp(i,j,k,ie)
               T_v(i,j,k) = Virtual_Temperature(elem(ie)%state%T(i,j,k,n0),Qt)
               if (use_cpstar==1) then
                 kappa_star(i,j,k) =  Rgas/Virtual_Specific_Heat(Qt)
@@ -412,11 +468,11 @@ contains
       ! ====================================================
       ! Compute Hydrostatic equation, modeld after CCM-3
       ! ====================================================
-      call preq_hydrostatic(elem(ie)%derived%phi,elem(ie)%state%phis,T_v,p,dp)
+      call preq_hydrostatic(elem(ie)%derived%phi,elem(ie)%state%phis,T_v,p(:,:,:,ie),dp(:,:,:,ie))
       ! ====================================================
       ! Compute omega_p according to CCM-3
       ! ====================================================
-      call preq_omega_ps(omega_p,hvcoord,p,vgrad_p,divdp)
+      call preq_omega_ps(omega_p,hvcoord,p(:,:,:,ie),vgrad_p(:,:,:,ie),divdp(:,:,:,ie))
       ! ==================================================
       ! zero partial sum for accumulating sum
       !    (div(v_k) + v_k.grad(lnps))*dsigma_k = div( v dp )
@@ -466,9 +522,9 @@ contains
         vtemp = gradient_sphere(Ephi(:,:),deriv,elem(ie)%Dinv)
         do j=1,np
           do i=1,np
-            gpterm = T_v(i,j,k)/p(i,j,k)
-            glnps1 = Rgas*gpterm*grad_p(i,j,1,k)
-            glnps2 = Rgas*gpterm*grad_p(i,j,2,k)
+            gpterm = T_v(i,j,k)/p(i,j,k,ie)
+            glnps1 = Rgas*gpterm*grad_p(i,j,1,k,ie)
+            glnps2 = Rgas*gpterm*grad_p(i,j,2,k,ie)
             v1     = elem(ie)%state%v(i,j,1,k,n0)
             v2     = elem(ie)%state%v(i,j,2,k,n0)
             vtens1(i,j,k) = - v_vadv(i,j,1,k) + v2*(elem(ie)%fcor(i,j) + vort(i,j,k)) - vtemp(i,j,1) - glnps1
@@ -492,8 +548,8 @@ contains
                    elem(ie)%derived%Vtnd(i+(j-1)*np,k) = elem(ie)%derived%Vtnd(i+(j-1)*np,k) + se_met_nudge_u*v_m_vmet * elem(ie)%derived%nudge_factor(i,j,k)
                 endif
                 if(se_met_nudge_p.gt.0.D0)then
-                   vtens1(i,j,k) =   vtens1(i,j,k) - se_met_nudge_p*grad_p_m_pmet(i,j,1,k)  * elem(ie)%derived%nudge_factor(i,j,k)
-                   vtens2(i,j,k) =   vtens2(i,j,k) - se_met_nudge_p*grad_p_m_pmet(i,j,2,k)  * elem(ie)%derived%nudge_factor(i,j,k)
+                   vtens1(i,j,k) =   vtens1(i,j,k) - se_met_nudge_p*grad_p_m_pmet(i,j,1,k,ie)  * elem(ie)%derived%nudge_factor(i,j,k)
+                   vtens2(i,j,k) =   vtens2(i,j,k) - se_met_nudge_p*grad_p_m_pmet(i,j,2,k,ie)  * elem(ie)%derived%nudge_factor(i,j,k)
                 endif
                 if(se_met_nudge_t.gt.0.D0)then
                    t_m_tmet = elem(ie)%state%T(i,j,k,n0) - elem(ie)%derived%T_met(i,j,k) - se_met_tevolve*tevolve*elem(ie)%derived%dTdt_met(i,j,k)
@@ -637,7 +693,7 @@ contains
           elem(ie)%state%v(:,:,1,k,np1) = elem(ie)%spheremp(:,:)*vtens1(:,:,k)
           elem(ie)%state%v(:,:,2,k,np1) = elem(ie)%spheremp(:,:)*vtens2(:,:,k)
           elem(ie)%state%T(:,:,k,np1) = elem(ie)%spheremp(:,:)*ttens(:,:,k)
-          elem(ie)%state%dp3d(:,:,k,np1) = -elem(ie)%spheremp(:,:)*(divdp(:,:,k) + eta_dot_dpdn(:,:,k+1)-eta_dot_dpdn(:,:,k))
+          elem(ie)%state%dp3d(:,:,k,np1) = -elem(ie)%spheremp(:,:)*(divdp(:,:,k,ie) + eta_dot_dpdn(:,:,k+1)-eta_dot_dpdn(:,:,k))
         enddo
         elem(ie)%state%ps_v(:,:,np1) = -elem(ie)%spheremp(:,:)*sdot_sum
       else
@@ -645,7 +701,7 @@ contains
           elem(ie)%state%v(:,:,1,k,np1) = elem(ie)%spheremp(:,:)*( elem(ie)%state%v(:,:,1,k,nm1) + dt2*vtens1(:,:,k) )
           elem(ie)%state%v(:,:,2,k,np1) = elem(ie)%spheremp(:,:)*( elem(ie)%state%v(:,:,2,k,nm1) + dt2*vtens2(:,:,k) )
           elem(ie)%state%T(:,:,k,np1) = elem(ie)%spheremp(:,:)*(elem(ie)%state%T(:,:,k,nm1) + dt2*ttens(:,:,k))
-          elem(ie)%state%dp3d(:,:,k,np1) = elem(ie)%spheremp(:,:) * (elem(ie)%state%dp3d(:,:,k,nm1) - dt2 * (divdp(:,:,k) + eta_dot_dpdn(:,:,k+1)-eta_dot_dpdn(:,:,k)))
+          elem(ie)%state%dp3d(:,:,k,np1) = elem(ie)%spheremp(:,:) * (elem(ie)%state%dp3d(:,:,k,nm1) - dt2 * (divdp(:,:,k,ie) + eta_dot_dpdn(:,:,k+1)-eta_dot_dpdn(:,:,k)))
         enddo
         elem(ie)%state%ps_v(:,:,np1) = elem(ie)%spheremp(:,:)*( elem(ie)%state%ps_v(:,:,nm1) - dt2*sdot_sum )
       endif

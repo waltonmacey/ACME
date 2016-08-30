@@ -19,12 +19,10 @@ SET(SWEQX_SRCS
                ${SRC_SHARE}/bndry_mod_base.F90
                ${SRC_SHARE}/derivative_mod_base.F90
                ${SRC_SHARE}/edge_mod_base.F90
-               ${SRC_SHARE}/solver_init_mod_base.F90
                ${SRC_SHARE}/viscosity_mod_base.F90
                ${SRC_BASE}/sweqx/bndry_mod.F90
                ${SRC_BASE}/sweqx/derivative_mod.F90
                ${SRC_BASE}/sweqx/edge_mod.F90
-               ${SRC_BASE}/sweqx/solver_init_mod.F90
                ${SRC_BASE}/sweqx/viscosity_mod.F90
                ${SRC_BASE}/advance_mod.F90
                ${SRC_BASE}/checksum_mod.F90
