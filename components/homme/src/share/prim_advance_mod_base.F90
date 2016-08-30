@@ -6,7 +6,7 @@
 !#define _DBG_ !DBG
 !
 !
-module prim_advance_mod
+module prim_advance_mod_base
   use edgetype_mod, only : EdgeDescriptor_t, EdgeBuffer_t
   use kinds, only : real_kind, iulog
   use perf_mod, only: t_startf, t_stopf, t_barrierf, t_adj_detailf ! _EXTERNAL
@@ -3712,5 +3712,5 @@ subroutine prim_advance_si(elem, nets, nete, cg, blkjac, red, &
   end subroutine overwrite_SEdensity
 
 
-end module prim_advance_mod
+end module prim_advance_mod_base
 
