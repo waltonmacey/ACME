@@ -6,8 +6,8 @@ do_make=1
  
 HOMME_ROOT=/ccs/home/$USER/ACME/components/homme
 BUILD_ROOT=/lustre/atlas/scratch/imn/stf006/homme_tests
-NTRACERS=4
-NLEVELS=26
+NTRACERS=40
+NLEVELS=72
 
 source ./env_mach_specific.cpu
 
@@ -16,21 +16,23 @@ cd $BUILD_ROOT/titan-cpu
  
 if [ $do_cmake -eq 1 ]; then
 rm -rf CMakeFiles CMakeCache.txt
+
 cmake                                                                          \
   -C $HOMME_ROOT/cmake/machineFiles/titan.cmake                                \
   -DOPT_FLAGS="-O2 -Kieee -Mvect=nosse"                                        \
   -DWITH_PNETCDF=TRUE                                                          \
   -DPREQX_NP=4                                                                 \
   -DPREQX_PLEV=$NLEVELS                                                        \
-  -DPREQX_QSIZE_D=$TRACERS                                                     \
+  -DQSIZE_D=$NTRACERS                                                          \
   -DBUILD_HOMME_SWEQX=TRUE                                                     \
   -DBUILD_HOMME_PREQX=TRUE                                                     \
   -DBUILD_HOMME_PREQX_ACC=TRUE                                                 \
   -DENABLE_OPENMP=TRUE                                                         \
   -DHOMME_PROJID=STF006                                                        \
-  -DOPENACC_Fortran_FLAGS="-acc -ta=tesla,pin,cc35,cuda7.0 -Minfo=accel"       \
-  -DOPENACC_Linker_FLAGS="-acc -ta=tesla,pin,cc35,cuda7.0 -Mcuda"              \
+  -DOPENACC_Fortran_FLAGS="-acc -ta=tesla,pin,cc35,cuda7.5 -Minfo=accel"       \
+  -DOPENACC_Linker_FLAGS="-acc -ta=tesla,pin,cc35,cuda7.5 -Mcuda"              \
   -DPREQX_CUSTOM_FLAGS_FILE=${HOMME_ROOT}/compile_scripts/titan/customFlags.cmake.cpu \
+  -DUSE_NUM_PROCS=64                                                           \
   $HOMME_ROOT                                               
 fi
 
@@ -42,5 +44,5 @@ if [ $do_make -eq 1 ]; then
 make -j32                                                   || exit -1
 mkdir -p $HOMME_ROOT/build/preqx
 cp ./src/preqx/preqx $HOMME_ROOT/build/preqx/preqx.cpu      || exit -1
-#cp ./src/preqx_acc/preqx_acc $HOMME_ROOT/build/preqx/preqx.openacc      || exit -1
+cp ./src/preqx_acc/preqx_acc $HOMME_ROOT/build/preqx/preqx.openacc      || exit -1
 fi
