@@ -8,7 +8,7 @@ my ($CASEROOT) = @ARGV;
 chdir "${CASEROOT}";
 
 my $CASETOOLS = `./xmlquery CASETOOLS -value`;
-my $CCSMROOT  = `./xmlquery CCSMROOT  -value`;
+my $SRCROOT  = `./xmlquery SRCROOT  -value`;
 my $OBJROOT   = `./xmlquery OBJROOT   -value`;
 my $LIBROOT   = `./xmlquery LIBROOT   -value`;
 my $EXEROOT   = `./xmlquery EXEROOT   -value`;
@@ -19,8 +19,8 @@ chdir "${OBJROOT}/ocn/obj";
 
 open(file,">Filepath") or die "Could not open file Filepath to write";
 print file "${CASEROOT}/SourceMods/src.aquap\n";
-print file "${CCSMROOT}/components/cam/src/utils/cam_aqua\n";
-print file "${CCSMROOT}/components/cam/src/utils/cam_aqua/cpl\n";
+print file "${SRCROOT}/components/cam/src/utils/cam_aqua\n";
+print file "${SRCROOT}/components/cam/src/utils/cam_aqua/cpl\n";
 close(file);
 
 system("$GMAKE complib -j ${GMAKE_J} MODEL=aquap COMPLIB=${LIBROOT}/libocn.a -f ${CASETOOLS}/Makefile USER_INCLDIR=-I${EXEROOT}/atm/obj");
