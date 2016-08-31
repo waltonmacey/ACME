@@ -16,7 +16,7 @@ contains
 
 
   subroutine solver_init2( elem , hvcoord , deriv )
-    use element_mod, only: element_t, state_qdp, derived_vn0, derived_divdp, derived_divdp_proj
+    use element_mod, only: element_t, state_v, state_qdp, derived_vn0, derived_divdp, derived_divdp_proj
     use derivative_mod, only: derivative_t
     use hybvcoord_mod, only : hvcoord_t
     implicit none
@@ -27,7 +27,7 @@ contains
     !$omp barrier
     !$omp master
 
-    !$acc enter data pcreate(state_Qdp,derived_vn0,derived_divdp,derived_divdp_proj)
+    !$acc enter data pcreate(state_v,state_Qdp,derived_vn0,derived_divdp,derived_divdp_proj)
     !$acc enter data pcopyin(elem(1:nelemd),deriv,hvcoord)
     do ie = 1 , nelemd
       !$acc enter data pcopyin(elem(ie)%desc)
