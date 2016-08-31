@@ -92,7 +92,7 @@ contains
     use dimensions_mod, only : np, nlev, nlevp, nvar, nc, nelemd
     use edge_mod, only : edgevpack, edgevunpack, initEdgeBuffer
     use edgetype_mod, only : EdgeBuffer_t
-    use element_mod, only : element_t
+    use element_mod, only : element_t, state_v, state_t, state_dp3d
     use hybvcoord_mod, only : hvcoord_t
     use hybrid_mod, only : hybrid_t
     use reduction_mod, only : reductionbuffer_ordered_1d_t
@@ -203,13 +203,9 @@ contains
       call compute_and_apply_rhs(np1,n0,np1,qn0,2*dt/3,elem,hvcoord,hybrid,deriv,nets,nete,.false.,0d0)
       ! compute (5*u1/4 - u0/4) in timelevel nm1:
       do ie=nets,nete
-         elem(ie)%state%v(:,:,:,:,nm1)= (5*elem(ie)%state%v(:,:,:,:,nm1) - elem(ie)%state%v(:,:,:,:,n0) ) /4
-         elem(ie)%state%T(:,:,:,nm1)= (5*elem(ie)%state%T(:,:,:,nm1) - elem(ie)%state%T(:,:,:,n0) )/4
-         if (rsplit==0) then
-            elem(ie)%state%ps_v(:,:,nm1)= ( 5*elem(ie)%state%ps_v(:,:,nm1) - elem(ie)%state%ps_v(:,:,n0) )/4
-         else
-            elem(ie)%state%dp3d(:,:,:,nm1)= (5*elem(ie)%state%dp3d(:,:,:,nm1) - elem(ie)%state%dp3d(:,:,:,n0) )/4
-         endif
+         state_v   (:,:,:,:,nm1,ie) = (5*state_v   (:,:,:,:,nm1,ie) - state_v   (:,:,:,:,n0,ie) ) / 4
+         state_T   (:,:  ,:,nm1,ie) = (5*state_T   (:,:  ,:,nm1,ie) - state_T   (:,:  ,:,n0,ie) ) / 4
+         state_dp3d(:,:  ,:,nm1,ie) = (5*state_dp3d(:,:  ,:,nm1,ie) - state_dp3d(:,:  ,:,n0,ie) ) / 4
       enddo
       ! u5 = (5*u1/4 - u0/4) + 3dt/4 RHS(u4)
       ! phl: rhs: t=t+2*dt/5+dt/3+3*dt/4         -wrong RK times ...
@@ -295,7 +291,7 @@ contains
     use kinds             , only : real_kind
     use dimensions_mod    , only : np, nc, nlev, ntrac, max_corner_elem
     use hybrid_mod        , only : hybrid_t
-    use element_mod       , only : element_t,PrintElem, derived_vn0, state_v, state_qdp
+    use element_mod       , only : element_t,PrintElem, derived_vn0, state_v, state_qdp, state_t, state_dp3d, state_ps_v
     use derivative_mod    , only : derivative_t, divergence_sphere, gradient_sphere, vorticity_sphere, gradient_sphere_openacc, divergence_sphere_openacc, vorticity_sphere_openacc
     use derivative_mod    , only : subcell_div_fluxes, subcell_dss_fluxes
     use edge_mod          , only : edgevpack, edgevunpack, edgeDGVunpack
@@ -304,13 +300,15 @@ contains
     use control_mod       , only : moisture, qsplit, use_cpstar, rsplit, swest
     use hybvcoord_mod     , only : hvcoord_t
     use physical_constants, only : cp, cpwater_vapor, Rgas, kappa
-    use physics_mod       , only : virtual_specific_heat, virtual_temperature
+    use physics_mod       , only : virtual_specific_heat, virtual_temperature1d
     use prim_si_mod       , only : preq_vertadv, preq_omega_ps, preq_hydrostatic
     use time_mod          , only : tevolve
 #   if ( defined CAM )
       use control_mod     , only: se_met_nudge_u, se_met_nudge_p, se_met_nudge_t, se_met_tevolve
 #   endif
     implicit none
+    !$acc routine(virtual_specific_heat) seq
+    !$acc routine(virtual_temperature1d) seq
     integer              , intent(in   ) :: np1,nm1,n0,qn0,nets,nete
     real*8               , intent(in   ) :: dt2
     logical              , intent(in   ) :: compute_diagnostics
@@ -348,10 +346,10 @@ contains
     !$omp master
     !$acc enter data pcreate(dp,p,grad_p,vgrad_p,vdp,divdp,vort,t_v,kappa_star)
     do ie = 1 , nelemd
-      !$acc update device(elem(ie)%state%dp3d(:,:,:,n0),state_v(:,:,:,:,n0,ie),elem(ie)%state%T(:,:,:,n0),state_Qdp(:,:,:,1,qn0,ie))
+      !$acc update device(state_dp3d(:,:,:,n0,ie),state_v(:,:,:,:,n0,ie),state_T(:,:,:,n0,ie),state_Qdp(:,:,:,1,qn0,ie))
     enddo
     !$acc update device(derived_vn0)
-    !$acc parallel loop gang vector collapse(4) present(dp,elem)
+    !$acc parallel loop gang vector collapse(4) present(dp,state_dp3d)
     do ie=1,nelemd
       ! ============================
       ! compute p and delta p
@@ -367,7 +365,7 @@ contains
         !             = dp(k) + (dp(k+1)-dp(k))/2 = (dp(k+1)+dp(k))/2
         do j = 1 , np
           do i = 1 , np
-            dp(i,j,k,ie) = elem(ie)%state%dp3d(i,j,k,n0)
+            dp(i,j,k,ie) = state_dp3d(i,j,k,n0,ie)
           enddo
         enddo
       enddo
@@ -437,26 +435,27 @@ contains
     ! =========================================
     call divergence_sphere_openacc(vdp,deriv,elem,divdp,nlev,1,nelemd,1,1)
     call vorticity_sphere_openacc(state_v,deriv,elem,vort,nlev,1,nelemd,timelevels,n0,1,1)
-    !$acc update host(dp,p,grad_p,vgrad_p,vdp,derived_vn0,divdp,vort)
     if (qn0 == -1 ) then
       ! compute T_v for timelevel n0
+      !$acc parallel loop gang vector collapse(4) present(t_v,elem,kappa_star,state_t)
       do ie=1,nelemd
         do k=1,nlev
           do j=1,np
             do i=1,np
-              T_v(i,j,k,ie) = elem(ie)%state%T(i,j,k,n0)
+              T_v(i,j,k,ie) = state_T(i,j,k,n0,ie)
               kappa_star(i,j,k,ie) = kappa
             enddo
           enddo
         enddo
       enddo
     else
+      !$acc parallel loop gang vector collapse(4) private(qt) present(t_v,elem,kappa_star,state_qdp,state_t)
       do ie=1,nelemd
         do k=1,nlev
           do j=1,np
             do i=1,np
               Qt = state_Qdp(i,j,k,1,qn0,ie)/dp(i,j,k,ie)
-              T_v(i,j,k,ie) = Virtual_Temperature(elem(ie)%state%T(i,j,k,n0),Qt)
+              T_v(i,j,k,ie) = Virtual_Temperature1d(state_T(i,j,k,n0,ie),Qt)
               if (use_cpstar==1) then
                 kappa_star(i,j,k,ie) = Rgas/Virtual_Specific_Heat(Qt)
               else
@@ -467,6 +466,7 @@ contains
         enddo
       enddo
     endif
+    !$acc update host(dp,p,grad_p,vgrad_p,vdp,derived_vn0,divdp,vort,kappa_star,t_v)
     !$omp end master
     !$omp barrier
     do ie=nets,nete
@@ -503,7 +503,7 @@ contains
       ! ==============================================
       ! Compute phi + kinetic energy term: 10*nv*nv Flops
       ! ==============================================
-      vertloop: do k=1,nlev
+      do k=1,nlev
         do j=1,np
           do i=1,np
             v1     = state_v(i,j,1,k,n0,ie)
@@ -515,7 +515,7 @@ contains
         ! ================================================
         ! compute gradp term (ps/p)*(dp/dps)*T
         ! ================================================
-        vtemp(:,:,:) = gradient_sphere(elem(ie)%state%T(:,:,k,n0),deriv,elem(ie)%Dinv)
+        vtemp(:,:,:) = gradient_sphere(state_T(:,:,k,n0,ie),deriv,elem(ie)%Dinv)
         do j=1,np
           do i=1,np
             v1     = state_v(i,j,1,k,n0,ie)
@@ -557,7 +557,7 @@ contains
                    vtens2(i,j,k) =   vtens2(i,j,k) - se_met_nudge_p*grad_p_m_pmet(i,j,2,k,ie)  * elem(ie)%derived%nudge_factor(i,j,k)
                 endif
                 if(se_met_nudge_t.gt.0.D0)then
-                   t_m_tmet = elem(ie)%state%T(i,j,k,n0) - elem(ie)%derived%T_met(i,j,k) - se_met_tevolve*tevolve*elem(ie)%derived%dTdt_met(i,j,k)
+                   t_m_tmet = state_T(i,j,k,n0,ie) - elem(ie)%derived%T_met(i,j,k) - se_met_tevolve*tevolve*elem(ie)%derived%dTdt_met(i,j,k)
                    ttens(i,j,k)  = ttens(i,j,k) - se_met_nudge_t*t_m_tmet * elem(ie)%derived%nudge_factor(i,j,k)
                    elem(ie)%derived%Ttnd(i+(j-1)*np,k) = elem(ie)%derived%Ttnd(i+(j-1)*np,k) + se_met_nudge_t*t_m_tmet * elem(ie)%derived%nudge_factor(i,j,k)
                 endif
@@ -565,7 +565,7 @@ contains
 #           endif
           enddo
         enddo
-      enddo vertloop
+      enddo
 #     ifdef ENERGY_DIAGNOSTICS
         !! =========================================================
         !! diagnostics
@@ -695,28 +695,26 @@ contains
       if (dt2<0) then
         ! calling program just wanted DSS'd RHS, skip time advance
         do k=1,nlev
-          state_v(:,:,1,k,np1,ie) = elem(ie)%spheremp(:,:)*vtens1(:,:,k)
-          state_v(:,:,2,k,np1,ie) = elem(ie)%spheremp(:,:)*vtens2(:,:,k)
-          elem(ie)%state%T(:,:,k,np1) = elem(ie)%spheremp(:,:)*ttens(:,:,k)
-          elem(ie)%state%dp3d(:,:,k,np1) = -elem(ie)%spheremp(:,:)*(divdp(:,:,k,ie) + eta_dot_dpdn(:,:,k+1)-eta_dot_dpdn(:,:,k))
+          state_v   (:,:,1,k,np1,ie) =  elem(ie)%spheremp(:,:)*vtens1(:,:,k)
+          state_v   (:,:,2,k,np1,ie) =  elem(ie)%spheremp(:,:)*vtens2(:,:,k)
+          state_T   (:,:  ,k,np1,ie) =  elem(ie)%spheremp(:,:)*ttens(:,:,k)
+          state_dp3d(:,:  ,k,np1,ie) = -elem(ie)%spheremp(:,:)*(divdp(:,:,k,ie) + eta_dot_dpdn(:,:,k+1)-eta_dot_dpdn(:,:,k))
         enddo
-        elem(ie)%state%ps_v(:,:,np1) = -elem(ie)%spheremp(:,:)*sdot_sum
       else
         do k=1,nlev
-          state_v(:,:,1,k,np1,ie) = elem(ie)%spheremp(:,:)*( state_v(:,:,1,k,nm1,ie) + dt2*vtens1(:,:,k) )
-          state_v(:,:,2,k,np1,ie) = elem(ie)%spheremp(:,:)*( state_v(:,:,2,k,nm1,ie) + dt2*vtens2(:,:,k) )
-          elem(ie)%state%T(:,:,k,np1) = elem(ie)%spheremp(:,:)*(elem(ie)%state%T(:,:,k,nm1) + dt2*ttens(:,:,k))
-          elem(ie)%state%dp3d(:,:,k,np1) = elem(ie)%spheremp(:,:) * (elem(ie)%state%dp3d(:,:,k,nm1) - dt2 * (divdp(:,:,k,ie) + eta_dot_dpdn(:,:,k+1)-eta_dot_dpdn(:,:,k)))
+          state_v   (:,:,1,k,np1,ie) = elem(ie)%spheremp(:,:) * ( state_v   (:,:,1,k,nm1,ie) + dt2*vtens1(:,:,k) )
+          state_v   (:,:,2,k,np1,ie) = elem(ie)%spheremp(:,:) * ( state_v   (:,:,2,k,nm1,ie) + dt2*vtens2(:,:,k) )
+          state_T   (:,:  ,k,np1,ie) = elem(ie)%spheremp(:,:) * ( state_T   (:,:  ,k,nm1,ie) + dt2*ttens (:,:,k) )
+          state_dp3d(:,:  ,k,np1,ie) = elem(ie)%spheremp(:,:) * ( state_dp3d(:,:  ,k,nm1,ie) - dt2*(divdp(:,:,k,ie) + eta_dot_dpdn(:,:,k+1)-eta_dot_dpdn(:,:,k)))
         enddo
-        elem(ie)%state%ps_v(:,:,np1) = elem(ie)%spheremp(:,:)*( elem(ie)%state%ps_v(:,:,nm1) - dt2*sdot_sum )
       endif
       ! =========================================================
       ! Pack ps(np1), T, and v tendencies into comm buffer
       ! =========================================================
-      kptr=0          ;  call edgeVpack(edge3p1, elem(ie)%state%ps_v(:,:,np1)  ,1     ,kptr,ie)
-      kptr=1          ;  call edgeVpack(edge3p1, elem(ie)%state%T(:,:,:,np1)   ,nlev  ,kptr,ie)
-      kptr=nlev+1     ;  call edgeVpack(edge3p1, state_v(:,:,:,:,np1,ie) ,2*nlev,kptr,ie)
-      kptr=kptr+2*nlev;  call edgeVpack(edge3p1, elem(ie)%state%dp3d(:,:,:,np1),nlev  ,kptr,ie)
+      kptr=0          ;  call edgeVpack(edge3p1, state_ps_v(:,:    ,np1,ie),1     ,kptr,ie)
+      kptr=1          ;  call edgeVpack(edge3p1, state_T   (:,:  ,:,np1,ie),nlev  ,kptr,ie)
+      kptr=nlev+1     ;  call edgeVpack(edge3p1, state_v   (:,:,:,:,np1,ie),2*nlev,kptr,ie)
+      kptr=kptr+2*nlev;  call edgeVpack(edge3p1, state_dp3d(:,:  ,:,np1,ie),nlev  ,kptr,ie)
 
     enddo
 
@@ -732,21 +730,18 @@ contains
       ! ===========================================================
       ! Unpack the edges for vgrad_T and v tendencies...
       ! ===========================================================
-      kptr=0          ;  call edgeVunpack(edge3p1, elem(ie)%state%ps_v(:,:,np1)  , 1     , kptr, ie)
-      kptr=1          ;  call edgeVunpack(edge3p1, elem(ie)%state%T(:,:,:,np1)   , nlev  , kptr, ie)
-      kptr=nlev+1     ;  call edgeVunpack(edge3p1, state_v(:,:,:,:,np1,ie) , 2*nlev, kptr, ie)
-      kptr=kptr+2*nlev;  call edgeVunpack(edge3p1, elem(ie)%state%dp3d(:,:,:,np1), nlev  , kptr, ie)
+      kptr=0          ;  call edgeVunpack(edge3p1, state_ps_v(:,:    ,np1,ie), 1     , kptr, ie)
+      kptr=1          ;  call edgeVunpack(edge3p1, state_T   (:,:  ,:,np1,ie), nlev  , kptr, ie)
+      kptr=nlev+1     ;  call edgeVunpack(edge3p1, state_v   (:,:,:,:,np1,ie), 2*nlev, kptr, ie)
+      kptr=kptr+2*nlev;  call edgeVunpack(edge3p1, state_dp3d(:,:  ,:,np1,ie), nlev  , kptr, ie)
       ! ====================================================
       ! Scale tendencies by inverse mass matrix
       ! ====================================================
       do k=1,nlev
-        elem(ie)%state%T(:,:,k,np1)   = elem(ie)%rspheremp(:,:)*elem(ie)%state%T(:,:,k,np1)
-        state_v(:,:,1,k,np1,ie) = elem(ie)%rspheremp(:,:)*state_v(:,:,1,k,np1,ie)
-        state_v(:,:,2,k,np1,ie) = elem(ie)%rspheremp(:,:)*state_v(:,:,2,k,np1,ie)
-      enddo
-      ! vertically lagrangian: complete dp3d timestep:
-      do k=1,nlev
-        elem(ie)%state%dp3d(:,:,k,np1)= elem(ie)%rspheremp(:,:)*elem(ie)%state%dp3d(:,:,k,np1)
+        state_T   (:,:  ,k,np1,ie) = elem(ie)%rspheremp(:,:)*state_T   (:,:  ,k,np1,ie)
+        state_v   (:,:,1,k,np1,ie) = elem(ie)%rspheremp(:,:)*state_v   (:,:,1,k,np1,ie)
+        state_v   (:,:,2,k,np1,ie) = elem(ie)%rspheremp(:,:)*state_v   (:,:,2,k,np1,ie)
+        state_dp3d(:,:  ,k,np1,ie) = elem(ie)%rspheremp(:,:)*state_dp3d(:,:  ,k,np1,ie)
       enddo
     enddo
     call t_stopf('compute_and_apply_rhs')

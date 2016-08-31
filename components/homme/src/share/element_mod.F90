@@ -17,11 +17,14 @@ module element_mod
 #ifdef _PRIM
 
   public :: setup_element_pointers
-  real (kind=real_kind), allocatable, target, public :: state_v                  (:,:,:,:,:,:)    ! (np,np,nlev,qsize_d,2,nelemd)   
-  real (kind=real_kind), allocatable, target, public :: state_Qdp                (:,:,:,:,:,:)    ! (np,np,nlev,qsize_d,2,nelemd)   
-  real (kind=real_kind), allocatable, target, public :: derived_vn0              (:,:,:,:,:)      ! (np,np,2,nlev,nelemd)                   velocity for SE tracer advection
-  real (kind=real_kind), allocatable, target, public :: derived_divdp            (:,:,:,:)        ! (np,np,nlev,nelemd)                     divergence of dp
-  real (kind=real_kind), allocatable, target, public :: derived_divdp_proj       (:,:,:,:)        ! (np,np,nlev,nelemd)                     DSSed divdp
+  real (kind=real_kind), allocatable, target, public :: state_v                  (:,:,:,:,:,:)
+  real (kind=real_kind), allocatable, target, public :: state_t                  (:,:,:,:,:)
+  real (kind=real_kind), allocatable, target, public :: state_dp3d               (:,:,:,:,:)
+  real (kind=real_kind), allocatable, target, public :: state_ps_v               (:,:,:,:)
+  real (kind=real_kind), allocatable, target, public :: state_Qdp                (:,:,:,:,:,:)
+  real (kind=real_kind), allocatable, target, public :: derived_vn0              (:,:,:,:,:)
+  real (kind=real_kind), allocatable, target, public :: derived_divdp            (:,:,:,:)
+  real (kind=real_kind), allocatable, target, public :: derived_divdp_proj       (:,:,:,:)
 
 #if USE_OPENACC
 
@@ -30,14 +33,14 @@ module element_mod
     ! prognostics must match those in prim_restart_mod.F90
     ! vertically-lagrangian code advects dp3d instead of ps_v
     ! tracers Q, Qdp always use 2 level time scheme
-    real (kind=real_kind), pointer :: v(:,:,:,:,:)                    ! velocity                           1
-    real (kind=real_kind) :: T   (np,np,nlev,timelevels)              ! temperature                        2
-    real (kind=real_kind) :: dp3d(np,np,nlev,timelevels)              ! delta p on levels                  8
+    real (kind=real_kind), pointer :: v   (:,:,:,:,:)                 ! velocity                           1
+    real (kind=real_kind), pointer :: T   (:,:,:,:)                   ! temperature                        2
+    real (kind=real_kind), pointer :: dp3d(:,:,:,:)                   ! delta p on levels                  8
     real (kind=real_kind) :: lnps(np,np,timelevels)                   ! log surface pressure               3
-    real (kind=real_kind) :: ps_v(np,np,timelevels)                   ! surface pressure                   4
+    real (kind=real_kind), pointer :: ps_v(:,:,:)                     ! surface pressure                   4
     real (kind=real_kind) :: phis(np,np)                              ! surface geopotential (prescribed)  5
     real (kind=real_kind) :: Q   (np,np,nlev,qsize_d)                 ! Tracer concentration               6
-    real (kind=real_kind), pointer :: Qdp (:,:,:,:,:)  ! Tracer mass                        7  (np,np,nlev,qsize,2)   
+    real (kind=real_kind), pointer :: Qdp (:,:,:,:,:)                 ! Tracer mass                        7
   end type elem_state_t
 
   integer(kind=int_kind),public,parameter::StateComponents=8  ! num prognistics variables (for prim_restart_mod.F90)
@@ -571,12 +574,18 @@ contains
 #if USE_OPENACC
     integer :: ie
     allocate( state_v                  (np,np,2,nlev,timelevels,nelemd)       )
-    allocate( state_Qdp                (np,np,nlev,qsize,2,nelemd)            )
+    allocate( state_t                  (np,np  ,nlev,timelevels,nelemd)       )
+    allocate( state_dp3d               (np,np  ,nlev,timelevels,nelemd)       )
+    allocate( state_ps_v               (np,np       ,timelevels,nelemd)       )
+    allocate( state_Qdp                (np,np  ,nlev,qsize,2,nelemd)          )
     allocate( derived_vn0              (np,np,2,nlev,nelemd)                  )
-    allocate( derived_divdp            (np,np,nlev,nelemd)                    )
-    allocate( derived_divdp_proj       (np,np,nlev,nelemd)                    )
+    allocate( derived_divdp            (np,np  ,nlev,nelemd)                  )
+    allocate( derived_divdp_proj       (np,np  ,nlev,nelemd)                  )
     do ie = 1 , nelemd
       elem(ie)%state%v                   => state_v                  (:,:,:,:,:,ie)
+      elem(ie)%state%t                   => state_t                  (:,:,:,:,ie)
+      elem(ie)%state%dp3d                => state_dp3d               (:,:,:,:,ie)
+      elem(ie)%state%ps_v                => state_ps_v               (:,:,:,ie)
       elem(ie)%state%Qdp                 => state_Qdp                (:,:,:,:,:,ie)
       elem(ie)%derived%vn0               => derived_vn0              (:,:,:,:,ie)  
       elem(ie)%derived%divdp             => derived_divdp            (:,:,:,ie)    

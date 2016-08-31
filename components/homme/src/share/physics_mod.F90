@@ -57,6 +57,7 @@ module physics_mod
   public :: getsurfpress
   public :: Temp2PotTemp
   public :: Virtual_Temperature
+  public :: Virtual_Temperature1d
   public :: Virtual_Specific_Heat
   public :: kappastar  
 
@@ -83,7 +84,7 @@ contains
   !================================
   
   function Virtual_Temperature1d(Tin,rin) result(Tv)
-    
+    !$acc routine seq
     real (kind=real_kind),intent(in) :: Tin
     real (kind=real_kind),intent(in) :: rin
     real (kind=real_kind)            :: Tv
@@ -132,7 +133,7 @@ contains
 
 
   function Virtual_Specific_Heat(rin) result(Cp_star)
-    
+    !$acc routine seq
     real (kind=real_kind),intent(in) :: rin
     real (kind=real_kind)            :: Cp_star
 
