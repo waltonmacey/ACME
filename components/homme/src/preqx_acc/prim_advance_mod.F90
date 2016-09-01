@@ -26,24 +26,33 @@ module prim_advance_mod
 
 
 
-  real (kind=real_kind),allocatable :: p (:,:,:,:)         ! pressure
-  real (kind=real_kind),allocatable :: dp(:,:,:,:)         ! delta pressure
-  real (kind=real_kind),allocatable :: grad_p(:,:,:,:,:)
-  real (kind=real_kind),allocatable :: vgrad_p(:,:,:,:)    ! v.grad(p)
-  real (kind=real_kind),allocatable :: vdp(:,:,:,:,:)       !                            
-  real (kind=real_kind),allocatable :: grad_p_m_pmet(:,:,:,:,:)  ! gradient(p - p_met)
-  real (kind=real_kind),allocatable :: divdp(:,:,:,:)
-  real (kind=real_kind),allocatable :: vort(:,:,:,:)       ! vorticity
-  real (kind=real_kind),allocatable :: T_v(:,:,:,:)
-  real (kind=real_kind),allocatable :: kappa_star(:,:,:,:)
-  real (kind=real_kind),allocatable :: omega_p(:,:,:,:)
-  real (kind=real_kind),allocatable :: eta_dot_dpdn(:,:,:,:)  ! half level vertical velocity on p-grid
-  real (kind=real_kind),allocatable :: sdot_sum(:,:,:)   ! temporary field
-  real (kind=real_kind),allocatable :: T_vadv(:,:,:,:)     ! temperature vertical advection
-  real (kind=real_kind),allocatable :: v_vadv(:,:,:,:,:)   ! velocity vertical advection
-  real (kind=real_kind),allocatable :: Ephi(:,:,:,:)       ! kinetic energy + PHI term
-  real (kind=real_kind),allocatable :: vtemp1(:,:,:,:,:)     ! generic gradient storage
-  real (kind=real_kind),allocatable :: vtemp2(:,:,:,:,:)     ! generic gradient storage
+  real (kind=real_kind), allocatable :: p            (:,:,:,:)         ! pressure
+  real (kind=real_kind), allocatable :: dp           (:,:,:,:)         ! delta pressure
+  real (kind=real_kind), allocatable :: grad_p       (:,:,:,:,:)
+  real (kind=real_kind), allocatable :: vgrad_p      (:,:,:,:)    ! v.grad(p)
+  real (kind=real_kind), allocatable :: vdp          (:,:,:,:,:)       !                            
+  real (kind=real_kind), allocatable :: grad_p_m_pmet(:,:,:,:,:)  ! gradient(p - p_met)
+  real (kind=real_kind), allocatable :: divdp        (:,:,:,:)
+  real (kind=real_kind), allocatable :: vort         (:,:,:,:)       ! vorticity
+  real (kind=real_kind), allocatable :: T_v          (:,:,:,:)
+  real (kind=real_kind), allocatable :: kappa_star   (:,:,:,:)
+  real (kind=real_kind), allocatable :: omega_p      (:,:,:,:)
+  real (kind=real_kind), allocatable :: eta_dot_dpdn (:,:,:,:)  ! half level vertical velocity on p-grid
+  real (kind=real_kind), allocatable :: sdot_sum     (:,:,:)   ! temporary field
+  real (kind=real_kind), allocatable :: T_vadv       (:,:,:,:)     ! temperature vertical advection
+  real (kind=real_kind), allocatable :: v_vadv       (:,:,:,:,:)   ! velocity vertical advection
+  real (kind=real_kind), allocatable :: Ephi         (:,:,:,:)       ! kinetic energy + PHI term
+  real (kind=real_kind), allocatable :: vtemp1       (:,:,:,:,:)     ! generic gradient storage
+  real (kind=real_kind), allocatable :: vtemp2       (:,:,:,:,:)     ! generic gradient storage
+  real (kind=real_kind), allocatable :: grads_tmp    (:,:,:,:,:)
+  real (kind=real_kind), allocatable :: vtens        (:,:,:,:,:)
+  real (kind=real_kind), allocatable :: ttens        (:,:,:,:)  
+  real (kind=real_kind), allocatable :: dptens       (:,:,:,:)  
+  real (kind=real_kind), allocatable :: div_tmp      (:,:,:,:)  
+  real (kind=real_kind), allocatable :: vort_tmp     (:,:,:,:)  
+  real (kind=real_kind), allocatable :: lap_t        (:,:,:,:)
+  real (kind=real_kind), allocatable :: lap_dp       (:,:,:,:)
+  real (kind=real_kind), allocatable :: lap_v        (:,:,:,:,:)
 
 contains
 
@@ -79,25 +88,35 @@ contains
          ur_weights(i)=2.0d0/qsplit
        enddo
     endif
-    allocate(p (np,np,nlev,nelemd))
-    allocate(dp(np,np,nlev,nelemd))
-    allocate(grad_p(np,np,2,nlev,nelemd))
-    allocate(vgrad_p(np,np,nlev,nelemd))
-    allocate(vdp(np,np,2,nlev,nelemd))
-    allocate(grad_p_m_pmet(np,np,2,nlev,nelemd))
-    allocate(divdp(np,np,nlev,nelemd))
-    allocate(vort(np,np,nlev,nelemd))
-    allocate(t_v(np,np,nlev,nelemd))
-    allocate(kappa_star(np,np,nlev,nelemd))
-    allocate(omega_p(np,np,nlev,nelemd))
-    allocate(eta_dot_dpdn(np,np,nlev+1,nelemd))
-    allocate(sdot_sum(np,np,nelemd))
-    allocate(T_vadv(np,np,nlev,nelemd))
-    allocate(v_vadv(np,np,2,nlev,nelemd))
-    allocate(ephi(np,np,nlev,nelemd))
-    allocate(vtemp1(np,np,2,nlev,nelemd))
-    allocate(vtemp2(np,np,2,nlev,nelemd))
-    !$acc enter data pcreate(p,dp,grad_p,vgrad_p,vdp,grad_p_m_pmet,divdp,vort,t_v,kappa_star,omega_p,eta_dot_dpdn,sdot_sum,t_vadv,v_vadv,ephi,vtemp1,vtemp2)
+    allocate(p            (np,np  ,nlev  ,nelemd))
+    allocate(dp           (np,np  ,nlev  ,nelemd))
+    allocate(grad_p       (np,np,2,nlev  ,nelemd))
+    allocate(vgrad_p      (np,np  ,nlev  ,nelemd))
+    allocate(vdp          (np,np,2,nlev  ,nelemd))
+    allocate(grad_p_m_pmet(np,np,2,nlev  ,nelemd))
+    allocate(divdp        (np,np  ,nlev  ,nelemd))
+    allocate(vort         (np,np  ,nlev  ,nelemd))
+    allocate(t_v          (np,np  ,nlev  ,nelemd))
+    allocate(kappa_star   (np,np  ,nlev  ,nelemd))
+    allocate(omega_p      (np,np  ,nlev  ,nelemd))
+    allocate(eta_dot_dpdn (np,np  ,nlev+1,nelemd))
+    allocate(sdot_sum     (np,np         ,nelemd))
+    allocate(T_vadv       (np,np  ,nlev  ,nelemd))
+    allocate(v_vadv       (np,np,2,nlev  ,nelemd))
+    allocate(ephi         (np,np  ,nlev  ,nelemd))
+    allocate(vtemp1       (np,np,2,nlev  ,nelemd))
+    allocate(vtemp2       (np,np,2,nlev  ,nelemd))
+    allocate(grads_tmp    (np,np,2,nlev  ,nelemd))
+    allocate(vtens        (np,np,2,nlev  ,nelemd))
+    allocate(ttens        (np,np  ,nlev  ,nelemd))
+    allocate(dptens       (np,np  ,nlev  ,nelemd))
+    allocate(div_tmp      (np,np  ,nlev  ,nelemd))
+    allocate(vort_tmp     (np,np  ,nlev  ,nelemd))
+    allocate(lap_t        (np,np  ,nlev  ,nelemd))
+    allocate(lap_dp       (np,np  ,nlev  ,nelemd))
+    allocate(lap_v        (np,np,2,nlev  ,nelemd))
+    !$acc enter data pcreate(p,dp,grad_p,vgrad_p,vdp,grad_p_m_pmet,divdp,vort,t_v,kappa_star,omega_p,eta_dot_dpdn,sdot_sum,t_vadv,v_vadv,ephi,vtemp1,vtemp2,grads_tmp, &
+    !$acc&                   vtens,ttens,dptens,div_tmp,vort_tmp,lap_t,lap_dp,lap_v)
     !$acc enter data pcopyin(edge3p1         )
     !$acc enter data pcopyin(edge3p1%buf     )
     !$acc enter data pcopyin(edge3p1%receive )
@@ -724,18 +743,12 @@ contains
   integer              , intent(in   ) :: nets,nete,nt
   real (kind=real_kind), intent(in   ) :: eta_ave_w  ! weighting for mean flux terms
   ! local
-  real (kind=real_kind), dimension(np,np,2,nlev,nets:nete) :: vtens
-  real (kind=real_kind), dimension(np,np,nlev,nets:nete)   :: ttens
-  real (kind=real_kind), dimension(np,np,nlev,nets:nete)   :: dptens
-  real (kind=real_kind), dimension(0:np+1,0:np+1,nlev)     :: corners
-  real (kind=real_kind), dimension(2,2,2)                  :: cflux
   real (kind=real_kind), dimension(nc,nc,4,nlev,nets:nete) :: dpflux
   real (kind=real_kind), dimension(np,np,nlev)             :: p
   real (kind=real_kind), dimension(np,np)                  :: dptemp1,dptemp2
   real (kind=real_kind), dimension(np,np)                  :: lap_t,lap_dp
   real (kind=real_kind), dimension(np,np,2)                :: lap_v
   real (kind=real_kind), dimension(np,np,nlev)             :: temp
-  real (kind=real_kind), dimension(nc,nc,4)                :: laplace_fluxes
   real (kind=real_kind) :: v1,v2,dt,heating,utens_tmp,vtens_tmp,ttens_tmp,dptens_tmp
   real (kind=real_kind) :: dpdn,dpdn0, nu_scale_top
   integer :: k,kptr,i,j,ie,ic
@@ -761,14 +774,12 @@ contains
   !
   if (hypervis_order == 2) then
     do ic=1,hypervis_subcycle
-      call biharmonic_wk_dp3d(elem,dptens,dpflux,ttens,vtens,deriv,edge3,hybrid,nt,nets,nete)
+      call biharmonic_wk_dp3d(elem,dptens(:,:,:,nets:nete),dpflux(:,:,:,:,nets:nete),ttens(:,:,:,nets:nete),vtens(:,:,:,:,nets:nete),deriv,edge3,hybrid,nt,nets,nete)
       do ie=nets,nete
         ! comptue mean flux
         if (nu_p>0) then
-          elem(ie)%derived%dpdiss_ave(:,:,:)=elem(ie)%derived%dpdiss_ave(:,:,:)+&
-               eta_ave_w*elem(ie)%state%dp3d(:,:,:,nt)/hypervis_subcycle
-          elem(ie)%derived%dpdiss_biharmonic(:,:,:)=elem(ie)%derived%dpdiss_biharmonic(:,:,:)+&
-               eta_ave_w*dptens(:,:,:,ie)/hypervis_subcycle
+          elem(ie)%derived%dpdiss_ave(:,:,:)=elem(ie)%derived%dpdiss_ave(:,:,:)+eta_ave_w*elem(ie)%state%dp3d(:,:,:,nt)/hypervis_subcycle
+          elem(ie)%derived%dpdiss_biharmonic(:,:,:)=elem(ie)%derived%dpdiss_biharmonic(:,:,:)+eta_ave_w*dptens(:,:,:,ie)/hypervis_subcycle
         endif
         do k=1,nlev
           ! advace in time.
