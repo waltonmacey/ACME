@@ -17,6 +17,7 @@ module derivative_mod
   use physical_constants, only : rrearth 
   use element_mod, only : element_t
   use control_mod, only : hypervis_scaling, hypervis_power
+  use openacc_utils_mod, only: acc_async_sync
   implicit none
   private
 
@@ -30,77 +31,173 @@ module derivative_mod
   public :: gradient_sphere_openacc
   public :: divergence_sphere_openacc
   public :: vorticity_sphere_openacc
+  public :: vlaplace_sphere_wk_openacc
 
 contains
 
-  subroutine vorticity_sphere_openacc(v,deriv,elem,vort,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out)
-!   input:  v = velocity in lat-lon coordinates
-!   ouput:  spherical vorticity of v
-    type (derivative_t) , intent(in   ) :: deriv
-    type (element_t)    , intent(in   ) :: elem(:)
-    real(kind=real_kind), intent(in   ) :: v(np,np,2,len,ntl_in,nets:nete)
-    real(kind=real_kind), intent(  out) :: vort(np,np,len,ntl_out,nets:nete)
-    integer             , intent(in   ) :: len,nets,nete,ntl_in,tl_in,ntl_out,tl_out
-    integer, parameter :: kchunk = 8
-    integer :: i, j, l, k, ie, kc, kk
-    real(kind=real_kind) :: dvdx00,dudy00
-    real(kind=real_kind) :: vco(np,np,2,kchunk)
-    ! convert to covariant form
-    !$acc parallel loop gang collapse(2) private(vco) present(elem,v,vort,deriv)
+  subroutine vlaplace_sphere_wk_openacc(v,div,vor,deriv,elem,var_coef,laplace,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,nu_ratio)
+    use element_mod   , only: element_t
+    use control_mod   , only: hypervis_scaling
+    implicit none
+    !   input:  v = vector in lat-lon coordinates
+    !   ouput:  weak laplacian of v, in lat-lon coordinates
+    !   logic:
+    !      tensorHV:     requires cartesian
+    !      nu_div/=nu:   requires contra formulatino
+    !   One combination NOT supported:  tensorHV and nu_div/=nu then abort
+    real(kind=real_kind)          , intent(in   ) :: v(np,np,2,len,ntl_in,nelemd)
+    real(kind=real_kind)          , intent(inout) :: div(np,np,len,nelemd)
+    real(kind=real_kind)          , intent(inout) :: vor(np,np,len,nelemd)
+    logical                       , intent(in   ) :: var_coef
+    type (derivative_t)           , intent(in   ) :: deriv
+    type (element_t)              , intent(in   ) :: elem(:)
+    real(kind=real_kind), optional, intent(in   ) :: nu_ratio
+    real(kind=real_kind)          , intent(  out) :: laplace(np,np,2,len,ntl_out,nelemd)
+    integer                       , intent(in   ) :: len,nets,nete,ntl_in,tl_in,ntl_out,tl_out
+    if (hypervis_scaling/=0 .and. var_coef) then
+      call abortmp('ERROR: hypervis_scaling/=0 .and. var_coef not supported in OpenACC!')
+    else  
+      call vlaplace_sphere_wk_contra(v,div,vor,deriv,elem,var_coef,laplace,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,nu_ratio)
+    endif
+  end subroutine vlaplace_sphere_wk_openacc
+
+  subroutine vlaplace_sphere_wk_contra(v,div,vor,deriv,elem,var_coef,laplace,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,nu_ratio)
+    !   input:  v = vector in lat-lon coordinates
+    !   ouput:  weak laplacian of v, in lat-lon coordinates
+    !   du/dt = laplace(u) = grad(div) - curl(vor)
+    !   < PHI du/dt > = < PHI laplace(u) >        PHI = covariant, u = contravariant
+    !                 = < PHI grad(div) >  - < PHI curl(vor) >
+    !                 = grad_wk(div) - curl_wk(vor)               
+    use element_mod       , only: element_t
+    use physical_constants, only: rrearth
+    use control_mod       , only: hypervis_power
+    implicit none
+    real(kind=real_kind)          , intent(in   ) :: v(np,np,2,len,ntl_in,nelemd)
+    real(kind=real_kind)          , intent(inout) :: div(np,np,len,nelemd)
+    real(kind=real_kind)          , intent(inout) :: vor(np,np,len,nelemd)
+    logical                       , intent(in   ) :: var_coef
+    type (derivative_t)           , intent(in   ) :: deriv
+    type (element_t)              , intent(in   ) :: elem(:)
+    real(kind=real_kind), optional, intent(in   ) :: nu_ratio
+    real(kind=real_kind)          , intent(  out) :: laplace(np,np,2,len,ntl_out,nelemd)
+    integer                       , intent(in   ) :: len,nets,nete,ntl_in,tl_in,ntl_out,tl_out
+    ! Local
+    integer i,j,l,m,n,k,ie
+    real(kind=real_kind) :: v1,v2,div1,div2,vor1,vor2,phi_x,phi_y
+    call divergence_sphere_openacc(v,deriv,elem,div,len,nets,nete,ntl_in,tl_in,1,1)
+    call vorticity_sphere_openacc (v,deriv,elem,vor,len,nets,nete,ntl_in,tl_in,1,1)
+    if (var_coef .and. hypervis_power/=0 ) then
+      !$acc parallel loop gang vector collapse(4) present(div,vor,elem)
+      do ie = nets , nete
+        do k = 1 , len
+          do j = 1 , np
+            do i = 1 , np
+              div(i,j,k,ie) = div(i,j,k,ie)*elem(ie)%variable_hyperviscosity(i,j)
+              vor(i,j,k,ie) = vor(i,j,k,ie)*elem(ie)%variable_hyperviscosity(i,j)
+              if (present(nu_ratio)) div(i,j,k,ie) = nu_ratio*div(i,j,k,ie)
+            enddo
+          enddo
+        enddo
+      enddo
+    endif
+    call gradient_minus_curl_sphere_wk_testcov(div,vor,deriv,elem,laplace,len,nets,nete,1,1,ntl_out,tl_out)
+    !$acc parallel loop gang vector collapse(4) present(laplace,elem,v)
     do ie = nets , nete
-      do kc = 1 , len/kchunk+1
-        !$acc cache(vco)
-        !$acc loop vector collapse(3) private(k)
+      do k = 1 , len
+        do j=1,np
+          do i=1,np
+            laplace(i,j,1,k,tl_out,ie) = laplace(i,j,1,k,tl_out,ie) + 2*elem(ie)%spheremp(i,j)*v(i,j,1,k,tl_in,ie)*(rrearth**2)
+            laplace(i,j,2,k,tl_out,ie) = laplace(i,j,2,k,tl_out,ie) + 2*elem(ie)%spheremp(i,j)*v(i,j,2,k,tl_in,ie)*(rrearth**2)
+          enddo
+        enddo
+      enddo
+    enddo
+  end subroutine vlaplace_sphere_wk_contra
+
+  subroutine gradient_minus_curl_sphere_wk_testcov(div,vor,deriv,elem,ds,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out)
+    use element_mod       , only: element_t
+    use physical_constants, only: rrearth
+    implicit none
+    type (derivative_t) , intent(in) :: deriv
+    type (element_t)    , intent(in) :: elem(:)
+    real(kind=real_kind), intent(in) :: div(np,np,len,ntl_in,nelemd)
+    real(kind=real_kind), intent(in) :: vor(np,np,len,ntl_in,nelemd)
+    real(kind=real_kind), intent(out):: ds(np,np,2,len,ntl_out,nelemd)
+    integer             , intent(in) :: len,nets,nete,ntl_in,tl_in,ntl_out,tl_out
+    integer, parameter :: kchunk = 8
+    integer :: i,j,l,k,ie, kc, kk
+    real(kind=real_kind) ::  dscontra1, dscontra2, ds1, ds2
+    real(kind=real_kind) :: divtmp(np,np,kchunk), vortmp(np,np,kchunk), mptmp(np,np), dvvtmp(np,np), metinvtmp(np,np,2,2)
+    !$acc parallel loop gang collapse(2) private(divtmp,vortmp,mptmp,dvvtmp,metinvtmp) present(div,vor,ds,elem)
+    do ie = nets , nete
+      do kc = 1 , len / kchunk + 1
+        !$acc loop vector collapse(3)
         do kk = 1 , kchunk
           do j = 1 , np
             do i = 1 , np
-              k = (kc-1)*kchunk+kk
+              k = (kc-1)*kchunk + kk
               if (k <= len) then
-                vco(i,j,1,kk)=(elem(ie)%D(i,j,1,1)*v(i,j,1,k,tl_in,ie) + elem(ie)%D(i,j,2,1)*v(i,j,2,k,tl_in,ie))
-                vco(i,j,2,kk)=(elem(ie)%D(i,j,1,2)*v(i,j,1,k,tl_in,ie) + elem(ie)%D(i,j,2,2)*v(i,j,2,k,tl_in,ie))
+                divtmp(i,j,kk) = div(i,j,k,tl_in,ie)
+                vortmp(i,j,kk) = vor(i,j,k,tl_in,ie)
+              endif
+              if (kk == 1) then
+                mptmp(i,j) = elem(ie)%mp(i,j)
+                dvvtmp(i,j) = deriv%dvv(i,j)
+                metinvtmp(i,j,:,:) = elem(ie)%metinv(i,j,:,:)
               endif
             enddo
           enddo
         enddo
-        !$acc loop vector collapse(3) private(k,dudy00,dvdx00)
+        !$acc loop vector collapse(3) private(dscontra1,dscontra2,ds1,ds2)
         do kk = 1 , kchunk
           do j = 1 , np
             do i = 1 , np
-              k = (kc-1)*kchunk+kk
+              k = (kc-1)*kchunk + kk
               if (k <= len) then
-                dudy00=0.0d0
-                dvdx00=0.0d0
+                dscontra1 = 0
+                dscontra2 = 0
                 do l = 1 , np
-                  dvdx00 = dvdx00 + deriv%Dvv(l,i)*vco(l,j,2,kk)
-                  dudy00 = dudy00 + deriv%Dvv(l,j)*vco(i,l,1,kk)
+                  dscontra1 = dscontra1 - ( (mptmp(l,j)*metinvtmp(i,j,1,1)*divtmp(l,j,kk)*Dvvtmp(i,l) ) + &
+                                            (mptmp(i,l)*metinvtmp(i,j,2,1)*divtmp(i,l,kk)*Dvvtmp(j,l) ) )
+                  dscontra2 = dscontra2 - ( (mptmp(l,j)*metinvtmp(i,j,1,2)*divtmp(l,j,kk)*Dvvtmp(i,l) ) + &
+                                            (mptmp(i,l)*metinvtmp(i,j,2,2)*divtmp(i,l,kk)*Dvvtmp(j,l) ) )
                 enddo
-                vort(i,j,k,tl_out,ie)=(dvdx00-dudy00)*(elem(ie)%rmetdet(i,j)*rrearth)
+                ds1 = (elem(ie)%D(i,j,1,1)*dscontra1 + elem(ie)%D(i,j,1,2)*dscontra2) * rrearth * elem(ie)%metdet(i,j)
+                ds2 = (elem(ie)%D(i,j,2,1)*dscontra1 + elem(ie)%D(i,j,2,2)*dscontra2) * rrearth * elem(ie)%metdet(i,j)
+                dscontra1 = 0
+                dscontra2 = 0
+                do l = 1 , np
+                  dscontra1 = dscontra1 - (mptmp(i,l)*vortmp(i,l,kk)*Dvvtmp(j,l))
+                  dscontra2 = dscontra2 + (mptmp(l,j)*vortmp(l,j,kk)*Dvvtmp(i,l))
+                enddo
+                ds(i,j,1,k,tl_out,ie) = ds1 - (elem(ie)%D(i,j,1,1)*dscontra1 + elem(ie)%D(i,j,1,2)*dscontra2) * rrearth
+                ds(i,j,2,k,tl_out,ie) = ds2 - (elem(ie)%D(i,j,2,1)*dscontra1 + elem(ie)%D(i,j,2,2)*dscontra2) * rrearth
               endif
             enddo
           enddo
         enddo
       enddo
     enddo
-  end subroutine vorticity_sphere_openacc
+  end subroutine gradient_minus_curl_sphere_wk_testcov
 
-  subroutine laplace_sphere_wk_openacc(s,grads,deriv,elem,var_coef,laplace,len,nets,nete,ntl,tl)
+  subroutine laplace_sphere_wk_openacc(s,grads,deriv,elem,var_coef,laplace,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out)
     use element_mod, only: element_t
     use control_mod, only: hypervis_scaling, hypervis_power
     implicit none
     !input:  s = scalar
     !ouput:  -< grad(PHI), grad(s) >   = weak divergence of grad(s)
     !note: for this form of the operator, grad(s) does not need to be made C0
-    real(kind=real_kind) , intent(in   ) :: s(np,np,len,ntl,nelemd)
+    real(kind=real_kind) , intent(in   ) :: s(np,np,len,ntl_in,nelemd)
     real(kind=real_kind) , intent(inout) :: grads(np,np,2,len,nelemd)
     type (derivative_t)  , intent(in   ) :: deriv
     type (element_t)     , intent(in   ) :: elem(:)
     logical              , intent(in   ) :: var_coef
-    real(kind=real_kind) , intent(  out) :: laplace(np,np,len,ntl,nelemd)
-    integer              , intent(in   ) :: len,nets,nete,ntl,tl
+    real(kind=real_kind) , intent(  out) :: laplace(np,np,len,ntl_out,nelemd)
+    integer              , intent(in   ) :: len,nets,nete,ntl_in,tl_in, ntl_out, tl_out
     integer :: i,j,k,ie
     ! Local
     real(kind=real_kind) :: oldgrads(2)
-    call gradient_sphere_openacc(s,deriv,elem(:),grads,len,nets,nete,ntl,tl)
+    call gradient_sphere_openacc(s,deriv,elem(:),grads,len,nets,nete,ntl_in,tl_in,1,1)
     !$acc parallel loop gang vector collapse(4) present(grads,elem(:)) private(oldgrads)
     do ie = nets , nete
       do k = 1 , len
@@ -123,10 +220,10 @@ contains
     enddo
     ! note: divergnece_sphere and divergence_sphere_wk are identical *after* bndry_exchange
     ! if input is C_0.  Here input is not C_0, so we should use divergence_sphere_wk().  
-    call divergence_sphere_wk_openacc(grads,deriv,elem(:),laplace,len,nets,nete,ntl,tl)
+    call divergence_sphere_wk_openacc(grads,deriv,elem(:),laplace,len,nets,nete,1,1,ntl_out,tl_out)
   end subroutine laplace_sphere_wk_openacc
 
-  subroutine divergence_sphere_wk_openacc(v,deriv,elem,div,len,nets,nete,ntl,tl)
+  subroutine divergence_sphere_wk_openacc(v,deriv,elem,div,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out)
     use element_mod, only: element_t
     use physical_constants, only: rrearth
     implicit none
@@ -136,12 +233,12 @@ contains
 !   (the integrated by parts version of < psi div(v) > )
 !   note: after DSS, divergence_sphere () and divergence_sphere_wk() 
 !   are identical to roundoff, as theory predicts.
-    real(kind=real_kind), intent(in) :: v(np,np,2,len,ntl,nelemd)  ! in lat-lon coordinates
+    real(kind=real_kind), intent(in) :: v(np,np,2,len,ntl_in,nelemd)  ! in lat-lon coordinates
     type (derivative_t) , intent(in) :: deriv
     type (element_t)    , intent(in) :: elem(:)
-    real(kind=real_kind), intent(out):: div(np,np,len,ntl,nelemd)
+    real(kind=real_kind), intent(out):: div(np,np,len,ntl_out,nelemd)
     integer             , intent(in) :: len
-    integer             , intent(in) :: nets , nete , ntl , tl
+    integer             , intent(in) :: nets , nete , ntl_in , tl_in, ntl_out, tl_out
     ! Local
     integer, parameter :: kchunk = 8
     integer :: i,j,l,k,ie,kc,kk
@@ -157,8 +254,8 @@ contains
             do i = 1 , np
               k = (kc-1)*kchunk+kk
               if (k <= len) then
-                vtemp(i,j,1,kk)=elem(ie)%spheremp(i,j)*(elem(ie)%Dinv(i,j,1,1)*v(i,j,1,k,tl,ie) + elem(ie)%Dinv(i,j,1,2)*v(i,j,2,k,tl,ie))
-                vtemp(i,j,2,kk)=elem(ie)%spheremp(i,j)*(elem(ie)%Dinv(i,j,2,1)*v(i,j,1,k,tl,ie) + elem(ie)%Dinv(i,j,2,2)*v(i,j,2,k,tl,ie))
+                vtemp(i,j,1,kk)=elem(ie)%spheremp(i,j)*(elem(ie)%Dinv(i,j,1,1)*v(i,j,1,k,tl_in,ie) + elem(ie)%Dinv(i,j,1,2)*v(i,j,2,k,tl_in,ie))
+                vtemp(i,j,2,kk)=elem(ie)%spheremp(i,j)*(elem(ie)%Dinv(i,j,2,1)*v(i,j,1,k,tl_in,ie) + elem(ie)%Dinv(i,j,2,2)*v(i,j,2,k,tl_in,ie))
               endif
               if (kk == 1) deriv_tmp(i,j) = deriv%Dvv(i,j)
             enddo
@@ -174,7 +271,7 @@ contains
                 do l = 1 , np
                   tmp = tmp - ( vtemp(l,j,1,kk)*deriv_tmp(i,l) + vtemp(i,l,2,kk)*deriv_tmp(j,l) )
                 enddo
-                div(i,j,k,tl,ie) = tmp * rrearth
+                div(i,j,k,tl_out,ie) = tmp * rrearth
               endif
             enddo
           enddo
@@ -183,23 +280,32 @@ contains
     enddo
   end subroutine divergence_sphere_wk_openacc
 
-  subroutine gradient_sphere_openacc(s,deriv,elem,ds,len,nets,nete,ntl,tl)
+  subroutine gradient_sphere_openacc(s,deriv,elem,ds,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,asyncid_in)
     use element_mod, only: element_t
     use physical_constants, only: rrearth
     implicit none
     !   input s:  scalar
     !   output  ds: spherical gradient of s, lat-lon coordinates
-    real(kind=real_kind), intent(in) :: s(np,np,len,ntl,nelemd)
+    real(kind=real_kind), intent(in) :: s(np,np,len,ntl_in,nelemd)
     type(derivative_t)  , intent(in) :: deriv
     type(element_t)     , intent(in) :: elem(:)
-    real(kind=real_kind), intent(out):: ds(np,np,2,len,ntl,nelemd)
+    real(kind=real_kind), intent(out):: ds(np,np,2,len,ntl_out,nelemd)
     integer             , intent(in) :: len
-    integer             , intent(in) :: nets,nete,ntl,tl
+    integer             , intent(in) :: nets,nete,ntl_in,tl_in, ntl_out,tl_out
+    integer, optional   , intent(in) :: asyncid_in
     integer, parameter :: kchunk = 8
     integer :: i, j, l, k, ie, kc, kk
     real(kind=real_kind) :: dsdx00, dsdy00
     real(kind=real_kind) :: stmp(np,np,kchunk), deriv_tmp(np,np)
-    !$acc parallel loop gang collapse(2) present(ds,elem(:),s,deriv%Dvv) private(stmp,deriv_tmp)
+    integer :: asyncid
+    if (present(asyncid_in)) then
+      asyncid = asyncid_in
+    else
+#     ifdef _OPENACC
+      asyncid = acc_async_sync
+#     endif
+    endif
+    !$acc parallel loop gang collapse(2) present(ds,elem(:),s,deriv%Dvv) private(stmp,deriv_tmp) async(asyncid)
     do ie = nets , nete
       do kc = 1 , len/kchunk+1
         !$acc cache(stmp,deriv_tmp)
@@ -209,7 +315,7 @@ contains
             do i = 1 , np
               k = (kc-1)*kchunk+kk
               if (k > len) k = len
-              stmp(i,j,kk) = s(i,j,k,tl,ie)
+              stmp(i,j,kk) = s(i,j,k,tl_in,ie)
               if (kk == 1) deriv_tmp(i,j) = deriv%Dvv(i,j)
             enddo
           enddo
@@ -226,8 +332,8 @@ contains
                   dsdx00 = dsdx00 + deriv_tmp(l,i)*stmp(l,j,kk)
                   dsdy00 = dsdy00 + deriv_tmp(l,j)*stmp(i,l,kk)
                 enddo
-                ds(i,j,1,k,tl,ie) = ( elem(ie)%Dinv(i,j,1,1)*dsdx00 + elem(ie)%Dinv(i,j,2,1)*dsdy00 ) * rrearth
-                ds(i,j,2,k,tl,ie) = ( elem(ie)%Dinv(i,j,1,2)*dsdx00 + elem(ie)%Dinv(i,j,2,2)*dsdy00 ) * rrearth
+                ds(i,j,1,k,tl_out,ie) = ( elem(ie)%Dinv(i,j,1,1)*dsdx00 + elem(ie)%Dinv(i,j,2,1)*dsdy00 ) * rrearth
+                ds(i,j,2,k,tl_out,ie) = ( elem(ie)%Dinv(i,j,1,2)*dsdx00 + elem(ie)%Dinv(i,j,2,2)*dsdy00 ) * rrearth
               endif
             enddo
           enddo
@@ -236,23 +342,32 @@ contains
     enddo
   end subroutine gradient_sphere_openacc
 
-  subroutine divergence_sphere_openacc(v,deriv,elem,div,len,nets,nete,ntl,tl)
-!   input:  v = velocity in lat-lon coordinates
-!   ouput:  div(v)  spherical divergence of v
+  subroutine divergence_sphere_openacc(v,deriv,elem,div,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,asyncid_in)
+    !   input:  v = velocity in lat-lon coordinates
+    !   ouput:  div(v)  spherical divergence of v
     use element_mod   , only: element_t
     use physical_constants, only: rrearth
     implicit none
-    real(kind=real_kind), intent(in   ) :: v(np,np,2,len,ntl,nelemd)  ! in lat-lon coordinates
+    real(kind=real_kind), intent(in   ) :: v(np,np,2,len,ntl_in,nelemd)  ! in lat-lon coordinates
     type(derivative_t)  , intent(in   ) :: deriv
     type(element_t)     , intent(in   ) :: elem(:)
-    real(kind=real_kind), intent(  out) :: div(np,np,len,ntl,nelemd)
-    integer             , intent(in   ) :: len , nets , nete , ntl , tl
+    real(kind=real_kind), intent(  out) :: div(np,np,len,ntl_out,nelemd)
+    integer             , intent(in   ) :: len , nets , nete , ntl_in , tl_in , ntl_out , tl_out
+    integer, optional   , intent(in   ) :: asyncid_in
     ! Local
     integer, parameter :: kchunk = 8
     integer :: i, j, l, k, ie, kc, kk
     real(kind=real_kind) ::  dudx00, dvdy00, gv(np,np,kchunk,2), deriv_tmp(np,np)
+    integer :: asyncid
+    if (present(asyncid_in)) then
+      asyncid = asyncid_in
+    else
+#     ifdef _OPENACC
+      asyncid = acc_async_sync
+#     endif
+    endif
     ! convert to contra variant form and multiply by g
-    !$acc parallel loop gang collapse(2) private(gv,deriv_tmp) present(v,deriv,div,elem(:))
+    !$acc parallel loop gang collapse(2) private(gv,deriv_tmp) present(v,deriv,div,elem(:)) async(asyncid)
     do ie = nets , nete
       do kc = 1 , len/kchunk+1
         !$acc cache(gv,deriv_tmp)
@@ -262,8 +377,8 @@ contains
             do i = 1 , np
               k = (kc-1)*kchunk+kk
               if (k <= len) then
-                gv(i,j,kk,1)=elem(ie)%metdet(i,j)*(elem(ie)%Dinv(i,j,1,1)*v(i,j,1,k,tl,ie) + elem(ie)%Dinv(i,j,1,2)*v(i,j,2,k,tl,ie))
-                gv(i,j,kk,2)=elem(ie)%metdet(i,j)*(elem(ie)%Dinv(i,j,2,1)*v(i,j,1,k,tl,ie) + elem(ie)%Dinv(i,j,2,2)*v(i,j,2,k,tl,ie))
+                gv(i,j,kk,1)=elem(ie)%metdet(i,j)*(elem(ie)%Dinv(i,j,1,1)*v(i,j,1,k,tl_in,ie) + elem(ie)%Dinv(i,j,1,2)*v(i,j,2,k,tl_in,ie))
+                gv(i,j,kk,2)=elem(ie)%metdet(i,j)*(elem(ie)%Dinv(i,j,2,1)*v(i,j,1,k,tl_in,ie) + elem(ie)%Dinv(i,j,2,2)*v(i,j,2,k,tl_in,ie))
               endif
               if (kk == 1) deriv_tmp(i,j) = deriv%dvv(i,j)
             enddo
@@ -282,7 +397,7 @@ contains
                   dudx00 = dudx00 + deriv_tmp(l,i)*gv(l,j,kk,1)
                   dvdy00 = dvdy00 + deriv_tmp(l,j)*gv(i,l,kk,2)
                 enddo
-                div(i,j,k,tl,ie)=(dudx00+dvdy00)*(elem(ie)%rmetdet(i,j)*rrearth)
+                div(i,j,k,tl_out,ie)=(dudx00+dvdy00)*(elem(ie)%rmetdet(i,j)*rrearth)
               endif
             enddo
           enddo
@@ -290,6 +405,70 @@ contains
       enddo
     enddo
   end subroutine divergence_sphere_openacc
+
+  subroutine vorticity_sphere_openacc(v,deriv,elem,vort,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,asyncid_in)
+    !   input:  v = velocity in lat-lon coordinates
+    !   ouput:  spherical vorticity of v
+    use element_mod   , only: element_t
+    use physical_constants, only: rrearth
+    use dimensions_mod, only: nlev
+    implicit none
+    real(kind=real_kind), intent(in   ) :: v(np,np,2,len,ntl_in,nelemd)
+    type (derivative_t) , intent(in   ) :: deriv
+    type (element_t)    , intent(in   ) :: elem(:)
+    real(kind=real_kind), intent(  out) :: vort(np,np,len,ntl_out,nelemd)
+    integer             , intent(in   ) :: len , nets , nete , ntl_in , tl_in, ntl_out , tl_out
+    integer, optional   , intent(in   ) :: asyncid_in
+    integer, parameter :: kchunk = 8
+    integer :: i, j, l, k, kc, kk, ie
+    real(kind=real_kind) :: dvdx00,dudy00
+    real(kind=real_kind) :: vco(np,np,kchunk,2), deriv_tmp(np,np)
+    integer :: asyncid
+    if (present(asyncid_in)) then
+      asyncid = asyncid_in
+    else
+#     ifdef _OPENACC
+      asyncid = acc_async_sync
+#     endif
+    endif
+    ! convert to covariant form
+    !$acc parallel loop gang collapse(2) private(vco,deriv_tmp) present(v,deriv,vort,elem(:)) async(asyncid)
+    do ie = nets , nete
+      do kc = 1 , len / kchunk + 1
+        !$acc cache(vco,deriv_tmp)
+        !$acc loop vector collapse(3) private(k)
+        do kk = 1 , kchunk
+          do j = 1 , np
+            do i = 1 , np
+              k = (kc-1)*kchunk + kk
+              if (k <= len) then
+                vco(i,j,kk,1) = elem(ie)%D(i,j,1,1)*v(i,j,1,k,tl_in,ie) + elem(ie)%D(i,j,2,1)*v(i,j,2,k,tl_in,ie)
+                vco(i,j,kk,2) = elem(ie)%D(i,j,1,2)*v(i,j,1,k,tl_in,ie) + elem(ie)%D(i,j,2,2)*v(i,j,2,k,tl_in,ie)
+              endif
+              if (kk == 1) deriv_tmp(i,j) = deriv%dvv(i,j)
+            enddo
+          enddo
+        enddo
+        !$acc loop vector collapse(3) private(dvdx00,dudy00,k)
+        do kk = 1 , kchunk
+          do j = 1 , np
+            do i = 1 , np
+              k = (kc-1)*kchunk + kk
+              if (k <= len) then
+                dudy00=0.0d0
+                dvdx00=0.0d0
+                do l = 1 , np
+                  dvdx00 = dvdx00 + deriv_tmp(l,i)*vco(l,j,kk,2)
+                  dudy00 = dudy00 + deriv_tmp(l,j)*vco(i,l,kk,1)
+                enddo
+                vort(i,j,k,tl_out,ie) = (dvdx00-dudy00) * (elem(ie)%rmetdet(i,j) * rrearth)
+              endif
+            enddo
+          enddo
+        enddo
+      enddo
+    enddo
+  end subroutine vorticity_sphere_openacc
 
 end module derivative_mod
 

@@ -6,6 +6,9 @@
 module openacc_utils_mod
   use kinds, only: real_kind
   use dimensions_mod, only: nelemd
+#ifdef _OPENACC
+  use openacc, only: acc_async_sync_actual => acc_async_sync
+#endif
   implicit none
   private
 
@@ -16,8 +19,34 @@ module openacc_utils_mod
   public :: copy_ondev
   public :: copy_ondev_async
   public :: acc_async_test_wrap
+  public :: memset
+
+#ifndef _OPENACC
+  integer, public, parameter :: acc_async_sync = -1
+#else
+  integer, public, parameter :: acc_async_sync = acc_async_sync_actual
+#endif
 
 contains
+
+  subroutine memset(n,arr,val,asyncid_in)
+    implicit none
+    integer             , intent(in   ) :: n
+    real(kind=real_kind), intent(  out) :: arr(n)
+    real(kind=real_kind), intent(in   ) :: val
+    integer, optional   , intent(in   ) :: asyncid_in
+    integer :: i
+    integer :: asyncid
+    if (present(asyncid_in)) then
+      asyncid = asyncid_in
+    else
+      asyncid = acc_async_sync
+    endif
+    !$acc parallel loop gang vector present(arr) async(asyncid)
+    do i = 1 , n
+      arr(i) = val
+    enddo
+  end subroutine memset
 
   function acc_async_test_wrap( asyncid )  result(rslt)
 #   ifdef _OPENACC

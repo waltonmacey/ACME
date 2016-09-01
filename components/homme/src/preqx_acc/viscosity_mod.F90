@@ -27,10 +27,90 @@ module viscosity_mod
 #endif
   public :: biharmonic_wk_scalar_openacc
   public :: neighbor_minmax_openacc
+  public :: biharmonic_wk_dp3d_openacc
 
 
 
 contains
+
+  subroutine biharmonic_wk_dp3d_openacc(elem,dptens,ptens,vtens,div,vort,grads,deriv,edge3,hybrid,nt,nets,nete)
+    use hybrid_mod            , only: hybrid_t
+    use element_mod           , only: element_t, state_t, timelevels, state_dp3d, state_v
+    use edgetype_mod          , only: edgeBuffer_t
+    use derivative_mod        , only: derivative_t, laplace_sphere_wk, vlaplace_sphere_wk
+    use edge_mod              , only: edgeVpack_openacc, edgeVunpack_openacc
+    use bndry_mod             , only: bndry_exchangeV => bndry_exchangeV_simple_overlap
+    use dimensions_mod        , only: nc
+    use control_mod           , only: hypervis_scaling, nu, nu_div
+    use derivative_mod        , only: laplace_sphere_wk_openacc, vlaplace_sphere_wk_openacc
+    use openacc_utils_mod     , only: copy_ondev
+    ! compute weak biharmonic operator
+    !    input:  h,v (stored in elem()%, in lat-lon coordinates
+    !    output: ptens,vtens  overwritten with weak biharmonic of h,v (output in lat-lon coordinates)
+    type (hybrid_t)      , intent(in   ) :: hybrid
+    type (element_t)     , intent(in   ) :: elem(:)
+    integer              , intent(in   ) :: nt,nets,nete
+    real (kind=real_kind), intent(  out) :: vtens (np,np,2,nlev,nelemd)
+    real (kind=real_kind), intent(  out) :: ptens (np,np  ,nlev,nelemd)
+    real (kind=real_kind), intent(  out) :: dptens(np,np  ,nlev,nelemd)
+    real(kind=real_kind) , intent(inout) :: grads (np,np,2,nlev,nelemd)
+    real(kind=real_kind) , intent(inout) :: div   (np,np  ,nlev,nelemd)
+    real(kind=real_kind) , intent(inout) :: vort  (np,np  ,nlev,nelemd)
+    type (EdgeBuffer_t)  , intent(inout) :: edge3
+    type (derivative_t)  , intent(in   ) :: deriv
+    ! local
+    integer :: i,j,k,kptr,ie
+    real (kind=real_kind) :: nu_ratio1, nu_ratio2
+    logical :: var_coef1
+    var_coef1 = .true.
+    if(hypervis_scaling > 0)    var_coef1 = .false.
+    nu_ratio1=1
+    nu_ratio2=1
+    if (nu_div/=nu) then
+      if(hypervis_scaling /= 0) then
+        nu_ratio1=(nu_div/nu)**2   ! preserve buggy scaling
+        nu_ratio2=1
+      else
+        nu_ratio1=nu_div/nu
+        nu_ratio2=nu_div/nu
+      endif
+    endif
+    !$omp barrier
+    !$omp master
+    call  laplace_sphere_wk_openacc(state_t   ,grads   ,deriv,elem,var_coef1, ptens,nlev,nets,nete,timelevels,nt,1,1)
+    call  laplace_sphere_wk_openacc(state_dp3d,grads   ,deriv,elem,var_coef1,dptens,nlev,nets,nete,timelevels,nt,1,1)
+    call vlaplace_sphere_wk_openacc(state_v   ,div,vort,deriv,elem,var_coef1,vtens ,nlev,nets,nete,timelevels,nt,1,1,nu_ratio=nu_ratio1)
+    call edgeVpack_openacc(edge3, ptens,  nlev,     0,elem,nets,nete,1,1)
+    call edgeVpack_openacc(edge3, vtens,2*nlev,  nlev,elem,nets,nete,1,1)
+    call edgeVpack_openacc(edge3,dptens,  nlev,3*nlev,elem,nets,nete,1,1)
+    !$omp end master
+    !$omp barrier
+    call bndry_exchangeV(hybrid,edge3)
+    !$omp barrier
+    !$omp master
+    call edgeVunpack_openacc(edge3, ptens,  nlev,     0,elem,nets,nete,1,1)
+    call edgeVunpack_openacc(edge3, vtens,2*nlev,  nlev,elem,nets,nete,1,1)
+    call edgeVunpack_openacc(edge3,dptens,  nlev,3*nlev,elem,nets,nete,1,1)
+    !$acc parallel loop gang vector collapse(4) present(ptens,dptens,vtens,elem)
+    do ie=nets,nete
+      ! apply inverse mass matrix, then apply laplace again
+      do k=1,nlev
+        do j = 1 , np
+          do i = 1 , np
+            ptens (i,j  ,k,ie) = elem(ie)%rspheremp(i,j)* ptens(i,j  ,k,ie)
+            dptens(i,j  ,k,ie) = elem(ie)%rspheremp(i,j)*dptens(i,j  ,k,ie)
+            vtens (i,j,:,k,ie) = elem(ie)%rspheremp(i,j)*vtens (i,j,:,k,ie)
+          enddo
+        enddo
+      enddo
+    enddo
+    call  laplace_sphere_wk_openacc( ptens,grads   ,deriv,elem,var_coef1, ptens,nlev,nets,nete,1,1,1,1)
+    call  laplace_sphere_wk_openacc(dptens,grads   ,deriv,elem,var_coef1,dptens,nlev,nets,nete,1,1,1,1)
+    call vlaplace_sphere_wk_openacc( vtens,div,vort,deriv,elem,var_coef1,grads ,nlev,nets,nete,1,1,1,1,nu_ratio=nu_ratio1)
+    call copy_ondev(vtens,grads,product(shape(grads)))
+    !$omp end master
+    !$omp barrier
+  end subroutine biharmonic_wk_dp3d_openacc
 
   subroutine biharmonic_wk_scalar_openacc(elem,qtens,grads,deriv,edgeq,hybrid,nets,nete)
     use hybrid_mod            , only: hybrid_t
@@ -64,7 +144,7 @@ contains
     if(hypervis_scaling > 0) var_coef1 = .false.
     !$omp barrier
     !$omp master
-    call laplace_sphere_wk_openacc(qtens,grads,deriv,elem,var_coef1,qtens,nlev*qsize,nets,nete,1,1)
+    call laplace_sphere_wk_openacc(qtens,grads,deriv,elem,var_coef1,qtens,nlev*qsize,nets,nete,1,1,1,1)
     call t_startf('biwksc_PEU')
     call edgeVpack_openacc(edgeq,qtens,qsize*nlev,0,elem(:),nets,nete,1,1)
     !$omp end master
@@ -91,7 +171,7 @@ contains
         enddo
       enddo
     enddo
-    call laplace_sphere_wk_openacc(qtens,grads,deriv,elem,.true.,qtens,nlev*qsize,nets,nete,1,1)
+    call laplace_sphere_wk_openacc(qtens,grads,deriv,elem,.true.,qtens,nlev*qsize,nets,nete,1,1,1,1)
     !$omp end master
     !$omp barrier
   end subroutine biharmonic_wk_scalar_openacc

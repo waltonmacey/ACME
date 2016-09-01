@@ -7,7 +7,6 @@
 module prim_si_mod
   use prim_si_mod_base, only: preq_omegap, preq_omega_lnps, geopotential_t, preq_pressure, preq_hydrostatic, preq_omega_ps, preq_vertadv
 #if USE_OPENACC
-  use openacc, only: acc_async_sync
   implicit none
   private
 
@@ -85,6 +84,7 @@ contains
     use dimensions_mod    , only : np, nlev, nelemd
     use element_mod       , only : element_t
     use physical_constants, only : rgas
+    use openacc_utils_mod, only: acc_async_sync
     implicit none
     type(element_t)     , intent(inout) :: elem(:)
     real(kind=real_kind), intent(in)    :: T_v(np,np,nlev,nelemd)
@@ -126,6 +126,7 @@ contains
   subroutine preq_omega_ps_openacc(omega_p,p,vgrad_p,divdp,nets,nete,asyncid_in)
     use kinds, only : real_kind
     use dimensions_mod, only : np, nlev, nelemd
+    use openacc_utils_mod, only: acc_async_sync
     implicit none
     real(kind=real_kind), intent(in) :: divdp  (np,np,nlev,nelemd)      ! divergence
     real(kind=real_kind), intent(in) :: vgrad_p(np,np,nlev,nelemd) ! v.grad(p)

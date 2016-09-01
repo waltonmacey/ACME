@@ -738,7 +738,7 @@ contains
       enddo
     enddo
   enddo
-  call divergence_sphere_openacc( grads_tracer , deriv , elem(:) , qtens , nlev*qsize , 1 , nelemd , 1 , 1 )
+  call divergence_sphere_openacc( grads_tracer , deriv , elem(:) , qtens , nlev*qsize , 1 , nelemd , 1 , 1 , 1 , 1 )
   !$acc parallel loop gang vector collapse(5) present(qtens,state_qdp,qtens_biharmonic)
   do ie = 1 , nelemd
     ! advance Qdp
@@ -976,7 +976,7 @@ contains
     !$omp barrier
     !$omp master
     !$acc update device(derived_vn0)
-    call divergence_sphere_openacc(derived_vn0,deriv,elem,derived_divdp,nlev,1,nelemd,1,1)
+    call divergence_sphere_openacc(derived_vn0,deriv,elem,derived_divdp,nlev,1,nelemd,1,1,1,1)
     call copy_ondev(derived_divdp_proj,derived_divdp,product(shape(derived_divdp)))
     !$acc update host(derived_divdp,derived_divdp_proj)
     !$omp end master
