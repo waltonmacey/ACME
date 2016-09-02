@@ -510,6 +510,13 @@ end subroutine macrop_driver_readnl
   ! CloudSat equivalent ice mass mixing ratio (kg/kg)
   real(r8) :: cldsice(pcols,pver)
 
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (08/26/2016):
+! Control when convective detrainment occurs in the model.
+    logical :: detrain_conv
+    call phys_getopts( detrain_conv_out = detrain_conv )
+!======================================================================= 
+
   ! ======================================================================
 
   lchnk = state%lchnk
@@ -603,6 +610,7 @@ end subroutine macrop_driver_readnl
    dpdlft   = 0._r8
    shdlft   = 0._r8
 
+
    do k = top_lev, pver
    do i = 1, state_loc%ncol
       if( state_loc%t(i,k) > 268.15_r8 ) then
@@ -616,26 +624,33 @@ end subroutine macrop_driver_readnl
      ! If detrainment was done elsewhere, still update the variables used for output
      ! assuming that the temperature split between liquid and ice is the same as assumed
      ! here.
-     if (do_detrain) then
-      ptend_loc%q(i,k,ixcldliq) = dlf(i,k) * ( 1._r8 - dum1 )
-      ptend_loc%q(i,k,ixcldice) = dlf(i,k) * dum1
+!     if (detrain_conv) then  ! ProcOrdering - AaronDonahue - (08/29/2016) Added option here to move convective detrainment out of macrophysics and into convection processes
+     if (detrain_conv) then
+       ptend_loc%q(i,k,ixcldliq) = 0._r8
+       ptend_loc%q(i,k,ixcldice) = 0._r8
+       ptend_loc%q(i,k,ixnumliq) = 0._r8
+       ptend_loc%q(i,k,ixnumice) = 0._r8
+       ptend_loc%s(i,k)          = 0._r8
+     elseif (do_detrain) then
+       ptend_loc%q(i,k,ixcldliq) = dlf(i,k) * ( 1._r8 - dum1 )
+       ptend_loc%q(i,k,ixcldice) = dlf(i,k) * dum1
     ! dum2                      = dlf(i,k) * ( 1._r8 - dum1 )
-      ptend_loc%q(i,k,ixnumliq) = 3._r8 * ( max(0._r8, ( dlf(i,k) - dlf2(i,k) )) * ( 1._r8 - dum1 ) ) / &
+       ptend_loc%q(i,k,ixnumliq) = 3._r8 * ( max(0._r8, ( dlf(i,k) - dlf2(i,k) )) * ( 1._r8 - dum1 ) ) / &
            (4._r8*3.14_r8* 8.e-6_r8**3*997._r8) + & ! Deep    Convection
            3._r8 * (                         dlf2(i,k)    * ( 1._r8 - dum1 ) ) / &
            (4._r8*3.14_r8*10.e-6_r8**3*997._r8)     ! Shallow Convection 
     ! dum2                      = dlf(i,k) * dum1
-      ptend_loc%q(i,k,ixnumice) = 3._r8 * ( max(0._r8, ( dlf(i,k) - dlf2(i,k) )) *  dum1 ) / &
+       ptend_loc%q(i,k,ixnumice) = 3._r8 * ( max(0._r8, ( dlf(i,k) - dlf2(i,k) )) *  dum1 ) / &
            (4._r8*3.14_r8*25.e-6_r8**3*500._r8) + & ! Deep    Convection
            3._r8 * (                         dlf2(i,k)    *  dum1 ) / &
            (4._r8*3.14_r8*50.e-6_r8**3*500._r8)     ! Shallow Convection
-      ptend_loc%s(i,k)          = dlf(i,k) * dum1 * latice
+       ptend_loc%s(i,k)          = dlf(i,k) * dum1 * latice
      else 
-        ptend_loc%q(i,k,ixcldliq) = 0._r8
-        ptend_loc%q(i,k,ixcldice) = 0._r8
-        ptend_loc%q(i,k,ixnumliq) = 0._r8
-        ptend_loc%q(i,k,ixnumice) = 0._r8
-        ptend_loc%s(i,k)          = 0._r8
+       ptend_loc%q(i,k,ixcldliq) = 0._r8
+       ptend_loc%q(i,k,ixcldice) = 0._r8
+       ptend_loc%q(i,k,ixnumliq) = 0._r8
+       ptend_loc%q(i,k,ixnumice) = 0._r8
+       ptend_loc%s(i,k)          = 0._r8
      end if
     
 

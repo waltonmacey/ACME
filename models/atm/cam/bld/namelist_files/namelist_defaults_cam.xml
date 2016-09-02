@@ -851,6 +851,10 @@
 <!-- Add default process ordering that reflects baseline code set up  -->
 <proc_order_bc>1,2,3,4,5</proc_order_bc>
 <!-- ================================================================ -->
+<!-- ProcOrdering - AaronDonahue - (08/26/2016):                      -->
+<!-- Add default process ordering that reflects baseline code set up  -->
+<detrain_conv>.false.</detrain_conv>
+<!-- ================================================================ -->
 
 <!-- Deep convection scheme -->
 <deep_scheme>ZM</deep_scheme>

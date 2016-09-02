@@ -2200,6 +2200,16 @@ there are 5 processes considered, 1-Deep Convection, 2-Shallow Convection
 Default: 1, 2, 3, 4, 5
 </entry>
 <!-- ================================================================ -->
+<!-- ProcOrdering - AaronDonahue - (08/26/2016):                      -->
+<!-- Add definition of convective detrainment control                 -->
+<entry id="detrain_conv" type="logical" category="conv"
+       group="phys_ctl_nl" valid_values="" >
+Control of when convective detrainment will be handled by the model.
+Currently the default is to have it handled during the macrophyics call,
+this logical flag provides the user with the option to have the convective
+detrainment handled in the perspective convection processes (shallow and deep).
+</entry>
+<!-- ================================================================ -->
 
 <!-- Moist Convection and Microphysics -->
 

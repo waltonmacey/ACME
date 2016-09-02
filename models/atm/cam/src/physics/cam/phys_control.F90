@@ -135,6 +135,14 @@ logical :: l_rad           = .true.
 !       4 - Microphysics/Wet Deposition (BC)
 !       5 - Radiation (BC)
 integer :: proc_order_bc(5)
+! ProcOrdering - AaronDonahue - (08/26/2016): 
+! Variable to handle namelist variable associated with the handling of
+! convective detrainment.  This is a logical, such that:
+!       true = convective detrainment is handled in the respective convective
+!              schemes
+!       false = convective detrainment is handled in the macrophysics call
+!               (default)
+logical :: detrain_conv = .false.
 !======================================================================= 
 
 !======================================================================= 
@@ -163,7 +171,8 @@ subroutine phys_ctl_readnl(nlfile)
       liqcf_fix, regen_fix, demott_ice_nuc, &                                                !BSINGH(09/16/2014):liqcf_fix,regen_fix,demott_ice_nuc
       l_tracer_aero, l_vdiff, l_rayleigh, l_gw_drag, l_ac_energy_chk, &
       l_bc_energy_fix, l_dry_adj, l_st_mac, l_st_mic, l_rad, &
-      proc_order_bc                                                                          ! ProcOrdering - AaronDonahue - (08/03/2016): Added proc_order_bc to control process order
+      proc_order_bc, &                                                                       ! ProcOrdering - AaronDonahue - (08/03/2016): Added proc_order_bc to control process order
+      detrain_conv                                                                           ! ProcOrdering - AaronDonahue - (08/03/2016): Added detrain_conv logical to control if convective detrainment is handled in macrophysics or in convection.
    !-----------------------------------------------------------------------------
 
    if (masterproc) then
@@ -229,6 +238,7 @@ subroutine phys_ctl_readnl(nlfile)
    call mpibcast(l_st_mic,                        1 , mpilog,  0, mpicom)
    call mpibcast(l_rad,                           1 , mpilog,  0, mpicom)
    call mpibcast(proc_order_bc,                   5 , mpiint,  0, mpicom)
+   call mpibcast(detrain_conv,                    1 , mpilog,  0, mpicom)
 #endif
 
    ! Error checking:
@@ -347,6 +357,7 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
                        ,l_tracer_aero_out, l_vdiff_out, l_rayleigh_out, l_gw_drag_out, l_ac_energy_chk_out  &
                        ,l_bc_energy_fix_out, l_dry_adj_out, l_st_mac_out, l_st_mic_out, l_rad_out  &
                        ,proc_order_bc_out &                                    ! ProcOrdering - AaronDonahue - (08/03/2016): Added proc_order_bc to control process order
+                       ,detrain_conv_out  & ! ProcOrdering - AaronDonahue - (08/26/2016): Added detrain_conv to control if convective detrainment is handled in macrophysics or convection
                         )
 !-----------------------------------------------------------------------
 ! Purpose: Return runtime settings
@@ -404,7 +415,10 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
 !======================================================================= 
 ! ProcOrdering - AaronDonahue - (08/03/2016):
 ! Include a call to retrieve the proc_order_bc component from namelist.
-   integer,dimension(5),intent(in),optional :: proc_order_bc_out
+   integer,dimension(5),intent(out),optional :: proc_order_bc_out
+! ProcOrdering - AaronDonahue - (08/26/2016):
+! Include a call to retrieve the detrain_conv component from namelist.
+   logical,           intent(out), optional :: detrain_conv_out
 !======================================================================= 
    if ( present(deep_scheme_out         ) ) deep_scheme_out          = deep_scheme
    if ( present(shallow_scheme_out      ) ) shallow_scheme_out       = shallow_scheme
@@ -449,6 +463,7 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
    if ( present(l_st_mic_out            ) ) l_st_mic_out          = l_st_mic
    if ( present(l_rad_out               ) ) l_rad_out             = l_rad
    if ( present(proc_order_bc_out       ) ) proc_order_bc_out     = proc_order_bc ! ProcOrdering - AaronDonahue - (08/03/2016): Get process order from namelist
+   if ( present(detrain_conv_out        ) ) detrain_conv_out      = detrain_conv  ! ProcOrdering - AaronDonahue - (08/26/2016): Get convective detrainment control from namelist
 
 end subroutine phys_getopts
 

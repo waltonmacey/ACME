@@ -2578,6 +2578,11 @@ add_default($nl,'fix_g1_err_ndrop','val'=>'.false.');
 # This flag is added to allow for control of the process order through the namelist
 add_default($nl, 'proc_order_bc');
 #======================================================================= 
+# ProcOrdering - AaronDonahue - (08/26/2016):
+# This flag is added to allow for control of when convective detrainment will be resolved
+#  through the namelist
+add_default($nl, 'detrain_conv');
+#======================================================================= 
 
 # Deep convection scheme
 add_default($nl, 'deep_scheme');
