@@ -35,150 +35,121 @@ module derivative_mod
 
 contains
 
-  subroutine vlaplace_sphere_wk_openacc(v,div,vor,deriv,elem,var_coef,laplace,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,nu_ratio)
-    use element_mod   , only: element_t
-    use control_mod   , only: hypervis_scaling
-    implicit none
+  function vlaplace_sphere_wk_openacc(v,deriv,elem,var_coef,len,nu_ratio) result(laplace)
     !   input:  v = vector in lat-lon coordinates
     !   ouput:  weak laplacian of v, in lat-lon coordinates
     !   logic:
     !      tensorHV:     requires cartesian
     !      nu_div/=nu:   requires contra formulatino
     !   One combination NOT supported:  tensorHV and nu_div/=nu then abort
-    real(kind=real_kind)          , intent(in   ) :: v(np,np,2,len,ntl_in,nelemd)
-    real(kind=real_kind)          , intent(inout) :: div(np,np,len,nelemd)
-    real(kind=real_kind)          , intent(inout) :: vor(np,np,len,nelemd)
-    logical                       , intent(in   ) :: var_coef
-    type (derivative_t)           , intent(in   ) :: deriv
-    type (element_t)              , intent(in   ) :: elem(:)
-    real(kind=real_kind), optional, intent(in   ) :: nu_ratio
-    real(kind=real_kind)          , intent(  out) :: laplace(np,np,2,len,ntl_out,nelemd)
-    integer                       , intent(in   ) :: len,nets,nete,ntl_in,tl_in,ntl_out,tl_out
+    real(kind=real_kind), intent(in) :: v(np,np,2,len) 
+    logical             , intent(in) :: var_coef
+    type (derivative_t) , intent(in) :: deriv
+    type (element_t)    , intent(in) :: elem
+    real(kind=real_kind), intent(in), optional :: nu_ratio
+    integer             , intent(in) :: len
+    real(kind=real_kind)             :: laplace(np,np,2,len)
     if (hypervis_scaling/=0 .and. var_coef) then
-      call abortmp('ERROR: hypervis_scaling/=0 .and. var_coef not supported in OpenACC!')
+      call abortmp('hypervis_scaling/=0 .and. var_coef not supported in OpenACC!')
     else  
-      call vlaplace_sphere_wk_contra(v,div,vor,deriv,elem,var_coef,laplace,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,nu_ratio)
+       ! all other cases, use contra formulation:
+       laplace=vlaplace_sphere_wk_contra(v,deriv,elem,var_coef,len,nu_ratio)
     endif
-  end subroutine vlaplace_sphere_wk_openacc
+  end function vlaplace_sphere_wk_openacc
 
-  subroutine vlaplace_sphere_wk_contra(v,div,vor,deriv,elem,var_coef,laplace,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,nu_ratio)
+  function vlaplace_sphere_wk_contra(v,deriv,elem,var_coef,len,nu_ratio) result(laplace)
     !   input:  v = vector in lat-lon coordinates
     !   ouput:  weak laplacian of v, in lat-lon coordinates
-    !   du/dt = laplace(u) = grad(div) - curl(vor)
-    !   < PHI du/dt > = < PHI laplace(u) >        PHI = covariant, u = contravariant
-    !                 = < PHI grad(div) >  - < PHI curl(vor) >
-    !                 = grad_wk(div) - curl_wk(vor)               
-    use element_mod       , only: element_t
-    use physical_constants, only: rrearth
-    use control_mod       , only: hypervis_power
-    implicit none
-    real(kind=real_kind)          , intent(in   ) :: v(np,np,2,len,ntl_in,nelemd)
-    real(kind=real_kind)          , intent(inout) :: div(np,np,len,nelemd)
-    real(kind=real_kind)          , intent(inout) :: vor(np,np,len,nelemd)
-    logical                       , intent(in   ) :: var_coef
-    type (derivative_t)           , intent(in   ) :: deriv
-    type (element_t)              , intent(in   ) :: elem(:)
-    real(kind=real_kind), optional, intent(in   ) :: nu_ratio
-    real(kind=real_kind)          , intent(  out) :: laplace(np,np,2,len,ntl_out,nelemd)
-    integer                       , intent(in   ) :: len,nets,nete,ntl_in,tl_in,ntl_out,tl_out
-    ! Local
-    integer i,j,l,m,n,k,ie
-    real(kind=real_kind) :: v1,v2,div1,div2,vor1,vor2,phi_x,phi_y
-    call divergence_sphere_openacc(v,deriv,elem,div,len,nets,nete,ntl_in,tl_in,1,1)
-    call vorticity_sphere_openacc (v,deriv,elem,vor,len,nets,nete,ntl_in,tl_in,1,1)
-    if (var_coef .and. hypervis_power/=0 ) then
-      !$acc parallel loop gang vector collapse(4) present(div,vor,elem)
-      do ie = nets , nete
-        do k = 1 , len
-          do j = 1 , np
-            do i = 1 , np
-              div(i,j,k,ie) = div(i,j,k,ie)*elem(ie)%variable_hyperviscosity(i,j)
-              vor(i,j,k,ie) = vor(i,j,k,ie)*elem(ie)%variable_hyperviscosity(i,j)
-              if (present(nu_ratio)) div(i,j,k,ie) = nu_ratio*div(i,j,k,ie)
-            enddo
-          enddo
-        enddo
-      enddo
-    endif
-    call gradient_minus_curl_sphere_wk_testcov(div,vor,deriv,elem,laplace,len,nets,nete,1,1,ntl_out,tl_out)
-    !$acc parallel loop gang vector collapse(4) present(laplace,elem,v)
-    do ie = nets , nete
-      do k = 1 , len
-        do j=1,np
-          do i=1,np
-            laplace(i,j,1,k,tl_out,ie) = laplace(i,j,1,k,tl_out,ie) + 2*elem(ie)%spheremp(i,j)*v(i,j,1,k,tl_in,ie)*(rrearth**2)
-            laplace(i,j,2,k,tl_out,ie) = laplace(i,j,2,k,tl_out,ie) + 2*elem(ie)%spheremp(i,j)*v(i,j,2,k,tl_in,ie)*(rrearth**2)
-          enddo
-        enddo
-      enddo
-    enddo
-  end subroutine vlaplace_sphere_wk_contra
-
-  subroutine gradient_minus_curl_sphere_wk_testcov(div,vor,deriv,elem,ds,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out)
-    use element_mod       , only: element_t
-    use physical_constants, only: rrearth
-    implicit none
+    real(kind=real_kind), intent(in) :: v(np,np,2,len) 
+    logical             , intent(in) :: var_coef
     type (derivative_t) , intent(in) :: deriv
-    type (element_t)    , intent(in) :: elem(:)
-    real(kind=real_kind), intent(in) :: div(np,np,len,ntl_in,nelemd)
-    real(kind=real_kind), intent(in) :: vor(np,np,len,ntl_in,nelemd)
-    real(kind=real_kind), intent(out):: ds(np,np,2,len,ntl_out,nelemd)
-    integer             , intent(in) :: len,nets,nete,ntl_in,tl_in,ntl_out,tl_out
-    integer, parameter :: kchunk = 8
-    integer :: i,j,l,k,ie, kc, kk
-    real(kind=real_kind) ::  dscontra1, dscontra2, ds1, ds2
-    real(kind=real_kind) :: divtmp(np,np,kchunk), vortmp(np,np,kchunk), mptmp(np,np), dvvtmp(np,np), metinvtmp(np,np,2,2)
-    !$acc parallel loop gang collapse(2) private(divtmp,vortmp,mptmp,dvvtmp,metinvtmp) present(div,vor,ds,elem)
-    do ie = nets , nete
-      do kc = 1 , len / kchunk + 1
-        !$acc loop vector collapse(3)
-        do kk = 1 , kchunk
-          do j = 1 , np
-            do i = 1 , np
-              k = (kc-1)*kchunk + kk
-              if (k <= len) then
-                divtmp(i,j,kk) = div(i,j,k,tl_in,ie)
-                vortmp(i,j,kk) = vor(i,j,k,tl_in,ie)
-              endif
-              if (kk == 1) then
-                mptmp(i,j) = elem(ie)%mp(i,j)
-                dvvtmp(i,j) = deriv%dvv(i,j)
-                metinvtmp(i,j,:,:) = elem(ie)%metinv(i,j,:,:)
-              endif
-            enddo
-          enddo
-        enddo
-        !$acc loop vector collapse(3) private(dscontra1,dscontra2,ds1,ds2)
-        do kk = 1 , kchunk
-          do j = 1 , np
-            do i = 1 , np
-              k = (kc-1)*kchunk + kk
-              if (k <= len) then
-                dscontra1 = 0
-                dscontra2 = 0
-                do l = 1 , np
-                  dscontra1 = dscontra1 - ( (mptmp(l,j)*metinvtmp(i,j,1,1)*divtmp(l,j,kk)*Dvvtmp(i,l) ) + &
-                                            (mptmp(i,l)*metinvtmp(i,j,2,1)*divtmp(i,l,kk)*Dvvtmp(j,l) ) )
-                  dscontra2 = dscontra2 - ( (mptmp(l,j)*metinvtmp(i,j,1,2)*divtmp(l,j,kk)*Dvvtmp(i,l) ) + &
-                                            (mptmp(i,l)*metinvtmp(i,j,2,2)*divtmp(i,l,kk)*Dvvtmp(j,l) ) )
-                enddo
-                ds1 = (elem(ie)%D(i,j,1,1)*dscontra1 + elem(ie)%D(i,j,1,2)*dscontra2) * rrearth * elem(ie)%metdet(i,j)
-                ds2 = (elem(ie)%D(i,j,2,1)*dscontra1 + elem(ie)%D(i,j,2,2)*dscontra2) * rrearth * elem(ie)%metdet(i,j)
-                dscontra1 = 0
-                dscontra2 = 0
-                do l = 1 , np
-                  dscontra1 = dscontra1 - (mptmp(i,l)*vortmp(i,l,kk)*Dvvtmp(j,l))
-                  dscontra2 = dscontra2 + (mptmp(l,j)*vortmp(l,j,kk)*Dvvtmp(i,l))
-                enddo
-                ds(i,j,1,k,tl_out,ie) = ds1 - (elem(ie)%D(i,j,1,1)*dscontra1 + elem(ie)%D(i,j,1,2)*dscontra2) * rrearth
-                ds(i,j,2,k,tl_out,ie) = ds2 - (elem(ie)%D(i,j,2,1)*dscontra1 + elem(ie)%D(i,j,2,2)*dscontra2) * rrearth
-              endif
-            enddo
-          enddo
+    type (element_t)    , intent(in) :: elem
+    real(kind=real_kind), intent(in), optional :: nu_ratio
+    integer             , intent(in) :: len
+    real(kind=real_kind)             :: laplace(np,np,2,len)
+    ! Local
+    integer i,j,l,m,n,k
+    real(kind=real_kind) :: vor(np,np,len),div(np,np,len)
+    real(kind=real_kind) :: v1,v2,div1,div2,vor1,vor2,phi_x,phi_y
+    do k = 1 , len
+      div(:,:,k)=divergence_sphere(v(:,:,:,k),deriv,elem)
+      vor(:,:,k)=vorticity_sphere (v(:,:,:,k),deriv,elem)
+      if (var_coef .and. hypervis_power/=0 ) then
+        ! scalar viscosity with variable coefficient
+        div(:,:,k) = div(:,:,k)*elem%variable_hyperviscosity(:,:)
+        vor(:,:,k) = vor(:,:,k)*elem%variable_hyperviscosity(:,:)
+      endif
+      if (present(nu_ratio)) div(:,:,k) = nu_ratio*div(:,:,k)
+      laplace(:,:,:,k) = gradient_sphere_wk_testcov_openacc(div(:,:,k),deriv,elem) - curl_sphere_wk_testcov_openacc(vor(:,:,k),deriv,elem)
+      do n=1,np
+        do m=1,np
+          ! add in correction so we dont damp rigid rotation
+          laplace(m,n,1,k)=laplace(m,n,1,k) + 2*elem%spheremp(m,n)*v(m,n,1,k)*(rrearth**2)
+          laplace(m,n,2,k)=laplace(m,n,2,k) + 2*elem%spheremp(m,n)*v(m,n,2,k)*(rrearth**2)
         enddo
       enddo
     enddo
-  end subroutine gradient_minus_curl_sphere_wk_testcov
+  end function vlaplace_sphere_wk_contra
+
+  function gradient_sphere_wk_testcov_openacc(s,deriv,elem) result(ds)
+    !   integrated-by-parts gradient, w.r.t. COVARIANT test functions
+    !   input s:  scalar
+    !   output  ds: weak gradient, lat/lon coordinates
+    type (derivative_t), intent(in) :: deriv
+    type (element_t), intent(in) :: elem
+    real(kind=real_kind), intent(in) :: s(np,np)
+    real(kind=real_kind) :: ds(np,np,2)
+    integer i,j,l,m,n
+    real(kind=real_kind) ::  dscontra(np,np,2)
+    dscontra=0
+    do n=1,np
+      do m=1,np
+        do j=1,np
+          dscontra(m,n,1)=dscontra(m,n,1)-( (elem%mp(j,n)*elem%metinv(m,n,1,1)*elem%metdet(m,n)*s(j,n)*deriv%Dvv(m,j)) + &
+                                            (elem%mp(m,j)*elem%metinv(m,n,2,1)*elem%metdet(m,n)*s(m,j)*deriv%Dvv(n,j)) ) *rrearth
+          dscontra(m,n,2)=dscontra(m,n,2)-( (elem%mp(j,n)*elem%metinv(m,n,1,2)*elem%metdet(m,n)*s(j,n)*deriv%Dvv(m,j)) + &
+                                            (elem%mp(m,j)*elem%metinv(m,n,2,2)*elem%metdet(m,n)*s(m,j)*deriv%Dvv(n,j)) ) *rrearth
+        enddo
+      enddo
+    enddo
+    ! convert contra -> latlon 
+    do j=1,np
+      do i=1,np
+        ds(i,j,1)=(elem%D(i,j,1,1)*dscontra(i,j,1) + elem%D(i,j,1,2)*dscontra(i,j,2))
+        ds(i,j,2)=(elem%D(i,j,2,1)*dscontra(i,j,1) + elem%D(i,j,2,2)*dscontra(i,j,2))
+      enddo
+    enddo
+  end function gradient_sphere_wk_testcov_openacc
+
+  function curl_sphere_wk_testcov_openacc(s,deriv,elem) result(ds)
+    !   integrated-by-parts gradient, w.r.t. COVARIANT test functions
+    !   input s:  scalar  (assumed to be s*khat)
+    !   output  ds: weak curl, lat/lon coordinates
+    type (derivative_t), intent(in) :: deriv
+    type (element_t), intent(in) :: elem
+    real(kind=real_kind), intent(in) :: s(np,np)
+    real(kind=real_kind) :: ds(np,np,2)
+    integer i,j,l,m,n
+    real(kind=real_kind) ::  dscontra(np,np,2)
+    dscontra=0
+    do n=1,np
+      do m=1,np
+        do j=1,np
+          ! phi(n)_y  sum over second index, 1st index fixed at m
+          dscontra(m,n,1)=dscontra(m,n,1)-(elem%mp(m,j)*s(m,j)*deriv%Dvv(n,j) )*rrearth
+          ! phi(m)_x  sum over first index, second index fixed at n
+          dscontra(m,n,2)=dscontra(m,n,2)+(elem%mp(j,n)*s(j,n)*deriv%Dvv(m,j) )*rrearth
+        enddo
+      enddo
+    enddo
+    ! convert contra -> latlon 
+    do j=1,np
+      do i=1,np
+        ds(i,j,1)=(elem%D(i,j,1,1)*dscontra(i,j,1) + elem%D(i,j,1,2)*dscontra(i,j,2))
+        ds(i,j,2)=(elem%D(i,j,2,1)*dscontra(i,j,1) + elem%D(i,j,2,2)*dscontra(i,j,2))
+      enddo
+    enddo
+  end function curl_sphere_wk_testcov_openacc
 
   subroutine laplace_sphere_wk_openacc(s,grads,deriv,elem,var_coef,laplace,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out)
     use element_mod, only: element_t

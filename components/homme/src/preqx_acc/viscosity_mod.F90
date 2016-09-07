@@ -95,7 +95,7 @@ contains
 
     do ie=nets,nete
       do k=1,nlev
-        vtens(:,:,:,k,ie)=vlaplace_sphere_wk(elem(ie)%state%v(:,:,:,k,nt),deriv,elem(ie),var_coef=var_coef1,nu_ratio=nu_ratio1)
+        vtens(:,:,:,:,ie)=vlaplace_sphere_wk_openacc(elem(ie)%state%v(:,:,:,:,nt),deriv,elem(ie),var_coef1,nlev,nu_ratio=nu_ratio1)
       enddo
       kptr=0     ;  call edgeVpack(edge3,ptens (1,1  ,1,ie),  nlev,kptr,ie)
       kptr=nlev  ;  call edgeVpack(edge3,vtens (1,1,1,1,ie),2*nlev,kptr,ie)
