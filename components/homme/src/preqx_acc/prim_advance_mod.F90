@@ -730,7 +730,7 @@ contains
   use edge_mod          , only: edgevpack, edgevunpack, edgeDGVunpack
   use edgetype_mod      , only: EdgeBuffer_t, EdgeDescriptor_t
   use bndry_mod         , only: bndry_exchangev
-  use viscosity_mod     , only: biharmonic_wk_dp3d
+  use viscosity_mod     , only: biharmonic_wk_dp3d_openacc
   use derivative_mod    , only: subcell_Laplace_fluxes
   use physical_constants, only: Cp
   implicit none
@@ -743,14 +743,8 @@ contains
   integer              , intent(in   ) :: nets,nete,nt
   real (kind=real_kind), intent(in   ) :: eta_ave_w  ! weighting for mean flux terms
   ! local
-  real (kind=real_kind), dimension(nc,nc,4,nlev,nets:nete) :: dpflux
-  real (kind=real_kind), dimension(np,np,nlev)             :: p
-  real (kind=real_kind), dimension(np,np)                  :: dptemp1,dptemp2
-  real (kind=real_kind), dimension(np,np)                  :: lap_t,lap_dp
-  real (kind=real_kind), dimension(np,np,2)                :: lap_v
-  real (kind=real_kind), dimension(np,np,nlev)             :: temp
-  real (kind=real_kind) :: v1,v2,dt,heating,utens_tmp,vtens_tmp,ttens_tmp,dptens_tmp
-  real (kind=real_kind) :: dpdn,dpdn0, nu_scale_top
+  real (kind=real_kind) :: lap_t(np,np),lap_dp(np,np),lap_v(np,np,2)
+  real (kind=real_kind) :: v1,v2,dt,heating,utens_tmp,vtens_tmp,ttens_tmp,dptens_tmp,dpdn,dpdn0,nu_scale_top
   integer :: k,kptr,i,j,ie,ic
   type (EdgeDescriptor_t) :: desc
   if (nu_s == 0 .and. nu == 0 .and. nu_p==0 ) return;
@@ -774,7 +768,7 @@ contains
   !
   if (hypervis_order == 2) then
     do ic=1,hypervis_subcycle
-      call biharmonic_wk_dp3d(elem,dptens(:,:,:,nets:nete),dpflux(:,:,:,:,nets:nete),ttens(:,:,:,nets:nete),vtens(:,:,:,:,nets:nete),deriv,edge3,hybrid,nt,nets,nete)
+      call biharmonic_wk_dp3d_openacc(elem,grads_tmp,div_tmp,vort_tmp,dptens,ttens,vtens,deriv,edge3,hybrid,nt,1,nelemd)
       do ie=nets,nete
         ! comptue mean flux
         if (nu_p>0) then
