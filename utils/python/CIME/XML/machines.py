@@ -27,8 +27,10 @@ class Machines(GenericXML):
         if infile is None:
             if files is None:
                 files = Files()
-            infile = files.get_value("MACHINES_SPEC_FILE")
-            self.machines_dir = os.path.dirname(infile)
+            infile = files.get_value("MACHINES_SPEC_FILE", resolved=False)
+            infile = files.get_resolved_value(infile)
+
+        self.machines_dir = os.path.dirname(infile)
 
         GenericXML.__init__(self, infile)
 
@@ -126,7 +128,9 @@ class Machines(GenericXML):
         ...
         SystemExit: ERROR: No machine trump found
         """
-        if self.machine != machine or self.machine_node is None:
+        if machine == "Query":
+            self.machine = machine
+        elif self.machine != machine or self.machine_node is None:
             self.machine_node = self.get_optional_node("machine", {"MACH" : machine})
             expect(self.machine_node is not None, "No machine %s found" % machine)
             self.machine = machine
@@ -340,7 +344,7 @@ class Machines(GenericXML):
         batch_system = self.get_value("BATCH_SYSTEM")
         if batch_system == "cobalt":
             mpi_arg_string += " : "
-        
+
         return "%s %s %s" % (executable if executable is not None else "", mpi_arg_string, default_run_suffix)
 
     def print_values(self):
