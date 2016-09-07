@@ -2386,9 +2386,9 @@ call ProcOrdering_wrtflds(pbuf,state,6)  ! 6 - corresponds to IN
 ! If desired calculate convective detrainment after convection, instead
 ! of macrophysics call
    if (detrain_conv) then
-     if (masterproc) then
-       write(iulog,*) 'DC -> detrain_conv = ', detrain_conv
-     end if
+!     if (masterproc) then
+!       write(iulog,*) 'DC -> detrain_conv = ', detrain_conv
+!     end if
      call convective_detrainment(dlf1,ztodt,state,'deep')
    end if
 !======================================================================= 
@@ -2435,9 +2435,9 @@ goto 199
 ! If desired calculate convective detrainment after convection, instead
 ! of macrophysics call
     if (detrain_conv) then
-      if (masterproc) then
-        write(iulog,*) 'SC -> detrain_conv = ', detrain_conv
-      end if
+!      if (masterproc) then
+!        write(iulog,*) 'SC -> detrain_conv = ', detrain_conv
+!      end if
       call convective_detrainment(dlf2,ztodt,state,'shallow')
     end if
 !======================================================================= 
@@ -2645,6 +2645,10 @@ goto 199
 
     endif
 
+! ProcOrdering - AaronDonahue - (08/04/2016):
+! Finished with Microphysics Computation 
+call ProcOrdering_wrtflds(pbuf,state,4)  ! 4 - corresponds to Mi
+
 if (l_tracer_aero) then
 
     ! Add the precipitation from CARMA to the precipitation from stratiform.
@@ -2742,7 +2746,7 @@ end if ! l_tracer_aero
 !======================================================================= 
 ! ProcOrdering - AaronDonahue - (08/04/2016):
 ! Finished with Microphysics/Wet Deposition Computation 
-call ProcOrdering_wrtflds(pbuf,state,4)  ! 4 - corresponds to Mi
+call ProcOrdering_wrtflds(pbuf,state,16)  ! 4 - corresponds to Wd
 goto 199
 !======================================================================= 
 ! ProcOrdering - AaronDonahue - (08/04/2016):
@@ -2949,7 +2953,7 @@ subroutine ProcOrdering_addflds
 
   integer                     :: m,n,mstage
 
-  goto 888
+!  goto 888
 
   mstage = 1
   ProcOrderStage(1) = 'DC'
@@ -2962,7 +2966,7 @@ subroutine ProcOrdering_addflds
   ProcOrderStageLng(3) = 'Macrophysics'
   mstage = mstage + 1
   ProcOrderStage(4) = 'Mi'
-  ProcOrderStageLng(4) = 'Micro Physics + Wet Deposition'
+  ProcOrderStageLng(4) = 'Micro Physics'
   mstage = mstage + 1
   ProcOrderStage(5) = 'Ra'
   ProcOrderStageLng(5) = 'Radiation'
@@ -2993,6 +2997,12 @@ subroutine ProcOrdering_addflds
   mstage = mstage + 1
   ProcOrderStage(14) = 'BC'
   ProcOrderStageLng(14) = 'Before tphysbc call'
+  mstage = mstage + 1
+  ProcOrderStage(15) = 'Ae'
+  ProcOrderStageLng(15) = 'Diffusion of Aerosols'
+  mstage = mstage + 1
+  ProcOrderStage(16) = 'WD'
+  ProcOrderStageLng(16) = 'Wet Deposition'
 
   nout = 0
 
@@ -3109,7 +3119,7 @@ subroutine ProcOrdering_wrtflds(pbuf,state,n)
   character(len=10)               :: fullname
   integer                         :: lchnk,m
 
-  goto 999
+!  goto 999
 
   lchnk = state%lchnk
 

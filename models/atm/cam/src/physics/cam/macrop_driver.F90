@@ -624,8 +624,7 @@ end subroutine macrop_driver_readnl
      ! If detrainment was done elsewhere, still update the variables used for output
      ! assuming that the temperature split between liquid and ice is the same as assumed
      ! here.
-!     if (detrain_conv) then  ! ProcOrdering - AaronDonahue - (08/29/2016) Added option here to move convective detrainment out of macrophysics and into convection processes
-     if (detrain_conv) then
+     if (detrain_conv) then  ! ProcOrdering - AaronDonahue - (08/29/2016) Added option here to move convective detrainment out of macrophysics and into convection processes
        ptend_loc%q(i,k,ixcldliq) = 0._r8
        ptend_loc%q(i,k,ixcldice) = 0._r8
        ptend_loc%q(i,k,ixnumliq) = 0._r8
