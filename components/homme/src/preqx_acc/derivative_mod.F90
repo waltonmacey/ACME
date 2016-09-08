@@ -43,8 +43,8 @@ contains
     !      nu_div/=nu:   requires contra formulatino
     !   One combination NOT supported:  tensorHV and nu_div/=nu then abort
     real(kind=real_kind), intent(in   ) :: v(np,np,2,len,ntl_in,nets:nete) 
-    real(kind=real_kind), intent(in   ) :: vor(np,np,len,nets:nete)
-    real(kind=real_kind), intent(in   ) :: div(np,np,len,nets:nete)
+    real(kind=real_kind), intent(  out) :: vor(np,np,len,nets:nete)
+    real(kind=real_kind), intent(  out) :: div(np,np,len,nets:nete)
     logical             , intent(in   ) :: var_coef
     type (derivative_t) , intent(in   ) :: deriv
     type (element_t)    , intent(in   ) :: elem(:)
@@ -63,8 +63,8 @@ contains
     !   input:  v = vector in lat-lon coordinates
     !   ouput:  weak laplacian of v, in lat-lon coordinates
     real(kind=real_kind), intent(in   ) :: v(np,np,2,len,ntl_in,nets:nete) 
-    real(kind=real_kind), intent(in   ) :: vor(np,np,len,nets:nete)
-    real(kind=real_kind), intent(in   ) :: div(np,np,len,nets:nete)
+    real(kind=real_kind), intent(  out) :: vor(np,np,len,nets:nete)
+    real(kind=real_kind), intent(  out) :: div(np,np,len,nets:nete)
     logical             , intent(in   ) :: var_coef
     type (derivative_t) , intent(in   ) :: deriv
     type (element_t)    , intent(in   ) :: elem(:)
@@ -96,7 +96,7 @@ contains
     !$acc update host(div,vor)
     do ie = nets , nete
       do k = 1 , len
-        laplace(:,:,:,k,tl_out,ie) = gradient_sphere_wk_testcov_openacc(div(:,:,k,ie),deriv,elem(ie)) - curl_sphere_wk_testcov_openacc(vor(:,:,k,ie),deriv,elem(ie))
+        call gradient_minus_curl_sphere_wk_testcov_openacc(div(:,:,k,ie),vor(:,:,k,ie),deriv,elem(ie),laplace(:,:,:,k,tl_out,ie))
         do n=1,np
           do m=1,np
             ! add in correction so we dont damp rigid rotation
@@ -108,60 +108,35 @@ contains
     enddo
   end subroutine vlaplace_sphere_wk_contra
 
-  function gradient_sphere_wk_testcov_openacc(s,deriv,elem) result(ds)
+  subroutine gradient_minus_curl_sphere_wk_testcov_openacc(s1,s2,deriv,elem,ds)
     !   integrated-by-parts gradient, w.r.t. COVARIANT test functions
     !   input s:  scalar
     !   output  ds: weak gradient, lat/lon coordinates
-    type (derivative_t), intent(in) :: deriv
-    type (element_t), intent(in) :: elem
-    real(kind=real_kind), intent(in) :: s(np,np)
-    real(kind=real_kind) :: ds(np,np,2)
+    type (derivative_t) , intent(in   ) :: deriv
+    type (element_t)    , intent(in   ) :: elem
+    real(kind=real_kind), intent(in   ) :: s1(np,np)
+    real(kind=real_kind), intent(in   ) :: s2(np,np)
+    real(kind=real_kind), intent(  out) :: ds(np,np,2)
     integer i,j,l
-    real(kind=real_kind) ::  dscontra(np,np,2)
-    dscontra=0
+    real(kind=real_kind) ::  dscontra1, dscontra2
+    real(kind=real_kind) ::  gradtmp1, gradtmp2
     do j=1,np
       do i=1,np
+        dscontra1 = 0
+        dscontra2 = 0
         do l=1,np
-          dscontra(i,j,1)=dscontra(i,j,1)-( (elem%mp(l,j)*elem%metinv(i,j,1,1)*elem%metdet(i,j)*s(l,j)*deriv%Dvv(i,l)) + &
-                                            (elem%mp(i,l)*elem%metinv(i,j,2,1)*elem%metdet(i,j)*s(i,l)*deriv%Dvv(j,l)) ) *rrearth
-          dscontra(i,j,2)=dscontra(i,j,2)-( (elem%mp(l,j)*elem%metinv(i,j,1,2)*elem%metdet(i,j)*s(l,j)*deriv%Dvv(i,l)) + &
-                                            (elem%mp(i,l)*elem%metinv(i,j,2,2)*elem%metdet(i,j)*s(i,l)*deriv%Dvv(j,l)) ) *rrearth
+          dscontra1=dscontra1-( (elem%mp(l,j)*elem%metinv(i,j,1,1)*elem%metdet(i,j)*s1(l,j)*deriv%Dvv(i,l)) + &
+                                (elem%mp(i,l)*elem%metinv(i,j,2,1)*elem%metdet(i,j)*s1(i,l)*deriv%Dvv(j,l)) - &
+                                (elem%mp(i,l)*s2(i,l)*deriv%Dvv(j,l)) ) *rrearth
+          dscontra2=dscontra2-( (elem%mp(l,j)*elem%metinv(i,j,1,2)*elem%metdet(i,j)*s1(l,j)*deriv%Dvv(i,l)) + &
+                                (elem%mp(i,l)*elem%metinv(i,j,2,2)*elem%metdet(i,j)*s1(i,l)*deriv%Dvv(j,l)) + &
+                                (elem%mp(l,j)*s2(l,j)*deriv%Dvv(i,l)) ) *rrearth
         enddo
-        ds(i,j,1)=(elem%D(i,j,1,1)*dscontra(i,j,1) + elem%D(i,j,1,2)*dscontra(i,j,2))
-        ds(i,j,2)=(elem%D(i,j,2,1)*dscontra(i,j,1) + elem%D(i,j,2,2)*dscontra(i,j,2))
+        ds(i,j,1)=(elem%D(i,j,1,1)*dscontra1 + elem%D(i,j,1,2)*dscontra2)
+        ds(i,j,2)=(elem%D(i,j,2,1)*dscontra1 + elem%D(i,j,2,2)*dscontra2)
       enddo
     enddo
-  end function gradient_sphere_wk_testcov_openacc
-
-  function curl_sphere_wk_testcov_openacc(s,deriv,elem) result(ds)
-    !   integrated-by-parts gradient, w.r.t. COVARIANT test functions
-    !   input s:  scalar  (assumed to be s*khat)
-    !   output  ds: weak curl, lat/lon coordinates
-    type (derivative_t), intent(in) :: deriv
-    type (element_t), intent(in) :: elem
-    real(kind=real_kind), intent(in) :: s(np,np)
-    real(kind=real_kind) :: ds(np,np,2)
-    integer i,j,l,m,n
-    real(kind=real_kind) ::  dscontra(np,np,2)
-    dscontra=0
-    do n=1,np
-      do m=1,np
-        do j=1,np
-          ! phi(n)_y  sum over second index, 1st index fixed at m
-          dscontra(m,n,1)=dscontra(m,n,1)-(elem%mp(m,j)*s(m,j)*deriv%Dvv(n,j) )*rrearth
-          ! phi(m)_x  sum over first index, second index fixed at n
-          dscontra(m,n,2)=dscontra(m,n,2)+(elem%mp(j,n)*s(j,n)*deriv%Dvv(m,j) )*rrearth
-        enddo
-      enddo
-    enddo
-    ! convert contra -> latlon 
-    do j=1,np
-      do i=1,np
-        ds(i,j,1)=(elem%D(i,j,1,1)*dscontra(i,j,1) + elem%D(i,j,1,2)*dscontra(i,j,2))
-        ds(i,j,2)=(elem%D(i,j,2,1)*dscontra(i,j,1) + elem%D(i,j,2,2)*dscontra(i,j,2))
-      enddo
-    enddo
-  end function curl_sphere_wk_testcov_openacc
+  end subroutine gradient_minus_curl_sphere_wk_testcov_openacc
 
   subroutine laplace_sphere_wk_openacc(s,grads,deriv,elem,var_coef,laplace,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out)
     use element_mod, only: element_t
