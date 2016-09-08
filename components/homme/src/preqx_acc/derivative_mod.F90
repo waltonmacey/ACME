@@ -73,16 +73,29 @@ contains
     real(kind=real_kind), intent(  out) :: laplace(np,np,2,len,ntl_out,nets:nete)
     ! Local
     integer :: i,j,l,m,n,k,ie
+    do ie = 1 , nelemd
+      !$acc update device(v(:,:,:,:,tl_in,ie))
+    enddo
+    call divergence_sphere_openacc(v,deriv,elem,div,len,nets,nete,ntl_in,tl_in,1,1)
+    call vorticity_sphere_openacc (v,deriv,elem,vor,len,nets,nete,ntl_in,tl_in,1,1)
+    !$acc parallel loop gang vector collapse(4) present(div,vor,elem)
     do ie = nets , nete
       do k = 1 , len
-        div(:,:,k,ie)=divergence_sphere(v(:,:,:,k,tl_in,ie),deriv,elem(ie))
-        vor(:,:,k,ie)=vorticity_sphere (v(:,:,:,k,tl_in,ie),deriv,elem(ie))
-        if (var_coef .and. hypervis_power/=0 ) then
-          ! scalar viscosity with variable coefficient
-          div(:,:,k,ie) = div(:,:,k,ie)*elem(ie)%variable_hyperviscosity(:,:)
-          vor(:,:,k,ie) = vor(:,:,k,ie)*elem(ie)%variable_hyperviscosity(:,:)
-        endif
-        if (present(nu_ratio)) div(:,:,k,ie) = nu_ratio*div(:,:,k,ie)
+        do j = 1 , np
+          do i = 1 , np
+            if (var_coef .and. hypervis_power/=0 ) then
+              ! scalar viscosity with variable coefficient
+              div(i,j,k,ie) = div(i,j,k,ie)*elem(ie)%variable_hyperviscosity(i,j)
+              vor(i,j,k,ie) = vor(i,j,k,ie)*elem(ie)%variable_hyperviscosity(i,j)
+            endif
+            if (present(nu_ratio)) div(i,j,k,ie) = nu_ratio*div(i,j,k,ie)
+          enddo
+        enddo
+      enddo
+    enddo
+    !$acc update host(div,vor)
+    do ie = nets , nete
+      do k = 1 , len
         laplace(:,:,:,k,tl_out,ie) = gradient_sphere_wk_testcov_openacc(div(:,:,k,ie),deriv,elem(ie)) - curl_sphere_wk_testcov_openacc(vor(:,:,k,ie),deriv,elem(ie))
         do n=1,np
           do m=1,np
@@ -103,22 +116,17 @@ contains
     type (element_t), intent(in) :: elem
     real(kind=real_kind), intent(in) :: s(np,np)
     real(kind=real_kind) :: ds(np,np,2)
-    integer i,j,l,m,n
+    integer i,j,l
     real(kind=real_kind) ::  dscontra(np,np,2)
     dscontra=0
-    do n=1,np
-      do m=1,np
-        do j=1,np
-          dscontra(m,n,1)=dscontra(m,n,1)-( (elem%mp(j,n)*elem%metinv(m,n,1,1)*elem%metdet(m,n)*s(j,n)*deriv%Dvv(m,j)) + &
-                                            (elem%mp(m,j)*elem%metinv(m,n,2,1)*elem%metdet(m,n)*s(m,j)*deriv%Dvv(n,j)) ) *rrearth
-          dscontra(m,n,2)=dscontra(m,n,2)-( (elem%mp(j,n)*elem%metinv(m,n,1,2)*elem%metdet(m,n)*s(j,n)*deriv%Dvv(m,j)) + &
-                                            (elem%mp(m,j)*elem%metinv(m,n,2,2)*elem%metdet(m,n)*s(m,j)*deriv%Dvv(n,j)) ) *rrearth
-        enddo
-      enddo
-    enddo
-    ! convert contra -> latlon 
     do j=1,np
       do i=1,np
+        do l=1,np
+          dscontra(i,j,1)=dscontra(i,j,1)-( (elem%mp(l,j)*elem%metinv(i,j,1,1)*elem%metdet(i,j)*s(l,j)*deriv%Dvv(i,l)) + &
+                                            (elem%mp(i,l)*elem%metinv(i,j,2,1)*elem%metdet(i,j)*s(i,l)*deriv%Dvv(j,l)) ) *rrearth
+          dscontra(i,j,2)=dscontra(i,j,2)-( (elem%mp(l,j)*elem%metinv(i,j,1,2)*elem%metdet(i,j)*s(l,j)*deriv%Dvv(i,l)) + &
+                                            (elem%mp(i,l)*elem%metinv(i,j,2,2)*elem%metdet(i,j)*s(i,l)*deriv%Dvv(j,l)) ) *rrearth
+        enddo
         ds(i,j,1)=(elem%D(i,j,1,1)*dscontra(i,j,1) + elem%D(i,j,1,2)*dscontra(i,j,2))
         ds(i,j,2)=(elem%D(i,j,2,1)*dscontra(i,j,1) + elem%D(i,j,2,2)*dscontra(i,j,2))
       enddo
