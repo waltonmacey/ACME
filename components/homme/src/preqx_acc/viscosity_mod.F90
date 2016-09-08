@@ -92,7 +92,7 @@ contains
     !$acc update host(ptens,dptens,vtens)
 
 
-    call vlaplace_sphere_wk_openacc(state_v,deriv,elem,var_coef1,nlev,nets,nete,timelevels,nt,1,1,vtens,nu_ratio1)
+    call vlaplace_sphere_wk_openacc(state_v,vort,div,deriv,elem,var_coef1,nlev,nets,nete,timelevels,nt,1,1,vtens,nu_ratio1)
 
 
     !$omp end master

@@ -35,7 +35,7 @@ module derivative_mod
 
 contains
 
-  subroutine vlaplace_sphere_wk_openacc(v,deriv,elem,var_coef,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,laplace,nu_ratio)
+  subroutine vlaplace_sphere_wk_openacc(v,vor,div,deriv,elem,var_coef,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,laplace,nu_ratio)
     !   input:  v = vector in lat-lon coordinates
     !   ouput:  weak laplacian of v, in lat-lon coordinates
     !   logic:
@@ -43,6 +43,8 @@ contains
     !      nu_div/=nu:   requires contra formulatino
     !   One combination NOT supported:  tensorHV and nu_div/=nu then abort
     real(kind=real_kind), intent(in   ) :: v(np,np,2,len,ntl_in,nets:nete) 
+    real(kind=real_kind), intent(in   ) :: vor(np,np,len,nets:nete)
+    real(kind=real_kind), intent(in   ) :: div(np,np,len,nets:nete)
     logical             , intent(in   ) :: var_coef
     type (derivative_t) , intent(in   ) :: deriv
     type (element_t)    , intent(in   ) :: elem(:)
@@ -53,14 +55,16 @@ contains
       call abortmp('hypervis_scaling/=0 .and. var_coef not supported in OpenACC!')
     else  
       ! all other cases, use contra formulation:
-      call vlaplace_sphere_wk_contra(v,deriv,elem,var_coef,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,laplace,nu_ratio)
+      call vlaplace_sphere_wk_contra(v,vor,div,deriv,elem,var_coef,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,laplace,nu_ratio)
     endif
   end subroutine vlaplace_sphere_wk_openacc
 
-  subroutine vlaplace_sphere_wk_contra(v,deriv,elem,var_coef,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,laplace,nu_ratio)
+  subroutine vlaplace_sphere_wk_contra(v,vor,div,deriv,elem,var_coef,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,laplace,nu_ratio)
     !   input:  v = vector in lat-lon coordinates
     !   ouput:  weak laplacian of v, in lat-lon coordinates
     real(kind=real_kind), intent(in   ) :: v(np,np,2,len,ntl_in,nets:nete) 
+    real(kind=real_kind), intent(in   ) :: vor(np,np,len,nets:nete)
+    real(kind=real_kind), intent(in   ) :: div(np,np,len,nets:nete)
     logical             , intent(in   ) :: var_coef
     type (derivative_t) , intent(in   ) :: deriv
     type (element_t)    , intent(in   ) :: elem(:)
@@ -68,9 +72,7 @@ contains
     integer             , intent(in   ) :: len,nets,nete,ntl_in,tl_in,ntl_out,tl_out
     real(kind=real_kind), intent(  out) :: laplace(np,np,2,len,ntl_out,nets:nete)
     ! Local
-    integer i,j,l,m,n,k,ie
-    real(kind=real_kind) :: vor(np,np,len,nets:nete),div(np,np,len,nets:nete)
-    real(kind=real_kind) :: v1,v2,div1,div2,vor1,vor2,phi_x,phi_y
+    integer :: i,j,l,m,n,k,ie
     do ie = nets , nete
       do k = 1 , len
         div(:,:,k,ie)=divergence_sphere(v(:,:,:,k,tl_in,ie),deriv,elem(ie))
