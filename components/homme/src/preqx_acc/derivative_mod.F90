@@ -73,9 +73,6 @@ contains
     real(kind=real_kind), intent(  out) :: laplace(np,np,2,len,ntl_out,nets:nete)
     ! Local
     integer :: i,j,l,m,n,k,ie
-    do ie = 1 , nelemd
-      !$acc update device(v(:,:,:,:,tl_in,ie))
-    enddo
     call divergence_sphere_openacc(v,deriv,elem,div,len,nets,nete,ntl_in,tl_in,1,1)
     call vorticity_sphere_openacc (v,deriv,elem,vor,len,nets,nete,ntl_in,tl_in,1,1)
     !$acc parallel loop gang vector collapse(4) present(div,vor,elem)
@@ -93,10 +90,10 @@ contains
         enddo
       enddo
     enddo
-    !$acc update host(div,vor)
+    call gradient_minus_curl_sphere_wk_testcov_openacc(div,vor,deriv,elem,len,nets,nete,1,1,ntl_out,tl_out,laplace)
+    !$acc parallel loop gang vector collapse(4) present(laplace,elem,v)
     do ie = nets , nete
       do k = 1 , len
-        call gradient_minus_curl_sphere_wk_testcov_openacc(div(:,:,k,ie),vor(:,:,k,ie),deriv,elem(ie),laplace(:,:,:,k,tl_out,ie))
         do n=1,np
           do m=1,np
             ! add in correction so we dont damp rigid rotation
@@ -108,32 +105,37 @@ contains
     enddo
   end subroutine vlaplace_sphere_wk_contra
 
-  subroutine gradient_minus_curl_sphere_wk_testcov_openacc(s1,s2,deriv,elem,ds)
+  subroutine gradient_minus_curl_sphere_wk_testcov_openacc(s1,s2,deriv,elem,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,ds)
     !   integrated-by-parts gradient, w.r.t. COVARIANT test functions
     !   input s:  scalar
     !   output  ds: weak gradient, lat/lon coordinates
     type (derivative_t) , intent(in   ) :: deriv
-    type (element_t)    , intent(in   ) :: elem
-    real(kind=real_kind), intent(in   ) :: s1(np,np)
-    real(kind=real_kind), intent(in   ) :: s2(np,np)
-    real(kind=real_kind), intent(  out) :: ds(np,np,2)
-    integer i,j,l
-    real(kind=real_kind) ::  dscontra1, dscontra2
-    real(kind=real_kind) ::  gradtmp1, gradtmp2
-    do j=1,np
-      do i=1,np
-        dscontra1 = 0
-        dscontra2 = 0
-        do l=1,np
-          dscontra1=dscontra1-( (elem%mp(l,j)*elem%metinv(i,j,1,1)*elem%metdet(i,j)*s1(l,j)*deriv%Dvv(i,l)) + &
-                                (elem%mp(i,l)*elem%metinv(i,j,2,1)*elem%metdet(i,j)*s1(i,l)*deriv%Dvv(j,l)) - &
-                                (elem%mp(i,l)*s2(i,l)*deriv%Dvv(j,l)) ) *rrearth
-          dscontra2=dscontra2-( (elem%mp(l,j)*elem%metinv(i,j,1,2)*elem%metdet(i,j)*s1(l,j)*deriv%Dvv(i,l)) + &
-                                (elem%mp(i,l)*elem%metinv(i,j,2,2)*elem%metdet(i,j)*s1(i,l)*deriv%Dvv(j,l)) + &
-                                (elem%mp(l,j)*s2(l,j)*deriv%Dvv(i,l)) ) *rrearth
+    type (element_t)    , intent(in   ) :: elem(:)
+    real(kind=real_kind), intent(in   ) :: s1(np,np  ,len,ntl_in ,nets:nete)
+    real(kind=real_kind), intent(in   ) :: s2(np,np  ,len,ntl_in ,nets:nete)
+    real(kind=real_kind), intent(  out) :: ds(np,np,2,len,ntl_out,nets:nete)
+    integer             , intent(in   ) :: len,nets,nete,ntl_in,tl_in,ntl_out,tl_out
+    integer :: i,j,l,k,ie
+    real(kind=real_kind) :: dscontra1, dscontra2
+    !$acc parallel loop gang vector collapse(4) private(dscontra1, dscontra2) present(elem,deriv,s1,s2,ds)
+    do ie=nets,nete
+      do k=1,len
+        do j=1,np
+          do i=1,np
+            dscontra1 = 0
+            dscontra2 = 0
+            do l=1,np
+              dscontra1=dscontra1-( (elem(ie)%mp(l,j)*elem(ie)%metinv(i,j,1,1)*elem(ie)%metdet(i,j)*s1(l,j,k,tl_in,ie)*deriv%Dvv(i,l)) + &
+                                    (elem(ie)%mp(i,l)*elem(ie)%metinv(i,j,2,1)*elem(ie)%metdet(i,j)*s1(i,l,k,tl_in,ie)*deriv%Dvv(j,l)) - &
+                                    (elem(ie)%mp(i,l)*s2(i,l,k,tl_in,ie)*deriv%Dvv(j,l)) ) *rrearth
+              dscontra2=dscontra2-( (elem(ie)%mp(l,j)*elem(ie)%metinv(i,j,1,2)*elem(ie)%metdet(i,j)*s1(l,j,k,tl_in,ie)*deriv%Dvv(i,l)) + &
+                                    (elem(ie)%mp(i,l)*elem(ie)%metinv(i,j,2,2)*elem(ie)%metdet(i,j)*s1(i,l,k,tl_in,ie)*deriv%Dvv(j,l)) + &
+                                    (elem(ie)%mp(l,j)*s2(l,j,k,tl_in,ie)*deriv%Dvv(i,l)) ) *rrearth
+            enddo
+            ds(i,j,1,k,tl_out,ie)=(elem(ie)%D(i,j,1,1)*dscontra1 + elem(ie)%D(i,j,1,2)*dscontra2)
+            ds(i,j,2,k,tl_out,ie)=(elem(ie)%D(i,j,2,1)*dscontra1 + elem(ie)%D(i,j,2,2)*dscontra2)
+          enddo
         enddo
-        ds(i,j,1)=(elem%D(i,j,1,1)*dscontra1 + elem%D(i,j,1,2)*dscontra2)
-        ds(i,j,2)=(elem%D(i,j,2,1)*dscontra1 + elem%D(i,j,2,2)*dscontra2)
       enddo
     enddo
   end subroutine gradient_minus_curl_sphere_wk_testcov_openacc

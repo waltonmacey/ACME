@@ -35,8 +35,10 @@ contains
 
   subroutine biharmonic_wk_dp3d_openacc(elem,grads,div,vort,dptens,ptens,vtens,deriv,edge3,hybrid,nt,nets,nete)
     use derivative_mod, only :  derivative_t, laplace_sphere_wk, vlaplace_sphere_wk, laplace_sphere_wk_openacc, vlaplace_sphere_wk_openacc
-    use edge_mod, only: edgeVpack,edgeVunpack
+    use edge_mod, only: edgeVpack_openacc,edgeVunpack_openacc
+    use bndry_mod, only: bndry_exchangeV => bndry_exchangeV_simple_minimize_pcie
     use element_mod, only: state_t, state_dp3d, state_v, timelevels
+    use openacc_utils_mod, only: copy_ondev
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! compute weak biharmonic operator
     !    input:  h,v (stored in elem()%, in lat-lon coordinates
@@ -85,42 +87,51 @@ contains
       !$acc update device(state_t(:,:,:,nt,ie),state_dp3d(:,:,:,nt,ie),state_v(:,:,:,:,nt,ie))
     enddo
 
-    call laplace_sphere_wk_openacc(state_t   ,grads   ,deriv,elem,var_coef1, ptens,nlev,nets,nete,timelevels,nt,1,1)
-    call laplace_sphere_wk_openacc(state_dp3d,grads   ,deriv,elem,var_coef1,dptens,nlev,nets,nete,timelevels,nt,1,1)
-    !call vlaplace_sphere_wk_openacc(state_v  ,div,vort,deriv,elem,var_coef1, vtens,nlev,nets,nete,timelevels,nt,1,1,nu_ratio1)
-
-    !$acc update host(ptens,dptens,vtens)
-
-
+    call laplace_sphere_wk_openacc(state_t   ,grads,deriv,elem,var_coef1, ptens,nlev,nets,nete,timelevels,nt,1,1)
+    call laplace_sphere_wk_openacc(state_dp3d,grads,deriv,elem,var_coef1,dptens,nlev,nets,nete,timelevels,nt,1,1)
     call vlaplace_sphere_wk_openacc(state_v,vort,div,deriv,elem,var_coef1,nlev,nets,nete,timelevels,nt,1,1,vtens,nu_ratio1)
 
-
+    kptr=0     ;  call edgeVpack_openacc(edge3, ptens,  nlev,kptr,elem,nets,nete,1,1)
+    kptr=nlev  ;  call edgeVpack_openacc(edge3, vtens,2*nlev,kptr,elem,nets,nete,1,1)
+    kptr=3*nlev;  call edgeVpack_openacc(edge3,dptens,  nlev,kptr,elem,nets,nete,1,1)
     !$omp end master
     !$omp barrier
 
-    do ie=nets,nete
-      kptr=0     ;  call edgeVpack(edge3,ptens (1,1  ,1,ie),  nlev,kptr,ie)
-      kptr=nlev  ;  call edgeVpack(edge3,vtens (1,1,1,1,ie),2*nlev,kptr,ie)
-      kptr=3*nlev;  call edgeVpack(edge3,dptens(1,1  ,1,ie),  nlev,kptr,ie)
-    enddo
     call t_startf('biwkdp3d_bexchV')
     call bndry_exchangeV(hybrid,edge3)
     call t_stopf('biwkdp3d_bexchV')
+
+    !$omp barrier
+    !$omp master
+    kptr=0     ;  call edgeVunpack_openacc(edge3, ptens,  nlev,kptr,elem,nets,nete,1,1)
+    kptr=nlev  ;  call edgeVunpack_openacc(edge3, vtens,2*nlev,kptr,elem,nets,nete,1,1)
+    kptr=3*nlev;  call edgeVunpack_openacc(edge3,dptens,  nlev,kptr,elem,nets,nete,1,1)
+
+    ! apply inverse mass matrix, then apply laplace again
+    !$acc parallel loop gang vector collapse(4) present(ptens,dptens,vtens,elem)
     do ie=nets,nete
-      kptr=0     ;  call edgeVunpack(edge3,ptens (1,1  ,1,ie),  nlev,kptr,ie)
-      kptr=nlev  ;  call edgeVunpack(edge3,vtens (1,1,1,1,ie),2*nlev,kptr,ie)
-      kptr=3*nlev;  call edgeVunpack(edge3,dptens(1,1  ,1,ie),  nlev,kptr,ie)
-      ! apply inverse mass matrix, then apply laplace again
       do k=1,nlev
-        tmp(:,:) = elem(ie)%rspheremp(:,:)*ptens(:,:,k,ie)
-        ptens(:,:,k,ie) = laplace_sphere_wk(tmp,deriv,elem(ie),var_coef=.true.)
-        tmp2(:,:) = elem(ie)%rspheremp(:,:)*dptens(:,:,k,ie)
-        dptens(:,:,k,ie) = laplace_sphere_wk(tmp2,deriv,elem(ie),var_coef=.true.)
-        v(:,:,1) = elem(ie)%rspheremp(:,:)*vtens(:,:,1,k,ie)
-        v(:,:,2) = elem(ie)%rspheremp(:,:)*vtens(:,:,2,k,ie)
-        vtens(:,:,:,k,ie) = vlaplace_sphere_wk(v(:,:,:),deriv,elem(ie),var_coef=.true.,nu_ratio=nu_ratio2)
+        do j = 1 , np
+          do i = 1 , np
+            ptens (i,j  ,k,ie) = elem(ie)%rspheremp(i,j)*ptens (i,j  ,k,ie)
+            dptens(i,j  ,k,ie) = elem(ie)%rspheremp(i,j)*dptens(i,j  ,k,ie)
+            vtens (i,j,1,k,ie) = elem(ie)%rspheremp(i,j)*vtens (i,j,1,k,ie)
+            vtens (i,j,2,k,ie) = elem(ie)%rspheremp(i,j)*vtens (i,j,2,k,ie)
+          enddo
+        enddo
       enddo
     enddo
+
+    call laplace_sphere_wk_openacc(ptens ,grads,deriv,elem,.true., ptens,nlev,nets,nete,1,1,1,1)
+    call laplace_sphere_wk_openacc(dptens,grads,deriv,elem,.true.,dptens,nlev,nets,nete,1,1,1,1)
+    call copy_ondev(grads,vtens,product(shape(vtens)))
+    call vlaplace_sphere_wk_openacc(grads,vort,div,deriv,elem,.true.,nlev,nets,nete,1,1,1,1,vtens,nu_ratio2)
+
+
+    !$acc update host(ptens,vtens,dptens)
+
+    !$omp end master
+    !$omp barrier
   end subroutine biharmonic_wk_dp3d_openacc
 
   subroutine biharmonic_wk_scalar_openacc(elem,qtens,grads,deriv,edgeq,hybrid,nets,nete)
