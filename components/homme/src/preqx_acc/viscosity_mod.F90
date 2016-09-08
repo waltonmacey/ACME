@@ -90,13 +90,15 @@ contains
     !call vlaplace_sphere_wk_openacc(state_v  ,div,vort,deriv,elem,var_coef1, vtens,nlev,nets,nete,timelevels,nt,1,1,nu_ratio1)
 
     !$acc update host(ptens,dptens,vtens)
+
+
+    call vlaplace_sphere_wk_openacc(state_v,deriv,elem,var_coef1,nlev,nets,nete,timelevels,nt,1,1,vtens,nu_ratio1)
+
+
     !$omp end master
     !$omp barrier
 
     do ie=nets,nete
-      do k=1,nlev
-        vtens(:,:,:,:,ie)=vlaplace_sphere_wk_openacc(elem(ie)%state%v(:,:,:,:,nt),deriv,elem(ie),var_coef1,nlev,nu_ratio=nu_ratio1)
-      enddo
       kptr=0     ;  call edgeVpack(edge3,ptens (1,1  ,1,ie),  nlev,kptr,ie)
       kptr=nlev  ;  call edgeVpack(edge3,vtens (1,1,1,1,ie),2*nlev,kptr,ie)
       kptr=3*nlev;  call edgeVpack(edge3,dptens(1,1  ,1,ie),  nlev,kptr,ie)

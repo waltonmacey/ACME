@@ -35,61 +35,63 @@ module derivative_mod
 
 contains
 
-  function vlaplace_sphere_wk_openacc(v,deriv,elem,var_coef,len,nu_ratio) result(laplace)
+  subroutine vlaplace_sphere_wk_openacc(v,deriv,elem,var_coef,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,laplace,nu_ratio)
     !   input:  v = vector in lat-lon coordinates
     !   ouput:  weak laplacian of v, in lat-lon coordinates
     !   logic:
     !      tensorHV:     requires cartesian
     !      nu_div/=nu:   requires contra formulatino
     !   One combination NOT supported:  tensorHV and nu_div/=nu then abort
-    real(kind=real_kind), intent(in) :: v(np,np,2,len) 
-    logical             , intent(in) :: var_coef
-    type (derivative_t) , intent(in) :: deriv
-    type (element_t)    , intent(in) :: elem
-    real(kind=real_kind), intent(in), optional :: nu_ratio
-    integer             , intent(in) :: len
-    real(kind=real_kind)             :: laplace(np,np,2,len)
+    real(kind=real_kind), intent(in   ) :: v(np,np,2,len,ntl_in,nets:nete) 
+    logical             , intent(in   ) :: var_coef
+    type (derivative_t) , intent(in   ) :: deriv
+    type (element_t)    , intent(in   ) :: elem(:)
+    real(kind=real_kind), intent(in   ), optional :: nu_ratio
+    integer             , intent(in   ) :: len,nets,nete,ntl_in,tl_in,ntl_out,tl_out
+    real(kind=real_kind), intent(  out) :: laplace(np,np,2,len,ntl_out,nets:nete)
     if (hypervis_scaling/=0 .and. var_coef) then
       call abortmp('hypervis_scaling/=0 .and. var_coef not supported in OpenACC!')
     else  
-       ! all other cases, use contra formulation:
-       laplace=vlaplace_sphere_wk_contra(v,deriv,elem,var_coef,len,nu_ratio)
+      ! all other cases, use contra formulation:
+      call vlaplace_sphere_wk_contra(v,deriv,elem,var_coef,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,laplace,nu_ratio)
     endif
-  end function vlaplace_sphere_wk_openacc
+  end subroutine vlaplace_sphere_wk_openacc
 
-  function vlaplace_sphere_wk_contra(v,deriv,elem,var_coef,len,nu_ratio) result(laplace)
+  subroutine vlaplace_sphere_wk_contra(v,deriv,elem,var_coef,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,laplace,nu_ratio)
     !   input:  v = vector in lat-lon coordinates
     !   ouput:  weak laplacian of v, in lat-lon coordinates
-    real(kind=real_kind), intent(in) :: v(np,np,2,len) 
-    logical             , intent(in) :: var_coef
-    type (derivative_t) , intent(in) :: deriv
-    type (element_t)    , intent(in) :: elem
-    real(kind=real_kind), intent(in), optional :: nu_ratio
-    integer             , intent(in) :: len
-    real(kind=real_kind)             :: laplace(np,np,2,len)
+    real(kind=real_kind), intent(in   ) :: v(np,np,2,len,ntl_in,nets:nete) 
+    logical             , intent(in   ) :: var_coef
+    type (derivative_t) , intent(in   ) :: deriv
+    type (element_t)    , intent(in   ) :: elem(:)
+    real(kind=real_kind), intent(in   ), optional :: nu_ratio
+    integer             , intent(in   ) :: len,nets,nete,ntl_in,tl_in,ntl_out,tl_out
+    real(kind=real_kind), intent(  out) :: laplace(np,np,2,len,ntl_out,nets:nete)
     ! Local
-    integer i,j,l,m,n,k
-    real(kind=real_kind) :: vor(np,np,len),div(np,np,len)
+    integer i,j,l,m,n,k,ie
+    real(kind=real_kind) :: vor(np,np,len,nets:nete),div(np,np,len,nets:nete)
     real(kind=real_kind) :: v1,v2,div1,div2,vor1,vor2,phi_x,phi_y
-    do k = 1 , len
-      div(:,:,k)=divergence_sphere(v(:,:,:,k),deriv,elem)
-      vor(:,:,k)=vorticity_sphere (v(:,:,:,k),deriv,elem)
-      if (var_coef .and. hypervis_power/=0 ) then
-        ! scalar viscosity with variable coefficient
-        div(:,:,k) = div(:,:,k)*elem%variable_hyperviscosity(:,:)
-        vor(:,:,k) = vor(:,:,k)*elem%variable_hyperviscosity(:,:)
-      endif
-      if (present(nu_ratio)) div(:,:,k) = nu_ratio*div(:,:,k)
-      laplace(:,:,:,k) = gradient_sphere_wk_testcov_openacc(div(:,:,k),deriv,elem) - curl_sphere_wk_testcov_openacc(vor(:,:,k),deriv,elem)
-      do n=1,np
-        do m=1,np
-          ! add in correction so we dont damp rigid rotation
-          laplace(m,n,1,k)=laplace(m,n,1,k) + 2*elem%spheremp(m,n)*v(m,n,1,k)*(rrearth**2)
-          laplace(m,n,2,k)=laplace(m,n,2,k) + 2*elem%spheremp(m,n)*v(m,n,2,k)*(rrearth**2)
+    do ie = nets , nete
+      do k = 1 , len
+        div(:,:,k,ie)=divergence_sphere(v(:,:,:,k,tl_in,ie),deriv,elem(ie))
+        vor(:,:,k,ie)=vorticity_sphere (v(:,:,:,k,tl_in,ie),deriv,elem(ie))
+        if (var_coef .and. hypervis_power/=0 ) then
+          ! scalar viscosity with variable coefficient
+          div(:,:,k,ie) = div(:,:,k,ie)*elem(ie)%variable_hyperviscosity(:,:)
+          vor(:,:,k,ie) = vor(:,:,k,ie)*elem(ie)%variable_hyperviscosity(:,:)
+        endif
+        if (present(nu_ratio)) div(:,:,k,ie) = nu_ratio*div(:,:,k,ie)
+        laplace(:,:,:,k,tl_out,ie) = gradient_sphere_wk_testcov_openacc(div(:,:,k,ie),deriv,elem(ie)) - curl_sphere_wk_testcov_openacc(vor(:,:,k,ie),deriv,elem(ie))
+        do n=1,np
+          do m=1,np
+            ! add in correction so we dont damp rigid rotation
+            laplace(m,n,1,k,tl_out,ie)=laplace(m,n,1,k,tl_out,ie) + 2*elem(ie)%spheremp(m,n)*v(m,n,1,k,tl_in,ie)*(rrearth**2)
+            laplace(m,n,2,k,tl_out,ie)=laplace(m,n,2,k,tl_out,ie) + 2*elem(ie)%spheremp(m,n)*v(m,n,2,k,tl_in,ie)*(rrearth**2)
+          enddo
         enddo
       enddo
     enddo
-  end function vlaplace_sphere_wk_contra
+  end subroutine vlaplace_sphere_wk_contra
 
   function gradient_sphere_wk_testcov_openacc(s,deriv,elem) result(ds)
     !   integrated-by-parts gradient, w.r.t. COVARIANT test functions
