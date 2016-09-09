@@ -2302,19 +2302,20 @@ end if
 
   if (nstep.eq.0.or.pror_phys_restart.eq.1) then
     proc_order = (/ 1, 2, 3, 4, 5 /)
+    pror_phys_restart = 2
     if (masterproc) then
       write(iulog,*) 'ProcOrdering - AaronDonahue: First step, setting process order to standard order ...'
       write(iulog,*) 'proc_order = ', proc_order
     end if
-    pror_phys_restart = 0
   else
     proc_order = proc_order_bc
-    if (nstep.eq.1) then
+    if (nstep.eq.1.or.pror_phys_restart.eq.2) then
       if (masterproc) then
         write(iulog,*) 'ProcOrdering - AaronDonahue: Second step, adopting new  process order ...'
         write(iulog,*) 'proc_order = ', proc_order
       end if
     end if
+    pror_phys_restart = 0
   end if
 
 ! ProcOrdering - AaronDonahue - (08/04/2016):

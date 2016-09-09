@@ -44,7 +44,7 @@ cat >! $file << EOF1
 #MSUB -q pbatch             ##which queue to use. Options = pdebug, pbatch
 #MSUB -A cbronze            ##bank (other users will need to change this)
 #MSUB -l nodes=$nodes       ##Number of nodes to use.
-#MSUB -l walltime=00:10:00  ##How long to run for (users will want to change)
+#MSUB -l walltime=01:20:00  ##How long to run for (users will want to change)
 #MSUB -l gres=lscratchd     ##Specify needed Lustre systems (users might need to change)
 #MSUB -m be                 ##Send email when job starts/stops
 #MSUB -e ${CASE}.err        ##File to use for standard error
