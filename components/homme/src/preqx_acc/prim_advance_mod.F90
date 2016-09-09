@@ -183,7 +183,8 @@ contains
     !$omp barrier
     !$omp master
     do ie = 1 , nelemd
-      !$acc update device(state_dp3d(:,:,:,n0,ie),state_v(:,:,:,:,n0,ie),state_T(:,:,:,n0,ie),state_Qdp(:,:,:,1,qn0,ie),elem(ie)%state%phis,elem(ie)%derived%eta_dot_dpdn,elem(ie)%derived%omega_p) async(asyncid)
+      !$acc update device(state_dp3d(:,:,:,n0,ie),state_v(:,:,:,:,n0,ie),state_T(:,:,:,n0,ie),state_Qdp(:,:,:,1,qn0,ie),elem(ie)%state%phis,elem(ie)%derived%eta_dot_dpdn,elem(ie)%derived%omega_p, &
+      !$acc&              elem(ie)%derived%dpdiss_ave,elem(ie)%derived%dpdiss_biharmonic) async(asyncid)
     enddo
     !$acc update device(derived_vn0) async(asyncid)
 #   if ( defined CAM )
@@ -297,11 +298,26 @@ contains
       call abortmp('ERROR: bad choice of tstep_type')
     endif
 
+    ! note:time step computes u(t+1)= u(t*) + RHS.
+    ! for consistency, dt_vis = t-1 - t*, so this is timestep method dependent
+    if (tstep_type==0) then
+      call abortmp('ERROR: tstep_type == 0 not supported in OpenACC!')
+    else if (method<=10) then ! not implicit
+      if (rsplit==0) then
+        call abortmp('ERROR: rsplit==0 not supported in OpenACC!')
+      else
+        ! forward-in-time, hypervis applied to dp3d
+        call advance_hypervis_dp(edge3p1,elem,hvcoord,hybrid,deriv,np1,nets,nete,dt_vis,eta_ave_w,asyncid)
+      endif
+    endif
+    tevolve=tevolve+dt
 
+    !$omp barrier
     !$omp master
     !$acc update host(derived_vn0) async(asyncid)
     do ie = 1 , nelemd
-      !$acc update host(elem(ie)%derived%phi,elem(ie)%derived%eta_dot_dpdn,elem(ie)%derived%omega_p,state_v(:,:,:,:,np1,ie),state_t(:,:,:,np1,ie),state_dp3d(:,:,:,np1,ie)) async(asyncid)
+      !$acc update host(elem(ie)%derived%phi,elem(ie)%derived%eta_dot_dpdn,elem(ie)%derived%omega_p,state_v(:,:,:,:,np1,ie),state_t(:,:,:,np1,ie),state_dp3d(:,:,:,np1,ie), &
+      !$acc&            elem(ie)%derived%dpdiss_ave,elem(ie)%derived%dpdiss_biharmonic) async(asyncid)
 #     if ( defined CAM )
         if(se_met_nudge_u.gt.0.D0)then
           !$acc update host(elem(ie)%derived%utnd,elem(ie)%derived%vtnd) async(asyncid)
@@ -314,42 +330,6 @@ contains
     !$acc wait(asyncid)
     !$omp end master
     !$omp barrier
-
-    ! ==============================================
-    ! Time-split Horizontal diffusion: nu.del^2 or nu.del^4
-    ! U(*) = U(t+1)  + dt2 * HYPER_DIFF_TERM(t+1)
-    ! ==============================================
-#   ifdef ENERGY_DIAGNOSTICS
-      !if (compute_diagnostics) then
-      !  do ie = nets,nete
-      !    elem(ie)%accum%DIFF(:,:,:,:)=elem(ie)%state%v(:,:,:,:,np1)
-      !    elem(ie)%accum%DIFFT(:,:,:)=elem(ie)%state%T(:,:,:,np1)
-      !  enddo
-      !endif
-#   endif
-    ! note:time step computes u(t+1)= u(t*) + RHS.
-    ! for consistency, dt_vis = t-1 - t*, so this is timestep method dependent
-    if (tstep_type==0) then
-      call abortmp('ERROR: tstep_type == 0 not supported in OpenACC!')
-    else if (method<=10) then ! not implicit
-      if (rsplit==0) then
-        call abortmp('ERROR: rsplit==0 not supported in OpenACC!')
-      else
-        ! forward-in-time, hypervis applied to dp3d
-        call advance_hypervis_dp(edge3p1,elem,hvcoord,hybrid,deriv,np1,nets,nete,dt_vis,eta_ave_w)
-      endif
-    endif
-#   ifdef ENERGY_DIAGNOSTICS
-      !if (compute_diagnostics) then
-      !  do ie = nets,nete
-      !    do k=1,nlev  !  Loop index added (AAM)
-      !     elem(ie)%accum%DIFF(:,:,:,k)=( elem(ie)%state%v(:,:,:,k,np1) - elem(ie)%accum%DIFF(:,:,:,k) ) / dt_vis
-      !     elem(ie)%accum%DIFFT(:,:,k)=( elem(ie)%state%T(:,:,k,np1) - elem(ie)%accum%DIFFT(:,:,k) ) / dt_vis
-      !    enddo
-      !  enddo
-      !endif
-#   endif
-    tevolve=tevolve+dt
     call t_stopf('prim_advance_exp')
   end subroutine prim_advance_exp
 
@@ -715,7 +695,7 @@ contains
 
 
 
-  subroutine advance_hypervis_dp(edge3,elem,hvcoord,hybrid,deriv,nt,nets,nete,dt2,eta_ave_w)
+  subroutine advance_hypervis_dp(edge3,elem,hvcoord,hybrid,deriv,nt,nets,nete,dt2,eta_ave_w,asyncid_in)
   !  take one timestep of:
   !          u(:,:,:,np) = u(:,:,:,np) +  dt2*nu*laplacian**order ( u )
   !          T(:,:,:,np) = T(:,:,:,np) +  dt2*nu_s*laplacian**order ( T )
@@ -732,6 +712,7 @@ contains
   use viscosity_mod     , only: biharmonic_wk_dp3d_openacc
   use derivative_mod    , only: subcell_Laplace_fluxes
   use physical_constants, only: Cp
+  use openacc_utils_mod , only: acc_async_sync
   implicit none
   type (hybrid_t)      , intent(in   ) :: hybrid
   type (element_t)     , intent(inout), target :: elem(:)
@@ -741,10 +722,17 @@ contains
   real (kind=real_kind), intent(in   ) :: dt2
   integer              , intent(in   ) :: nets,nete,nt
   real (kind=real_kind), intent(in   ) :: eta_ave_w  ! weighting for mean flux terms
+  integer, optional    , intent(in   ) :: asyncid_in
   ! local
   real (kind=real_kind) :: v1,v2,dt,heating,utens_tmp,vtens_tmp,ttens_tmp,dptens_tmp,dpdn,dpdn0,nu_scale_top
   integer :: k,kptr,i,j,ie,ic
   type (EdgeDescriptor_t) :: desc
+  integer :: asyncid
+  if (present(asyncid_in)) then
+    asyncid = asyncid_in
+  else
+    asyncid = acc_async_sync
+  endif
   if (nu_s == 0 .and. nu == 0 .and. nu_p==0 ) return;
   call t_startf('advance_hypervis_dp')
   dt=dt2/hypervis_subcycle
@@ -766,18 +754,11 @@ contains
   !
   if (hypervis_order == 2) then
     do ic=1,hypervis_subcycle
-      !$omp barrier
-      !$omp master
-      do ie = 1,nelemd
-        !$acc update device(state_v(:,:,:,:,nt,ie),state_t(:,:,:,nt,ie),state_dp3d(:,:,:,nt,ie),elem(ie)%derived%dpdiss_ave,elem(ie)%derived%dpdiss_biharmonic)
-      enddo
-      !$omp end master
-
-      call biharmonic_wk_dp3d_openacc(state_t,state_dp3d,state_v,elem,grads_tmp,div_tmp,vort_tmp,dptens,ttens,vtens,deriv,edge3,hybrid,nt,1,nelemd)
+      call biharmonic_wk_dp3d_openacc(state_t,state_dp3d,state_v,elem,grads_tmp,div_tmp,vort_tmp,dptens,ttens,vtens,deriv,edge3,hybrid,nt,1,nelemd,asyncid)
 
       !$omp master
 
-      !$acc parallel loop gang vector collapse(4) present(elem,state_dp3d,dptens)
+      !$acc parallel loop gang vector collapse(4) present(elem,state_dp3d,dptens) async(asyncid)
       do ie=1,nelemd
         do k = 1 , nlev
           do j = 1 , np
@@ -795,12 +776,12 @@ contains
       !TODO: IT'S DIFFICULT BECAUSE THE ACTUAL DIMENSION LENGTH IS STILL NLEV, BUT IT ONLY NEEDS TO LOOP OVER 3 VERTICAL LEVELS
       !TODO: THEREFORE THIS REQUIRES AN ADDITIONAL OPTIONAL ARGUMENT TO LAPLACE_SPHERE_WK_OPENACC FOR ACTUAL LEVELS TO LOOP OVER.
       if (nu_top>0) then
-        call laplace_sphere_wk_openacc(state_t   ,grads_tmp,deriv,elem,.false.,lap_t ,nlev,1,nelemd,timelevels,nt,1,1)
-        call laplace_sphere_wk_openacc(state_dp3d,grads_tmp,deriv,elem,.false.,lap_dp,nlev,1,nelemd,timelevels,nt,1,1)
+        call laplace_sphere_wk_openacc(state_t   ,grads_tmp,deriv,elem,.false.,lap_t ,nlev,1,nelemd,timelevels,nt,1,1,asyncid)
+        call laplace_sphere_wk_openacc(state_dp3d,grads_tmp,deriv,elem,.false.,lap_dp,nlev,1,nelemd,timelevels,nt,1,1,asyncid)
         !This vlaplace_sphere_wk call, when ported to OpenACC, caused the diffs in ACME to go up a bit for only U and V. It's still small, but I don't know if it's OK or not.
-        call vlaplace_sphere_wk_openacc(state_v,vort_tmp,div_tmp,deriv,elem,.false.,nlev,1,nelemd,timelevels,nt,1,1,lap_v,1.0_real_kind)
+        call vlaplace_sphere_wk_openacc(state_v,vort_tmp,div_tmp,deriv,elem,.false.,nlev,1,nelemd,timelevels,nt,1,1,lap_v,1.0_real_kind,asyncid)
       endif
-      !$acc parallel loop gang vector collapse(4) present(vtens,ttens,dptens,lap_v,lap_t,lap_dp,elem,state_dp3d) private(utens_tmp,vtens_tmp,ttens_tmp,dptens_tmp)
+      !$acc parallel loop gang vector collapse(4) present(vtens,ttens,dptens,lap_v,lap_t,lap_dp,elem,state_dp3d) private(utens_tmp,vtens_tmp,ttens_tmp,dptens_tmp) async(asyncid)
       do ie=1,nelemd
         do k=1,nlev
           do j=1,np
@@ -830,20 +811,21 @@ contains
           ! NOTE: we will DSS all tendicies, EXCEPT for dp3d, where we DSS the new state
         enddo
       enddo
-      kptr=0     ;  call edgeVpack_openacc(edge3,ttens     ,  nlev,kptr,elem,1,nelemd,1,1)
-      kptr=nlev  ;  call edgeVpack_openacc(edge3,vtens     ,2*nlev,kptr,elem,1,nelemd,1,1)
-      kptr=3*nlev;  call edgeVpack_openacc(edge3,state_dp3d,  nlev,kptr,elem,1,nelemd,timelevels,nt)
+      kptr=0     ;  call edgeVpack_openacc(edge3,ttens     ,  nlev,kptr,elem,1,nelemd,1,1,asyncid)
+      kptr=nlev  ;  call edgeVpack_openacc(edge3,vtens     ,2*nlev,kptr,elem,1,nelemd,1,1,asyncid)
+      kptr=3*nlev;  call edgeVpack_openacc(edge3,state_dp3d,  nlev,kptr,elem,1,nelemd,timelevels,nt,asyncid)
+      !$acc wait(asyncid)
       !$omp end master
 
       call bndry_exchangeV(hybrid,edge3)
 
       !$omp master
-      kptr=0     ;  call edgeVunpack_openacc(edge3,ttens     ,  nlev,kptr,elem,1,nelemd,1,1)
-      kptr=nlev  ;  call edgeVunpack_openacc(edge3,vtens     ,2*nlev,kptr,elem,1,nelemd,1,1)
-      kptr=3*nlev;  call edgeVunpack_openacc(edge3,state_dp3d,  nlev,kptr,elem,1,nelemd,timelevels,nt)
+      kptr=0     ;  call edgeVunpack_openacc(edge3,ttens     ,  nlev,kptr,elem,1,nelemd,1,1,asyncid)
+      kptr=nlev  ;  call edgeVunpack_openacc(edge3,vtens     ,2*nlev,kptr,elem,1,nelemd,1,1,asyncid)
+      kptr=3*nlev;  call edgeVunpack_openacc(edge3,state_dp3d,  nlev,kptr,elem,1,nelemd,timelevels,nt,asyncid)
 
       ! apply inverse mass matrix, accumulate tendencies
-      !$acc parallel loop gang vector collapse(4) present(vtens,ttens,state_dp3d,state_v,state_t,elem) private(heating,v1,v2)
+      !$acc parallel loop gang vector collapse(4) present(vtens,ttens,state_dp3d,state_v,state_t,elem) private(heating,v1,v2) async(asyncid)
       do ie=1,nelemd
         do k=1,nlev
           do j = 1 , np
@@ -862,12 +844,7 @@ contains
           enddo
         enddo
       enddo
-
-      do ie = 1 , nelemd
-        !$acc update host(elem(ie)%derived%dpdiss_ave,elem(ie)%derived%dpdiss_biharmonic,state_dp3d(:,:,:,nt,ie),state_t(:,:,:,nt,ie),state_v(:,:,:,:,nt,ie))
-      enddo
       !$omp end master
-      !$omp barrier
     enddo
   endif
   call t_stopf('advance_hypervis_dp')

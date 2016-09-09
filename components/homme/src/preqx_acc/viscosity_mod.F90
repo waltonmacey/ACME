@@ -33,12 +33,12 @@ module viscosity_mod
 
 contains
 
-  subroutine biharmonic_wk_dp3d_openacc(state_t,state_dp3d,state_v,elem,grads,div,vort,dptens,ptens,vtens,deriv,edge3,hybrid,nt,nets,nete)
+  subroutine biharmonic_wk_dp3d_openacc(state_t,state_dp3d,state_v,elem,grads,div,vort,dptens,ptens,vtens,deriv,edge3,hybrid,nt,nets,nete,asyncid_in)
     use derivative_mod, only :  derivative_t, laplace_sphere_wk, vlaplace_sphere_wk, laplace_sphere_wk_openacc, vlaplace_sphere_wk_openacc
     use edge_mod, only: edgeVpack_openacc,edgeVunpack_openacc
     use bndry_mod, only: bndry_exchangeV => bndry_exchangeV_simple_minimize_pcie
     use element_mod, only: timelevels
-    use openacc_utils_mod, only: copy_ondev
+    use openacc_utils_mod, only: copy_ondev_async, acc_async_sync
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! compute weak biharmonic operator
     !    input:  h,v (stored in elem()%, in lat-lon coordinates
@@ -58,10 +58,17 @@ contains
     real (kind=real_kind), intent(  out) :: dptens(np,np,nlev,nets:nete)
     type (EdgeBuffer_t)  , intent(inout) :: edge3
     type (derivative_t)  , intent(in   ) :: deriv
+    integer, optional    , intent(in   ) :: asyncid_in
     ! local
     integer :: i,j,k,kptr,ie
     real(kind=real_kind) :: tmp(np,np), tmp2(np,np), v(np,np,2), nu_ratio1, nu_ratio2
     logical :: var_coef1
+    integer :: asyncid
+    if (present(asyncid_in)) then
+      asyncid = asyncid_in
+    else
+      asyncid = acc_async_sync
+    endif
     !if tensor hyperviscosity with tensor V is used, then biharmonic operator is (\grad\cdot V\grad) (\grad \cdot \grad) 
     !so tensor is only used on second call to laplace_sphere_wk
     var_coef1 = .true.
@@ -85,13 +92,14 @@ contains
       endif
     endif
     !$omp master
-    call laplace_sphere_wk_openacc(state_t   ,grads,deriv,elem,var_coef1, ptens,nlev,nets,nete,timelevels,nt,1,1)
-    call laplace_sphere_wk_openacc(state_dp3d,grads,deriv,elem,var_coef1,dptens,nlev,nets,nete,timelevels,nt,1,1)
-    call vlaplace_sphere_wk_openacc(state_v,vort,div,deriv,elem,var_coef1,nlev,nets,nete,timelevels,nt,1,1,vtens,nu_ratio1)
+    call laplace_sphere_wk_openacc(state_t   ,grads,deriv,elem,var_coef1, ptens,nlev,nets,nete,timelevels,nt,1,1,asyncid)
+    call laplace_sphere_wk_openacc(state_dp3d,grads,deriv,elem,var_coef1,dptens,nlev,nets,nete,timelevels,nt,1,1,asyncid)
+    call vlaplace_sphere_wk_openacc(state_v,vort,div,deriv,elem,var_coef1,nlev,nets,nete,timelevels,nt,1,1,vtens,nu_ratio1,asyncid)
 
-    kptr=0     ;  call edgeVpack_openacc(edge3, ptens,  nlev,kptr,elem,nets,nete,1,1)
-    kptr=nlev  ;  call edgeVpack_openacc(edge3, vtens,2*nlev,kptr,elem,nets,nete,1,1)
-    kptr=3*nlev;  call edgeVpack_openacc(edge3,dptens,  nlev,kptr,elem,nets,nete,1,1)
+    kptr=0     ;  call edgeVpack_openacc(edge3, ptens,  nlev,kptr,elem,nets,nete,1,1,asyncid)
+    kptr=nlev  ;  call edgeVpack_openacc(edge3, vtens,2*nlev,kptr,elem,nets,nete,1,1,asyncid)
+    kptr=3*nlev;  call edgeVpack_openacc(edge3,dptens,  nlev,kptr,elem,nets,nete,1,1,asyncid)
+    !$acc wait(asyncid)
     !$omp end master
 
     call t_startf('biwkdp3d_bexchV')
@@ -99,12 +107,12 @@ contains
     call t_stopf('biwkdp3d_bexchV')
 
     !$omp master
-    kptr=0     ;  call edgeVunpack_openacc(edge3, ptens,  nlev,kptr,elem,nets,nete,1,1)
-    kptr=nlev  ;  call edgeVunpack_openacc(edge3, vtens,2*nlev,kptr,elem,nets,nete,1,1)
-    kptr=3*nlev;  call edgeVunpack_openacc(edge3,dptens,  nlev,kptr,elem,nets,nete,1,1)
+    kptr=0     ;  call edgeVunpack_openacc(edge3, ptens,  nlev,kptr,elem,nets,nete,1,1,asyncid)
+    kptr=nlev  ;  call edgeVunpack_openacc(edge3, vtens,2*nlev,kptr,elem,nets,nete,1,1,asyncid)
+    kptr=3*nlev;  call edgeVunpack_openacc(edge3,dptens,  nlev,kptr,elem,nets,nete,1,1,asyncid)
 
     ! apply inverse mass matrix, then apply laplace again
-    !$acc parallel loop gang vector collapse(4) present(ptens,dptens,vtens,elem)
+    !$acc parallel loop gang vector collapse(4) present(ptens,dptens,vtens,elem) async(asyncid)
     do ie=nets,nete
       do k=1,nlev
         do j = 1 , np
@@ -118,10 +126,10 @@ contains
       enddo
     enddo
 
-    call laplace_sphere_wk_openacc(ptens ,grads,deriv,elem,.true., ptens,nlev,nets,nete,1,1,1,1)
-    call laplace_sphere_wk_openacc(dptens,grads,deriv,elem,.true.,dptens,nlev,nets,nete,1,1,1,1)
-    call copy_ondev(grads,vtens,product(shape(vtens)))
-    call vlaplace_sphere_wk_openacc(grads,vort,div,deriv,elem,.true.,nlev,nets,nete,1,1,1,1,vtens,nu_ratio2)
+    call laplace_sphere_wk_openacc(ptens ,grads,deriv,elem,.true., ptens,nlev,nets,nete,1,1,1,1,asyncid)
+    call laplace_sphere_wk_openacc(dptens,grads,deriv,elem,.true.,dptens,nlev,nets,nete,1,1,1,1,asyncid)
+    call copy_ondev_async(grads,vtens,product(shape(vtens)),asyncid)
+    call vlaplace_sphere_wk_openacc(grads,vort,div,deriv,elem,.true.,nlev,nets,nete,1,1,1,1,vtens,nu_ratio2,asyncid)
     !$omp end master
   end subroutine biharmonic_wk_dp3d_openacc
 

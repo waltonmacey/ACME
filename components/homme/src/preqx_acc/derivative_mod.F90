@@ -35,13 +35,15 @@ module derivative_mod
 
 contains
 
-  subroutine vlaplace_sphere_wk_openacc(v,vor,div,deriv,elem,var_coef,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,laplace,nu_ratio)
+  subroutine vlaplace_sphere_wk_openacc(v,vor,div,deriv,elem,var_coef,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,laplace,nu_ratio,asyncid_in)
     !   input:  v = vector in lat-lon coordinates
     !   ouput:  weak laplacian of v, in lat-lon coordinates
     !   logic:
     !      tensorHV:     requires cartesian
     !      nu_div/=nu:   requires contra formulatino
     !   One combination NOT supported:  tensorHV and nu_div/=nu then abort
+    use openacc_utils_mod, only: acc_async_sync
+    implicit none
     real(kind=real_kind), intent(in   ) :: v(np,np,2,len,ntl_in,nets:nete) 
     real(kind=real_kind), intent(  out) :: vor(np,np,len,nets:nete)
     real(kind=real_kind), intent(  out) :: div(np,np,len,nets:nete)
@@ -51,17 +53,26 @@ contains
     real(kind=real_kind), intent(in   ) :: nu_ratio
     integer             , intent(in   ) :: len,nets,nete,ntl_in,tl_in,ntl_out,tl_out
     real(kind=real_kind), intent(  out) :: laplace(np,np,2,len,ntl_out,nets:nete)
+    integer, optional   , intent(in   ) :: asyncid_in
+    integer :: asyncid
+    if (present(asyncid_in)) then
+      asyncid = asyncid_in
+    else
+      asyncid = acc_async_sync
+    endif
     if (hypervis_scaling/=0 .and. var_coef) then
       call abortmp('hypervis_scaling/=0 .and. var_coef not supported in OpenACC!')
     else  
       ! all other cases, use contra formulation:
-      call vlaplace_sphere_wk_contra(v,vor,div,deriv,elem,var_coef,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,laplace,nu_ratio)
+      call vlaplace_sphere_wk_contra(v,vor,div,deriv,elem,var_coef,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,laplace,nu_ratio,asyncid_in)
     endif
   end subroutine vlaplace_sphere_wk_openacc
 
-  subroutine vlaplace_sphere_wk_contra(v,vor,div,deriv,elem,var_coef,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,laplace,nu_ratio)
+  subroutine vlaplace_sphere_wk_contra(v,vor,div,deriv,elem,var_coef,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,laplace,nu_ratio,asyncid_in)
     !   input:  v = vector in lat-lon coordinates
     !   ouput:  weak laplacian of v, in lat-lon coordinates
+    use openacc_utils_mod, only: acc_async_sync
+    implicit none
     real(kind=real_kind), intent(in   ) :: v(np,np,2,len,ntl_in,nets:nete) 
     real(kind=real_kind), intent(  out) :: vor(np,np,len,nets:nete)
     real(kind=real_kind), intent(  out) :: div(np,np,len,nets:nete)
@@ -71,11 +82,18 @@ contains
     real(kind=real_kind), intent(in   ) :: nu_ratio
     integer             , intent(in   ) :: len,nets,nete,ntl_in,tl_in,ntl_out,tl_out
     real(kind=real_kind), intent(  out) :: laplace(np,np,2,len,ntl_out,nets:nete)
+    integer, optional   , intent(in   ) :: asyncid_in
     ! Local
     integer :: i,j,l,m,n,k,ie
-    call divergence_sphere_openacc(v,deriv,elem,div,len,nets,nete,ntl_in,tl_in,1,1)
-    call vorticity_sphere_openacc (v,deriv,elem,vor,len,nets,nete,ntl_in,tl_in,1,1)
-    !$acc parallel loop gang vector collapse(4) present(div,vor,elem)
+    integer :: asyncid
+    if (present(asyncid_in)) then
+      asyncid = asyncid_in
+    else
+      asyncid = acc_async_sync
+    endif
+    call divergence_sphere_openacc(v,deriv,elem,div,len,nets,nete,ntl_in,tl_in,1,1,asyncid)
+    call vorticity_sphere_openacc (v,deriv,elem,vor,len,nets,nete,ntl_in,tl_in,1,1,asyncid)
+    !$acc parallel loop gang vector collapse(4) present(div,vor,elem) async(asyncid)
     do ie = nets , nete
       do k = 1 , len
         do j = 1 , np
@@ -90,8 +108,8 @@ contains
         enddo
       enddo
     enddo
-    call gradient_minus_curl_sphere_wk_testcov_openacc(div,vor,deriv,elem,len,nets,nete,1,1,ntl_out,tl_out,laplace)
-    !$acc parallel loop gang vector collapse(4) present(laplace,elem,v)
+    call gradient_minus_curl_sphere_wk_testcov_openacc(div,vor,deriv,elem,len,nets,nete,1,1,ntl_out,tl_out,laplace,asyncid)
+    !$acc parallel loop gang vector collapse(4) present(laplace,elem,v) async(asyncid)
     do ie = nets , nete
       do k = 1 , len
         do n=1,np
@@ -106,19 +124,28 @@ contains
   end subroutine vlaplace_sphere_wk_contra
 
   !TODO: make this efficient with shared memory!
-  subroutine gradient_minus_curl_sphere_wk_testcov_openacc(s1,s2,deriv,elem,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,ds)
+  subroutine gradient_minus_curl_sphere_wk_testcov_openacc(s1,s2,deriv,elem,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,ds,asyncid_in)
     !   integrated-by-parts gradient, w.r.t. COVARIANT test functions
     !   input s:  scalar
     !   output  ds: weak gradient, lat/lon coordinates
+    use openacc_utils_mod, only: acc_async_sync
+    implicit none
     type (derivative_t) , intent(in   ) :: deriv
     type (element_t)    , intent(in   ) :: elem(:)
     real(kind=real_kind), intent(in   ) :: s1(np,np  ,len,ntl_in ,nets:nete)
     real(kind=real_kind), intent(in   ) :: s2(np,np  ,len,ntl_in ,nets:nete)
     real(kind=real_kind), intent(  out) :: ds(np,np,2,len,ntl_out,nets:nete)
     integer             , intent(in   ) :: len,nets,nete,ntl_in,tl_in,ntl_out,tl_out
+    integer, optional   , intent(in   ) :: asyncid_in
     integer :: i,j,l,k,ie
     real(kind=real_kind) :: dscontra1, dscontra2
-    !$acc parallel loop gang vector collapse(4) private(dscontra1, dscontra2) present(elem,deriv,s1,s2,ds)
+    integer :: asyncid
+    if (present(asyncid_in)) then
+      asyncid = asyncid_in
+    else
+      asyncid = acc_async_sync
+    endif
+    !$acc parallel loop gang vector collapse(4) private(dscontra1, dscontra2) present(elem,deriv,s1,s2,ds) async(asyncid)
     do ie=nets,nete
       do k=1,len
         do j=1,np
@@ -141,9 +168,10 @@ contains
     enddo
   end subroutine gradient_minus_curl_sphere_wk_testcov_openacc
 
-  subroutine laplace_sphere_wk_openacc(s,grads,deriv,elem,var_coef,laplace,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out)
+  subroutine laplace_sphere_wk_openacc(s,grads,deriv,elem,var_coef,laplace,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,asyncid_in)
     use element_mod, only: element_t
     use control_mod, only: hypervis_scaling, hypervis_power
+    use openacc_utils_mod, only: acc_async_sync
     implicit none
     !input:  s = scalar
     !ouput:  -< grad(PHI), grad(s) >   = weak divergence of grad(s)
@@ -155,11 +183,18 @@ contains
     logical              , intent(in   ) :: var_coef
     real(kind=real_kind) , intent(  out) :: laplace(np,np,len,ntl_out,nelemd)
     integer              , intent(in   ) :: len,nets,nete,ntl_in,tl_in, ntl_out, tl_out
+    integer, optional    , intent(in   ) :: asyncid_in
     integer :: i,j,k,ie
     ! Local
     real(kind=real_kind) :: oldgrads(2)
-    call gradient_sphere_openacc(s,deriv,elem(:),grads,len,nets,nete,ntl_in,tl_in,1,1)
-    !$acc parallel loop gang vector collapse(4) present(grads,elem(:)) private(oldgrads)
+    integer :: asyncid
+    if (present(asyncid_in)) then
+      asyncid = asyncid_in
+    else
+      asyncid = acc_async_sync
+    endif
+    call gradient_sphere_openacc(s,deriv,elem(:),grads,len,nets,nete,ntl_in,tl_in,1,1,asyncid)
+    !$acc parallel loop gang vector collapse(4) present(grads,elem(:)) private(oldgrads) async(asyncid)
     do ie = nets , nete
       do k = 1 , len
         do j = 1 , np
@@ -181,12 +216,13 @@ contains
     enddo
     ! note: divergnece_sphere and divergence_sphere_wk are identical *after* bndry_exchange
     ! if input is C_0.  Here input is not C_0, so we should use divergence_sphere_wk().  
-    call divergence_sphere_wk_openacc(grads,deriv,elem(:),laplace,len,nets,nete,1,1,ntl_out,tl_out)
+    call divergence_sphere_wk_openacc(grads,deriv,elem(:),laplace,len,nets,nete,1,1,ntl_out,tl_out,asyncid)
   end subroutine laplace_sphere_wk_openacc
 
-  subroutine divergence_sphere_wk_openacc(v,deriv,elem,div,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out)
+  subroutine divergence_sphere_wk_openacc(v,deriv,elem,div,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,asyncid_in)
     use element_mod, only: element_t
     use physical_constants, only: rrearth
+    use openacc_utils_mod, only: acc_async_sync
     implicit none
 !   input:  v = velocity in lat-lon coordinates
 !   ouput:  div(v)  spherical divergence of v, integrated by parts
@@ -200,12 +236,19 @@ contains
     real(kind=real_kind), intent(out):: div(np,np,len,ntl_out,nelemd)
     integer             , intent(in) :: len
     integer             , intent(in) :: nets , nete , ntl_in , tl_in, ntl_out, tl_out
+    integer, optional   , intent(in) :: asyncid_in
     ! Local
     integer, parameter :: kchunk = 8
     integer :: i,j,l,k,ie,kc,kk
     real(kind=real_kind) :: vtemp(np,np,2,kchunk), tmp, deriv_tmp(np,np)
+    integer :: asyncid
+    if (present(asyncid_in)) then
+      asyncid = asyncid_in
+    else
+      asyncid = acc_async_sync
+    endif
     ! latlon- > contra
-    !$acc parallel loop gang collapse(2) present(v,elem(:),div,deriv) private(vtemp,deriv_tmp)
+    !$acc parallel loop gang collapse(2) present(v,elem(:),div,deriv) private(vtemp,deriv_tmp) async(asyncid)
     do ie = nets , nete
       do kc = 1 , len/kchunk+1
         !$acc cache(vtemp,deriv_tmp)
@@ -244,6 +287,7 @@ contains
   subroutine gradient_sphere_openacc(s,deriv,elem,ds,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,asyncid_in)
     use element_mod, only: element_t
     use physical_constants, only: rrearth
+    use openacc_utils_mod, only: acc_async_sync
     implicit none
     !   input s:  scalar
     !   output  ds: spherical gradient of s, lat-lon coordinates
@@ -262,9 +306,7 @@ contains
     if (present(asyncid_in)) then
       asyncid = asyncid_in
     else
-#     ifdef _OPENACC
       asyncid = acc_async_sync
-#     endif
     endif
     !$acc parallel loop gang collapse(2) present(ds,elem(:),s,deriv%Dvv) private(stmp,deriv_tmp) async(asyncid)
     do ie = nets , nete
