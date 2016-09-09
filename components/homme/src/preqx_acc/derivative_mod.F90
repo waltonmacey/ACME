@@ -48,7 +48,7 @@ contains
     logical             , intent(in   ) :: var_coef
     type (derivative_t) , intent(in   ) :: deriv
     type (element_t)    , intent(in   ) :: elem(:)
-    real(kind=real_kind), intent(in   ), optional :: nu_ratio
+    real(kind=real_kind), intent(in   ) :: nu_ratio
     integer             , intent(in   ) :: len,nets,nete,ntl_in,tl_in,ntl_out,tl_out
     real(kind=real_kind), intent(  out) :: laplace(np,np,2,len,ntl_out,nets:nete)
     if (hypervis_scaling/=0 .and. var_coef) then
@@ -68,7 +68,7 @@ contains
     logical             , intent(in   ) :: var_coef
     type (derivative_t) , intent(in   ) :: deriv
     type (element_t)    , intent(in   ) :: elem(:)
-    real(kind=real_kind), intent(in   ), optional :: nu_ratio
+    real(kind=real_kind), intent(in   ) :: nu_ratio
     integer             , intent(in   ) :: len,nets,nete,ntl_in,tl_in,ntl_out,tl_out
     real(kind=real_kind), intent(  out) :: laplace(np,np,2,len,ntl_out,nets:nete)
     ! Local
@@ -85,7 +85,7 @@ contains
               div(i,j,k,ie) = div(i,j,k,ie)*elem(ie)%variable_hyperviscosity(i,j)
               vor(i,j,k,ie) = vor(i,j,k,ie)*elem(ie)%variable_hyperviscosity(i,j)
             endif
-            if (present(nu_ratio)) div(i,j,k,ie) = nu_ratio*div(i,j,k,ie)
+            div(i,j,k,ie) = nu_ratio*div(i,j,k,ie)
           enddo
         enddo
       enddo

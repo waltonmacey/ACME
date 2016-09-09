@@ -33,11 +33,11 @@ module viscosity_mod
 
 contains
 
-  subroutine biharmonic_wk_dp3d_openacc(elem,grads,div,vort,dptens,ptens,vtens,deriv,edge3,hybrid,nt,nets,nete)
+  subroutine biharmonic_wk_dp3d_openacc(state_t,state_dp3d,state_v,elem,grads,div,vort,dptens,ptens,vtens,deriv,edge3,hybrid,nt,nets,nete)
     use derivative_mod, only :  derivative_t, laplace_sphere_wk, vlaplace_sphere_wk, laplace_sphere_wk_openacc, vlaplace_sphere_wk_openacc
     use edge_mod, only: edgeVpack_openacc,edgeVunpack_openacc
     use bndry_mod, only: bndry_exchangeV => bndry_exchangeV_simple_minimize_pcie
-    use element_mod, only: state_t, state_dp3d, state_v, timelevels
+    use element_mod, only: timelevels
     use openacc_utils_mod, only: copy_ondev
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! compute weak biharmonic operator
@@ -47,6 +47,9 @@ contains
     type (hybrid_t)      , intent(in   ) :: hybrid
     type (element_t)     , intent(inout), target :: elem(:)
     integer              , intent(in   ) :: nt,nets,nete
+    real (kind=real_kind), intent(in   ) :: state_t(np,np,nlev,timelevels,nets:nete)
+    real (kind=real_kind), intent(in   ) :: state_dp3d(np,np,nlev,timelevels,nets:nete)
+    real (kind=real_kind), intent(in   ) :: state_v(np,np,2,nlev,timelevels,nets:nete)
     real (kind=real_kind), intent(inout) :: grads(np,np,2,nlev,nets:nete)
     real (kind=real_kind), intent(inout) :: div(np,np,nlev,nets:nete)
     real (kind=real_kind), intent(inout) :: vort(np,np,nlev,nets:nete)
@@ -81,12 +84,7 @@ contains
         nu_ratio2=nu_div/nu
       endif
     endif
-    !$omp barrier
     !$omp master
-    do ie = nets , nete
-      !$acc update device(state_t(:,:,:,nt,ie),state_dp3d(:,:,:,nt,ie),state_v(:,:,:,:,nt,ie))
-    enddo
-
     call laplace_sphere_wk_openacc(state_t   ,grads,deriv,elem,var_coef1, ptens,nlev,nets,nete,timelevels,nt,1,1)
     call laplace_sphere_wk_openacc(state_dp3d,grads,deriv,elem,var_coef1,dptens,nlev,nets,nete,timelevels,nt,1,1)
     call vlaplace_sphere_wk_openacc(state_v,vort,div,deriv,elem,var_coef1,nlev,nets,nete,timelevels,nt,1,1,vtens,nu_ratio1)
@@ -95,13 +93,11 @@ contains
     kptr=nlev  ;  call edgeVpack_openacc(edge3, vtens,2*nlev,kptr,elem,nets,nete,1,1)
     kptr=3*nlev;  call edgeVpack_openacc(edge3,dptens,  nlev,kptr,elem,nets,nete,1,1)
     !$omp end master
-    !$omp barrier
 
     call t_startf('biwkdp3d_bexchV')
     call bndry_exchangeV(hybrid,edge3)
     call t_stopf('biwkdp3d_bexchV')
 
-    !$omp barrier
     !$omp master
     kptr=0     ;  call edgeVunpack_openacc(edge3, ptens,  nlev,kptr,elem,nets,nete,1,1)
     kptr=nlev  ;  call edgeVunpack_openacc(edge3, vtens,2*nlev,kptr,elem,nets,nete,1,1)
@@ -126,12 +122,7 @@ contains
     call laplace_sphere_wk_openacc(dptens,grads,deriv,elem,.true.,dptens,nlev,nets,nete,1,1,1,1)
     call copy_ondev(grads,vtens,product(shape(vtens)))
     call vlaplace_sphere_wk_openacc(grads,vort,div,deriv,elem,.true.,nlev,nets,nete,1,1,1,1,vtens,nu_ratio2)
-
-
-    !$acc update host(ptens,vtens,dptens)
-
     !$omp end master
-    !$omp barrier
   end subroutine biharmonic_wk_dp3d_openacc
 
   subroutine biharmonic_wk_scalar_openacc(elem,qtens,grads,deriv,edgeq,hybrid,nets,nete)

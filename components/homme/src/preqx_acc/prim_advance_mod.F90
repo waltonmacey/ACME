@@ -521,7 +521,7 @@ contains
         enddo
       enddo
     else
-      !$acc parallel loop gang vector collapse(4) private(qt) present(t_v,elem,kappa_star,state_qdp,state_t) async(asyncid)
+      !$acc parallel loop gang vector collapse(4) private(qt) present(t_v,elem,kappa_star,state_qdp,state_t,dp) async(asyncid)
       do ie=1,nelemd
         do k=1,nlev
           do j=1,np
@@ -587,7 +587,7 @@ contains
     call gradient_sphere_openacc(state_t,deriv,elem,vtemp1,nlev,1,nelemd,timelevels,n0,1,1,asyncid_in=asyncid)
     call gradient_sphere_openacc(ephi   ,deriv,elem,vtemp2,nlev,1,nelemd,1,1,1,1,asyncid_in=asyncid)
     !$acc parallel loop gang vector collapse(4) private(v1,v2,vgrad_t,gpterm,glnps1,glnps2,vtens1,vtens2,ttens,u_m_umet,v_m_vmet,t_m_tmet) &
-    !$acc&              present(state_v,vtemp1,t_v,p,grad_p,v_vadv,elem,vort,vtemp2,t_vadv,kappa_star,omega_p,state_t,state_dp3d,divdp,eta_dot_dpdn) async(asyncid)
+    !$acc&              present(state_v,vtemp1,t_v,p,grad_p,v_vadv,elem,vort,vtemp2,t_vadv,kappa_star,omega_p,state_t,state_dp3d,divdp,eta_dot_dpdn,grad_p_m_pmet) async(asyncid)
     do ie=1,nelemd
       do k=1,nlev
         do j=1,np
@@ -724,10 +724,9 @@ contains
   use control_mod       , only: nu, nu_div, nu_s, hypervis_order, hypervis_subcycle, nu_p, nu_top, psurf_vis, swest
   use hybrid_mod        , only: hybrid_t
   use hybvcoord_mod     , only: hvcoord_t
-  use element_mod       , only: element_t
-  use derivative_mod    , only: derivative_t, laplace_sphere_wk, vlaplace_sphere_wk
-  use derivative_mod    , only: subcell_Laplace_fluxes, subcell_dss_fluxes
-  use edge_mod          , only: edgevpack, edgevunpack, edgeDGVunpack
+  use element_mod       , only: element_t, state_t, state_dp3d, state_v
+  use derivative_mod    , only: derivative_t, laplace_sphere_wk, vlaplace_sphere_wk, laplace_sphere_wk_openacc, vlaplace_sphere_wk_openacc
+  use edge_mod          , only: edgevpack, edgevunpack
   use edgetype_mod      , only: EdgeBuffer_t, EdgeDescriptor_t
   use bndry_mod         , only: bndry_exchangev
   use viscosity_mod     , only: biharmonic_wk_dp3d_openacc
@@ -743,7 +742,6 @@ contains
   integer              , intent(in   ) :: nets,nete,nt
   real (kind=real_kind), intent(in   ) :: eta_ave_w  ! weighting for mean flux terms
   ! local
-  real (kind=real_kind) :: lap_t(np,np),lap_dp(np,np),lap_v(np,np,2)
   real (kind=real_kind) :: v1,v2,dt,heating,utens_tmp,vtens_tmp,ttens_tmp,dptens_tmp,dpdn,dpdn0,nu_scale_top
   integer :: k,kptr,i,j,ie,ic
   type (EdgeDescriptor_t) :: desc
@@ -768,23 +766,60 @@ contains
   !
   if (hypervis_order == 2) then
     do ic=1,hypervis_subcycle
-      call biharmonic_wk_dp3d_openacc(elem,grads_tmp,div_tmp,vort_tmp,dptens,ttens,vtens,deriv,edge3,hybrid,nt,1,nelemd)
+      !$omp barrier
+      !$omp master
+      do ie = 1,nelemd
+        !$acc update device(state_v(:,:,:,:,nt,ie),state_t(:,:,:,nt,ie),state_dp3d(:,:,:,nt,ie),elem(ie)%derived%dpdiss_ave,elem(ie)%derived%dpdiss_biharmonic)
+      enddo
+      !$omp end master
+
+      call biharmonic_wk_dp3d_openacc(state_t,state_dp3d,state_v,elem,grads_tmp,div_tmp,vort_tmp,dptens,ttens,vtens,deriv,edge3,hybrid,nt,1,nelemd)
+
+      !$omp master
+
+      !$acc parallel loop gang vector collapse(4) present(elem,state_dp3d,dptens)
+      do ie=1,nelemd
+        do k = 1 , nlev
+          do j = 1 , np
+            do i = 1 , np
+              ! comptue mean flux
+              if (nu_p>0) then
+                elem(ie)%derived%dpdiss_ave(i,j,k)=elem(ie)%derived%dpdiss_ave(i,j,k)+eta_ave_w*state_dp3d(i,j,k,nt,ie)/hypervis_subcycle
+                elem(ie)%derived%dpdiss_biharmonic(i,j,k)=elem(ie)%derived%dpdiss_biharmonic(i,j,k)+eta_ave_w*dptens(i,j,k,ie)/hypervis_subcycle
+              endif
+            enddo
+          enddo
+        enddo
+      enddo
+      !TODO: THIS CALCULATES OVER ALL VERTICAL LEVELS. NEED TO DO IT OVER THREE INSTEAD.
+      !TODO: IT'S DIFFICULT BECAUSE THE ACTUAL DIMENSION LENGTH IS STILL NLEV, BUT IT ONLY NEEDS TO LOOP OVER 3 VERTICAL LEVELS
+      !TODO: THEREFORE THIS REQUIRES AN ADDITIONAL OPTIONAL ARGUMENT TO LAPLACE_SPHERE_WK_OPENACC FOR ACTUAL LEVELS TO LOOP OVER.
+      if (nu_top>0) then
+        call laplace_sphere_wk_openacc(state_t   ,grads_tmp,deriv,elem,.false.,lap_t ,nlev,1,nelemd,timelevels,nt,1,1)
+        call laplace_sphere_wk_openacc(state_dp3d,grads_tmp,deriv,elem,.false.,lap_dp,nlev,1,nelemd,timelevels,nt,1,1)
+        call vlaplace_sphere_wk_openacc(state_v,vort_tmp,div_tmp,deriv,elem,.false.,nlev,1,nelemd,timelevels,nt,1,1,lap_v,1.0_real_kind)
+      endif
+
+
+      !$acc update host(dptens,ttens,vtens,lap_t,lap_dp,lap_v)
+      do ie = 1 , nelemd
+        !$acc update host(elem(ie)%derived%dpdiss_ave,elem(ie)%derived%dpdiss_biharmonic)
+      enddo
+
+      if (nu_top>0) then
+        do ie=1,nelemd
+          do k=1,nlev
+            !lap_t(:,:,k,ie)=laplace_sphere_wk(elem(ie)%state%T(:,:,k,nt),deriv,elem(ie),.false.)
+            !lap_dp(:,:,k,ie)=laplace_sphere_wk(elem(ie)%state%dp3d(:,:,k,nt),deriv,elem(ie),.false.)
+            !lap_v(:,:,:,k,ie)=vlaplace_sphere_wk(elem(ie)%state%v(:,:,:,k,nt),deriv,elem(ie),.false.,1.0_real_kind)
+          enddo
+        enddo
+      endif
+
+      !$omp end master
+      !$omp barrier
       do ie=nets,nete
-        ! comptue mean flux
-        if (nu_p>0) then
-          elem(ie)%derived%dpdiss_ave(:,:,:)=elem(ie)%derived%dpdiss_ave(:,:,:)+eta_ave_w*elem(ie)%state%dp3d(:,:,:,nt)/hypervis_subcycle
-          elem(ie)%derived%dpdiss_biharmonic(:,:,:)=elem(ie)%derived%dpdiss_biharmonic(:,:,:)+eta_ave_w*dptens(:,:,:,ie)/hypervis_subcycle
-        endif
         do k=1,nlev
-          ! advace in time.
-          ! note: DSS commutes with time stepping, so we can time advance and then DSS.
-          ! note: weak operators alreayd have mass matrix "included"
-          ! add regular diffusion in top 3 layers:
-          if (nu_top>0 .and. k<=3) then
-            lap_t=laplace_sphere_wk(elem(ie)%state%T(:,:,k,nt),deriv,elem(ie),var_coef=.false.)
-            lap_dp=laplace_sphere_wk(elem(ie)%state%dp3d(:,:,k,nt),deriv,elem(ie),var_coef=.false.)
-            lap_v=vlaplace_sphere_wk(elem(ie)%state%v(:,:,:,k,nt),deriv,elem(ie),var_coef=.false.)
-          endif
           nu_scale_top = 1
           if (k==1) nu_scale_top=4
           if (k==2) nu_scale_top=2
@@ -792,10 +827,10 @@ contains
             do i=1,np
               ! biharmonic terms need a negative sign:
               if (nu_top>0 .and. k<=3) then
-                utens_tmp=(-nu*vtens(i,j,1,k,ie) + nu_scale_top*nu_top*lap_v(i,j,1))
-                vtens_tmp=(-nu*vtens(i,j,2,k,ie) + nu_scale_top*nu_top*lap_v(i,j,2))
-                ttens_tmp=(-nu_s*ttens(i,j,k,ie) + nu_scale_top*nu_top*lap_t(i,j) )
-                dptens_tmp=(-nu_p*dptens(i,j,k,ie) + nu_scale_top*nu_top*lap_dp(i,j) )
+                utens_tmp=(-nu*vtens(i,j,1,k,ie) + nu_scale_top*nu_top*lap_v(i,j,1,k,ie))
+                vtens_tmp=(-nu*vtens(i,j,2,k,ie) + nu_scale_top*nu_top*lap_v(i,j,2,k,ie))
+                ttens_tmp=(-nu_s*ttens(i,j,k,ie) + nu_scale_top*nu_top*lap_t(i,j,k,ie) )
+                dptens_tmp=(-nu_p*dptens(i,j,k,ie) + nu_scale_top*nu_top*lap_dp(i,j,k,ie) )
               else
                 utens_tmp=-nu*vtens(i,j,1,k,ie)
                 vtens_tmp=-nu*vtens(i,j,2,k,ie)
