@@ -2629,7 +2629,17 @@ Number of subcolumns in VAMP Generator
 Default: 10
 </entry>
 
-
+<!-- ================================================================ -->
+<!-- ProcOrdering - AaronDonahue - (09/09/2016):                      -->
+<!-- Add definition of process ordering                               -->
+<entry id="proc_order_bc" type="integer(5)" category="conv"
+       group="phys_ctl_nl" valid_values="" >
+Order of processes to be executed in tphysbc subroutine. Currently
+there are 5 processes considered, 1-Deep Convection, 2-Shallow Convection
+3-Macrophysics, 4-Microphysics+Wet Depostion, 5-Radiation
+Default: 1, 2, 3, 4, 5
+</entry>
+<!-- ================================================================ -->
 
 <!-- Moist Convection and Microphysics -->
 

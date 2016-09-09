@@ -155,6 +155,13 @@ subroutine phys_register
 
     integer :: nmodes
 
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (09/09/2016):
+! Variable for controlling the process order in the tphysbc subroutine.
+    integer :: proc_order_bc(5)
+    call phys_getopts( proc_order_bc_out = proc_order_bc )
+!=======================================================================
+
     call phys_getopts(shallow_scheme_out       = shallow_scheme, &
                       macrop_scheme_out        = macrop_scheme,   &
                       microp_scheme_out        = microp_scheme,   &
@@ -1939,7 +1946,16 @@ subroutine tphysbc (ztodt,               &
     logical :: l_st_mic
     logical :: l_rad
     !HuiWan (2014/15): added for a short-term time step convergence test ==
-
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (09/09/2016):
+! Variables to control the order of physics processes in the tphysbc 
+! subroutine.
+! NOTE: For purposes of stability, the first time step will always use
+!       the standard default order of Deep Convection/Shallow Convection
+!       first. 
+    integer, dimension(5) :: proc_order_bc, proc_order
+    integer               :: procidx, loc_proc
+!======================================================================= 
 
     call phys_getopts( microp_scheme_out      = microp_scheme, &
                        macrop_scheme_out      = macrop_scheme, &
@@ -1951,6 +1967,7 @@ subroutine tphysbc (ztodt,               &
                       ,l_st_mac_out           = l_st_mac           &
                       ,l_st_mic_out           = l_st_mic           &
                       ,l_rad_out              = l_rad              &
+                      ,proc_order_bc_out      = proc_order_bc      & ! ProcOrdering - AaronDonahue - (09/09/2016) Load process order from namelist
                       )
     
     !-----------------------------------------------------------------------
