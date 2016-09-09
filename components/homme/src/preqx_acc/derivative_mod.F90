@@ -105,6 +105,7 @@ contains
     enddo
   end subroutine vlaplace_sphere_wk_contra
 
+  !TODO: make this efficient with shared memory!
   subroutine gradient_minus_curl_sphere_wk_testcov_openacc(s1,s2,deriv,elem,len,nets,nete,ntl_in,tl_in,ntl_out,tl_out,ds)
     !   integrated-by-parts gradient, w.r.t. COVARIANT test functions
     !   input s:  scalar

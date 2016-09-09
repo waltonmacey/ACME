@@ -726,9 +726,9 @@ contains
   use hybvcoord_mod     , only: hvcoord_t
   use element_mod       , only: element_t, state_t, state_dp3d, state_v
   use derivative_mod    , only: derivative_t, laplace_sphere_wk, vlaplace_sphere_wk, laplace_sphere_wk_openacc, vlaplace_sphere_wk_openacc
-  use edge_mod          , only: edgevpack, edgevunpack
+  use edge_mod          , only: edgevpack_openacc, edgevunpack_openacc
   use edgetype_mod      , only: EdgeBuffer_t, EdgeDescriptor_t
-  use bndry_mod         , only: bndry_exchangev
+  use bndry_mod         , only: bndry_exchangev => bndry_exchangeV_simple_minimize_pcie
   use viscosity_mod     , only: biharmonic_wk_dp3d_openacc
   use derivative_mod    , only: subcell_Laplace_fluxes
   use physical_constants, only: Cp
@@ -797,34 +797,17 @@ contains
       if (nu_top>0) then
         call laplace_sphere_wk_openacc(state_t   ,grads_tmp,deriv,elem,.false.,lap_t ,nlev,1,nelemd,timelevels,nt,1,1)
         call laplace_sphere_wk_openacc(state_dp3d,grads_tmp,deriv,elem,.false.,lap_dp,nlev,1,nelemd,timelevels,nt,1,1)
+        !This vlaplace_sphere_wk call, when ported to OpenACC, caused the diffs in ACME to go up a bit for only U and V. It's still small, but I don't know if it's OK or not.
         call vlaplace_sphere_wk_openacc(state_v,vort_tmp,div_tmp,deriv,elem,.false.,nlev,1,nelemd,timelevels,nt,1,1,lap_v,1.0_real_kind)
       endif
-
-
-      !$acc update host(dptens,ttens,vtens,lap_t,lap_dp,lap_v)
-      do ie = 1 , nelemd
-        !$acc update host(elem(ie)%derived%dpdiss_ave,elem(ie)%derived%dpdiss_biharmonic)
-      enddo
-
-      if (nu_top>0) then
-        do ie=1,nelemd
-          do k=1,nlev
-            !lap_t(:,:,k,ie)=laplace_sphere_wk(elem(ie)%state%T(:,:,k,nt),deriv,elem(ie),.false.)
-            !lap_dp(:,:,k,ie)=laplace_sphere_wk(elem(ie)%state%dp3d(:,:,k,nt),deriv,elem(ie),.false.)
-            !lap_v(:,:,:,k,ie)=vlaplace_sphere_wk(elem(ie)%state%v(:,:,:,k,nt),deriv,elem(ie),.false.,1.0_real_kind)
-          enddo
-        enddo
-      endif
-
-      !$omp end master
-      !$omp barrier
-      do ie=nets,nete
+      !$acc parallel loop gang vector collapse(4) present(vtens,ttens,dptens,lap_v,lap_t,lap_dp,elem,state_dp3d) private(utens_tmp,vtens_tmp,ttens_tmp,dptens_tmp)
+      do ie=1,nelemd
         do k=1,nlev
-          nu_scale_top = 1
-          if (k==1) nu_scale_top=4
-          if (k==2) nu_scale_top=2
           do j=1,np
             do i=1,np
+              nu_scale_top = 1
+              if (k==1) nu_scale_top=4
+              if (k==2) nu_scale_top=2
               ! biharmonic terms need a negative sign:
               if (nu_top>0 .and. k<=3) then
                 utens_tmp=(-nu*vtens(i,j,1,k,ie) + nu_scale_top*nu_top*lap_v(i,j,1,k,ie))
@@ -841,50 +824,50 @@ contains
               dptens(i,j,k,ie) =dptens_tmp
               vtens(i,j,1,k,ie)=utens_tmp
               vtens(i,j,2,k,ie)=vtens_tmp
+              state_dp3d(i,j,k,nt,ie) = state_dp3d(i,j,k,nt,ie)*elem(ie)%spheremp(i,j) + dt*dptens(i,j,k,ie)
             enddo
           enddo
           ! NOTE: we will DSS all tendicies, EXCEPT for dp3d, where we DSS the new state
-          elem(ie)%state%dp3d(:,:,k,nt) = elem(ie)%state%dp3d(:,:,k,nt)*elem(ie)%spheremp(:,:) + dt*dptens(:,:,k,ie)
         enddo
-        kptr=0     ;  call edgeVpack(edge3, ttens(:,:,:,ie),nlev,kptr,ie)
-        kptr=nlev  ;  call edgeVpack(edge3,vtens(:,:,:,:,ie),2*nlev,kptr,ie)
-        kptr=3*nlev;  call edgeVpack(edge3,elem(ie)%state%dp3d(:,:,:,nt),nlev,kptr,ie)
       enddo
+      kptr=0     ;  call edgeVpack_openacc(edge3,ttens     ,  nlev,kptr,elem,1,nelemd,1,1)
+      kptr=nlev  ;  call edgeVpack_openacc(edge3,vtens     ,2*nlev,kptr,elem,1,nelemd,1,1)
+      kptr=3*nlev;  call edgeVpack_openacc(edge3,state_dp3d,  nlev,kptr,elem,1,nelemd,timelevels,nt)
+      !$omp end master
 
-      call t_startf('ahdp_bexchV2')
       call bndry_exchangeV(hybrid,edge3)
-      call t_stopf('ahdp_bexchV2')
 
-      do ie=nets,nete
-        kptr=0     ;  call edgeVunpack(edge3, ttens(:,:,:,ie), nlev, kptr, ie)
-        kptr=nlev  ;  call edgeVunpack(edge3, vtens(:,:,:,:,ie), 2*nlev, kptr, ie)
-        kptr=3*nlev;  call edgeVunpack(edge3, elem(ie)%state%dp3d(:,:,:,nt), nlev, kptr, ie)
-        ! apply inverse mass matrix, accumulate tendencies
+      !$omp master
+      kptr=0     ;  call edgeVunpack_openacc(edge3,ttens     ,  nlev,kptr,elem,1,nelemd,1,1)
+      kptr=nlev  ;  call edgeVunpack_openacc(edge3,vtens     ,2*nlev,kptr,elem,1,nelemd,1,1)
+      kptr=3*nlev;  call edgeVunpack_openacc(edge3,state_dp3d,  nlev,kptr,elem,1,nelemd,timelevels,nt)
+
+      ! apply inverse mass matrix, accumulate tendencies
+      !$acc parallel loop gang vector collapse(4) present(vtens,ttens,state_dp3d,state_v,state_t,elem) private(heating,v1,v2)
+      do ie=1,nelemd
         do k=1,nlev
-          vtens(:,:,1,k,ie)=dt*vtens(:,:,1,k,ie)*elem(ie)%rspheremp(:,:)
-          vtens(:,:,2,k,ie)=dt*vtens(:,:,2,k,ie)*elem(ie)%rspheremp(:,:)
-          ttens(:,:,k,ie)=dt*ttens(:,:,k,ie)*elem(ie)%rspheremp(:,:)
-          elem(ie)%state%dp3d(:,:,k,nt)=elem(ie)%state%dp3d(:,:,k,nt)*elem(ie)%rspheremp(:,:)
-        enddo
-        ! apply hypervis to u -> u+utens:
-        ! E0 = dpdn * .5*u dot u + dpdn * T  + dpdn*PHIS
-        ! E1 = dpdn * .5*(u+utens) dot (u+utens) + dpdn * (T-X) + dpdn*PHIS
-        ! E1-E0:   dpdn (u dot utens) + dpdn .5 utens dot utens   - dpdn X
-        !      X = (u dot utens) + .5 utens dot utens
-        !  alt:  (u+utens) dot utens
-        do k=1,nlev
-          do j=1,np
-            do i=1,np
+          do j = 1 , np
+            do i = 1 , np
+              vtens(i,j,1,k,ie)=dt*vtens(i,j,1,k,ie)*elem(ie)%rspheremp(i,j)
+              vtens(i,j,2,k,ie)=dt*vtens(i,j,2,k,ie)*elem(ie)%rspheremp(i,j)
+              ttens(i,j,k,ie)=dt*ttens(i,j,k,ie)*elem(ie)%rspheremp(i,j)
+              state_dp3d(i,j,k,nt,ie)=state_dp3d(i,j,k,nt,ie)*elem(ie)%rspheremp(i,j)
               ! update v first (gives better results than updating v after heating)
-              elem(ie)%state%v(i,j,:,k,nt)=elem(ie)%state%v(i,j,:,k,nt) + vtens(i,j,:,k,ie)
-              v1=elem(ie)%state%v(i,j,1,k,nt)
-              v2=elem(ie)%state%v(i,j,2,k,nt)
+              state_v(i,j,:,k,nt,ie)=state_v(i,j,:,k,nt,ie) + vtens(i,j,:,k,ie)
+              v1=state_v(i,j,1,k,nt,ie)
+              v2=state_v(i,j,2,k,nt,ie)
               heating = (vtens(i,j,1,k,ie)*v1  + vtens(i,j,2,k,ie)*v2 )
-              elem(ie)%state%T(i,j,k,nt)=elem(ie)%state%T(i,j,k,nt) + ttens(i,j,k,ie)-heating/cp
+              state_T(i,j,k,nt,ie)=state_T(i,j,k,nt,ie) + ttens(i,j,k,ie)-heating/cp
             enddo
           enddo
         enddo
       enddo
+
+      do ie = 1 , nelemd
+        !$acc update host(elem(ie)%derived%dpdiss_ave,elem(ie)%derived%dpdiss_biharmonic,state_dp3d(:,:,:,nt,ie),state_t(:,:,:,nt,ie),state_v(:,:,:,:,nt,ie))
+      enddo
+      !$omp end master
+      !$omp barrier
     enddo
   endif
   call t_stopf('advance_hypervis_dp')
