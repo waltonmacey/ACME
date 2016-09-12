@@ -115,11 +115,10 @@ contains
       enddo
     enddo
     do ie = 1 , nelemd
-      !$acc update host(elem(ie)%derived%eta_dot_dpdn,derived_vn0(:,:,:,:,ie),elem(ie)%derived%omega_p,elem(ie)%derived%dpdiss_ave,elem(ie)%derived%dpdiss_biharmonic, &
-      !$acc&            elem(ie)%derived%vstar,elem(ie)%derived%dp) async(1)
+      !$acc update host(elem(ie)%derived%vstar,elem(ie)%derived%dp) async(1)
     enddo
     !$acc wait(1)
-    !$omp master
+    !$omp end master
     !$omp barrier
     call t_stopf("prim_step_init")
   end subroutine prim_step_prestage
@@ -247,14 +246,11 @@ contains
       call TimeLevel_Qdp(tl, qsplit, qn0)  ! compute current Qdp() timelevel
     endif
 
-
     !$omp barrier
     !$omp master
     do ie = 1 , nelemd
-      !$acc update device(state_dp3d(:,:,:,n0,ie),state_v(:,:,:,:,n0,ie),state_T(:,:,:,n0,ie),state_Qdp(:,:,:,1,qn0,ie),elem(ie)%state%phis,elem(ie)%derived%eta_dot_dpdn,elem(ie)%derived%omega_p, &
-      !$acc&              elem(ie)%derived%dpdiss_ave,elem(ie)%derived%dpdiss_biharmonic) async(asyncid)
+      !$acc update device(state_T(:,:,:,n0,ie),state_Qdp(:,:,:,1,qn0,ie),elem(ie)%state%phis) async(asyncid)
     enddo
-    !$acc update device(derived_vn0) async(asyncid)
 #   if ( defined CAM )
       do ie = 1 , nelemd
         if(se_met_nudge_u.gt.0.D0)then
