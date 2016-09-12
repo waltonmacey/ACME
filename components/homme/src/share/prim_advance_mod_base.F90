@@ -17,7 +17,7 @@ module prim_advance_mod_base
   private
   save
   public :: prim_advance_exp, prim_advance_si, prim_advance_init, preq_robert3,&
-       applyCAMforcing_dynamics, applyCAMforcing, smooth_phis, overwrite_SEdensity
+       applyCAMforcing_dynamics, applyCAMforcing, smooth_phis, overwrite_SEdensity, prim_step_prestage
 
 #ifdef TRILINOS
   public :: distribute_flux_at_corners
@@ -32,6 +32,57 @@ module prim_advance_mod_base
   real (kind=real_kind), allocatable :: ur_weights(:)
 
 contains
+
+  subroutine prim_step_prestage(elem,hvcoord,nets,nete,dt,dt_q,tl)
+    use dimensions_mod, only: np,nlev
+    use control_mod, only: qsplit, nu_p, use_semi_lagrange_transport, rsplit 
+    use element_mod, only: element_t
+    use time_mod, only : timelevel_t
+    use hybvcoord_mod, only : hvcoord_t
+    implicit none
+    type(element_t),      intent(inout) :: elem(:)
+    type(hvcoord_t),      intent(in   ) :: hvcoord  ! hybrid vertical coordinate struct
+    integer,              intent(in   ) :: nets     ! starting thread element number (private)
+    integer,              intent(in   ) :: nete     ! ending thread element number   (private)
+    real(kind=real_kind), intent(in   ) :: dt       ! "timestep dependent" timestep
+    real(kind=real_kind), intent(  out) :: dt_q
+    type(TimeLevel_t),    intent(inout) :: tl
+    integer :: ie,k
+    call t_startf("prim_step_init")
+    dt_q = dt*qsplit
+    ! ===============
+    ! initialize mean flux accumulation variables and save some variables at n0
+    ! for use by advection
+    ! ===============
+    do ie=nets,nete
+      elem(ie)%derived%eta_dot_dpdn=0     ! mean vertical mass flux
+      elem(ie)%derived%vn0=0              ! mean horizontal mass flux
+      elem(ie)%derived%omega_p=0
+      if (nu_p>0) then
+         elem(ie)%derived%dpdiss_ave=0
+         elem(ie)%derived%dpdiss_biharmonic=0
+      endif
+      ! save velocity at time t for seme-legrangian transport
+      if (use_semi_lagrange_transport) then
+        elem(ie)%derived%vstar=elem(ie)%state%v(:,:,:,:,tl%n0)
+      end if
+      if (rsplit==0) then
+        ! save dp at time t for use in tracers
+#if (defined COLUMN_OPENMP)
+!$omp parallel do default(shared), private(k)
+#endif
+         do k=1,nlev
+            elem(ie)%derived%dp(:,:,k)=&
+                 ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + &
+                 ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*elem(ie)%state%ps_v(:,:,tl%n0)
+         enddo
+      else
+         ! dp at time t:  use floating lagrangian levels:
+         elem(ie)%derived%dp(:,:,:)=elem(ie)%state%dp3d(:,:,:,tl%n0)
+      endif
+    enddo
+    call t_stopf("prim_step_init")
+  end subroutine prim_step_prestage
 
   subroutine prim_advance_init(par, elem,integration)
     use edge_mod, only : initEdgeBuffer

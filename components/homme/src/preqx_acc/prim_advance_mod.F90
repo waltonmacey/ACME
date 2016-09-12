@@ -16,7 +16,7 @@ module prim_advance_mod
   private
   save
   public :: prim_advance_exp, prim_advance_si, prim_advance_init, preq_robert3,&
-            applyCAMforcing_dynamics, applyCAMforcing, smooth_phis, overwrite_SEdensity
+            applyCAMforcing_dynamics, applyCAMforcing, smooth_phis, overwrite_SEdensity, prim_step_prestage
 
   type (EdgeBuffer_t) :: edge1
   type (EdgeBuffer_t) :: edge2
@@ -55,6 +55,74 @@ module prim_advance_mod
   real (kind=real_kind), allocatable :: lap_v        (:,:,:,:,:)
 
 contains
+
+
+
+  subroutine prim_step_prestage(elem,hvcoord,nets,nete,dt,dt_q,tl)
+    use dimensions_mod, only: np,nlev
+    use control_mod, only: qsplit, nu_p, use_semi_lagrange_transport, rsplit 
+    use element_mod, only: element_t,derived_vn0,state_ps_v,state_dp3d, state_v
+    use time_mod, only : timelevel_t
+    use hybvcoord_mod, only : hvcoord_t
+    implicit none
+    type(element_t),      intent(inout) :: elem(:)
+    type(hvcoord_t),      intent(in   ) :: hvcoord  ! hybrid vertical coordinate struct
+    integer,              intent(in   ) :: nets     ! starting thread element number (private)
+    integer,              intent(in   ) :: nete     ! ending thread element number   (private)
+    real(kind=real_kind), intent(in   ) :: dt       ! "timestep dependent" timestep
+    real(kind=real_kind), intent(  out) :: dt_q
+    type(TimeLevel_t),    intent(inout) :: tl
+    integer :: ie,k,j,i
+    call t_startf("prim_step_init")
+    dt_q = dt*qsplit
+    ! ===============
+    ! initialize mean flux accumulation variables and save some variables at n0
+    ! for use by advection
+    ! ===============
+    !$omp barrier
+    !$omp master
+    do ie = 1 , nelemd
+      !$acc update device(state_v(:,:,:,:,tl%n0,ie),state_ps_v(:,:,tl%n0,ie),state_dp3d(:,:,:,tl%n0,ie)) async(1)
+    enddo
+    !$acc parallel loop gang vector collapse(4) present(elem,hvcoord,derived_vn0,state_ps_v,state_dp3d,state_v) async(1)
+    do ie = 1 , nelemd
+      do k = 1 , nlev+1
+        do j = 1 , np
+          do i = 1 , np
+            elem(ie)%derived%eta_dot_dpdn(i,j,k)=0     ! mean vertical mass flux
+            if (k <= nlev) then
+              derived_vn0(i,j,:,k,ie)=0              ! mean horizontal mass flux
+              elem(ie)%derived%omega_p(i,j,k)=0
+              if (nu_p>0) then
+                elem(ie)%derived%dpdiss_ave(i,j,k)=0
+                elem(ie)%derived%dpdiss_biharmonic(i,j,k)=0
+              endif
+              ! save velocity at time t for seme-legrangian transport
+              if (use_semi_lagrange_transport) then
+                elem(ie)%derived%vstar(i,j,:,k)=state_v(i,j,:,k,tl%n0,ie)
+              end if
+              if (rsplit==0) then
+                ! save dp at time t for use in tracers
+                elem(ie)%derived%dp(i,j,k)=( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + &
+                                           ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*state_ps_v(i,j,tl%n0,ie)
+              else
+                 ! dp at time t:  use floating lagrangian levels:
+                 elem(ie)%derived%dp(i,j,k)=state_dp3d(i,j,k,tl%n0,ie)
+              endif
+            endif
+          enddo
+        enddo
+      enddo
+    enddo
+    do ie = 1 , nelemd
+      !$acc update host(elem(ie)%derived%eta_dot_dpdn,derived_vn0(:,:,:,:,ie),elem(ie)%derived%omega_p,elem(ie)%derived%dpdiss_ave,elem(ie)%derived%dpdiss_biharmonic, &
+      !$acc&            elem(ie)%derived%vstar,elem(ie)%derived%dp) async(1)
+    enddo
+    !$acc wait(1)
+    !$omp master
+    !$omp barrier
+    call t_stopf("prim_step_init")
+  end subroutine prim_step_prestage
 
 
 

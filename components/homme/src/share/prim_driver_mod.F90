@@ -1553,7 +1553,7 @@ contains
     use fvm_mod,            only: fvm_test_type, IDEAL_TEST_BOOMERANG, IDEAL_TEST_SOLIDBODY
     use hybvcoord_mod,      only : hvcoord_t
     use parallel_mod,       only: abortmp
-    use prim_advance_mod,   only: prim_advance_exp, overwrite_SEdensity
+    use prim_advance_mod,   only: prim_advance_exp, overwrite_SEdensity, prim_step_prestage
     use prim_advection_mod, only: prim_advec_tracers_fvm
     use prim_advection_mod, only: prim_advec_tracers_remap, deriv
     use reduction_mod,      only: parallelmax
@@ -1581,67 +1581,7 @@ contains
     real (kind=real_kind) :: dp_np1(np,np)
     logical :: compute_diagnostics
 
-    call t_startf("prim_step_init")
-    dt_q = dt*qsplit
-    if (ntrac>0.and.rstep==1) then
-       !
-       ! save velocity at time t for fvm trajectory algorithm
-       !       
-       do ie=nets,nete
-          fvm(ie)%vn0=elem(ie)%state%v(:,:,:,:,tl%n0)
-          elem(ie)%sub_elem_mass_flux=0
-       end do
-    end if
- 
-    ! ===============
-    ! initialize mean flux accumulation variables and save some variables at n0
-    ! for use by advection
-    ! ===============
-    do ie=nets,nete
-      elem(ie)%derived%eta_dot_dpdn=0     ! mean vertical mass flux
-      elem(ie)%derived%vn0=0              ! mean horizontal mass flux
-      elem(ie)%derived%omega_p=0
-      if (nu_p>0) then
-         elem(ie)%derived%dpdiss_ave=0
-         elem(ie)%derived%dpdiss_biharmonic=0
-      endif
-      ! save velocity at time t for seme-legrangian transport
-      !
-      ! this code is broken!
-      !
-      if (fvm_ideal_test == IDEAL_TEST_ANALYTICAL_WINDS) then
-         stop
-        do k = 1, nlev
-          if (fvm_test_type == IDEAL_TEST_BOOMERANG) then
-            elem(ie)%derived%vstar(:,:,:,k)=get_boomerang_velocities_gll(elem(ie), time_at(tl%n0))
-            stop
-          else if (fvm_test_type == IDEAL_TEST_SOLIDBODY) then
-            elem(ie)%derived%vstar(:,:,:,k)=get_solidbody_velocities_gll(elem(ie), time_at(tl%n0))
-            stop
-          else
-            call abortmp('Bad fvm_test_type in prim_step')
-          end if
-        end do
-      else if (use_semi_lagrange_transport) then
-        elem(ie)%derived%vstar=elem(ie)%state%v(:,:,:,:,tl%n0)
-      end if
-
-      if (rsplit==0) then
-        ! save dp at time t for use in tracers
-#if (defined COLUMN_OPENMP)
-!$omp parallel do default(shared), private(k)
-#endif
-         do k=1,nlev
-            elem(ie)%derived%dp(:,:,k)=&
-                 ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + &
-                 ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*elem(ie)%state%ps_v(:,:,tl%n0)
-         enddo
-      else
-         ! dp at time t:  use floating lagrangian levels:
-         elem(ie)%derived%dp(:,:,:)=elem(ie)%state%dp3d(:,:,:,tl%n0)
-      endif
-    enddo
-    call t_stopf("prim_step_init")
+    call prim_step_prestage(elem,hvcoord,nets,nete,dt,dt_q,tl)
 
     ! ===============
     ! Dynamical Step
