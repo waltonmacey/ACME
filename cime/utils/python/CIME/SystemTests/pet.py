@@ -40,5 +40,7 @@ class PET(SystemTestsCompareTwo):
         for comp in self._COMPONENT_LIST:
             self._case.set_value("NTHRDS_%s"%comp, 1)
 
+        self._case.set_value("MAX_TASKS_PER_NODE", self._case.get_value("MAX_TASKS_PER_NODE") / 2)
+
         # Need to redo case_setup because we may have changed the number of threads
         case_setup(self._case, reset=True)
