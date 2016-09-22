@@ -1,0 +1,5 @@
+#variable start_year  end_year  start_day end_day factor add_offset
+TOTVEGC     200          200       1      365         1    0
+TOTSOMC     200          200       1      365         1    0
+TLAI        200          200       1      365         1    0
+GPP         200	         200  	   1	  365	  86400    0
