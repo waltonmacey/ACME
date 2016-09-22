@@ -37,7 +37,7 @@ parser.add_option("--titles", dest="titles", default='', \
                   help = "titles of case to plot (for legend)")
 parser.add_option("--obs", action="store_true", default=False, \
                   help = "plot observations", dest="myobs")
-parser.add_option("--site", dest="site", default="none", \
+parser.add_option("--sites", dest="site", default="none", \
                   help = 'site (to plot observations)')
 parser.add_option("--varfile", dest="myvarfile", default='varfile', \
                   help = 'file containing list of variables to plot')
@@ -81,14 +81,29 @@ cesmdir=os.path.abspath(options.mycsmdir)
 #    sys.exit()
 
 mycases = options.mycase.split(',')
+mysites = options.site.split(',')
+
 ncases = len(mycases)
 if (mycases == ''):
   ncases=1
- 
+nsites = len(mysites)
+if (ncases > 1 & nsites == 1):
+  mysites=[]
+  for c in range(0,ncases):
+    mysites.append(options.site)
+
+if (nsites > 1 & ncases == 1):
+  mycases=[]
+  for c in range(0,nsites):
+    mycases.append(options.mycase)
+
 if (options.titles == ''):
   mytitles = mycases
 else:
   mytitles = options.titles.split(',')
+
+if (len(mysites) > 1 & ncases == 1):
+  ncases = len(mysites)
 
 obs     = options.myobs
 
@@ -125,7 +140,7 @@ if (options.myseasonal):
 if (obs):
     ncases=ncases+1
 
-site = options.site
+#site = options.site
 compset = options.compset
 
 dirs=[]
@@ -135,9 +150,9 @@ for c in range(0,ncases):
         os.chdir(diro)
     else:
         if (mycases[c].strip() != ''):
-            dirs.append(cesmdir+'/run/'+mycases[c]+'_'+site+'_'+compset+'/run/')
+            dirs.append(cesmdir+'/run/'+mycases[c]+'_'+mysites[c]+'_'+compset+'/run/')
         else:
-            dirs.append(cesmdir+'/run/'+site+'_'+compset+'/run/')
+            dirs.append(cesmdir+'/run/'+mysites[c]+'_'+compset+'/run/')
         os.chdir(dirs[c])
  
     #query lnd_in file for output file information
@@ -233,9 +248,9 @@ for c in range(0,ncases):
         else:
             hst = 'h0'
         if (mycases[c] == ''):
-          testfile = site+'_'+compset+'.clm2.'+hst+'.'+yststr[2:6]+'-01.nc'
+          testfile = mysites[c]+'_'+compset+'.clm2.'+hst+'.'+yststr[2:6]+'-01.nc'
         else:
-          testfile = mycases[c]+'_'+site+'_'+compset+'.clm2.'+hst+'.'+yststr[2:6]+'-01.nc'
+          testfile = mycases[c]+'_'+mysites[c]+'_'+compset+'.clm2.'+hst+'.'+yststr[2:6]+'-01.nc'
     else:
         ftype = 'custom'
         nhtot=-1*tstep*npf
@@ -249,9 +264,9 @@ for c in range(0,ncases):
         else:
             hst='h0'
         if (mycases[c] == ''):
-          testfile = site+'_'+compset+'.clm2.'+hst+'.'+yststr[2:6]+'-01-01-00000.nc'
+          testfile = mysites[c]+'_'+compset+'.clm2.'+hst+'.'+yststr[2:6]+'-01-01-00000.nc'
         else:
-          testfile = mycases[c]+'_'+site+'_'+compset+'.clm2.'+hst+'.'+yststr[2:6]+'-01-01-00000.nc'
+          testfile = mycases[c]+'_'+mysites[c]+'_'+compset+'.clm2.'+hst+'.'+yststr[2:6]+'-01-01-00000.nc'
         
     if (obs and c == ncases-1):
         ftype='obs'
@@ -264,7 +279,7 @@ for c in range(0,ncases):
     os.system('pwd')
     if (os.path.isfile(testfile) == False):
         print('Output not in run directory.  Switching to archive directory')
-        archdir=cesmdir+'/run/archive/'+mycases[c]+'_'+site+'_'+compset+'/lnd/hist'
+        archdir=cesmdir+'/run/archive/'+mycases[c]+'_'+mysites[c]+'_'+compset+'/lnd/hist'
         print(archdir)
         if (os.path.exists(archdir) == False):
             print('Archive directory does not exist.  Exiting')
@@ -294,7 +309,7 @@ for c in range(0,ncases):
             yst=str(10000+y)[1:5]
             for m in range(0,12):
                 mst=str(101+m)[1:3]
-                myfile = os.path.abspath('./'+mycases[c]+'_'+site+'_'+compset+".clm2."+hst+"."+yst+"-"+mst+".nc")
+                myfile = os.path.abspath('./'+mycases[c]+'_'+mysites[c]+'_'+compset+".clm2."+hst+"."+yst+"-"+mst+".nc")
                 nstepslast=nsteps
                 for v in range(0,nvar):
                     #get units/long names from first file
@@ -326,10 +341,10 @@ for c in range(0,ncases):
             for y in range(ystart,yend+1):
                 yst=str(10000+y)[1:5]
                 if (mycases[c].strip() == ''):
-                    myfile = os.path.abspath('./'+site+'_'+compset+".clm2."+hst+"."+yst+\
+                    myfile = os.path.abspath('./'+mysites[c]+'_'+compset+".clm2."+hst+"."+yst+\
                                              "-01-01-00000.nc")
                 else:
-                    myfile = os.path.abspath('./'+mycases[c]+"_"+site+'_'+compset+".clm2."+hst+"."+yst+\
+                    myfile = os.path.abspath('./'+mycases[c]+"_"+mysites[c]+'_'+compset+".clm2."+hst+"."+yst+\
                                              "-01-01-00000.nc")
                 if (y == ystart and c == 0):
                     nffile = netcdf.netcdf_file(myfile,"r")
@@ -340,7 +355,8 @@ for c in range(0,ncases):
                 myvar_temp = getvar(myfile,myvars[v],npf,int(options.index), \
                                                float(options.scale_factor))
                 for i in range(0,npf):
-                  x[(y-ystart)*npf+i] = (y*1.0)/npf - 0.5/npf
+                  x[(y-ystart)*npf+i] = (y*1.0) + (i*1.0-0.5)/npf 
+                  #print (y-ystart)*npf+i,  x[(y-ystart)*npf+i]
                   mydata[v,(y-ystart)*npf+i] = myvar_temp[i]
                   nsteps=nsteps+1
     #read obervation file, assumes it is in case directory (years must match!)
@@ -425,11 +441,11 @@ output=open('plotmyvar.p','w')
 
 if terminal != '':
     output.write('set terminal '+terminal+'\n') #+' enhanced color\n')
-    plotfile = mycases[0]+'_'+site+'_'+compset+'_plots.ps'
+    plotfile = mycases[0]+'_'+mysites[0]+'_'+compset+'_plots.ps'
     if (avtype == 'seasonal'):
-        plotfile = mycases[0]+'_'+site+'_'+compset+'_seasonal_plots.ps'
+        plotfile = mycases[0]+'_'+mysites[0]+'_'+compset+'_seasonal_plots.ps'
     elif (avtype == 'diurnal'):
-        plotfile = mycases[0]+'_'+site+'_'+compset+'_diurnal_plots.ps'
+        plotfile = mycases[0]+'_'+mysites[0]+'_'+compset+'_diurnal_plots.ps'
     output.write('set output "'+plotfile+'"\n')
 output.write('set style line 1 lt 1 lw 3 lc rgb "red"\n')
 output.write('set style line 2 lt 1 lw 3 lc rgb "blue"\n')
@@ -452,7 +468,7 @@ for v in range(0,nvar):
     else:
         cmd_xlab = 'set xlabel "model year" '
     cmd_ylab = 'set ylabel "'+myvars[v]+' ('+var_units[v]+')" '
-    cmd_titl = 'set title  "'+var_long_names[v]+' at '+site+'" '
+    cmd_titl = 'set title  "'+var_long_names[v]
     if (ncases >= 2 and obs == False) or (ncases >= 3 and obs == True):
       for n in range(1,ncases):
         cmd = cmd+', "'+dirs[n]+'/'+myvars[v]+'_'+str(n)+'.txt" with lines linestyle '+str(n+1)+' title "' \
@@ -472,11 +488,11 @@ output.close()
 
 #execute gnuplot script
 os.system('gnuplot -persist plotmyvar.p')
-os.system('mkdir '+cesmdir+'/components/clm/tools/clm4_5/pointclm/plots/'+site+'_'+compset)
+os.system('mkdir '+cesmdir+'/components/clm/tools/clm4_5/pointclm/plots/'+mysites[0]+'_'+compset)
 if (terminal == 'postscript'):
     os.system('ps2pdf '+plotfile+' '+plotfile[:-4]+'.pdf')
     os.system('mv '+plotfile[:-4]+'.pdf '+cesmdir+'/components/clm/tools/clm4_5/pointclm/plots/'+ \
-                  site+'_'+compset+'/')
+                  mysites[0]+'_'+compset+'/')
     os.system('mv '+plotfile+' '+cesmdir+'/components/clm/tools/clm4_5/pointclm/plots/'+ \
-                  site+'_'+compset+'/') 
+                  mysites[0]+'_'+compset+'/') 
 #os.system('ps2pdf '+cesmdir+'/scripts/plots/'+mycase1+'/'+mycase1+'_plots.ps')

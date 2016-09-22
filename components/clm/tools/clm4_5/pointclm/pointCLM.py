@@ -173,10 +173,12 @@ parser.add_option("--trans2", dest="trans2", default=False, action="store_true",
                   help = 'Tranisnent phase 2 (1901-2010) - CRUNCEP only')
 parser.add_option("--spinup_vars", dest="spinup_vars", default=False, \
                   help = 'Limit output vars in spinup runs', action="store_true")
-parser.add_option("--cn_only", dest="cn_only", default=True, \
+parser.add_option("--c_only", dest="c_only", default=False, \
+                 help="Carbon only (supplemental P and N)", action="store_true")
+parser.add_option("--cn_only", dest="cn_only", default=False, \
                   help = 'Carbon/Nitrogen only (supplemental P)', action="store_true")
-parser.add_option("--cnp", dest="cnp", default=False, \
-                  help = 'CNP model', action = "store_true")
+parser.add_option("--cp_only", dest="cp_only", default=False, \
+                  help = 'Carbon/Phosphorus only (supplemental N)', action = "store_true")
 parser.add_option("--ensemble_file", dest="ensemble_file", default='', \
                   help = 'Parameter sample file to generate ensemble')
 parser.add_option("--mc_ensemble", dest="mc_ensemble", default=-1, \
@@ -257,7 +259,7 @@ pftphys_stamp = 'clm40.c130424'
 if ('CLM45' in compset):
     isclm45 = True
     surfdir = 'surfdata_map'
-    pftphys_stamp = 'c160128'
+    pftphys_stamp = 'c160711' #'c160711_root'
 CNPstamp = 'c131108'
 
 
@@ -463,11 +465,11 @@ if (options.compset == 'ICLM45CN' or options.compset == 'ICLM45BGC' or '2000' in
 #parameter (pft-phys) modifications if desired
 tmpdir = csmdir+'/components/clm/tools/clm4_5/pointclm/temp'
 os.system('mkdir -p '+tmpdir)
-os.system('cp '+options.ccsm_input+'/lnd/clm2/paramdata/clm_params.'+pftphys_stamp+'.nc ' \
-              +tmpdir+'/clm_params.'+pftphys_stamp+'.'+casename+'.nc')
-os.system('chmod u+w ' +tmpdir+'/clm_params.'+pftphys_stamp+'.'+casename+'.nc')
+os.system('cp '+options.ccsm_input+'/lnd/clm2/paramdata/clm_params_'+pftphys_stamp+'.nc ' \
+              +tmpdir+'/clm_params_'+pftphys_stamp+'.'+casename+'.nc')
+os.system('chmod u+w ' +tmpdir+'/clm_params_'+pftphys_stamp+'.'+casename+'.nc')
 if (options.parm_file != ''):
-    pftfile = tmpdir+'/clm_params.'+pftphys_stamp+'.'+casename+'.nc'
+    pftfile = tmpdir+'/clm_params_'+pftphys_stamp+'.'+casename+'.nc'
     input   = open(os.path.abspath(options.parm_file))
     for s in input:
         if s[0:1] != '#':
@@ -669,6 +671,11 @@ for i in range(1,int(options.ninst)+1):
     output.write('&clm_inparm\n')
 
     #history file options
+    if ('20TR' not in compset and int(options.hist_mfilt) == -1):
+	#default to annual for spinup runs if not specified
+	options.hist_mfilt = 1
+	options.hist_nhtfrq = -8760
+
     if (options.hist_mfilt != -1):
         if (options.ad_spinup):
             output.write(" hist_mfilt = "+str(options.hist_mfilt)+", "+str(options.hist_mfilt)+"\n")
@@ -740,38 +747,49 @@ for i in range(1,int(options.ninst)+1):
         if (options.mod_parm_file != ''):
             output.write(" paramfile = '"+options.mod_parm_file+"'\n")
     else:
-        output.write(" paramfile = './clm_params."+pftphys_stamp+"."+ \
-                     casename+".nc'\n")
-    #soil order parameter file
-    output.write(" fsoilordercon = './CNP_parameters_"+CNPstamp+ \
+        output.write(" paramfile = './clm_params_"+pftphys_stamp+"."+ \
                      casename+".nc'\n")
 
-    #nitrogen deposition file
+
     if ('CN' in compset or 'BGC' in compset):
+        #soil order parameter file
+        output.write(" fsoilordercon = './CNP_parameters_"+CNPstamp+ \
+          casename+".nc'\n")
         output.write( " stream_fldfilename_ndep = '"+options.ccsm_input+ \
-        "/lnd/clm2/ndepdata/fndep_clm_hist_simyr1849-2006_1.9x2.5_c100428.nc'\n")
-    if (options.vsoilc):
-        output.write(" use_vertsoilc = .true.\n")
-    if (options.centbgc):
-        output.write(" use_century_decomp = .true.\n")
-    if (options.no_dynroot):
-        output.write(" use_dynroot = .false.\n")
-    if (options.bulk_denitrif):
-        output.write(" use_nitrif_denitrif = .false.\n")
-    else:
-        output.write(" use_nitrif_denitrif = .true.\n")
-    if (options.CH4 or (not options.bulk_denitrif)):
-        output.write(" use_lch4 = .true.\n")
-    if (options.nofire and isclm45):
-        output.write(" use_nofire = .true.\n")
-    if (options.cn_only or options.ad_spinup):
-        output.write(" suplphos = 'ALL'\n")
-    elif (options.cnp):
-        output.write(" suplphos = 'NONE'\n")
-    if (options.C13):
-        output.write(" use_c13 = .true.\n")
-    if (options.C14):
-        output.write(" use_c14 = .true.\n")
+          "/lnd/clm2/ndepdata/fndep_clm_hist_simyr1849-2006_1.9x2.5_" + \
+                      "c100428.nc'\n")
+        if (options.vsoilc):
+            output.write(" use_vertsoilc = .true.\n")
+        if (options.centbgc):
+            output.write(" use_century_decomp = .true.\n")
+        if (options.no_dynroot):
+            output.write(" use_dynroot = .false.\n")
+        if (options.bulk_denitrif):
+            output.write(" use_nitrif_denitrif = .false.\n")
+        else:
+            output.write(" use_nitrif_denitrif = .true.\n")
+        if (options.CH4 or (not options.bulk_denitrif)):
+            output.write(" use_lch4 = .true.\n")
+        if (options.nofire and isclm45):
+            output.write(" use_nofire = .true.\n")
+        if (options.c_only):
+            options.write(" suplphos = 'ALL'\n")
+            options.write(" suplnitro  = 'ALL'\n")
+        elif (options.cn_only or options.ad_spinup):
+            output.write(" suplphos = 'ALL'\n")
+            output.write(" suplnitro = 'NONE'\n")
+        elif (options.cp_only):
+            output.write(" suplphos = 'NONE'\n")
+            output.write(" suplnitro = 'ALL'\n")
+        else:
+            output.write(" suplphos = 'NONE'\n")
+            output.write(" suplnitro = 'NONE'\n")
+        if (options.C13):
+            output.write(" use_c13 = .true.\n")
+        if (options.C14):
+            output.write(" use_c14 = .true.\n")
+        output.write(" nyears_ad_carbon_only = 25\n")
+        output.write(" spinup_mortality_factor = 10\n")
     if (cpl_bypass):
         if (use_cruncep):
             output.write(" metdata_type = 'cru-ncep'\n")
@@ -785,8 +803,7 @@ for i in range(1,int(options.ninst)+1):
                          +options.co2_file+"'\n")
         output.write(" aero_file = '"+options.ccsm_input+"/atm/cam/chem/" \
                          +"trop_mozart_aero/aero/aerosoldep_monthly_1849-2006_1.9x2.5_c090803.nc'\n")
-    output.write(" nyears_ad_carbon_only = 25\n")
-    output.write(" spinup_mortality_factor = 10\n")
+
 
     output.close()
 

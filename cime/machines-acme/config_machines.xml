@@ -928,6 +928,7 @@
         <executable args="default">/software/tools/spack/opt/spack/linux-x86_64/gcc-5.3.0/openmpi-1.10.2-w26llp27jmybo7wlgoqxjrtptltmripg/bin/mpirun</executable>
         <arguments>
           <arg name="num_tasks"> -np {{ num_tasks }}</arg>
+          <arg name="machine_file">-f $ENV{'PBS_NODEFILE'}</arg>
         </arguments>
       </mpirun>
         <mpirun mpilib = "mpi-serial">
