@@ -320,9 +320,9 @@ contains
     use element_mod       , only : element_t,PrintElem, derived_vn0, state_v, state_qdp, state_t, state_dp3d, state_ps_v
     use derivative_mod    , only : derivative_t, divergence_sphere, gradient_sphere, vorticity_sphere, gradient_sphere_openacc, divergence_sphere_openacc, vorticity_sphere_openacc
     use derivative_mod    , only : subcell_div_fluxes, subcell_dss_fluxes
-    use edge_mod          , only : edgevpack, edgevunpack, edgeDGVunpack
+    use edge_mod          , only : edgevpack_openacc, edgevunpack_openacc
     use edgetype_mod      , only : edgedescriptor_t
-    use bndry_mod         , only : bndry_exchangev
+    use bndry_mod         , only : bndry_exchangev => bndry_exchangeV_simple_minimize_pcie
     use control_mod       , only : moisture, qsplit, use_cpstar, rsplit, swest
     use hybvcoord_mod     , only : hvcoord_t
     use physical_constants, only : cp, cpwater_vapor, Rgas, kappa
@@ -345,20 +345,7 @@ contains
     type (derivative_t)  , intent(in   ) :: deriv
     real (kind=real_kind), intent(in   ) :: eta_ave_w  ! weighting for eta_dot_dpdn mean flux
     ! local
-    real (kind=real_kind), dimension(np,np,2)        :: vtemp     ! generic gradient storage
-    real (kind=real_kind), dimension(np,np,2     )   :: v         !                            
-    real (kind=real_kind), dimension(np,np)          :: vgrad_T    ! v.grad(T)
-    real (kind=real_kind), dimension(np,np,2)        :: grad_ps    ! lat-lon coord version
-    real (kind=real_kind), dimension(np,np,nlev+1)   :: ph               ! half level pressures on p-grid
-    real (kind=real_kind) :: vtens1(np,np,nlev)
-    real (kind=real_kind) :: vtens2(np,np,nlev)
-    real (kind=real_kind) :: ttens(np,np,nlev)
-    real (kind=real_kind) :: stashdp3d (np,np,nlev)
-    real (kind=real_kind) :: tempdp3d  (np,np)
-    real (kind=real_kind) :: tempflux  (nc,nc,4)
-    real (kind=real_kind) :: cp2,cp_ratio,E,de,Qt,v1,v2
-    real (kind=real_kind) :: glnps1,glnps2,gpterm
-    real (kind=real_kind) :: u_m_umet, v_m_vmet, t_m_tmet 
+    real (kind=real_kind) :: vgrad_T,vtens1,vtens2,ttens,cp2,cp_ratio,E,de,Qt,v1,v2,glnps1,glnps2,gpterm,u_m_umet,v_m_vmet,t_m_tmet 
     type (EdgeDescriptor_t) :: desc
     integer :: i,j,k,kptr,ie
 
@@ -366,8 +353,8 @@ contains
     !$omp barrier
     !$omp master
     do ie = 1 , nelemd
-      !$acc update device(state_dp3d(:,:,:,n0,ie),state_v(:,:,:,:,n0,ie),state_T(:,:,:,n0,ie),state_Qdp(:,:,:,1,qn0,ie),elem(ie)%state%phis,elem(ie)%derived%omega_p,elem(ie)%derived%eta_dot_dpdn, &
-      !$acc&              elem(ie)%derived%pecnd,elem(ie)%derived%phi)
+      !$acc update device( state_dp3d(:,:,:,n0,ie),state_v(:,:,:,:,n0,ie),state_T(:,:,:,n0,ie),state_Qdp(:,:,:,1,qn0,ie),elem(ie)%state%phis,elem(ie)%derived%omega_p,elem(ie)%derived%eta_dot_dpdn, &
+      !$acc&               elem(ie)%derived%pecnd,elem(ie)%derived%phi,state_dp3d(:,:,:,nm1,ie),state_v(:,:,:,:,nm1,ie),state_T(:,:,:,nm1,ie) )
     enddo
     !$acc update device(derived_vn0)
     !$acc parallel loop gang vector collapse(4) present(dp,state_dp3d)
@@ -405,7 +392,7 @@ contains
         enddo
       enddo
     enddo
-    call gradient_sphere_openacc(p,deriv,elem,grad_p,nlev,1,nelemd,1,1)
+    call gradient_sphere_openacc(p,deriv,elem,grad_p,nlev,1,nelemd,1,1,1,1)
     ! ============================
     ! compute vgrad_lnps
     ! ============================
@@ -425,16 +412,7 @@ contains
     enddo
 #   if ( defined CAM )
       if (se_met_nudge_p.gt.0.D0) then
-        !$acc update host(grad_p)
-        do ie=1,nelemd
-          do k=1,nlev
-            ! ============================
-            ! compute grad(P-P_met)
-            ! ============================
-            grad_p_m_pmet(:,:,:,k,ie) = grad_p(:,:,:,k,ie) - hvcoord%hybm(k)* &
-                 gradient_sphere( elem(ie)%derived%ps_met(:,:)+tevolve*elem(ie)%derived%dpsdt_met(:,:),deriv,elem(ie)%Dinv)
-          enddo
-        enddo
+        call abortmp('se_met_nudge_p > 0 not supported in OpenACC!')
       endif
 #   endif
     ! ================================
@@ -454,7 +432,7 @@ contains
     ! =========================================
     ! Compute relative vorticity and divergence
     ! =========================================
-    call divergence_sphere_openacc(vdp,deriv,elem,divdp,nlev,1,nelemd,1,1)
+    call divergence_sphere_openacc(vdp,deriv,elem,divdp,nlev,1,nelemd,1,1,1,1)
     call vorticity_sphere_openacc(state_v,deriv,elem,vort,nlev,1,nelemd,timelevels,n0,1,1)
     if (qn0 == -1 ) then
       ! compute T_v for timelevel n0
@@ -529,104 +507,65 @@ contains
         enddo
       enddo
     enddo
-
-
-
-
-    !$acc update host(dp,p,grad_p,vgrad_p,vdp,derived_vn0,divdp,vort,kappa_star,t_v,omega_p,eta_dot_dpdn,t_vadv,v_vadv,sdot_sum,ephi)
-    do ie = 1 , nelemd
-      !$acc update host(elem(ie)%derived%phi,elem(ie)%derived%omega_p,elem(ie)%derived%eta_dot_dpdn)
-    enddo
-    !$omp end master
-    !$omp barrier
-
-
-    do ie=nets,nete
+    call gradient_sphere_openacc(state_t,deriv,elem,vtemp1,nlev,1,nelemd,timelevels,n0,1,1)
+    call gradient_sphere_openacc(ephi   ,deriv,elem,vtemp2,nlev,1,nelemd,1,1,1,1)
+#   if ( defined CAM )
+      if (se_prescribed_wind_2d) then
+        call abortmp('se_prescribed_wind_2d == .true. not supported in OpenACC!')
+      else
+        if(se_met_nudge_u.gt.0.D0)then
+          call abortmp('se_met_nudge_u > 0 not supported in OpenACC!')
+        endif
+        if(se_met_nudge_p.gt.0.D0)then
+          call abortmp('se_met_nudge_p > 0 not supported in OpenACC!')
+        endif
+        if(se_met_nudge_t.gt.0.D0)then
+          call abortmp('se_met_nudge_t > 0 not supported in OpenACC!')
+        endif
+      endif
+#   endif
+    !$acc parallel loop gang vector collapse(4) present(state_v,vtemp1,t_v,p,grad_p,v_vadv,elem,vort,vtemp2,t_vadv,kappa_star,omega_p,state_t,state_dp3d,divdp,eta_dot_dpdn) &
+    !$acc&              private(v1,v2,vgrad_t,gpterm,glnps1,glnps2,vtens1,vtens2,ttens)
+    do ie=1,nelemd
       do k=1,nlev
         ! ================================================
         ! compute gradp term (ps/p)*(dp/dps)*T
         ! ================================================
-        vtemp(:,:,:) = gradient_sphere(state_T(:,:,k,n0,ie),deriv,elem(ie)%Dinv)
         do j=1,np
           do i=1,np
             v1     = state_v(i,j,1,k,n0,ie)
             v2     = state_v(i,j,2,k,n0,ie)
-            vgrad_T(i,j) =  v1*vtemp(i,j,1) + v2*vtemp(i,j,2)
-          enddo
-        enddo
-        ! vtemp = grad ( E + PHI )
-        vtemp = gradient_sphere(Ephi(:,:,k,ie),deriv,elem(ie)%Dinv)
-        do j=1,np
-          do i=1,np
+            vgrad_T =  v1*vtemp1(i,j,1,k,ie) + v2*vtemp1(i,j,2,k,ie)
             gpterm = T_v(i,j,k,ie)/p(i,j,k,ie)
             glnps1 = Rgas*gpterm*grad_p(i,j,1,k,ie)
             glnps2 = Rgas*gpterm*grad_p(i,j,2,k,ie)
-            v1     = state_v(i,j,1,k,n0,ie)
-            v2     = state_v(i,j,2,k,n0,ie)
-            vtens1(i,j,k) = - v_vadv(i,j,1,k,ie) + v2*(elem(ie)%fcor(i,j) + vort(i,j,k,ie)) - vtemp(i,j,1) - glnps1
+            vtens1 = - v_vadv(i,j,1,k,ie) + v2*(elem(ie)%fcor(i,j) + vort(i,j,k,ie)) - vtemp2(i,j,1,k,ie) - glnps1
             ! phl: add forcing term to zonal wind u
-            vtens2(i,j,k) = - v_vadv(i,j,2,k,ie) - v1*(elem(ie)%fcor(i,j) + vort(i,j,k,ie)) - vtemp(i,j,2) - glnps2
+            vtens2 = - v_vadv(i,j,2,k,ie) - v1*(elem(ie)%fcor(i,j) + vort(i,j,k,ie)) - vtemp2(i,j,2,k,ie) - glnps2
             ! phl: add forcing term to meridional wind v
-            ttens(i,j,k)  = - T_vadv(i,j,k,ie) - vgrad_T(i,j) + kappa_star(i,j,k,ie)*T_v(i,j,k,ie)*omega_p(i,j,k,ie)
+            ttens  = - T_vadv(i,j,k,ie) - vgrad_T + kappa_star(i,j,k,ie)*T_v(i,j,k,ie)*omega_p(i,j,k,ie)
             ! phl: add forcing term to T
-#           if ( defined CAM )
-              if (se_prescribed_wind_2d) then
-                 vtens1(i,j,k) = 0.D0
-                 vtens2(i,j,k) = 0.D0
-                 ttens(i,j,k) = 0.D0
-              else
-                if(se_met_nudge_u.gt.0.D0)then
-                   u_m_umet = v1 - elem(ie)%derived%u_met(i,j,k) - se_met_tevolve*tevolve*elem(ie)%derived%dudt_met(i,j,k)
-                   v_m_vmet = v2 - elem(ie)%derived%v_met(i,j,k) - se_met_tevolve*tevolve*elem(ie)%derived%dvdt_met(i,j,k)
-                   vtens1(i,j,k) =   vtens1(i,j,k) - se_met_nudge_u*u_m_umet * elem(ie)%derived%nudge_factor(i,j,k)
-                   elem(ie)%derived%Utnd(i+(j-1)*np,k) = elem(ie)%derived%Utnd(i+(j-1)*np,k) + se_met_nudge_u*u_m_umet * elem(ie)%derived%nudge_factor(i,j,k)
-                   vtens2(i,j,k) =   vtens2(i,j,k) - se_met_nudge_u*v_m_vmet * elem(ie)%derived%nudge_factor(i,j,k)
-                   elem(ie)%derived%Vtnd(i+(j-1)*np,k) = elem(ie)%derived%Vtnd(i+(j-1)*np,k) + se_met_nudge_u*v_m_vmet * elem(ie)%derived%nudge_factor(i,j,k)
-                endif
-                if(se_met_nudge_p.gt.0.D0)then
-                   vtens1(i,j,k) =   vtens1(i,j,k) - se_met_nudge_p*grad_p_m_pmet(i,j,1,k,ie)  * elem(ie)%derived%nudge_factor(i,j,k)
-                   vtens2(i,j,k) =   vtens2(i,j,k) - se_met_nudge_p*grad_p_m_pmet(i,j,2,k,ie)  * elem(ie)%derived%nudge_factor(i,j,k)
-                endif
-                if(se_met_nudge_t.gt.0.D0)then
-                   t_m_tmet = state_T(i,j,k,n0,ie) - elem(ie)%derived%T_met(i,j,k) - se_met_tevolve*tevolve*elem(ie)%derived%dTdt_met(i,j,k)
-                   ttens(i,j,k)  = ttens(i,j,k) - se_met_nudge_t*t_m_tmet * elem(ie)%derived%nudge_factor(i,j,k)
-                   elem(ie)%derived%Ttnd(i+(j-1)*np,k) = elem(ie)%derived%Ttnd(i+(j-1)*np,k) + se_met_nudge_t*t_m_tmet * elem(ie)%derived%nudge_factor(i,j,k)
-                endif
-              endif
-#           endif
+            if (dt2<0) then
+              ! calling program just wanted DSS'd RHS, skip time advance
+              state_v   (i,j,1,k,np1,ie) =  elem(ie)%spheremp(i,j)*vtens1
+              state_v   (i,j,2,k,np1,ie) =  elem(ie)%spheremp(i,j)*vtens2
+              state_T   (i,j  ,k,np1,ie) =  elem(ie)%spheremp(i,j)*ttens
+              state_dp3d(i,j  ,k,np1,ie) = -elem(ie)%spheremp(i,j)*(divdp(i,j,k,ie) + eta_dot_dpdn(i,j,k+1,ie)-eta_dot_dpdn(i,j,k,ie))
+            else
+              state_v   (i,j,1,k,np1,ie) = elem(ie)%spheremp(i,j) * ( state_v   (i,j,1,k,nm1,ie) + dt2*vtens1 )
+              state_v   (i,j,2,k,np1,ie) = elem(ie)%spheremp(i,j) * ( state_v   (i,j,2,k,nm1,ie) + dt2*vtens2 )
+              state_T   (i,j  ,k,np1,ie) = elem(ie)%spheremp(i,j) * ( state_T   (i,j  ,k,nm1,ie) + dt2*ttens  )
+              state_dp3d(i,j  ,k,np1,ie) = elem(ie)%spheremp(i,j) * ( state_dp3d(i,j  ,k,nm1,ie) - dt2*(divdp(i,j,k,ie) + eta_dot_dpdn(i,j,k+1,ie)-eta_dot_dpdn(i,j,k,ie)))
+            endif
           enddo
         enddo
       enddo
-      ! =========================================================
-      ! local element timestep, store in np1.
-      ! note that we allow np1=n0 or nm1
-      ! apply mass matrix
-      ! =========================================================
-      if (dt2<0) then
-        ! calling program just wanted DSS'd RHS, skip time advance
-        do k=1,nlev
-          state_v   (:,:,1,k,np1,ie) =  elem(ie)%spheremp(:,:)*vtens1(:,:,k)
-          state_v   (:,:,2,k,np1,ie) =  elem(ie)%spheremp(:,:)*vtens2(:,:,k)
-          state_T   (:,:  ,k,np1,ie) =  elem(ie)%spheremp(:,:)*ttens(:,:,k)
-          state_dp3d(:,:  ,k,np1,ie) = -elem(ie)%spheremp(:,:)*(divdp(:,:,k,ie) + eta_dot_dpdn(:,:,k+1,ie)-eta_dot_dpdn(:,:,k,ie))
-        enddo
-      else
-        do k=1,nlev
-          state_v   (:,:,1,k,np1,ie) = elem(ie)%spheremp(:,:) * ( state_v   (:,:,1,k,nm1,ie) + dt2*vtens1(:,:,k) )
-          state_v   (:,:,2,k,np1,ie) = elem(ie)%spheremp(:,:) * ( state_v   (:,:,2,k,nm1,ie) + dt2*vtens2(:,:,k) )
-          state_T   (:,:  ,k,np1,ie) = elem(ie)%spheremp(:,:) * ( state_T   (:,:  ,k,nm1,ie) + dt2*ttens (:,:,k) )
-          state_dp3d(:,:  ,k,np1,ie) = elem(ie)%spheremp(:,:) * ( state_dp3d(:,:  ,k,nm1,ie) - dt2*(divdp(:,:,k,ie) + eta_dot_dpdn(:,:,k+1,ie)-eta_dot_dpdn(:,:,k,ie)))
-        enddo
-      endif
-      ! =========================================================
-      ! Pack ps(np1), T, and v tendencies into comm buffer
-      ! =========================================================
-      kptr=0          ;  call edgeVpack(edge3p1, state_ps_v(:,:    ,np1,ie),1     ,kptr,ie)
-      kptr=1          ;  call edgeVpack(edge3p1, state_T   (:,:  ,:,np1,ie),nlev  ,kptr,ie)
-      kptr=nlev+1     ;  call edgeVpack(edge3p1, state_v   (:,:,:,:,np1,ie),2*nlev,kptr,ie)
-      kptr=kptr+2*nlev;  call edgeVpack(edge3p1, state_dp3d(:,:  ,:,np1,ie),nlev  ,kptr,ie)
-
     enddo
+    call edgeVpack_openacc(edge3p1,state_ps_v,  1   ,  0     ,elem,1   ,nelemd,timelevels,np1)
+    call edgeVpack_openacc(edge3p1,state_t   ,  nlev,  1     ,elem,1   ,nelemd,timelevels,np1)
+    call edgeVpack_openacc(edge3p1,state_v   ,2*nlev,  nlev+1,elem,1   ,nelemd,timelevels,np1)
+    call edgeVpack_openacc(edge3p1,state_dp3d,  nlev,3*nlev+1,elem,1   ,nelemd,timelevels,np1)
+    !$omp end master
 
     ! =============================================================
     ! Insert communications here: for shared memory, just a single
@@ -636,24 +575,34 @@ contains
     call bndry_exchangeV(hybrid,edge3p1)
     call t_stopf('caar_bexchV')
 
-    do ie=nets,nete
-      ! ===========================================================
-      ! Unpack the edges for vgrad_T and v tendencies...
-      ! ===========================================================
-      kptr=0          ;  call edgeVunpack(edge3p1, state_ps_v(:,:    ,np1,ie), 1     , kptr, ie)
-      kptr=1          ;  call edgeVunpack(edge3p1, state_T   (:,:  ,:,np1,ie), nlev  , kptr, ie)
-      kptr=nlev+1     ;  call edgeVunpack(edge3p1, state_v   (:,:,:,:,np1,ie), 2*nlev, kptr, ie)
-      kptr=kptr+2*nlev;  call edgeVunpack(edge3p1, state_dp3d(:,:  ,:,np1,ie), nlev  , kptr, ie)
-      ! ====================================================
-      ! Scale tendencies by inverse mass matrix
-      ! ====================================================
+    !$omp master
+    call edgeVunpack_openacc(edge3p1,state_ps_v,  1   ,  0     ,elem,1   ,nelemd,timelevels,np1)
+    call edgeVunpack_openacc(edge3p1,state_t   ,  nlev,  1     ,elem,1   ,nelemd,timelevels,np1)
+    call edgeVunpack_openacc(edge3p1,state_v   ,2*nlev,  nlev+1,elem,1   ,nelemd,timelevels,np1)
+    call edgeVunpack_openacc(edge3p1,state_dp3d,  nlev,3*nlev+1,elem,1   ,nelemd,timelevels,np1)
+
+    ! ====================================================
+    ! Scale tendencies by inverse mass matrix
+    ! ====================================================
+    !$acc parallel loop gang vector collapse(4) present(state_t,state_v,state_dp3d,elem)
+    do ie=1,nelemd
       do k=1,nlev
-        state_T   (:,:  ,k,np1,ie) = elem(ie)%rspheremp(:,:)*state_T   (:,:  ,k,np1,ie)
-        state_v   (:,:,1,k,np1,ie) = elem(ie)%rspheremp(:,:)*state_v   (:,:,1,k,np1,ie)
-        state_v   (:,:,2,k,np1,ie) = elem(ie)%rspheremp(:,:)*state_v   (:,:,2,k,np1,ie)
-        state_dp3d(:,:  ,k,np1,ie) = elem(ie)%rspheremp(:,:)*state_dp3d(:,:  ,k,np1,ie)
+        do j = 1 , np
+          do i = 1 , np
+            state_T   (i,j  ,k,np1,ie) = elem(ie)%rspheremp(i,j)*state_T   (i,j  ,k,np1,ie)
+            state_v   (i,j,1,k,np1,ie) = elem(ie)%rspheremp(i,j)*state_v   (i,j,1,k,np1,ie)
+            state_v   (i,j,2,k,np1,ie) = elem(ie)%rspheremp(i,j)*state_v   (i,j,2,k,np1,ie)
+            state_dp3d(i,j  ,k,np1,ie) = elem(ie)%rspheremp(i,j)*state_dp3d(i,j  ,k,np1,ie)
+          enddo
+        enddo
       enddo
     enddo
+    !$acc update host(derived_vn0)
+    do ie = 1 , nelemd
+      !$acc update host(elem(ie)%derived%phi,elem(ie)%derived%omega_p,elem(ie)%derived%eta_dot_dpdn,state_v(:,:,:,:,np1,ie),state_t(:,:,:,np1,ie),state_dp3d(:,:,:,np1,ie))
+    enddo
+    !$omp end master
+    !$omp barrier
     call t_stopf('compute_and_apply_rhs')
   end subroutine compute_and_apply_rhs
 

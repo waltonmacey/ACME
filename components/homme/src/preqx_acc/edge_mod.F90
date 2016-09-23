@@ -152,6 +152,7 @@ contains
     use perf_mod, only: t_startf, t_stopf
     use element_mod   , only : Element_t
     use edgetype_mod  , only : EdgeBuffer_t
+    use openacc_utils_mod, only: acc_async_sync
     type(EdgeBuffer_t)    , intent(in   ) :: edge
     integer               , intent(in   ) :: vlyr
     integer               , intent(in   ) :: kptr
@@ -205,25 +206,34 @@ contains
     call t_stopf('edge_s_unpack_max')
   end subroutine edgeSunpackMax_openacc
 
-  subroutine edgeVpack_openacc(edge,v,vlyr,kptr,elem,nets,nete,tdim,tl)
+  subroutine edgeVpack_openacc(edge,v,vlyr,kptr,elem,nets,nete,tdim,tl,asyncid_in)
+    use openacc_utils_mod, only: acc_async_sync
     use dimensions_mod, only : max_corner_elem
     use control_mod   , only : north, south, east, west, neast, nwest, seast, swest
     use perf_mod      , only : t_startf, t_stopf
     use parallel_mod  , only : haltmp
     use element_mod   , only : Element_t
     use edgetype_mod  , only : EdgeBuffer_t
+    use openacc_utils_mod, only: acc_async_sync
     type(EdgeBuffer_t)     ,intent(inout) :: edge
     integer                ,intent(in   ) :: vlyr
     integer                ,intent(in   ) :: kptr
     type(element_t)        ,intent(in   ) :: elem(:)
     integer                ,intent(in   ) :: nets,nete,tdim,tl
     real (kind=real_kind)  ,intent(in   ) :: v(np,np,vlyr,tdim,nelemd)
+    integer, optional      ,intent(in   ) :: asyncid_in
     ! Local variables
     integer :: i,k,ir,ll,is,ie,in,iw,el,kc,kk
     integer, parameter :: kchunk = 32
+    integer :: asyncid
+    if (present(asyncid_in)) then
+      asyncid = asyncid_in
+    else
+      asyncid = acc_async_sync
+    endif
     call t_startf('edge_pack')
     if (edge%nlyr < (kptr+vlyr) ) call haltmp('edgeVpack: Buffer overflow: size of the vertical dimension must be increased!')
-    !$acc parallel loop gang collapse(2) present(v,edge) vector_length(kchunk*np)
+    !$acc parallel loop gang collapse(2) present(v,edge) vector_length(kchunk*np) async(asyncid)
     do el = nets , nete
       do kc = 1 , vlyr/kchunk+1
         !$acc loop vector collapse(2)
@@ -268,7 +278,8 @@ contains
     call t_stopf('edge_pack')
   end subroutine edgeVpack_openacc
 
-  subroutine edgeVunpack_openacc(edge,v,vlyr,kptr,elem,nets,nete,tdim,tl)
+  subroutine edgeVunpack_openacc(edge,v,vlyr,kptr,elem,nets,nete,tdim,tl,asyncid_in)
+    use openacc_utils_mod, only: acc_async_sync
     use dimensions_mod, only : np, max_corner_elem
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
     use perf_mod, only: t_startf, t_stopf
@@ -280,12 +291,19 @@ contains
     type(element_t)        ,intent(in   ) :: elem(:)
     integer                ,intent(in   ) :: nets,nete,tdim,tl
     real(kind=real_kind)  , intent(inout) :: v(np,np,vlyr,tdim,nelemd)
+    integer, optional      ,intent(in   ) :: asyncid_in
     ! Local
     integer :: i,k,ll,is,ie,in,iw,el,kc,kk,glob_k,loc_ind,ii,jj, j
     integer, parameter :: kchunk = 32
     real(kind=real_kind) :: vtmp(np,np,kchunk)
+    integer :: asyncid
+    if (present(asyncid_in)) then
+      asyncid = asyncid_in
+    else
+      asyncid = acc_async_sync
+    endif
     call t_startf('edge_unpack')
-    !$acc parallel loop gang collapse(2) present(v,edge) private(vtmp)
+    !$acc parallel loop gang collapse(2) present(v,edge) private(vtmp) async(asyncid)
     do el = nets , nete
       do kc = 1 , vlyr/kchunk+1
         !$acc cache(vtmp)
