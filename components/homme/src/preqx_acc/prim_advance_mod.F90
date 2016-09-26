@@ -223,7 +223,7 @@ contains
     !$omp master
     do ie = 1 , nelemd
       !$acc update device( state_dp3d(:,:,:,n0,ie),state_v(:,:,:,:,n0,ie),state_T(:,:,:,n0,ie),state_Qdp(:,:,:,1,qn0,ie),elem(ie)%state%phis,elem(ie)%derived%omega_p,elem(ie)%derived%eta_dot_dpdn, &
-      !$acc&               elem(ie)%derived%pecnd,elem(ie)%derived%phi ) async(asyncid)
+      !$acc&               elem(ie)%derived%pecnd,elem(ie)%derived%phi,elem(ie)%derived%dpdiss_ave,elem(ie)%derived%dpdiss_biharmonic ) async(asyncid)
     enddo
     !$acc update device(derived_vn0)
     !$omp end master
@@ -285,11 +285,9 @@ contains
       call abortmp('ERROR: bad choice of tstep_type')
     endif
 
+    !$omp barrier
     !$omp master
-    !$acc update host(derived_vn0) async(asyncid)
-    do ie = 1 , nelemd
-      !$acc update host(elem(ie)%derived%phi,elem(ie)%derived%omega_p,elem(ie)%derived%eta_dot_dpdn,state_v(:,:,:,:,np1,ie),state_t(:,:,:,np1,ie),state_dp3d(:,:,:,np1,ie)) async(asyncid)
-    enddo
+    !$acc wait
     !$omp end master
     !$omp barrier
 
@@ -297,14 +295,6 @@ contains
     ! Time-split Horizontal diffusion: nu.del^2 or nu.del^4
     ! U(*) = U(t+1)  + dt2 * HYPER_DIFF_TERM(t+1)
     ! ==============================================
-#   ifdef ENERGY_DIAGNOSTICS
-      !if (compute_diagnostics) then
-      !  do ie = nets,nete
-      !    elem(ie)%accum%DIFF(:,:,:,:)=elem(ie)%state%v(:,:,:,:,np1)
-      !    elem(ie)%accum%DIFFT(:,:,:)=elem(ie)%state%T(:,:,:,np1)
-      !  enddo
-      !endif
-#   endif
     ! note:time step computes u(t+1)= u(t*) + RHS.
     ! for consistency, dt_vis = t-1 - t*, so this is timestep method dependent
     if (tstep_type==0) then
@@ -317,16 +307,17 @@ contains
         call advance_hypervis_dp(edge3p1,elem,hvcoord,hybrid,deriv,np1,nets,nete,dt_vis,eta_ave_w)
       endif
     endif
-#   ifdef ENERGY_DIAGNOSTICS
-      !if (compute_diagnostics) then
-      !  do ie = nets,nete
-      !    do k=1,nlev  !  Loop index added (AAM)
-      !     elem(ie)%accum%DIFF(:,:,:,k)=( elem(ie)%state%v(:,:,:,k,np1) - elem(ie)%accum%DIFF(:,:,:,k) ) / dt_vis
-      !     elem(ie)%accum%DIFFT(:,:,k)=( elem(ie)%state%T(:,:,k,np1) - elem(ie)%accum%DIFFT(:,:,k) ) / dt_vis
-      !    enddo
-      !  enddo
-      !endif
-#   endif
+
+    !$omp master
+    !$acc update host(derived_vn0) async(asyncid)
+    do ie = 1 , nelemd
+      !$acc update host(elem(ie)%derived%phi,elem(ie)%derived%omega_p,elem(ie)%derived%eta_dot_dpdn,state_v(:,:,:,:,np1,ie),state_t(:,:,:,np1,ie),state_dp3d(:,:,:,np1,ie), &
+      !$acc&            elem(ie)%derived%dpdiss_ave,elem(ie)%derived%dpdiss_biharmonic) async(asyncid)
+    enddo
+    !$acc wait
+    !$omp end master
+    !$omp barrier
+
     tevolve=tevolve+dt
     call t_stopf('prim_advance_exp')
   end subroutine prim_advance_exp
@@ -729,17 +720,6 @@ contains
   !
   if (hypervis_order == 2) then
     do ic=1,hypervis_subcycle
-
-
-      !$omp barrier
-      !$omp master
-      do ie = 1 , nelemd
-        !$acc update device(state_t(:,:,:,nt,ie),state_dp3d(:,:,:,nt,ie),state_v(:,:,:,:,nt,ie),elem(ie)%derived%dpdiss_ave,elem(ie)%derived%dpdiss_biharmonic)
-      enddo
-      !$omp end master
-      !$omp barrier
-
-
       call biharmonic_wk_dp3d_openacc(state_t,state_dp3d,state_v,elem,grads_tmp,div_tmp,vort_tmp,dptens,ttens,vtens,deriv,edge3,hybrid,nt,1,nelemd)
 
 
@@ -831,9 +811,6 @@ contains
             enddo
           enddo
         enddo
-      enddo
-      do ie = 1 , nelemd
-        !$acc update host(elem(ie)%derived%dpdiss_ave,elem(ie)%derived%dpdiss_biharmonic,state_dp3d(:,:,:,nt,ie),state_v(:,:,:,:,nt,ie),state_t(:,:,:,nt,ie))
       enddo
       !$omp end master
       !$omp barrier
