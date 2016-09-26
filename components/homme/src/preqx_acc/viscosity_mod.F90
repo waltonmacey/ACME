@@ -27,10 +27,111 @@ module viscosity_mod
 #endif
   public :: biharmonic_wk_scalar_openacc
   public :: neighbor_minmax_openacc
+  public :: biharmonic_wk_dp3d_openacc
 
 
 
 contains
+
+  subroutine biharmonic_wk_dp3d_openacc(state_t,state_dp3d,state_v,elem,grads,div,vort,dptens,ptens,vtens,deriv,edge3,hybrid,nt,nets,nete,asyncid_in)
+    use derivative_mod, only :  derivative_t, laplace_sphere_wk, vlaplace_sphere_wk, laplace_sphere_wk_openacc, vlaplace_sphere_wk_openacc
+    use edge_mod, only: edgeVpack_openacc,edgeVunpack_openacc
+    use bndry_mod, only: bndry_exchangeV => bndry_exchangeV_simple_minimize_pcie
+    use element_mod, only: timelevels
+    use openacc_utils_mod, only: copy_ondev_async, acc_async_sync
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! compute weak biharmonic operator
+    !    input:  h,v (stored in elem()%, in lat-lon coordinates
+    !    output: ptens,vtens  overwritten with weak biharmonic of h,v (output in lat-lon coordinates)
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    type (hybrid_t)      , intent(in   ) :: hybrid
+    type (element_t)     , intent(inout), target :: elem(:)
+    integer              , intent(in   ) :: nt,nets,nete
+    real (kind=real_kind), intent(in   ) :: state_t(np,np,nlev,timelevels,nets:nete)
+    real (kind=real_kind), intent(in   ) :: state_dp3d(np,np,nlev,timelevels,nets:nete)
+    real (kind=real_kind), intent(in   ) :: state_v(np,np,2,nlev,timelevels,nets:nete)
+    real (kind=real_kind), intent(inout) :: grads(np,np,2,nlev,nets:nete)
+    real (kind=real_kind), intent(inout) :: div(np,np,nlev,nets:nete)
+    real (kind=real_kind), intent(inout) :: vort(np,np,nlev,nets:nete)
+    real (kind=real_kind), intent(  out) :: vtens(np,np,2,nlev,nets:nete)
+    real (kind=real_kind), intent(  out) :: ptens(np,np,nlev,nets:nete)
+    real (kind=real_kind), intent(  out) :: dptens(np,np,nlev,nets:nete)
+    type (EdgeBuffer_t)  , intent(inout) :: edge3
+    type (derivative_t)  , intent(in   ) :: deriv
+    integer, optional    , intent(in   ) :: asyncid_in
+    ! local
+    integer :: i,j,k,kptr,ie
+    real(kind=real_kind) :: tmp(np,np), tmp2(np,np), v(np,np,2), nu_ratio1, nu_ratio2
+    logical :: var_coef1
+    integer :: asyncid
+    if (present(asyncid_in)) then
+      asyncid = asyncid_in
+    else
+      asyncid = acc_async_sync
+    endif
+    !if tensor hyperviscosity with tensor V is used, then biharmonic operator is (\grad\cdot V\grad) (\grad \cdot \grad) 
+    !so tensor is only used on second call to laplace_sphere_wk
+    var_coef1 = .true.
+    if(hypervis_scaling > 0)    var_coef1 = .false.
+    ! note: there is a scaling bug in the treatment of nu_div
+    ! nu_ratio is applied twice, once in each laplace operator
+    ! so in reality:   nu_div_actual = (nu_div/nu)**2 nu
+    ! We should fix this, but it requires adjusting all CAM defaults
+    nu_ratio1=1
+    nu_ratio2=1
+    if (nu_div/=nu) then
+      if(hypervis_scaling /= 0) then
+        ! we have a problem with the tensor in that we cant seperate
+        ! div and curl components.  So we do, with tensor V:
+        ! nu * (del V del ) * ( nu_ratio * grad(div) - curl(curl))
+        nu_ratio1=(nu_div/nu)**2   ! preserve buggy scaling
+        nu_ratio2=1
+      else
+        nu_ratio1=nu_div/nu
+        nu_ratio2=nu_div/nu
+      endif
+    endif
+    !$omp master
+    call laplace_sphere_wk_openacc(state_t   ,grads,deriv,elem,var_coef1, ptens,nlev,nets,nete,timelevels,nt,1,1,asyncid)
+    call laplace_sphere_wk_openacc(state_dp3d,grads,deriv,elem,var_coef1,dptens,nlev,nets,nete,timelevels,nt,1,1,asyncid)
+    call vlaplace_sphere_wk_openacc(state_v,vort,div,deriv,elem,var_coef1,nlev,nets,nete,timelevels,nt,1,1,vtens,nu_ratio1,asyncid)
+
+    kptr=0     ;  call edgeVpack_openacc(edge3, ptens,  nlev,kptr,elem,nets,nete,1,1,asyncid)
+    kptr=nlev  ;  call edgeVpack_openacc(edge3, vtens,2*nlev,kptr,elem,nets,nete,1,1,asyncid)
+    kptr=3*nlev;  call edgeVpack_openacc(edge3,dptens,  nlev,kptr,elem,nets,nete,1,1,asyncid)
+    !$acc wait(asyncid)
+    !$omp end master
+
+    call t_startf('biwkdp3d_bexchV')
+    call bndry_exchangeV(hybrid,edge3)
+    call t_stopf('biwkdp3d_bexchV')
+
+    !$omp master
+    kptr=0     ;  call edgeVunpack_openacc(edge3, ptens,  nlev,kptr,elem,nets,nete,1,1,asyncid)
+    kptr=nlev  ;  call edgeVunpack_openacc(edge3, vtens,2*nlev,kptr,elem,nets,nete,1,1,asyncid)
+    kptr=3*nlev;  call edgeVunpack_openacc(edge3,dptens,  nlev,kptr,elem,nets,nete,1,1,asyncid)
+
+    ! apply inverse mass matrix, then apply laplace again
+    !$acc parallel loop gang vector collapse(4) present(ptens,dptens,vtens,elem) async(asyncid)
+    do ie=nets,nete
+      do k=1,nlev
+        do j = 1 , np
+          do i = 1 , np
+            ptens (i,j  ,k,ie) = elem(ie)%rspheremp(i,j)*ptens (i,j  ,k,ie)
+            dptens(i,j  ,k,ie) = elem(ie)%rspheremp(i,j)*dptens(i,j  ,k,ie)
+            vtens (i,j,1,k,ie) = elem(ie)%rspheremp(i,j)*vtens (i,j,1,k,ie)
+            vtens (i,j,2,k,ie) = elem(ie)%rspheremp(i,j)*vtens (i,j,2,k,ie)
+          enddo
+        enddo
+      enddo
+    enddo
+
+    call laplace_sphere_wk_openacc(ptens ,grads,deriv,elem,.true., ptens,nlev,nets,nete,1,1,1,1,asyncid)
+    call laplace_sphere_wk_openacc(dptens,grads,deriv,elem,.true.,dptens,nlev,nets,nete,1,1,1,1,asyncid)
+    call copy_ondev_async(grads,vtens,product(shape(vtens)),asyncid)
+    call vlaplace_sphere_wk_openacc(grads,vort,div,deriv,elem,.true.,nlev,nets,nete,1,1,1,1,vtens,nu_ratio2,asyncid)
+    !$omp end master
+  end subroutine biharmonic_wk_dp3d_openacc
 
   subroutine biharmonic_wk_scalar_openacc(elem,qtens,grads,deriv,edgeq,hybrid,nets,nete)
     use hybrid_mod            , only: hybrid_t
