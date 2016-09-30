@@ -25,8 +25,10 @@ endif
 
 module list >& ml00.txt; env >>& ml00.txt 
 
-module swap craype-haswell craype-mic-knl                                                                                  
-#module load craype-mic-knl
+#module swap craype-haswell craype-mic-knl
+module unload  craype-mic-knl
+module unload  craype-haswell 
+module load craype-mic-knl
 
 module load cray-netcdf-hdf5parallel/4.4.0
 module load cray-parallel-netcdf/1.7.0
