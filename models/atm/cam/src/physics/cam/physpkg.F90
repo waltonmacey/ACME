@@ -2747,7 +2747,7 @@ end if ! l_tracer_aero
 !======================================================================= 
 ! ProcOrdering - AaronDonahue - (08/04/2016):
 ! Finished with Microphysics/Wet Deposition Computation 
-call ProcOrdering_wrtflds(pbuf,state,16)  ! 4 - corresponds to Wd
+call ProcOrdering_wrtflds(pbuf,state,16)  ! 16 - corresponds to Wd
 goto 199
 !======================================================================= 
 ! ProcOrdering - AaronDonahue - (08/04/2016):
@@ -2954,7 +2954,7 @@ subroutine ProcOrdering_addflds
 
   integer                     :: m,n,mstage
 
-!  goto 888
+  !goto 888
 
   mstage = 1
   ProcOrderStage(1) = 'DC'
@@ -3131,10 +3131,10 @@ subroutine ProcOrdering_wrtflds(pbuf,state,n)
     call outfld(trim(ProcOrderName(1+m)) //trim(ProcOrderStage(n)),state%q(1,1,m),pcols ,lchnk )
   end do
 
+999 continue
   ! write output for Liquid/Ice Water Path
   call ProcOrdering_wrt_tgcld(pbuf,state,n)
 
-999 continue
 return
 end subroutine ProcOrdering_wrtflds
 !======================================================================= 

@@ -237,8 +237,8 @@ subroutine phys_ctl_readnl(nlfile)
    call mpibcast(l_st_mac,                        1 , mpilog,  0, mpicom)
    call mpibcast(l_st_mic,                        1 , mpilog,  0, mpicom)
    call mpibcast(l_rad,                           1 , mpilog,  0, mpicom)
-   call mpibcast(proc_order_bc,                   5 , mpiint,  0, mpicom)
-   call mpibcast(detrain_conv,                    1 , mpilog,  0, mpicom)
+   call mpibcast(proc_order_bc,                   5 , mpiint,  0, mpicom)!ProcOrdering - AaronDonahue - process ordering
+   call mpibcast(detrain_conv,                    1 , mpilog,  0, mpicom)!ProcOrdering - AaronDonahue - convective detrainment
 #endif
 
    ! Error checking:
