@@ -625,15 +625,26 @@ for mct, etc.
 </compiler>
 
 <compiler COMPILER="gnu" MACH="anlworkstation">
-  <ADD_FFLAGS DEBUG="FALSE"> -O2  </ADD_FFLAGS>
-  <ADD_CFLAGS DEBUG="FALSE"> -O2  </ADD_CFLAGS>
+  <ADD_FFLAGS DEBUG="FALSE"> -O2 </ADD_FFLAGS>
+  <ADD_CFLAGS DEBUG="FALSE"> -O2 </ADD_CFLAGS>
   <CONFIG_ARGS> --host=Linux </CONFIG_ARGS>
   <NETCDF_PATH>$(NETCDFROOT)</NETCDF_PATH>
   <PNETCDF_PATH>$(PNETCDFROOT)</PNETCDF_PATH>
-  <ADD_SLIBS> $(shell $(NETCDF_PATH)/bin/nf-config --flibs) -lblas -llapack</ADD_SLIBS>
+  <ADD_SLIBS> $(shell $(NETCDFROOT)/bin/nf-config --flibs) -lblas -llapack</ADD_SLIBS>
   <ADD_CPPFLAGS> -DHAVE_COMM_F2C </ADD_CPPFLAGS>
   <CXX_LIBS>-lstdc++ -lmpi_cxx</CXX_LIBS>
   <ALBANY_PATH>/projects/install/rhel6-x86_64/ACME/AlbanyTrilinos/Albany/build/install</ALBANY_PATH>
+</compiler>
+
+<compiler COMPILER="intel" MACH="anlworkstation">
+  <ADD_FFLAGS DEBUG="FALSE"> -O2 </ADD_FFLAGS>
+  <ADD_CFLAGS DEBUG="FALSE"> -O2 </ADD_CFLAGS>
+  <CONFIG_ARGS> --host=Linux </CONFIG_ARGS>
+  <NETCDF_PATH>$(NETCDFROOT)</NETCDF_PATH>
+  <PNETCDF_PATH>$(PNETCDFROOT)</PNETCDF_PATH>
+  <ADD_SLIBS> $(shell $(NETCDFROOT)/bin/nf-config --flibs) -Wl,-rpath -Wl,$(NETCDFROOT)/lib </ADD_SLIBS>
+  <ADD_SLIBS> -L$(MKLROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread -lm -ldl </ADD_SLIBS>
+  <ADD_CPPFLAGS> -DHAVE_COMM_F2C </ADD_CPPFLAGS>
 </compiler>
 
 <compiler COMPILER="intel" MACH="skybridge">

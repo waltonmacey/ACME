@@ -441,7 +441,7 @@
     <PROXY></PROXY>
     <TESTS>acme_developer</TESTS>
     <OS>LINUX</OS>
-    <COMPILERS>gnu</COMPILERS>
+    <COMPILERS>gnu,intel</COMPILERS>
     <MPILIBS>mpich,mpi-serial</MPILIBS>
     <CESMSCRATCHROOT>$ENV{HOME}/acme/scratch</CESMSCRATCHROOT>
     <RUNDIR>$CESMSCRATCHROOT/$CASE/run</RUNDIR>
