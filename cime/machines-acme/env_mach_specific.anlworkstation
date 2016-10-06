@@ -7,17 +7,28 @@
 source /software/common/adm/packages/softenv-1.4.2/etc/softenv-load.csh
 source /software/common/adm/packages/softenv-1.4.2/etc/softenv-aliases.csh
 
-soft add +gcc-5.1.0 
-soft add +mpich-3.2-gcc-5.1
-soft add +netcdf-4.3.3.1-parallel-gcc5.1-mpich3.2
-soft add +pnetcdf-1.6.1-gcc-5.1-mpich-3.2
 soft add +cmake-2.8.12
+
+if ( $COMPILER == "gnu" ) then
+  soft add +gcc-5.1.0
+  soft add +mpich-3.2-gcc-5.1
+  soft add +netcdf-4.3.3.1-parallel-gcc5.1-mpich3.2
+  soft add +pnetcdf-1.6.1-gcc-5.1-mpich-3.2
+  setenv PNETCDFROOT `which pnetcdf_version | xargs dirname | xargs dirname`
+endif
+
+if ( $COMPILER == "intel" ) then
+  soft add +intel-16-u3
+  setenv MKLROOT /soft/com/packages/intel/16/u3/mkl
+  setenv LD_LIBRARY_PATH $MKLROOT/lib/intel64:$LD_LIBRARY_PATH
+  setenv PATH /home/azamat/soft/mpich/3.2/intel16/bin/:$PATH
+  setenv NETCDFROOT /home/azamat/soft/netcdf/4.3.3.1c-4.2cxx-4.4.2f/intel16
+  setenv PNETCDFROOT /home/azamat/soft/pnetcdf/1.6.1/intel16
+endif
+
+printenv >& software_environment.txt
 
 if ( $?PERL ) then
    printenv
 endif
 
-set temp=`which pnetcdf_version`
-set temp1=`dirname $temp`
-set temp2=`dirname $temp1`
-setenv PNETCDFROOT $temp2
