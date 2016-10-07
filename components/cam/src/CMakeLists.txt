@@ -58,11 +58,21 @@ ADD_DEFINITIONS(-DN_RAD_CNST=30)
 ADD_DEFINITIONS(-DMODAL_AERO -DMODAL_AERO_3MODE)
 ###############
 
-FILE(GLOB CAM_DYNAMICS_SOURCE ${CAM_DYNAMICS_SOURCE_DIR}/*F90 ${CAM_DYNAMICS_SOURCE_DIR}/share/*F90)
-FILE(GLOB CAM_PHYSICS_SOURCE ${CAM_PHYSICS_SOURCE_DIR}/*F90)
-FILE(GLOB CAM_UTILS_SOURCE utils/*F90)
+FILE(GLOB CAM_DYNAMICS_SOURCE ${CAM_DYNAMICS_SOURCE_DIR}/*F90 ../../homme/src/share/*F90)
+FILE(GLOB CAM_UTILS_SOURCE utils/*F90
+                           #unitdrivers/*F90 ???
+)
+
 FILE(GLOB CAM_CPL_SOURCE cpl/*F90)
 FILE(GLOB CAM_CONTROL_SOURCE control/*F90 control/mpishorthand.F)
+
+FILE(GLOB CAM_PHYSICS_SOURCE 
+          physics/cam/*F90
+#          physics/rrtmg/*F90
+#          physics/rrtmg/ext/rrtmg_mcica/*F90
+#          physics/rrtmg/ext/rrtmg_lw/*F90
+#          physics/rrtmg/ext/rrtmg_sw/*F90
+)
 
 FILE(GLOB CAM_CHEMISTRY_SOURCE
           chemistry/pp_trop_mam3/*F90
@@ -78,6 +88,8 @@ INCLUDE_DIRECTORIES (
           ${MPEU_BINARY_DIR}
           ${GPTL_BINARY_DIR} #Need perf_mod.mod
           ${SEQ_BINARY_DIR}  #seq_cdata_mod
+          ${ACME_SHR_DIR}    #shr_assert.h
+)
 
 
 ADD_LIBRARY (cam ${CAM_DYNAMICS_SOURCE} ${CAM_PHYSICS_SOURCE}
