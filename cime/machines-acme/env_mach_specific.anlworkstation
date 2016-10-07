@@ -4,6 +4,8 @@
 # ANL workstation specific settings
 #===============================================================================
 
+limit coredumpsize unlimit
+
 source /software/common/adm/packages/softenv-1.4.2/etc/softenv-load.csh
 source /software/common/adm/packages/softenv-1.4.2/etc/softenv-aliases.csh
 
@@ -25,6 +27,8 @@ if ( $COMPILER == "intel" ) then
   setenv NETCDFROOT /home/azamat/soft/netcdf/4.3.3.1c-4.2cxx-4.4.2f/intel16
   setenv PNETCDFROOT /home/azamat/soft/pnetcdf/1.6.1/intel16
 endif
+
+setenv OMP_STACKSIZE 64M
 
 printenv >& software_environment.txt
 

@@ -443,7 +443,7 @@
     <OS>LINUX</OS>
     <COMPILERS>gnu,intel</COMPILERS>
     <MPILIBS>mpich,mpi-serial</MPILIBS>
-    <CESMSCRATCHROOT>$ENV{HOME}/acme/scratch</CESMSCRATCHROOT>
+    <CESMSCRATCHROOT>/sandbox/acme/scratch/$USER</CESMSCRATCHROOT>
     <RUNDIR>$CESMSCRATCHROOT/$CASE/run</RUNDIR>
     <EXEROOT>$CESMSCRATCHROOT/$CASE/bld</EXEROOT>
     <DIN_LOC_ROOT>/home/climate1/acme/inputdata</DIN_LOC_ROOT>
