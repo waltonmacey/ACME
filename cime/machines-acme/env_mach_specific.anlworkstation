@@ -30,6 +30,8 @@ endif
 
 setenv OMP_STACKSIZE 64M
 
+setenv PERL5LIB /homes/azamat/perl5/lib/perl5
+
 printenv >& software_environment.txt
 
 if ( $?PERL ) then
