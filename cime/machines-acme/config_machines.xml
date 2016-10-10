@@ -251,7 +251,7 @@
 </machine>
 
 <machine MACH="gerty-haswell">
-    <DESC>NERSC whitebox gerty with KNL (and Haswell) partitions (experimental) intel -xCORE-AVX2  for haswell</DESC>
+    <DESC>NERSC whitebox gerty for haswell partitions (for intel compiler use -xCORE-AVX2)</DESC>
     <NODENAME_REGEX>gerty</NODENAME_REGEX>
     <TESTS>acme_developer</TESTS>
     <COMPILERS>intel,gnu</COMPILERS>
@@ -283,9 +283,9 @@
 	<queue walltimemax="00:30:00" jobmin="1" jobmax="4096">debug</queue>
       </queues>
       <walltimes>
-        <walltime default="true">01:15:00</walltime>
-        <walltime ccsm_estcost="1">01:50:00</walltime>
-        <walltime ccsm_estcost="3">05:00:00</walltime>
+        <walltime default="true">00:15:00</walltime>
+        <walltime ccsm_estcost="1">00:30:00</walltime>
+        <walltime ccsm_estcost="3">00:40:00</walltime>
       </walltimes>
     </batch_system>
     <mpirun mpilib="default">
@@ -300,7 +300,7 @@
 
 
 <machine MACH="gerty-knl">
-    <DESC>NERSC whitebox gerty with KNL (and Haswell) partitions (experimental) intel -xMIC-AVX512 for KNL</DESC>
+    <DESC>NERSC whitebox gerty KNL partitions (for intel compilers use -xMIC-AVX512)</DESC>
     <NODENAME_REGEX>gerty</NODENAME_REGEX>
     <TESTS>acme_developer</TESTS>
     <COMPILERS>intel,gnu</COMPILERS>
@@ -332,9 +332,9 @@
 	<queue walltimemax="00:30:00" jobmin="1" jobmax="4096">debug_knl</queue>
       </queues>
       <walltimes>
-        <walltime default="true">01:15:00</walltime>
-        <walltime ccsm_estcost="1">01:50:00</walltime>
-        <walltime ccsm_estcost="3">05:00:00</walltime>
+        <walltime default="true">00:15:00</walltime>
+        <walltime ccsm_estcost="1">00:30:00</walltime>
+        <walltime ccsm_estcost="3">00:40:00</walltime>
       </walltimes>
     </batch_system>
     <mpirun mpilib="default">
@@ -342,8 +342,7 @@
       <arguments>
 	<arg name="label"> --label</arg>
 	<arg name="num_tasks" > -n {{ num_tasks }}</arg>
-	<arg name="thread_count" > -c {{ thread_count }}</arg>
-	<arg name="thread_count" > -c {{ thread_count }} --cpu_bind=threads numatcl -m 1</arg>
+	<arg name="thread_count" > -c 4 --cpu_bind=threads numactl -m 1</arg>
       </arguments>
     </mpirun>
 </machine>

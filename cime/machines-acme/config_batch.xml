@@ -135,6 +135,9 @@
        <directive> --job-name={{ job_id }}</directive>
        <directive> --nodes={{ num_nodes }}</directive>
        <directive> --ntasks-per-node={{ tasks_per_node }}</directive>
+       <!-- ndk:  only needed for KNL, but dont see options how to make that happen-->
+       <directive> --ntasks-per-core=4</directive>
+       <directive> -C quad,flat</directive>
        <directive> --output={{ output_error_path }}   </directive>
        <directive> --exclusive                        </directive>
        <directive> --time={{ wall_time }}</directive>
