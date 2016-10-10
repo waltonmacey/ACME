@@ -1,0 +1,73 @@
+#! /bin/csh -f
+
+#-------------------------------------------------------------------------------
+# Modules and library paths
+#-------------------------------------------------------------------------------
+
+set CESM_REPO = `./xmlquery CCSM_REPOTAG -value`
+if($status == 0) then
+  set COMPILER = `./xmlquery COMPILER -value`
+  set MPILIB   = `./xmlquery MPILIB   -value`
+  set DEBUG   = `./xmlquery DEBUG   -value`
+else
+  echo $0 using settings from environment:
+endif
+echo "COMPILER=$COMPILER"
+echo "MPILIB=$MPILIB"
+echo "DEBUG=$DEBUG"
+
+if (-e /opt/modules/default/init/csh) then
+  source /opt/modules/default/init/csh
+endif
+
+module list >& ml00.txt; env >>& ml00.txt 
+
+#module swap craype-haswell craype-mic-knl
+module unload  craype-mic-knl
+module unload  craype-haswell 
+module load  craype-haswell 
+#module load craype-mic-knl
+
+module unload intel
+#module load intel/16.0.3.210
+#module load intel/17.0.0.042
+#module load intel/2017.beta.up2
+module load intel/17.0.0.098
+
+#module unload PrgEnv-intel
+#module load PrgEnv-gnu
+#module load gcc
+
+
+module load cray-netcdf-hdf5parallel/4.4.0
+module load cray-parallel-netcdf/1.7.0
+module load cray-hdf5-parallel/1.8.16
+module load cmake
+
+module list >& software_environment.txt
+
+#-------------------------------------------------------------------------------
+# Runtime environment variables
+#-------------------------------------------------------------------------------
+
+limit coredumpsize unlimited
+limit stacksize unlimited
+
+# Capture logical to physics PE assignment and active environment variable settings
+setenv MPICH_ENV_DISPLAY 1
+setenv MPICH_VERSION_DISPLAY 1
+setenv MPICH_CPUMASK_DISPLAY 1
+#setenv PERL5LIB $PERL_DIR/lib/5.20.0
+
+# The environment variable below increase the stack size, which is necessary for
+# CICE to run threaded on this machine.  
+# Helen He: setting OMP_STACKSIZE to 128M won't hurt
+# Mark Taylor: worse case: someone could run 32 threads per node = 4GB stack memory, and Cori Phase 1 has 128GB per node, IIRC. So 4Gb seems affordable. 
+setenv OMP_STACKSIZE 128M
+
+env >>&  software_environment.txt
+limit >>& software_environment.txt
+
+if ( $?PERL ) then
+  printenv
+endif
