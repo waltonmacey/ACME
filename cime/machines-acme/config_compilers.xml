@@ -577,7 +577,7 @@ for mct, etc.
 
 <compiler COMPILER="intel" MACH="gerty-haswell">
   <ADD_FFLAGS> -xCORE-AVX2 </ADD_FFLAGS>
-  <ADD_FFLAGS DEBUG="FALSE"> -O2 -no-opt-dynamic-align -xCORE-AVX2 </ADD_FFLAGS>
+  <ADD_FFLAGS DEBUG="FALSE"> -O2 -no-opt-dynamic-align</ADD_FFLAGS>
   <ADD_CFLAGS DEBUG="FALSE"> -O2  </ADD_CFLAGS>
   <!--FFLAGS> -xMIC-AVX512 -convert big_endian -assume byterecl -ftz -traceback -assume realloc_lhs </FFLAGS>-->
   <!--CFLAGS> -xMIC-AVX512 -O2 </CFLAGS>-->
@@ -598,7 +598,7 @@ for mct, etc.
 
 <compiler COMPILER="intel" MACH="gerty-knl">
   <ADD_FFLAGS> -xMIC-AVX512 </ADD_FFLAGS>
-  <ADD_FFLAGS DEBUG="FALSE"> -O2 -no-opt-dynamic-align -xMIC-AVX512 </ADD_FFLAGS>
+  <ADD_FFLAGS DEBUG="FALSE"> -O2 -no-opt-dynamic-align</ADD_FFLAGS>
   <ADD_CFLAGS DEBUG="FALSE"> -O2  </ADD_CFLAGS>
   <!--FFLAGS> -xMIC-AVX512 -convert big_endian -assume byterecl -ftz -traceback -assume realloc_lhs </FFLAGS>-->
   <!--CFLAGS> -xMIC-AVX512 -O2 </CFLAGS>-->
