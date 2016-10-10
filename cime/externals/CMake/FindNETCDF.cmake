@@ -18,8 +18,8 @@ find_library(NetcdfF_LIBRARY
 
 find_path(Netcdf_NC_CONFIG_BIN
           NAMES nc-config
-          HINTS ${Netcdf_INCLUDE_DIR}/../bin
-          NO_CMAKE_SYSTEM_PATH)
+          HINTS ${Netcdf_INCLUDE_DIR}/../bin)
+#ndk          NO_SYSTEM_ENVIRONMENT_PATH NO_CMAKE_SYSTEM_PATH)
 
 find_file(NETCDF4_PAR_H netcdf_par.h
           HINTS ${Netcdf_INCLUDE_DIR}
@@ -35,6 +35,9 @@ endif()
 
 # Store libraries in Netcdf_LIBRARIES
 set(Netcdf_LIBRARIES ${NetcdfF_LIBRARY} ${Netcdf_LIBRARY})
+
+MESSAGE(STATUS "ndk looking for nc-config ${Netcdf_INCLUDE_DIR}/../bin")
+MESSAGE(STATUS "ndk looking for nc-config at ${Netcdf_NC_CONFIG_BIN}")
 
 IF (NOT ${Netcdf_NC_CONFIG_BIN} STREQUAL Netcdf_NC_CONFIG_BIN-NOTFOUND)
 
@@ -103,8 +106,10 @@ IF (NOT ${Netcdf_NC_CONFIG_BIN} STREQUAL Netcdf_NC_CONFIG_BIN-NOTFOUND)
 
 ELSE ()
   SET (NETCDF_REQUIRE_HDF5 TRUE)
-  SET (NETCDF_REQUIRE_CURL TRUE)
-  MESSAGE(STATUS "nc-config not found assuming hdf5 and curl dependencies")
+  #SET (NETCDF_REQUIRE_CURL TRUE)
+  #MESSAGE(STATUS "nc-config not found assuming hdf5 and curl dependencies")
+  SET (NETCDF_REQUIRE_CURL FALSE)
+  MESSAGE(STATUS "nc-config NOT found assuming hdf5 (but no curl, says ndk)")
 ENDIF ()
 
 IF (${NETCDF_REQUIRE_CURL})
@@ -197,8 +202,11 @@ IF (${NETCDF_REQUIRE_HDF5})
 
   # Check to see which dependencies (ZLIB, SZIP) hdf5 has
   INCLUDE(CheckSymbolExists)
-  CHECK_SYMBOL_EXISTS(H5_HAVE_SZLIB_H "${HDF5_INCLUDE_DIR}/H5pubconf.h" HDF5_REQUIRE_SZ)
+  #ndk override CHECK_SYMBOL_EXISTS(H5_HAVE_SZLIB_H "${HDF5_INCLUDE_DIR}/H5pubconf.h" HDF5_REQUIRE_SZ)
+  set(HDF5_REQUIRE_SZ FALSE) #ndk force
+
   CHECK_SYMBOL_EXISTS(H5_HAVE_ZLIB_H "${HDF5_INCLUDE_DIR}/H5pubconf.h" HDF5_REQUIRE_ZLIB)
+
 
   IF (${HDF5_REQUIRE_ZLIB})
 

@@ -250,6 +250,54 @@
     </module_system>
 </machine>
 
+<machine MACH="gerty">
+    <DESC>NERSC whitebox gerty with KNL (and Haswell) partitions (experimental)</DESC>
+    <NODENAME_REGEX>gerty</NODENAME_REGEX>
+    <TESTS>acme_developer</TESTS>
+    <COMPILERS>intel,gnu</COMPILERS>
+    <MPILIBS>mpt,mpi-serial</MPILIBS>
+    <CESMSCRATCHROOT>$ENV{SCRATCH}/acme_scratch</CESMSCRATCHROOT>
+    <RUNDIR>$CESMSCRATCHROOT/$CASE/run</RUNDIR>
+    <EXEROOT>$CESMSCRATCHROOT/$CASE/bld</EXEROOT>
+    <DIN_LOC_ROOT>/project/projectdirs/acme/inputdata</DIN_LOC_ROOT>
+    <DIN_LOC_ROOT_CLMFORC>/project/projectdirs/acme/inputdata/atm/datm7</DIN_LOC_ROOT_CLMFORC>
+    <DOUT_S_ROOT>$CESMSCRATCHROOT/archive/$CASE</DOUT_S_ROOT>
+    <DOUT_L_MSROOT>csm/$CASE</DOUT_L_MSROOT>
+    <CCSM_BASELINE>/project/projectdirs/acme/baselines</CCSM_BASELINE>
+    <CCSM_CPRNC>/project/projectdirs/acme/tools/cprnc.cori/cprnc</CCSM_CPRNC>
+    <SAVE_TIMING_DIR>/project/projectdirs/$PROJECT</SAVE_TIMING_DIR>
+    <OS>CNL</OS>
+    <BATCHQUERY>squeue</BATCHQUERY>
+    <BATCHSUBMIT>sbatch</BATCHSUBMIT>
+    <BATCHREDIRECT></BATCHREDIRECT>
+    <SUPPORTED_BY>acme</SUPPORTED_BY>
+    <GMAKE_J>8</GMAKE_J>
+    <MAX_TASKS_PER_NODE>256</MAX_TASKS_PER_NODE>
+    <PES_PER_NODE>64</PES_PER_NODE>
+    <PROJECT_REQUIRED>TRUE</PROJECT_REQUIRED>
+    <PIO_CONFIG_OPTS> -D PIO_BUILD_TIMING:BOOL=ON </PIO_CONFIG_OPTS>
+    <batch_system type="slurm" version="x.y">
+      <queues>
+        <queue walltimemax="24:00:00" jobmin="1" jobmax="16384" default="true">regular</queue>
+        <queue walltimemax="12:00:00" jobmin="16385" jobmax="45440">regular</queue>
+	<queue walltimemax="00:30:00" jobmin="1" jobmax="4096">debug</queue>
+      </queues>
+      <walltimes>
+        <walltime default="true">01:15:00</walltime>
+        <walltime ccsm_estcost="1">01:50:00</walltime>
+        <walltime ccsm_estcost="3">05:00:00</walltime>
+      </walltimes>
+    </batch_system>
+    <mpirun mpilib="default">
+      <executable>srun</executable>
+      <arguments>
+	<arg name="label"> --label</arg>
+	<arg name="num_tasks" > -n {{ num_tasks }}</arg>
+	<arg name="thread_count" > -c {{ thread_count }}</arg>
+      </arguments>
+    </mpirun>
+</machine>
+
 
 <machine MACH="mac">
     <DESC>Mac OS/X workstation or laptop</DESC>
