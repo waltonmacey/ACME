@@ -520,8 +520,10 @@ if ($camse_target eq "preqx") {
     $cfg_ref->set('CAM_TARGET', "preqx");
 } elsif ($camse_target eq "preqx_acc") {
     $cfg_ref->set('CAM_TARGET', "preqx_acc");
+} elsif ($camse_target eq "pese") {
+    $cfg_ref->set('CAM_TARGET', "pese");
 } else {
-    die "ERROR: option -camse_target must be preqx (default) or preqx_acc"
+    die "ERROR: option -camse_target must be preqx (default), preqx_acc, or pese"
 }
 
 # Check that compiler request for target machine matches a supported value
