@@ -1071,8 +1071,11 @@ if (options.ensemble_file != '' or options.mc_ensemble != -1):
             elif ("#PBS" in s or "#!" in s):
                 #edit number of required nodes for ensemble runs
                 if ('nodes' in s):
-                    output_run.write('#PBS -l nodes='+str(int(math.ceil(np_total/(ppn*1.0))))+ \
-                                     ':ppn='+str(ppn)+'\n')
+	            if ('oic' in options.machine or 'cades' in options.machine):
+                      output_run.write('#PBS -l nodes='+str(int(math.ceil(np_total/(ppn*1.0))))+ \
+                                       ':ppn='+str(ppn)+'\n')
+                    else:
+                      output_run.write('#PBS -l nodes='+str(int(math.ceil(np_total/(ppn*1.0))))+'\n')
                 elif ('walltime' in s): 
                     output_run.write('#PBS -l walltime=24:00:00\n')
                 else:
@@ -1086,6 +1089,13 @@ if (options.ensemble_file != '' or options.mc_ensemble != -1):
                +'--case '+casename+' --runroot '+runroot+' --n_ensemble '+str(nsamples)+' --ens_file '+ \
                options.ensemble_file+' --exeroot '+exeroot+' --parm_list '+options.parm_list
         elif (('titan' in options.machine or 'eos' in options.machine) and int(options.ninst) == 1):
+            output_run.write('source $MODULESHOME/init/csh\n')
+            output_run.write('module load python/2.7.5\n')
+            output_run.write('module unload PrgEnv-intel\n')
+            output_run.write('module load PrgEnv-gnu\n')
+            output_run.write('module load python_numpy\n')
+            output_run.write('module load python_scipy\n')
+            output_run.write('module load python_mpi4py/2.0.0\n\n')
             cmd = 'aprun -n '+str(np_total)+' python manage_ensemble.py ' \
                +'--case '+casename+' --runroot '+runroot+' --n_ensemble '+str(nsamples)+' --ens_file '+ \
                options.ensemble_file+' --exeroot '+exeroot+' --parm_list '+options.parm_list
@@ -1094,4 +1104,4 @@ if (options.ensemble_file != '' or options.mc_ensemble != -1):
         output_run.write(cmd+'\n')
         output_run.close()
         if (options.no_submit == False):
-            os.system('qsub '+tmpdir+'/ensemble_run_'+casename+'_'+numst[1:]+'.pbs')
+            os.system('qsub '+tmpdir+'/ensemble_run_'+casename+'.pbs')

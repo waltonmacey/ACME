@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import os, time
-import numpy as np
+import numpy 
 import netcdf_functions as nffun
 from mpi4py import MPI
 from optparse import OptionParser
@@ -100,7 +100,7 @@ if (rank == 0):
                 myfactor.append(float(s.split()[5]))
                 myoffset.append(float(s.split()[6]))
                 n_vars = n_vars+1
-        data=np.zeros([n_vars,options.n], np.float)-999
+        data=numpy.zeros([n_vars,options.n], numpy.float)-999
         postproc_input.close()
 
     n_done=0
@@ -119,7 +119,7 @@ if (rank == 0):
                      myday_end, myfactor, myoffset, thisjob, \
                      options.runroot, options.casename, data)
             #Update post-processed output file 
-            np.savetxt(options.casename+'_postprocessed.txt', data.transpose())
+            numpy.savetxt(options.casename+'_postprocessed.txt', data.transpose())
         comm.send(n_job, dest=process, tag=1)
         comm.send(0,     dest=process, tag=2)
     #receive remaining messages and finalize
@@ -132,7 +132,7 @@ if (rank == 0):
                             myday_end, myfactor, myoffset, thisjob, \
                             options.runroot, options.casename, data)
             #Update post-processed output file
-            np.savetxt(options.casename+'_postprocessed.txt', data.transpose())
+            numpy.savetxt(options.casename+'_postprocessed.txt', data.transpose())
         comm.send(-1, dest=process, tag=1)
         comm.send(-1, dest=process, tag=2)
 #Slave
@@ -151,8 +151,11 @@ else:
             jobst = str(100000+int(myjob))
             rundir = options.runroot+'/UQ/'+options.casename+'/g'+jobst[1:]+'/'
             os.chdir(rundir)
+            print rundir
             #Run the executable
+            print(options.exeroot+'/cesm.exe')
             os.system(options.exeroot+'/cesm.exe > ccsm_log.txt')
+            time.sleep(1000)
             comm.send(rank,  dest=0, tag=3)
             comm.send(myjob, dest=0, tag=4)
     print rank, ' complete'
