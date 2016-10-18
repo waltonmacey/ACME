@@ -105,7 +105,7 @@ module namelist_mod
 #endif
 
   !-----------------
-  use thread_mod, only : nthreads, nthreads_accel, omp_get_max_threads, vert_num_threads
+  use thread_mod, only : nthreads, nthreads_accel, omp_set_num_threads, omp_get_max_threads, vert_num_threads, vthreads
   !-----------------
   use dimensions_mod, only : ne, np, npdg, nnodes, nmpi_per_node, npart, ntrac, ntrac_d, qsize, qsize_d, set_mesh_dimensions
   !-----------------
@@ -232,6 +232,7 @@ module namelist_mod
                      se_topology,      &
                      se_ne,            &
                      se_limiter_option, &
+                     vthreads,      &       ! Number of vertical/column threads per horizontal thread
 #else
                      qsize,         &       ! number of SE tracers
                      ntrac,         &       ! number of fvm tracers
@@ -407,6 +408,7 @@ module namelist_mod
     se_phys_tscale=0
     se_nsplit = 1
     qsize = qsize_d
+    vthreads = 1
 #else
     ndays         = 0
     nmax          = 12
@@ -434,9 +436,6 @@ module namelist_mod
     initial_total_mass=0
     mesh_file='none'
     ne              = 0
-#ifdef _PRIMDG
-    tracer_advection_formulation  = TRACERADV_UGRADQ
-#endif
     use_semi_lagrange_transport   = .false.
     use_semi_lagrange_transport_local_conservation   = .false.
     disable_diagnostics = .false.
@@ -465,7 +464,7 @@ module namelist_mod
        end do
        close( unitn )
        call freeunit( unitn )
-#elif defined(OSF1) || defined(__bg__) || defined(_NAMELIST_FROM_FILE)
+#elif defined(OSF1) || defined(_NAMELIST_FROM_FILE)
        open(unit=7,file="input.nl",status="OLD")
        read(unit=7,nml=ctl_nl)
 #else
@@ -534,7 +533,7 @@ module namelist_mod
        end do
        close( unitn )
        call freeunit( unitn )
-#elif defined(OSF1) || defined(__bg__) || defined(_NAMELIST_FROM_FILE)
+#elif defined(OSF1) || defined(_NAMELIST_FROM_FILE)
           read(unit=7,nml=solver_nl)
 #else
           read(*,nml=solver_nl)
@@ -572,7 +571,7 @@ module namelist_mod
 !       close( unitn )
 !       call freeunit( unitn )
 
-#elif defined(OSF1) || defined(__bg__) || defined(_NAMELIST_FROM_FILE)
+#elif defined(OSF1) || defined(_NAMELIST_FROM_FILE)
        read(unit=7,nml=filter_nl)
 #else
        read(*,nml=filter_nl)
@@ -584,7 +583,7 @@ module namelist_mod
 
 #ifdef _PRIMDG
        write(iulog,*)"reading vert_nl namelist..."
-#if defined(OSF1) || defined(__bg__) || defined(_NAMELIST_FROM_FILE)
+#if defined(OSF1) || defined(_NAMELIST_FROM_FILE)
        read(unit=7,nml=vert_nl)
 #else
        read(*,nml=vert_nl)
@@ -598,7 +597,7 @@ module namelist_mod
            test_case(1:12)=="dcmip2_schar" .or. &
            test_case(1:4)=="asp_") then
          write(iulog,*) "reading vertical namelist..."
-#if defined(OSF1) || defined(__bg__) || defined(_NAMELIST_FROM_FILE)
+#if defined(OSF1) || defined(_NAMELIST_FROM_FILE)
          read(unit=7,nml=vert_nl)
 #else
          read(*,nml=vert_nl)
@@ -654,7 +653,7 @@ module namelist_mod
 !     output_type = 'pnetcdf'
 
        write(iulog,*)"reading analysis namelist..."
-#if defined(OSF1) || defined(__bg__) || defined(_NAMELIST_FROM_FILE)
+#if defined(OSF1) || defined(_NAMELIST_FROM_FILE)
        read(unit=7,nml=analysis_nl)
 #else
        read(*,nml=analysis_nl)
@@ -705,7 +704,7 @@ module namelist_mod
 !=======================================================================================================!
 #ifdef _SWDG
       write(iulog,*)"reading dg namelist..."
-#if defined(OSF1) || defined(__bg__) || defined(_NAMELIST_FROM_FILE)
+#if defined(OSF1) || defined(_NAMELIST_FROM_FILE)
       read(unit=7,nml=dg_nl)
 #else
       read(*,nml=dg_nl)
@@ -722,7 +721,7 @@ module namelist_mod
 #endif
 !=======================================================================================================!
 
-#if defined(OSF1) || defined(__bg__) || defined(_NAMELIST_FROM_FILE)
+#if defined(OSF1) || defined(_NAMELIST_FROM_FILE)
        close(unit=7)
 #endif
 #endif
@@ -766,6 +765,7 @@ module namelist_mod
     phys_tscale = se_phys_tscale
     limiter_option  = se_limiter_option
     nsplit = se_nsplit
+    call MPI_bcast(vthreads  ,1,MPIinteger_t,par%root,par%comm,ierr)
 #else
     call MPI_bcast(omega     ,1,MPIreal_t   ,par%root,par%comm,ierr)
     call MPI_bcast(pertlim   ,1,MPIreal_t   ,par%root,par%comm,ierr)
@@ -817,7 +817,6 @@ module namelist_mod
     call MPI_bcast(rotate_grid   ,1,MPIreal_t   ,par%root,par%comm,ierr)
     call MPI_bcast(integration,MAX_STRING_LEN,MPIChar_t ,par%root,par%comm,ierr)
     call MPI_bcast(mesh_file,MAX_FILE_LEN,MPIChar_t ,par%root,par%comm,ierr)
-    call MPI_bcast(tracer_advection_formulation,1,MPIinteger_t ,par%root,par%comm,ierr)
     call MPI_bcast(use_semi_lagrange_transport ,1,MPIlogical_t,par%root,par%comm,ierr)
     call MPI_bcast(use_semi_lagrange_transport_local_conservation ,1,MPIlogical_t,par%root,par%comm,ierr)
     call MPI_bcast(tstep_type,1,MPIinteger_t ,par%root,par%comm,ierr)
@@ -940,6 +939,8 @@ module namelist_mod
        if(par%masterproc) print *,'requested threads exceeds OMP_get_max_threads()'
        call abortmp('stopping')
     endif
+    call omp_set_num_threads(NThreads*vert_num_threads)
+
 
     ! if user sets hypervis_subcycle=-1, then use automatic formula
     if (hypervis_subcycle==-1) then
@@ -1136,6 +1137,7 @@ module namelist_mod
        if (npdg>0) write(iulog,*)"readnl: npdg       = ",npdg
        write(iulog,*)"readnl: partmethod    = ",PARTMETHOD
        write(iulog,*)'readnl: nmpi_per_node = ',nmpi_per_node
+       write(iulog,*)"readnl: vthreads      = ",vthreads
        write(iulog,*)'readnl: multilevel    = ',multilevel
        write(iulog,*)'readnl: useframes     = ',useframes
        write(iulog,*)'readnl: nnodes        = ',nnodes
@@ -1150,7 +1152,6 @@ module namelist_mod
        if (integration == "runge_kutta" .or. tstep_type>0 ) then
           write(iulog,*)"readnl: rk_stage_user   = ",rk_stage_user
        endif
-       write(iulog,*)"readnl: tracer_advection_formulation  = ",tracer_advection_formulation
        write(iulog,*)"readnl: use_semi_lagrange_transport   = ",use_semi_lagrange_transport
        write(iulog,*)"readnl: use_semi_lagrange_transport_local_conservation=",use_semi_lagrange_transport_local_conservation
        write(iulog,*)"readnl: tstep_type    = ",tstep_type

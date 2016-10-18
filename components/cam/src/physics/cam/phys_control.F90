@@ -39,9 +39,13 @@ character(len=16) :: cam_physpkg          = unset_str  ! CAM physics package [ca
 character(len=32) :: cam_chempkg          = unset_str  ! CAM chemistry package [waccm_mozart | 
                                                        !  waccm_ghg | trop_mozart | trop_ghg | 
                                                        !  trop_bam | trop_mam3 | trop_mam4 | 
-                                                       !  trop_mam4_resus | trop_mam4_mom |
-                                                       !  trop_mam4_resus_mom | trop_mam7 | trop_mam9 |
-                                                       !  linoz_mam3 | linoz_mam4_resus | linoz_mam4_resus_mom
+                                                       !  trop_mam4_resus | trop_mam4_resus_soag |
+                                                       !  trop_mam4_mom |
+                                                       !  trop_mam4_resus_mom | trop_mam7 |
+                                                       !  trop_mam9 |
+                                                       !  linoz_mam3 | linoz_mam4_resus |
+                                                       !  linoz_mam4_resus_mom |
+                                                       !  linoz_mam4_resus_mom_soag |
                                                        !  super_fast_llnl | super_fast_llnl_mam3 | 
                                                        !  waccm_mozart_mam3 | none
 character(len=16) :: waccmx_opt           = unset_str  ! WACCMX run option [ionosphere | neutral | off
@@ -78,6 +82,8 @@ integer           :: convproc_method_activate = 2      ! controls activation in 
 integer           :: mam_amicphys_optaa   = 0          ! <= 0 -- use old microphysics code (separate calls to gasaerexch, 
                                                        !                                    newnuc, and coag routines) 
                                                        !  > 0 -- use new microphysics code (single call to amicphys routine)
+real(r8)          :: n_so4_monolayers_pcage = huge(1.0_r8) ! number of so4(+nh4) monolayers needed to "age" a carbon particle
+real(r8)          :: micro_mg_accre_enhan_fac = huge(1.0_r8) !!Accretion enhancement factor
 logical           :: liqcf_fix            = .false.    ! liq cld fraction fix calc.                     
 logical           :: regen_fix            = .false.    ! aerosol regeneration bug fix for ndrop.F90 
 logical           :: demott_ice_nuc       = .false.    ! use DeMott ice nucleation treatment in microphysics 
@@ -157,7 +163,7 @@ subroutine phys_ctl_readnl(nlfile)
       cld_macmic_num_steps, micro_do_icesupersat, &
       fix_g1_err_ndrop, ssalt_tuning, resus_fix, convproc_do_aer, &
       convproc_do_gas, convproc_method_activate, liqcf_fix, regen_fix, demott_ice_nuc, &
-      mam_amicphys_optaa, &
+      mam_amicphys_optaa, n_so4_monolayers_pcage,micro_mg_accre_enhan_fac, &
       l_tracer_aero, l_vdiff, l_rayleigh, l_gw_drag, l_ac_energy_chk, &
       l_bc_energy_fix, l_dry_adj, l_st_mac, l_st_mic, l_rad
    !-----------------------------------------------------------------------------
@@ -215,6 +221,8 @@ subroutine phys_ctl_readnl(nlfile)
    call mpibcast(convproc_do_gas,                 1 , mpilog,  0, mpicom)
    call mpibcast(convproc_method_activate,        1 , mpilog,  0, mpicom)
    call mpibcast(mam_amicphys_optaa,              1 , mpilog,  0, mpicom)
+   call mpibcast(n_so4_monolayers_pcage,          1 , mpir8,   0, mpicom)
+   call mpibcast(micro_mg_accre_enhan_fac,        1 , mpir8,   0, mpicom)
    call mpibcast(liqcf_fix,                       1 , mpilog,  0, mpicom)
    call mpibcast(regen_fix,                       1 , mpilog,  0, mpicom)
    call mpibcast(demott_ice_nuc,                  1 , mpilog,  0, mpicom)
@@ -300,13 +308,16 @@ subroutine phys_ctl_readnl(nlfile)
    prog_modal_aero = (     cam_chempkg_is('trop_mam3') &
                       .or. cam_chempkg_is('trop_mam4') &
                       .or. cam_chempkg_is('trop_mam4_resus') &
+                      .or. cam_chempkg_is('trop_mam4_resus_soag') &
                       .or. cam_chempkg_is('trop_mam4_mom') &
                       .or. cam_chempkg_is('trop_mam4_resus_mom') &
                       .or. cam_chempkg_is('trop_mam7') &
                       .or. cam_chempkg_is('trop_mam9') &
                       .or. cam_chempkg_is('linoz_mam3') &
                       .or. cam_chempkg_is('linoz_mam4_resus') &
+                      .or. cam_chempkg_is('linoz_mam4_resus_soag') &
                       .or. cam_chempkg_is('linoz_mam4_resus_mom') &
+                      .or. cam_chempkg_is('linoz_mam4_resus_mom_soag') &
                       .or. cam_chempkg_is('super_fast_llnl_mam3') &
                       .or. cam_chempkg_is('trop_mozart_mam3') &
                       .or. cam_chempkg_is('trop_strat_mam3') &
@@ -357,8 +368,8 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
                         do_clubb_sgs_out, do_tms_out, state_debug_checks_out, &
                         cld_macmic_num_steps_out, micro_do_icesupersat_out, &
                         fix_g1_err_ndrop_out, ssalt_tuning_out,resus_fix_out,convproc_do_aer_out,  &
-                        convproc_do_gas_out, convproc_method_activate_out, mam_amicphys_optaa_out, &
-                        liqcf_fix_out, regen_fix_out,demott_ice_nuc_out      &
+                        convproc_do_gas_out, convproc_method_activate_out, mam_amicphys_optaa_out, n_so4_monolayers_pcage_out, &
+                        micro_mg_accre_enhan_fac_out, liqcf_fix_out, regen_fix_out,demott_ice_nuc_out      &
                        ,l_tracer_aero_out, l_vdiff_out, l_rayleigh_out, l_gw_drag_out, l_ac_energy_chk_out  &
                        ,l_bc_energy_fix_out, l_dry_adj_out, l_st_mac_out, l_st_mic_out, l_rad_out  &
                         )
@@ -403,6 +414,8 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
    logical,           intent(out), optional :: convproc_do_gas_out 
    integer,           intent(out), optional :: convproc_method_activate_out 
    integer,           intent(out), optional :: mam_amicphys_optaa_out
+   real(r8),          intent(out), optional :: n_so4_monolayers_pcage_out
+   real(r8),          intent(out), optional :: micro_mg_accre_enhan_fac_out
    logical,           intent(out), optional :: liqcf_fix_out       
    logical,           intent(out), optional :: regen_fix_out       
    logical,           intent(out), optional :: demott_ice_nuc_out  
@@ -452,6 +465,8 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
    if ( present(convproc_do_gas_out     ) ) convproc_do_gas_out      = convproc_do_gas
    if ( present(convproc_method_activate_out ) ) convproc_method_activate_out = convproc_method_activate
    if ( present(mam_amicphys_optaa_out  ) ) mam_amicphys_optaa_out  = mam_amicphys_optaa
+   if ( present(n_so4_monolayers_pcage_out  ) ) n_so4_monolayers_pcage_out = n_so4_monolayers_pcage
+   if ( present(micro_mg_accre_enhan_fac_out)) micro_mg_accre_enhan_fac_out = micro_mg_accre_enhan_fac
    if ( present(liqcf_fix_out           ) ) liqcf_fix_out            = liqcf_fix      
    if ( present(regen_fix_out           ) ) regen_fix_out            = regen_fix      
    if ( present(demott_ice_nuc_out      ) ) demott_ice_nuc_out       = demott_ice_nuc 

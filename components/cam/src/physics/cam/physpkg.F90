@@ -142,6 +142,7 @@ subroutine phys_register
     use aircraft_emit,      only: aircraft_emit_register
     use cam_diagnostics,    only: diag_register
     use cloud_diagnostics,  only: cloud_diagnostics_register
+    use cospsimulator_intr, only: cospsimulator_intr_register
     use rad_constituents,   only: rad_cnst_get_info ! Added to query if it is a modal aero sim or not
     use subcol,             only: subcol_register
     use subcol_utils,       only: is_subcol_on
@@ -289,6 +290,9 @@ subroutine phys_register
        ! radiation
        call radiation_register
        call cloud_diagnostics_register
+
+       ! COSP
+       call cospsimulator_intr_register
 
        ! vertical diffusion
        if (.not. do_clubb_sgs) call vd_register()
@@ -709,6 +713,7 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
 
     ! local variables
     integer :: lchnk
+    real(r8) :: dp1 = huge(1.0_r8) !set in namelist, assigned in cloud_fraction.F90
 
     !-----------------------------------------------------------------------
 
@@ -821,7 +826,7 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
 
     call convect_shallow_init(pref_edge, pbuf2d)
 
-    call cldfrc_init()
+    call cldfrc_init(dp1)! for passing dp1 on to clubb
     call cldfrc2m_init()
 
     call convect_deep_init(pref_edge)
@@ -837,7 +842,7 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
 
 
     ! initiate CLUBB within CAM
-    if (do_clubb_sgs) call clubb_ini_cam(pbuf2d)
+    if (do_clubb_sgs) call clubb_ini_cam(pbuf2d,dp1)
 
     call qbo_init
 

@@ -98,6 +98,13 @@ module clubb_intr
   real(r8) :: clubb_timestep = unset_r8  ! Default CLUBB timestep, unless overwriten by namelist
   real(r8) :: clubb_rnevap_effic = unset_r8
 
+  !namelist variables
+  real(r8) :: clubb_liq_deep = unset_r8
+  real(r8) :: clubb_liq_sh   = unset_r8
+  real(r8) :: clubb_ice_deep = unset_r8
+  real(r8) :: clubb_ice_sh   = unset_r8
+
+
 !  Constant parameters
   logical, parameter, private :: &
     l_uv_nudge       = .false.,       &  ! Use u/v nudging (not used)
@@ -174,6 +181,7 @@ module clubb_intr
 
   integer :: cmfmc_sh_idx = 0
 
+  real(r8) :: dp1 !set in namelist; assigned in cloud_fraction.F90
   !  Output arrays for CLUBB statistics    
   real(r8), allocatable, dimension(:,:,:) :: out_zt, out_zm, out_radzt, out_radzm, out_sfc
 
@@ -185,6 +193,8 @@ module clubb_intr
   logical            :: do_cnst=.false.
 
   logical :: liqcf_fix  ! HW for liquid cloud fraction fix
+  
+  real(r8) :: micro_mg_accre_enhan_fac = huge(1.0_r8) !Accretion enhancement factor from namelist
 
   contains
   
@@ -214,7 +224,8 @@ module clubb_intr
                        do_tms_out                      = do_tms,      &
                        history_budget_out              = history_budget, &
                        history_budget_histfile_num_out = history_budget_histfile_num, &
-                       micro_do_icesupersat_out        = micro_do_icesupersat)
+                       micro_do_icesupersat_out        = micro_do_icesupersat, &
+                       micro_mg_accre_enhan_fac_out    = micro_mg_accre_enhan_fac)
 
     if (clubb_do_adv) then
        cnst_names =(/'THLP2  ','RTP2   ','RTPTHLP','WPTHLP ','WPRTP  ','WP2    ','WP3    ','UP2    ','VP2    '/)
@@ -357,7 +368,8 @@ end subroutine clubb_init_cnst
     namelist /clubb_his_nl/ clubb_history, clubb_rad_history
     namelist /clubbpbl_diff_nl/ clubb_cloudtop_cooling, clubb_rainevap_turb, clubb_expldiff, &
                                 clubb_do_adv, clubb_do_deep, clubb_timestep, clubb_stabcorrect, &
-                                clubb_rnevap_effic
+                                clubb_rnevap_effic, clubb_liq_deep, clubb_liq_sh, clubb_ice_deep, &
+                                clubb_ice_sh
 
     !----- Begin Code -----
 
@@ -407,6 +419,10 @@ end subroutine clubb_init_cnst
       call mpibcast(clubb_timestep,           1,   mpir8,   0, mpicom)
       call mpibcast(clubb_stabcorrect,        1,   mpilog,   0, mpicom)
       call mpibcast(clubb_rnevap_effic,       1,   mpir8,   0, mpicom)
+      call mpibcast(clubb_liq_deep,           1,   mpir8,   0, mpicom)
+      call mpibcast(clubb_liq_sh,             1,   mpir8,   0, mpicom)
+      call mpibcast(clubb_ice_deep,           1,   mpir8,   0, mpicom)
+      call mpibcast(clubb_ice_sh,             1,   mpir8,   0, mpicom)
 #endif
 
     !  Overwrite defaults if they are true
@@ -435,7 +451,7 @@ end subroutine clubb_init_cnst
   !                                                                                 !
   ! =============================================================================== !
 
-  subroutine clubb_ini_cam(pbuf2d)
+  subroutine clubb_ini_cam(pbuf2d, dp1_in)
 !-------------------------------------------------------------------------------
 ! Description:
 !   Initialize UWM CLUBB.
@@ -485,6 +501,8 @@ end subroutine clubb_init_cnst
     implicit none
     !  Input Variables
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
+    
+    real(r8) :: dp1_in
 
 #ifdef CLUBB_SGS
 
@@ -846,6 +864,7 @@ end subroutine clubb_init_cnst
     ! --------------- !
 
 #endif
+    dp1 = dp1_in !set via namelist, assigned in cloud_fraction.F90
     end subroutine clubb_ini_cam
     
     
@@ -1487,13 +1506,14 @@ end subroutine clubb_init_cnst
    ! ------------------------------------------------- !
    ! Begin module to compute turbulent mountain stress !
    ! ------------------------------------------------- !
-   
-   call t_startf('compute_tms')
-   call compute_tms( pcols,        pver,      ncol,                   &
+    if ( do_tms) then
+       call t_startf('compute_tms')
+       call compute_tms( pcols,        pver,      ncol,                   &
                      state1%u,     state1%v,  state1%t,  state1%pmid, &
                      state1%exner, state1%zm, sgh30,     ksrftms,     &
                      tautmsx,      tautmsy,   cam_in%landfrac ) 
-   call t_stopf('compute_tms')
+       call t_stopf('compute_tms')
+    endif
    
    if (micro_do_icesupersat) then
      call physics_ptend_init(ptend_loc,state%psetcols, 'clubb', ls=.true., lu=.true., lv=.true., lq=lq)
@@ -1674,9 +1694,10 @@ end subroutine clubb_init_cnst
       ! ------------------------------------------------- !
       ! Apply TMS                                         !
       ! ------------------------------------------------- !    
-      
-      upwp_sfc = upwp_sfc-((ksrftms(i)*state1%u(i,pver))/rho_ds_zm(1))
-      vpwp_sfc = vpwp_sfc-((ksrftms(i)*state1%v(i,pver))/rho_ds_zm(1))           
+       if ( do_tms) then
+          upwp_sfc = upwp_sfc-((ksrftms(i)*state1%u(i,pver))/rho_ds_zm(1))
+          vpwp_sfc = vpwp_sfc-((ksrftms(i)*state1%v(i,pver))/rho_ds_zm(1))           
+       endif
   
       !  Need to flip arrays around for CLUBB core
       do k=1,pverp
@@ -2134,13 +2155,13 @@ end subroutine clubb_init_cnst
          ptend_loc%q(i,k,ixcldliq) = dlf(i,k) * ( 1._r8 - dum1 )
          ptend_loc%q(i,k,ixcldice) = dlf(i,k) * dum1
          ptend_loc%q(i,k,ixnumliq) = 3._r8 * ( max(0._r8, ( dlf(i,k) - dlf2(i,k) )) * ( 1._r8 - dum1 ) ) &
-                                     / (4._r8*3.14_r8* 8.e-6_r8**3*997._r8) + & ! Deep    Convection
+                                     / (4._r8*3.14_r8* clubb_liq_deep**3*997._r8) + & ! Deep    Convection
                                      3._r8 * (                         dlf2(i,k)    * ( 1._r8 - dum1 ) ) &
-                                     / (4._r8*3.14_r8*10.e-6_r8**3*997._r8)     ! Shallow Convection 
+                                     / (4._r8*3.14_r8*clubb_liq_sh**3*997._r8)     ! Shallow Convection 
          ptend_loc%q(i,k,ixnumice) = 3._r8 * ( max(0._r8, ( dlf(i,k) - dlf2(i,k) )) *  dum1 ) &
-                                     / (4._r8*3.14_r8*25.e-6_r8**3*500._r8) + & ! Deep    Convection
+                                     / (4._r8*3.14_r8*clubb_ice_deep**3*500._r8) + & ! Deep    Convection
                                      3._r8 * (                         dlf2(i,k)    *  dum1 ) &
-                                     / (4._r8*3.14_r8*50.e-6_r8**3*500._r8)     ! Shallow Convection
+                                     / (4._r8*3.14_r8*clubb_ice_sh**3*500._r8)     ! Shallow Convection
          ptend_loc%s(i,k)          = dlf(i,k) * dum1 * latice
  
          ! Only rliq is saved from deep convection, which is the reserved liquid.  We need to keep
@@ -2183,7 +2204,8 @@ end subroutine clubb_init_cnst
    ! Optional Accretion enhancement factor             !
    ! ------------------------------------------------- !   
 
-     accre_enhan(:ncol,:pver) = 1._r8
+     accre_enhan(:ncol,:pver) = micro_mg_accre_enhan_fac !default is 1._r8
+
    
    ! ------------------------------------------------- !
    ! Diagnose some output variables                    !
@@ -2263,7 +2285,7 @@ end subroutine clubb_init_cnst
          !  deep convective mass flux, read in from pbuf.  Since shallow convection is never 
          !  called, the shallow convective mass flux will ALWAYS be zero, ensuring that this cloud
          !  fraction is purely from deep convection scheme.  
-         deepcu(i,k) = max(0.0_r8,min(0.1_r8*log(1.0_r8+500.0_r8*(cmfmc(i,k+1)-cmfmc_sh(i,k+1))),0.6_r8))
+         deepcu(i,k) = max(0.0_r8,min(dp1*log(1.0_r8+500.0_r8*(cmfmc(i,k+1)-cmfmc_sh(i,k+1))),0.6_r8))
          shalcu(i,k) = 0._r8
        
          if (deepcu(i,k) <= frac_limit .or. dp_icwmr(i,k) < ic_limit) then

@@ -60,8 +60,7 @@ contains
   subroutine prim_init1(elem, fvm, par, dom_mt, Tl)
 
     ! --------------------------------
-    use thread_mod, only : nthreads, omp_get_thread_num, omp_set_num_threads, &
-                           vert_num_threads
+    use thread_mod, only : nthreads, omp_get_thread_num, vert_num_threads
     ! --------------------------------
     use control_mod, only : runtype, restartfreq, filter_counter, integration, topology, &
          partmethod, while_iter, use_semi_lagrange_transport
@@ -94,7 +93,7 @@ contains
     ! --------------------------------
     use schedule_mod, only : genEdgeSched,  PrintSchedule
     ! --------------------------------
-    use arch_switch_mod, only: prim_advec_init1
+    use prim_advection_mod, only: prim_advec_init1
     ! --------------------------------
     use prim_advance_mod, only: prim_advance_init
     ! --------------------------------
@@ -429,7 +428,7 @@ contains
 
        do ie=1,nelemd
           call cube_init_atomic(elem(ie),gp%points,area(1))
-          call rotation_init_atomic(elem(ie),rot_type)
+          !call rotation_init_atomic(elem(ie),rot_type)
        enddo
     end if
 
@@ -530,7 +529,7 @@ contains
     deallocate(HeadPartition)
 
     n_domains = min(Nthreads,nelemd)
-    call omp_set_num_threads(n_domains)
+    nthreads = n_domains
 
     ! =====================================
     ! Set number of threads...
@@ -609,7 +608,8 @@ contains
     use derivative_mod, only : derivinit, interpolate_gll2fvm_points, interpolate_gll2spelt_points, v2pinit
     use global_norms_mod, only : test_global_integral, print_cfl
     use hybvcoord_mod, only : hvcoord_t
-    use arch_switch_mod, only: prim_advec_init2, prim_advec_init_deriv, deriv, arch_init2
+    use prim_advection_mod, only: prim_advec_init2, prim_advec_init_deriv, deriv
+    use solver_init_mod, only: solver_init2
 #ifdef CAM
 #else
     use column_model_mod, only : InitColumnModel
@@ -943,21 +943,22 @@ contains
        ! Print state and movie output
        ! ========================================
     end if  ! runtype
-
+#endif
 !$OMP MASTER
-    tl%nstep0=2   ! This will be the first full leapfrog step
+    tl%nstep0=2                   ! compute diagnostics starting with step 2 if LEAPFROG
+    if (tstep_type>0) tl%nstep0=1 ! compute diagnostics starting with step 1 if RK
     if (runtype==1) then
-       tl%nstep0=tl%nstep+1            ! restart run: first step = first first full leapfrog step
+       tl%nstep0=tl%nstep+1       ! compute diagnostics after 1st step, leapfrog or RK
     endif
     if (runtype==2) then
        ! branch run
        ! reset time counters to zero since timestep may have changed
-       nEndStep = nEndStep-tl%nstep ! restart set this to nmax + tl%nstep
+       nEndStep = nEndStep-tl%nstep ! used by standalone HOMME.  restart code set this to nmax + tl%nstep
        tl%nstep=0
     endif
 !$OMP END MASTER
 !$OMP BARRIER
-#endif
+
 
     ! For new runs, and branch runs, convert state variable to (Qdp)
     ! because initial conditon reads in Q, not Qdp
@@ -1101,7 +1102,7 @@ contains
     if (hybrid%masterthread) write(iulog,*) "initial state:"
     call prim_printstate(elem, tl, hybrid,hvcoord,nets,nete, fvm)
 
-    call arch_init2(elem(:), deriv(hybrid%ithr))
+    call solver_init2(elem(:), deriv(hybrid%ithr))
     call Prim_Advec_Init2(elem(:), hvcoord, hybrid)
 
   end subroutine prim_init2
@@ -1161,7 +1162,7 @@ contains
     use control_mod, only: statefreq, integration, ftype, qsplit, disable_diagnostics
     use prim_advance_mod, only : prim_advance_exp, prim_advance_si, preq_robert3
     use prim_state_mod, only : prim_printstate, prim_diag_scalars, prim_energy_halftimes
-    use arch_switch_mod, only: deriv
+    use prim_advection_mod, only: deriv
     use parallel_mod, only : abortmp
 #ifndef CAM
     use column_model_mod, only : ApplyColumnModel
@@ -1617,7 +1618,7 @@ contains
     use fvm_bsp_mod, only : get_boomerang_velocities_gll, get_solidbody_velocities_gll
     use prim_advance_mod, only : prim_advance_exp, overwrite_SEdensity
     use prim_advection_mod, only : prim_advec_tracers_fvm
-    use arch_switch_mod, only : prim_advec_tracers_remap, deriv
+    use prim_advection_mod, only : prim_advec_tracers_remap, deriv
     use derivative_mod, only : subcell_integration
 #if defined(_SPELT)
     use prim_advection_mod, only : prim_advec_tracers_spelt
@@ -1956,7 +1957,7 @@ contains
     do ie=nets,nete
 
 #if (defined COLUMN_OPENMP)
-!$omp parallel do default(shared), private(k)
+!$omp parallel do default(shared), private(k,dp)
 #endif
        do k=1,nlev
           dp(:,:,k) = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + &
@@ -2026,7 +2027,7 @@ contains
     use derivative_mod, only : derivative_t , laplace_sphere_wk
     use viscosity_mod, only : biharmonic_wk
     use prim_advance_mod, only : smooth_phis
-    use arch_switch_mod, only: deriv
+    use prim_advection_mod, only: deriv
     implicit none
 
     integer , intent(in) :: nets,nete

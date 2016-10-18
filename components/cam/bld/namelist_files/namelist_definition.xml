@@ -2151,6 +2151,12 @@ Switch to control whether MG microphysics performs a uniform calculation or not
 Default: .false.
 </entry>
 
+<entry id="ice_sed_ai" type="real" category="microphys"
+       group="micro_mg_nl" valid_values="" >
+Fall speed parameter for cloud ice
+Default: 700.0
+</entry>
+
 <entry id="micro_mg_dcs" type="real" category="microphys"
        group="micro_mg_nl" valid_values="" >
 Autoconversion size threshold for cloud ice to snow (m)
@@ -2162,6 +2168,13 @@ Default: set by build-namelist
 Switch to turn on temperature dependent DCS.
 Default: .false.
 </entry>
+
+<entry id="micro_mg_accre_enhan_fac" type="real" category="microphysics"
+       group="phys_ctl_nl" valid_values="" >
+Accretion enhancement factor from namelist
+Default: 1.0_r8
+</entry>
+
 
 <!-- micro_aero -->
 <entry id="microp_aero_bulk_scale" type="real" category="microphysics"
@@ -2203,6 +2216,12 @@ Default: .false.
 <entry id="nucleate_ice_subgrid" type="real" category="microphys"
        group="nucleate_ice_nl" valid_values="" >
 Subgrid scaling factor for relative humidity in ice nucleation code.
+Default: set by build-namelist
+</entry>
+
+<entry id="so4_sz_thresh_icenuc" type="real" category="microphys"
+       group="nucleate_ice_nl" valid_values="" >
+ice nucleation SO2 size threshold for aitken mode
 Default: set by build-namelist
 </entry>
 
@@ -2356,11 +2375,44 @@ Relaxation time in ZM deep convection scheme.
 Default: set by build-namelist
 </entry>
 
+<entry id="zmconv_dmpdz" type="real" category="conv"
+       group="zmconv_nl" valid_values="" >
+Parcel fractional mass entrainment rate
+Default: set by build-namelist
+</entry>
+
+<entry id="zmconv_alfa" type="real" category="conv"
+       group="zmconv_nl" valid_values="" >
+Maximum downdraft mass flux fraction
+Default: set by build-namelist
+</entry>
+
 <entry id="zmconv_trigmem" type="logical" category="conv"
        group="zmconv_nl" valid_values="" >
 Trigger and memory option in ZM deep convection scheme.
 Default: FALSE
 </entry>
+
+<entry id="zmconv_tiedke_add" type="real" category="conv"
+       group="zmconv_nl" valid_values="" >
+A ZM deep convection parameter
+Default: set by build-namelist
+</entry>
+
+<entry id="zmconv_cape_cin" type="integer" category="conv"
+       group="zmconv_nl" valid_values="" >
+Number of negative buoyancy regions that are allowed before the conv. top and CAPE calc are completed
+Default: set by build-namelist
+</entry>
+
+<entry id="zmconv_mx_bot_lyr_adj" type="integer" category="conv"
+       group="zmconv_nl" valid_values="" >
+Bottom layer adjustment for setting "launching" level(mx) (to be at maximum moist static energy)
+Default: set by build-namelist
+</entry>
+
+
+
 
 <!-- Cloud sedimentation -->
 
@@ -2716,6 +2768,32 @@ Default: FALSE
 Switch for CLUBBND_CAM
 Default: FALSE
 </entry>
+
+<entry id="clubb_liq_deep" type="real" category="pblrad"
+       group="clubbpbl_diff_nl" valid_values="" >
+clubb liquid deep convection factor
+Default: 8.e-6
+</entry>
+
+<entry id="clubb_liq_sh" type="real" category="pblrad"
+       group="clubbpbl_diff_nl" valid_values="" >
+clubb liquid shallow convection factor
+Default: 10.e-6
+</entry>
+
+<entry id="clubb_ice_deep" type="real" category="pblrad"
+       group="clubbpbl_diff_nl" valid_values="" >
+clubb  ice deep convection factor
+Default: 25.e-6
+</entry>
+
+<entry id="clubb_ice_sh" type="real" category="pblrad"
+       group="clubbpbl_diff_nl" valid_values="" >
+clubb ice shallow convection factor
+Default: 50.e-6
+</entry>
+
+
 
 <!-- Clubb tunable parameters -->
 
@@ -3474,8 +3552,11 @@ Default: set by build-namelist
 
 <entry id="cam_chempkg" type="char*16" category="build"
        group="phys_ctl_nl" valid_values="waccm_mozart,waccm_ghg,trop_mozart,
-                                         trop_ghg,trop_bam,trop_mam3,trop_mam4,trop_mam4_mom,trop_mam7,trop_mam9,
-                                         linoz_mam3,linoz_mam4_resus,linoz_mam4_resus_mom,
+                                         trop_ghg,trop_bam,trop_mam3,trop_mam4,trop_mam4_resus_soag,
+					 trop_mam4_mom,trop_mam7,trop_mam9,
+                                         linoz_mam3,linoz_mam4_resus,
+					 linoz_mam4_resus_soag,linoz_mam4_resus_mom,
+					 linoz_mam4_resus_mom_soag,
                                          super_fast_llnl,super_fast_llnl_mam3,none " >
 Name of the CAM chemistry package.  N.B. this variable may not be set by
 the user.  It is set by build-namelist via information in the configure
@@ -3602,6 +3683,14 @@ Default: .false.
        group="phys_ctl_nl" valid_values="" >
 invokes new microphysics code (single call to amicphys routine) if > 0
 Default: 0
+</entry>
+
+
+<!-- number of so4(+nh4) monolayers needed to "age" a carbon particle -->
+<entry id="n_so4_monolayers_pcage" type="real"  category="scavenging"
+       group="phys_ctl_nl" valid_values="" >
+number of so4(+nh4) monolayers needed to "age" a carbon particle
+Default: Set by namelist
 </entry>
 
 
@@ -5572,6 +5661,12 @@ Default: Set by build-namelist.
 <entry id="max_hypervis_courant" type="real" category="se"
        group="ctl_nl" valid_values="" >
 Default: Set by build-namelist.
+</entry>
+
+<entry id="vthreads" type="integer" category="se"
+       group="ctl_nl" valid_values="" >
+Number of vertical threads.
+Default: 1.
 </entry>
 
 

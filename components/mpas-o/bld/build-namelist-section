@@ -21,9 +21,9 @@ if ($CONTINUE_RUN eq 'TRUE') {
 	add_default($nl, 'config_start_time', 'val'=>"'${RUN_STARTDATE}_${START_TOD}'");
 }
 
-#######################
-# namelist group: io  #
-#######################
+######################
+# Namelist group: io #
+######################
 
 add_default($nl, 'config_write_output_on_startup');
 add_default($nl, 'config_pio_num_iotasks');
@@ -144,6 +144,10 @@ add_default($nl, 'config_Leith_visc2_max');
 ###################################################
 
 add_default($nl, 'config_use_standardGM');
+add_default($nl, 'config_use_Redi_surface_layer_tapering');
+add_default($nl, 'config_Redi_surface_layer_tapering_extent');
+add_default($nl, 'config_use_Redi_bottom_layer_tapering');
+add_default($nl, 'config_Redi_bottom_layer_tapering_depth');
 add_default($nl, 'config_standardGM_tracer_kappa');
 add_default($nl, 'config_Redi_kappa');
 add_default($nl, 'config_gravWaveSpeed_trunc');
@@ -243,6 +247,7 @@ add_default($nl, 'config_cvmix_kpp_MonObOBL');
 add_default($nl, 'config_cvmix_kpp_interpolationOMLType');
 add_default($nl, 'config_cvmix_kpp_surface_layer_extent');
 add_default($nl, 'config_cvmix_kpp_surface_layer_averaging');
+add_default($nl, 'configure_cvmix_kpp_minimum_OBL_under_sea_ice');
 add_default($nl, 'config_cvmix_kpp_stop_OBL_search');
 
 ###########################
@@ -252,6 +257,7 @@ add_default($nl, 'config_cvmix_kpp_stop_OBL_search');
 add_default($nl, 'config_use_bulk_wind_stress');
 add_default($nl, 'config_use_bulk_thickness_flux');
 add_default($nl, 'config_flux_attenuation_coefficient');
+add_default($nl, 'config_flux_attenuation_coefficient_runoff');
 
 ######################################
 # Namelist group: shortwaveRadiation #
@@ -259,6 +265,7 @@ add_default($nl, 'config_flux_attenuation_coefficient');
 
 add_default($nl, 'config_sw_absorption_type');
 add_default($nl, 'config_jerlov_water_type');
+add_default($nl, 'config_surface_buoyancy_depth');
 add_default($nl, 'config_forcing_restart_file');
 
 ##############################
@@ -273,6 +280,7 @@ add_default($nl, 'config_specific_heat_sea_water');
 add_default($nl, 'config_frazil_maximum_depth');
 add_default($nl, 'config_frazil_ice_reference_salinity');
 add_default($nl, 'config_frazil_maximum_freezing_temperature');
+add_default($nl, 'config_frazil_use_surface_pressure');
 
 ###################################
 # Namelist group: land_ice_fluxes #
@@ -412,6 +420,7 @@ add_default($nl, 'config_rx1_horiz_smooth_weight');
 add_default($nl, 'config_rx1_vert_smooth_weight');
 add_default($nl, 'config_rx1_horiz_smooth_open_ocean_cells');
 add_default($nl, 'config_rx1_min_levels');
+add_default($nl, 'config_rx1_min_layer_thickness');
 
 ######################################
 # Namelist group: baroclinic_channel #
@@ -1038,6 +1047,27 @@ add_default($nl, 'config_AM_mixedLayerDepths_temp_gradient_threshold');
 add_default($nl, 'config_AM_mixedLayerDepths_den_gradient_threshold');
 add_default($nl, 'config_AM_mixedLayerDepths_interp_method');
 
+####################################
+# Namelist group: AM_regionalStats #
+####################################
+
+add_default($nl, 'config_AM_regionalStats_enable');
+add_default($nl, 'config_AM_regionalStats_compute_on_startup');
+add_default($nl, 'config_AM_regionalStats_write_on_startup');
+add_default($nl, 'config_AM_regionalStats_compute_interval');
+add_default($nl, 'config_AM_regionalStats_output_stream');
+add_default($nl, 'config_AM_regionalStats_restart_stream');
+add_default($nl, 'config_AM_regionalStats_input_stream');
+add_default($nl, 'config_AM_regionalStats_operation');
+add_default($nl, 'config_AM_regionalStats_region_type');
+add_default($nl, 'config_AM_regionalStats_region_group');
+add_default($nl, 'config_AM_regionalStats_1d_weighting_function');
+add_default($nl, 'config_AM_regionalStats_2d_weighting_function');
+add_default($nl, 'config_AM_regionalStats_1d_weighting_field');
+add_default($nl, 'config_AM_regionalStats_2d_weighting_field');
+add_default($nl, 'config_AM_regionalStats_vertical_mask');
+add_default($nl, 'config_AM_regionalStats_vertical_dimension');
+
 ######################################
 # Namelist group: AM_timeSeriesStats #
 ######################################
@@ -1054,4 +1084,62 @@ add_default($nl, 'config_AM_timeSeriesStats_reference_times');
 add_default($nl, 'config_AM_timeSeriesStats_duration_intervals');
 add_default($nl, 'config_AM_timeSeriesStats_repeat_intervals');
 add_default($nl, 'config_AM_timeSeriesStats_reset_intervals');
+add_default($nl, 'config_AM_timeSeriesStats_backward_output_offset');
+
+#####################################
+# Namelist group: AM_pointwiseStats #
+#####################################
+
+add_default($nl, 'config_AM_pointwiseStats_enable');
+add_default($nl, 'config_AM_pointwiseStats_compute_interval');
+add_default($nl, 'config_AM_pointwiseStats_output_stream');
+add_default($nl, 'config_AM_pointwiseStats_compute_on_startup');
+add_default($nl, 'config_AM_pointwiseStats_write_on_startup');
+
+#######################################
+# Namelist group: AM_debugDiagnostics #
+#######################################
+
+add_default($nl, 'config_AM_debugDiagnostics_enable');
+add_default($nl, 'config_AM_debugDiagnostics_compute_interval');
+add_default($nl, 'config_AM_debugDiagnostics_output_stream');
+add_default($nl, 'config_AM_debugDiagnostics_compute_on_startup');
+add_default($nl, 'config_AM_debugDiagnostics_write_on_startup');
+add_default($nl, 'config_AM_debugDiagnostics_check_state');
+
+####################################
+# Namelist group: AM_rpnCalculator #
+####################################
+
+add_default($nl, 'config_AM_rpnCalculator_enable');
+add_default($nl, 'config_AM_rpnCalculator_compute_on_startup');
+add_default($nl, 'config_AM_rpnCalculator_write_on_startup');
+add_default($nl, 'config_AM_rpnCalculator_compute_interval');
+add_default($nl, 'config_AM_rpnCalculator_output_stream');
+add_default($nl, 'config_AM_rpnCalculator_variable_a');
+add_default($nl, 'config_AM_rpnCalculator_variable_b');
+add_default($nl, 'config_AM_rpnCalculator_variable_c');
+add_default($nl, 'config_AM_rpnCalculator_variable_d');
+add_default($nl, 'config_AM_rpnCalculator_variable_e');
+add_default($nl, 'config_AM_rpnCalculator_variable_f');
+add_default($nl, 'config_AM_rpnCalculator_variable_g');
+add_default($nl, 'config_AM_rpnCalculator_variable_h');
+add_default($nl, 'config_AM_rpnCalculator_expression_1');
+add_default($nl, 'config_AM_rpnCalculator_expression_2');
+add_default($nl, 'config_AM_rpnCalculator_expression_3');
+add_default($nl, 'config_AM_rpnCalculator_expression_4');
+add_default($nl, 'config_AM_rpnCalculator_output_name_1');
+add_default($nl, 'config_AM_rpnCalculator_output_name_2');
+add_default($nl, 'config_AM_rpnCalculator_output_name_3');
+add_default($nl, 'config_AM_rpnCalculator_output_name_4');
+
+########################################
+# Namelist group: AM_transectTransport #
+########################################
+
+add_default($nl, 'config_AM_transectTransport_enable');
+add_default($nl, 'config_AM_transectTransport_compute_interval');
+add_default($nl, 'config_AM_transectTransport_output_stream');
+add_default($nl, 'config_AM_transectTransport_compute_on_startup');
+add_default($nl, 'config_AM_transectTransport_write_on_startup');
 

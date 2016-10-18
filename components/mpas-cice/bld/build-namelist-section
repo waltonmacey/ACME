@@ -52,6 +52,14 @@ add_default($nl, 'config_do_restart_zsalinity');
 add_default($nl, 'config_do_restart_bgc');
 
 ##############################
+# Namelist group: dimensions #
+##############################
+
+add_default($nl, 'config_nCategories');
+add_default($nl, 'config_nIceLayers');
+add_default($nl, 'config_nSnowLayers');
+
+##############################
 # Namelist group: initialize #
 ##############################
 
@@ -64,6 +72,7 @@ add_default($nl, 'config_initial_latitude_south');
 add_default($nl, 'config_initial_velocity_type');
 add_default($nl, 'config_initial_uvelocity');
 add_default($nl, 'config_initial_vvelocity');
+add_default($nl, 'config_calculate_coriolis');
 
 ################################
 # Namelist group: use_sections #
@@ -95,6 +104,7 @@ add_default($nl, 'config_include_pond_freshwater_feedback');
 add_default($nl, 'config_perform_unit_test');
 add_default($nl, 'config_unit_test_type');
 add_default($nl, 'config_unit_test_subtype');
+add_default($nl, 'config_use_test_ice_shelf');
 
 ###################################
 # Namelist group: velocity_solver #
@@ -110,6 +120,7 @@ add_default($nl, 'config_revised_evp');
 add_default($nl, 'config_use_air_stress');
 add_default($nl, 'config_use_ocean_stress');
 add_default($nl, 'config_use_surface_tilt');
+add_default($nl, 'config_geostrophic_surface_tilt');
 
 #############################
 # Namelist group: advection #
@@ -257,6 +268,12 @@ add_default($nl, 'config_min_friction_velocity');
 add_default($nl, 'config_ocean_heat_transfer_type');
 add_default($nl, 'config_sea_freezing_temperature_type');
 
+###############################
+# Namelist group: diagnostics #
+###############################
+
+add_default($nl, 'config_check_state');
+
 ##########################################
 # Namelist group: AM_highFrequencyOutput #
 ##########################################
@@ -370,6 +387,36 @@ add_default($nl, 'config_AM_pondDiagnostics_compute_interval');
 add_default($nl, 'config_AM_pondDiagnostics_output_stream');
 add_default($nl, 'config_AM_pondDiagnostics_compute_on_startup');
 add_default($nl, 'config_AM_pondDiagnostics_write_on_startup');
+
+#####################################
+# Namelist group: AM_unitConversion #
+#####################################
+
+add_default($nl, 'config_AM_unitConversion_enable');
+add_default($nl, 'config_AM_unitConversion_compute_interval');
+add_default($nl, 'config_AM_unitConversion_output_stream');
+add_default($nl, 'config_AM_unitConversion_compute_on_startup');
+add_default($nl, 'config_AM_unitConversion_write_on_startup');
+
+#####################################
+# Namelist group: AM_pointwiseStats #
+#####################################
+
+add_default($nl, 'config_AM_pointwiseStats_enable');
+add_default($nl, 'config_AM_pointwiseStats_compute_interval');
+add_default($nl, 'config_AM_pointwiseStats_output_stream');
+add_default($nl, 'config_AM_pointwiseStats_compute_on_startup');
+add_default($nl, 'config_AM_pointwiseStats_write_on_startup');
+
+#################################
+# Namelist group: AM_iceShelves #
+#################################
+
+add_default($nl, 'config_AM_iceShelves_enable');
+add_default($nl, 'config_AM_iceShelves_compute_interval');
+add_default($nl, 'config_AM_iceShelves_output_stream');
+add_default($nl, 'config_AM_iceShelves_compute_on_startup');
+add_default($nl, 'config_AM_iceShelves_write_on_startup');
 
 #################################
 # Namelist group: AM_icePresent #
