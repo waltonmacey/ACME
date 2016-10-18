@@ -43,7 +43,7 @@ bigG    = (g*g)/(N2*cp)         ; constant
 ;_____________________________________________________________________
 ; open file, read in data (time,lev,lat,long) in range [0 to n-1]
 
-f     = addfile("./movies/dcmip2012_test31.nc","r")                       ; open ncl data file
+f     = addfile("../movies/dcmip2012_test31.nc","r")                       ; open ncl data file
 
 lat1d   = f->lat*pi/180                                               ; load 1d latitutde array
 lon1d   = f->lon*pi/180                                               ; load 1d longitude array

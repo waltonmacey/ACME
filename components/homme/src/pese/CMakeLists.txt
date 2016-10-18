@@ -98,6 +98,8 @@ SET(PESE_SRCS_F90
   ${SRC_SHARE_DIR}/prim_driver_mod.F90
   ${SRC_SHARE_DIR}/mesh_mod.F90 
   ${SRC_SHARE_DIR}/Manager.F90
+  ${SRC_SHARE_DIR}/vertical_se.F90
+  ${SRC_SHARE_DIR}/dynamics_base.F90
   ${UTILS_SHARE_DIR}/shr_kind_mod.F90
   ${UTILS_SHARE_DIR}/shr_mpi_mod.F90 
   ${UTILS_SHARE_DIR}/shr_sys_mod.F90 

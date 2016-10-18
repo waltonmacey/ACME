@@ -533,6 +533,7 @@ contains
                                     topology,columnpackage, moisture, precon_method, rsplit, qsplit, rk_stage_user,&
                                     sub_case, limiter_option, nu, nu_q, nu_div, tstep_type, hypervis_subcycle, &
                                     hypervis_subcycle_q, tracer_transport_type
+    use dynamics,             only: dynamics_init2
     use derivative_mod,       only: derivinit, interpolate_gll2fvm_points, v2pinit
     use filter_mod,           only: filter_t, fm_filter_create, taylor_filter_create, fm_transfer, bv_transfer
     use fvm_control_volume_mod, only: n0_fvm, np1_fvm,fvm_supercycling
@@ -563,10 +564,6 @@ contains
     type (hvcoord_t),   intent(inout) :: hvcoord  ! hybrid vertical coordinate struct
     integer,            intent(in)    :: nets     ! starting thread element number (private)
     integer,            intent(in)    :: nete     ! ending thread element number   (private)
-
-    ! ==================================
-    ! Local variables
-    ! ==================================
 
     real (kind=real_kind) :: dt                 ! timestep
 
@@ -627,6 +624,9 @@ contains
   end interface
 #endif
 
+    ! initialize the dynamics solver
+    call dynamics_init2(elem,hybrid,nets,nete,hvcoord)
+
     if (topology == "cube") then
        call test_global_integral(elem, hybrid,nets,nete)
     end if
@@ -686,9 +686,7 @@ contains
 
 #endif
 
-    ! ==================================
     ! Initialize derivative structure
-    ! ==================================
     call Prim_Advec_Init_deriv(hybrid, fvm_corners, fvm_points)
 
     ! ================================================
