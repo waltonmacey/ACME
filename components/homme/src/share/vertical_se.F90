@@ -19,7 +19,7 @@ module vertical_se
 	implicit none
 
   ! dimension for vertical se coordinates
-  integer, parameter, public :: npv = 4   ! number of points per vertical element
+  integer, parameter, public :: npv = 5   ! number of points per vertical element
   integer, public :: nev                  ! number of vertical elements
 
 	!_____________________________________________________________________
@@ -39,7 +39,7 @@ module vertical_se
 
 		integer	  					:: np1,nm1,n0																		! time level indices
 		integer  						:: qn0																					! time level used for virtual temperature
-    real(rl)            :: dt2
+    real(rl)            :: dt                                           ! dynamics timestep
     type (hybrid_t)			:: hybrid																				! hybrid omp/mpi structure
 		type (hvcoord_t)		:: hvcoord																			! hybrid vertical coordinate structure
 		integer							:: nets,nete																		! start and end element indices
@@ -62,13 +62,13 @@ module vertical_se
 	CONTAINS
 
    !_____________________________________________________________________
-  function pack_solver_args(np1,nm1,n0,qn0,dt2,hvcoord,hybrid,deriv,nets,nete,compute_diagnostics,eta_ave_w) result(a)
+  function pack_solver_args(np1,nm1,n0,qn0,dt,hvcoord,hybrid,deriv,nets,nete,compute_diagnostics,eta_ave_w) result(a)
 
     ! convenience routine for packing data into solver_args structure
 
     integer,							intent(in)		:: np1,nm1,n0										! time indices
     integer,							intent(in)		:: qn0													! time level used for virtual temperature
-    real*8,               intent(in)    :: dt2
+    real*8,               intent(in)    :: dt                           ! dynamics timestep
     type (hvcoord_t),			intent(in)    :: hvcoord											! hybrid vertical coord data struct
     type (hybrid_t),			intent(in)		:: hybrid												! mpi/omp data struct
     integer,							intent(in)		:: nets,nete										! start and end element indices
@@ -81,7 +81,7 @@ module vertical_se
     a%nm1     = nm1;
     a%n0      = n0;
     a%qn0     = qn0;
-    a%dt2     = dt2
+    a%dt      = dt
     a%hvcoord	= hvcoord;
     a%hybrid	= hybrid;
     a%nets    = nets;
@@ -98,8 +98,8 @@ module vertical_se
 		! map reference-element coordinate to vertical coordinate s
 
 		real(dd), intent(in) :: s_coord                                     ! coorindate in ref element space
-    real(rl), intent(in) :: eta_t,eta_b                                     ! top and bottom coord of element
-    real(rl) :: deta_ds                                                ! metric term
+    real(rl), intent(in) :: eta_t,eta_b                                 ! top and bottom coord of element
+    real(rl) :: deta_ds                                                 ! metric term
     deta_ds = (eta_b - eta_t)/2.0_dd
     s2eta = (s_coord + 1.0_dd)*deta_ds + eta_t
 
@@ -111,8 +111,8 @@ module vertical_se
 		! map eta coordinate to reference-element coordinate
 
 		real(rl), intent(in) :: eta_coord
-    real(rl), intent(in) :: eta_t,eta_b                                     ! top and bottom coord of element
-    real(rl) :: ds_deta                                                ! metric term
+    real(rl), intent(in) :: eta_t,eta_b                                 ! top and bottom coord of element
+    real(rl) :: ds_deta                                                 ! metric term
     ds_deta = 2.0_dd/(eta_b-eta_t)
 		eta2s = (eta_coord - eta_t)*ds_deta - 1.0_dd
 
@@ -199,12 +199,12 @@ module vertical_se
 
     ! pre-compute LU decomposition to make integration faster
 
-    real(rl), intent(in) :: D   (npv,npv)                             ! derivative matrix
-    real(rl), intent(out):: LU  (npv,npv)                             ! LU factorization
-    integer,  intent(out):: ipiv(npv)                                  ! pivot indices
+    real(rl), intent(in) :: D   (npv,npv)                               ! derivative matrix
+    real(rl), intent(out):: LU  (npv,npv)                               ! LU factorization
+    integer,  intent(out):: ipiv(npv)                                   ! pivot indices
 
     integer  :: info																									  ! status flag: 0=success
-    real(rl) :: Dtr(npv,npv)                                          ! array for LU factoring
+    real(rl) :: Dtr(npv,npv)                                            ! array for LU factoring
 
     Dtr = transpose(D)
 
@@ -223,20 +223,20 @@ module vertical_se
 		! solve D^T D x = D^T B where D is diff matrix, x is anti-deriv of 1d curve B
 
 		real(rl), intent(in) :: B(npv)																			! 1d field to integrate
-    real(rl), intent(in) :: D(npv,npv)                                ! derivative matrix
-    real(rl), intent(in):: LU(npv,npv)                                ! LU factorization
-    integer,  intent(in):: ipiv(npv)                                   ! pivot indices
+    real(rl), intent(in) :: D(npv,npv)                                  ! derivative matrix
+    real(rl), intent(in):: LU(npv,npv)                                  ! LU factorization
+    integer,  intent(in):: ipiv(npv)                                    ! pivot indices
 
-    real(rl) :: x   (npv)                                              ! resulting 1d integral
+    real(rl) :: x   (npv)                                               ! resulting 1d integral
 		integer  :: info																									  ! status flag: 0=success
 		logical  :: LU_initialized = .false.
-    real(rl) :: Dtr(npv,npv)                                !transpose of A
+    real(rl) :: Dtr(npv,npv)                                            !transpose of A
 
 		! apply LU factorization to solve for definite integral function
     Dtr = transpose(D)
 		x = matmul(Dtr,B)
 
-		call DGETRS('N',npv,1,LU,npv,ipiv,x,npv,info)										! solve for x
+		call DGETRS('N',npv,1,LU,npv,ipiv,x,npv,info)                       ! solve for x
 		if(info .ne. 0) then																								! halt if routine failed
 			print *,"integrate DGETRS info = ",info; stop
 		endif
@@ -249,9 +249,9 @@ module vertical_se
 		! get antiderivative of field f wrt vertical s coordinates
 
 		real (rl), intent(in) :: f   (np,np,npv)														! field to differentiate
-    real (rl), intent(in) :: D   (npv,npv)                            ! derivative matrix
-    real(rl),  intent(in) :: LU  (npv,npv)                            ! LU factorization
-    integer,   intent(in) :: ipiv(npv)                                 ! pivot indices
+    real (rl), intent(in) :: D   (npv,npv)                              ! derivative matrix
+    real(rl),  intent(in) :: LU  (npv,npv)                              ! LU factorization
+    integer,   intent(in) :: ipiv(npv)                                  ! pivot indices
 
 		real (rl) :: f_integral(np,np,npv)
 		integer		:: i,j
@@ -315,7 +315,7 @@ module vertical_se
 
 		! get vertical derivative spanning entire column
 
-		real (rl), intent(in) :: f(nlev)														  ! field to differentiate
+		real (rl), intent(in) :: f(nlev)                                    ! field to differentiate
 		real (rl) :: deriv(nlev)
     integer		:: kt,kb,l,i,j
 

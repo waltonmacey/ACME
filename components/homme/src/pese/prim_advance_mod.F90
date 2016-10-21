@@ -1,12 +1,22 @@
 !
-! PESE dynamics
-! primitive equation of motion, vertical spectral-elements
+! PESE Dynamics: Primtive Equations, Vertical Spectral Elements
 !_______________________________________________________________________
+#ifdef HAVE_CONFIG_H
 #include "config.h"
+#endif
 
-module dynamics
+module prim_advance_mod
 
-  use dynamics_base,   only: edge3p1, distribute_flux_at_corners
+  use prim_advance_base, only:&
+    applyCAMforcing_dynamics, &
+    applyCAMforcing,          &
+    edge_buffer,              &
+    overwrite_SEdensity,      &
+    preq_robert3,             &
+    prim_advance_exp,         &
+    prim_advance_init,        &
+    prim_advance_si,          &
+    smooth_phis
 
   use bndry_mod,			 only: bndry_exchangev
   use derivative_mod,  only: derivative_t,  divergence_sphere, gradient_sphere
@@ -19,25 +29,25 @@ module dynamics
 	use kinds,					 only: rl => real_kind
   use elem_state_ops,  only: pack_edge_data, unpack_edge_data, apply_map, apply_vertical_dss, display_max_and_min
   use physical_constants, only : cp, cpwater_vapor, Rgas, kappa, p0, g
-  use vertical_se,     only: npv, solver_args, pack_solver_args, eta_derivative, &
-                             advection2, self_advection2, eta_integral_from_n,   &
+  use vertical_se,     only: npv, solver_args, pack_solver_args, eta_derivative, advection2, self_advection2, eta_integral_from_n,  &
                              eta_integral_from_1, make_vertical_mesh
-	implicit none
+  implicit none
 
-  integer,   parameter :: n_rhs   = 1 + 3*nlev! ps,T,u,v                ! num levels in edge-buffer
-  type(edgebuffer_t)   :: edge_buffer                                   ! buffer for edge-data exchange
+  integer,parameter :: n_rhs    = 1 + 3*nlev  ! ps + T + u + v          ! num levels in rhs and edge-buffer
+  logical,parameter :: verbose  = .false.                               ! verbose output flag
+  integer           :: count    = 1
 
 contains
 
   !_____________________________________________________________________
-	subroutine dynamics_init2(elem, hybrid, nets, nete, hvcoord)
+	subroutine init_dynamics(elem, hybrid, nets, nete, hvcoord)
 
     type (element_t),			intent(inout), target :: elem(:)							! array of element_t structures
     type (hybrid_t),			intent(in)		:: hybrid												! mpi/omp data struct
     integer,							intent(in)		:: nets,nete										! start and end element indices
     type (hvcoord_t),			intent(inout)	:: hvcoord											! hybrid vertical coord data struct
 
-    if (hybrid%masterthread) print *,"initializing PESE solver"
+    if (hybrid%masterthread) print *,"initializing PESE dyanmics solver"
 
     ! allocate space for edge-data exchange
     call initEdgeBuffer(hybrid%par,edge_buffer,elem,n_rhs)
@@ -64,9 +74,11 @@ contains
 		type(solver_args) :: a																							! solver arguments
     integer  :: i,k,ie
 
+    count=count+1
     a = pack_solver_args(np1,nm1,n0,qn0,dt2,hvcoord,hybrid,deriv,nets,nete,compute_diagnostics,eta_ave_w)
 
     do ie=nets,nete
+      if (verbose) call display_max_and_min(elem(ie),hybrid,ie,n0,count)
       call apply_rhs(elem(ie),ie, a)
       call apply_vertical_dss(elem(ie),np1)                             ! perform vertical direct stiffness summation
       call apply_map(elem(ie)%spheremp,elem(ie),np1)                    ! apply sphere-map
@@ -188,16 +200,14 @@ contains
     rhs_v  = -adv_v(:,:,2,:) + ddt_v
 
     ! apply right-hand-side to prognostics
-    s%ps_v(:,:,    a%np1) = s%ps_v(:,:    ,a%nm1) + a%dt2 * rhs_ps
-    s%T   (:,:,:,  a%np1) = s%T   (:,:,:  ,a%nm1) + a%dt2 * rhs_T
-    s%v   (:,:,1,:,a%np1) = s%v   (:,:,1,:,a%nm1) + a%dt2 * rhs_u
-    s%v   (:,:,2,:,a%np1) = s%v   (:,:,2,:,a%nm1) + a%dt2 * rhs_v
+    s%ps_v(:,:,    a%np1) = s%ps_v(:,:    ,a%nm1) + a%dt * rhs_ps
+    s%T   (:,:,:,  a%np1) = s%T   (:,:,:  ,a%nm1) + a%dt * rhs_T
+    s%v   (:,:,1,:,a%np1) = s%v   (:,:,1,:,a%nm1) + a%dt * rhs_u
+    s%v   (:,:,2,:,a%np1) = s%v   (:,:,2,:,a%nm1) + a%dt * rhs_v
 
     ! compute derived quantities for output
 !s%omega = omega
 
 	end subroutine
 
-end module 
-
-
+end module prim_advance_mod

@@ -42,7 +42,9 @@ SET(PESE_SRCS_F90
   ${SRC_SHARE_DIR}/bndry_mod_base.F90
   ${SRC_SHARE_DIR}/derivative_mod_base.F90
   ${SRC_SHARE_DIR}/edge_mod_base.F90
+  ${SRC_SHARE_DIR}/prim_advance_base.F90
   ${SRC_SHARE_DIR}/prim_advection_mod_base.F90 
+  ${SRC_SHARE_DIR}/prim_driver_base.F90
   ${SRC_SHARE_DIR}/solver_init_mod_base.F90
   ${SRC_SHARE_DIR}/vertremap_mod_base.F90
   ${SRC_SHARE_DIR}/viscosity_mod_base.F90
@@ -93,13 +95,10 @@ SET(PESE_SRCS_F90
   ${SRC_SHARE_DIR}/prim_si_mod.F90 
   ${SRC_SHARE_DIR}/prim_state_mod.F90
   ${SRC_SHARE_DIR}/prim_si_ref_mod.F90
-  ${SRC_SHARE_DIR}/prim_advance_mod.F90 
   ${SRC_SHARE_DIR}/metis_mod.F90
-  ${SRC_SHARE_DIR}/prim_driver_mod.F90
-  ${SRC_SHARE_DIR}/mesh_mod.F90 
+  ${SRC_SHARE_DIR}/mesh_mod.F90
   ${SRC_SHARE_DIR}/Manager.F90
   ${SRC_SHARE_DIR}/vertical_se.F90
-  ${SRC_SHARE_DIR}/dynamics_base.F90
   ${UTILS_SHARE_DIR}/shr_kind_mod.F90
   ${UTILS_SHARE_DIR}/shr_mpi_mod.F90 
   ${UTILS_SHARE_DIR}/shr_sys_mod.F90 

@@ -394,10 +394,10 @@ subroutine dcmip2012_test3(elem,hybrid,hvcoord,nets,nete)
   if (hybrid%masterthread) write(iulog,*) 'initializing dcmip2012 test 3-0: nonhydrostatic gravity waves'
 
   ! set analytic vertical coordinates
-  call get_evenly_spaced_z(zi,zm, 0.0_rl,ztop)                                   ! get evenly spaced z levels
-  hvcoord%etai  = ( (bigG/T0)*(exp(-zi*N*N/g) -1 )+1 ) **(1.0/kappa)    ! set eta levels from z at equator
-  call set_hybrid_coefficients(hvcoord,hybrid,  hvcoord%etai(1), 1.0_rl)! set hybrid A and B from eta levels
-  call set_layer_locations(hvcoord, .true., hybrid%masterthread)
+  !call get_evenly_spaced_z(zi,zm, 0.0_rl,ztop)                                   ! get evenly spaced z levels
+  !hvcoord%etai  = ( (bigG/T0)*(exp(-zi*N*N/g) -1 )+1 ) **(1.0/kappa)    ! set eta levels from z at equator
+  !call set_hybrid_coefficients(hvcoord,hybrid,  hvcoord%etai(1), 1.0_rl)! set hybrid A and B from eta levels
+  !call set_layer_locations(hvcoord, .true., hybrid%masterthread)
 
   ! set initial conditions
   do ie = nets,nete; do k=1,nlev; do j=1,np; do i=1,np

@@ -1,5 +1,5 @@
 !
-! namelist for dcmip2012 test 3-1 nonhydrostatic gravity waves
+! PESE namelist for dcmip2012 test 3-1 nonhydrostatic gravity waves
 !_______________________________________________________________________
 &ctl_nl
   nthreads          = 1
@@ -10,12 +10,12 @@
   qsize             = 1                         ! num tracer fields
   ndays             = 0                         ! num simulation days: 0 = use nmax steps
   nmax              = 7200                      ! total number of steps: 7200 = 3600s / tstep=0.5s
-  statefreq         = 50                        ! number of steps between screen dumps
+  statefreq         = 1 !50                        ! number of steps between screen dumps
   restartfreq       = -1                        ! don't write restart files if < 0
   runtype           = 0                         ! 0 = new run
   tstep             = 0.5                       ! largest timestep
   integration       = 'explicit'                ! explicit time integration
-  tstep_type        = 1                         ! 1 => default method
+  tstep_type        = 3 !1                         ! 1 => default method
   smooth            = 0                         ! timestep smooting (nonzero smoothing breaks this test)
   nu                = 8.0e6                     ! reduced earth hyperviz 
   nu_s              = 8.0e6
@@ -23,6 +23,7 @@
   hypervis_subcycle = 1                         ! 1 = no hyperviz subcycling
   rearth            = 50969.76                  ! scaled earth radius = a/125.0
   omega             = 0.0                       ! earth angular speed = 0.0
+  rsplit = 0
 /
 &filter_nl/
 &solver_nl
