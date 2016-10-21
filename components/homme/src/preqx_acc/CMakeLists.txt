@@ -4,17 +4,21 @@
 
 macro(preqx_acc_setup)
 
+SET(TARGET_DIR      ${HOMME_SOURCE_DIR}/src/preqx_acc)
 SET(UTILS_SHARE_DIR ${HOMME_SOURCE_DIR}/utils/csm_share)
 SET(SRC_DIR         ${HOMME_SOURCE_DIR}/src)
 SET(SRC_SHARE_DIR   ${HOMME_SOURCE_DIR}/src/share)
 SET(PHYSICS_DIR     ${HOMME_SOURCE_DIR}/physics)
 SET(UTILS_TIMING_DIR ${CMAKE_BINARY_DIR}/utils/timing)
 
+# Find F90 files in target directory
+FILE(GLOB TARGET_F90  ${TARGET_DIR}/*.F90)
+
 # Make INCLUDE_DIRS global so the tests can access it
-SET (EXEC_INCLUDE_DIRS ${PIO_INCLUDE_DIRS}
-                            ${UTILS_TIMING_DIR} )
+SET (EXEC_INCLUDE_DIRS ${PIO_INCLUDE_DIRS} ${UTILS_TIMING_DIR} )
 
 SET(PREQX_SRCS_F90
+  ${TARGET_F90}
   ${SRC_DIR}/test_src/asp_tests.F90
   ${SRC_DIR}/test_src/baroclinic_inst_mod.F90
   ${SRC_DIR}/test_src/dcmip2012_test1_2_3.F90
@@ -30,14 +34,6 @@ SET(PREQX_SRCS_F90
   ${SRC_SHARE_DIR}/vertremap_mod_base.F90
   ${SRC_SHARE_DIR}/viscosity_mod_base.F90
   ${SRC_DIR}/preqx/dcmip_tests.F90
-  ${SRC_DIR}/preqx_acc/bndry_mod.F90
-  ${SRC_DIR}/preqx_acc/derivative_mod.F90
-  ${SRC_DIR}/preqx_acc/edge_mod.F90
-  ${SRC_DIR}/preqx_acc/openacc_utils_mod.F90
-  ${SRC_DIR}/preqx_acc/prim_advection_mod.F90 
-  ${SRC_DIR}/preqx_acc/solver_init_mod.F90
-  ${SRC_DIR}/preqx_acc/vertremap_mod.F90
-  ${SRC_DIR}/preqx_acc/viscosity_mod.F90
   ${SRC_SHARE_DIR}/kinds.F90
   ${SRC_SHARE_DIR}/dimensions_mod.F90
   ${SRC_SHARE_DIR}/control_mod.F90
@@ -45,6 +41,7 @@ SET(PREQX_SRCS_F90
   ${SRC_SHARE_DIR}/coordinate_systems_mod.F90
   ${SRC_SHARE_DIR}/params_mod.F90
   ${SRC_SHARE_DIR}/gridgraph_mod.F90
+  ${SRC_SHARE_DIR}/elem_state_base.F90
   ${SRC_SHARE_DIR}/element_mod.F90
   ${SRC_SHARE_DIR}/parallel_mod.F90
   ${SRC_SHARE_DIR}/hybrid_mod.F90

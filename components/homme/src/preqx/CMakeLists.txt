@@ -55,6 +55,7 @@ SET(PREQX_SRCS_F90
   ${SRC_SHARE_DIR}/coordinate_systems_mod.F90
   ${SRC_SHARE_DIR}/params_mod.F90
   ${SRC_SHARE_DIR}/gridgraph_mod.F90
+  ${SRC_SHARE_DIR}/elem_state_base.F90
   ${SRC_SHARE_DIR}/element_mod.F90
   ${SRC_SHARE_DIR}/parallel_mod.F90
   ${SRC_SHARE_DIR}/hybrid_mod.F90

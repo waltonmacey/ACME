@@ -9,8 +9,8 @@ module prim_driver_mod
     prim_init1,&
     prim_init2 ,&
     prim_finalize,&
-    prim_run,&
-    prim_run_subcycle &
+    prim_run, &
+    prim_run_subcycle
 
   implicit none
   contains

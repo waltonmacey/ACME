@@ -6,16 +6,11 @@
 !#define _COMPUTE_MOISTURE_
 module physics_mod
   
-  ! =======================
-  use kinds,              only : real_kind
-  ! =======================
-  use physical_constants, only : rgas, Rwater_vapor, kappa, g, Rd_on_Rv, Cp, Cpd_on_Cpv, cpwater_vapor
-  ! =======================
-  use physical_constants, only : rearth,p0
-  ! =======================
-  use dimensions_mod, only : np, nlev
-  ! =======================
-  use element_mod, only: timelevels
+  use kinds,              only: real_kind
+  use physical_constants, only: rgas, Rwater_vapor, kappa, g, Rd_on_Rv, Cp, Cpd_on_Cpv, cpwater_vapor,rearth,p0
+  use dimensions_mod,     only: np, nlev
+  use elem_state_mod,     only: timelevels
+
   implicit none
   
   private
