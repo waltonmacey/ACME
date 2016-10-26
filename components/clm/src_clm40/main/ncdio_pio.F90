@@ -231,6 +231,7 @@ contains
   !-----------------------------------------------------------------------
 # 175 "ncdio_pio.F90.in"
   subroutine ncd_pio_openfile(file, fname, mode)
+    use shr_mem_mod !ndk for print_memory_usage
     !
     ! !DESCRIPTION:
     ! Open a NetCDF PIO file
@@ -246,10 +247,11 @@ contains
 
     ierr = pio_openfile(pio_subsystem, file, io_type, fname, mode)
 
+    call print_memory_usage("clm.ncd_pio_openfile", 0)!ndk
     if(ierr/= PIO_NOERR) then
        call shr_sys_abort('ncd_pio_openfile ERROR: Failed to open file')
     else if(pio_iotask_rank(pio_subsystem)==0) then
-       write(iulog,*) 'Opened existing file ', trim(fname), file%fh
+       write(iulog,*) 'Opened existing file (ndk-clm)', trim(fname), file%fh
     end if
 
 # 197 "ncdio_pio.F90.in"

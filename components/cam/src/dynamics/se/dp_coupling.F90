@@ -106,9 +106,11 @@ CONTAINS
 
        tl_f = TimeLevel%n0  ! time split physics (with forward-in-time RK)
 
+       !write(*,'(a,i10,a,i10)') "dp_coupling ndk00 nelemd=", nelemd, " nlev=", nlev
        call t_startf('UniquePoints')
        do ie=1,nelemd
           ncols = elem(ie)%idxP%NumUniquePts
+          !write(*,'(a,i10,a,i10,a,i10)') "  dp_coupling ndk00 ie=", ie, " ncols=", ncols, " elem(ie)%idxV=", elem(ie)%idxV%NumUniquePts
           call UniquePoints(elem(ie)%idxP, elem(ie)%state%ps_v(:,:,tl_f), ps_tmp(1:ncols,ie))
           call UniquePoints(elem(ie)%idxP, nlev, elem(ie)%state%T(:,:,:,tl_f), T_tmp(1:ncols,:,ie))
           call UniquePoints(elem(ie)%idxV, 2, nlev, elem(ie)%state%V(:,:,:,:,tl_f), uv_tmp(1:ncols,:,:,ie))

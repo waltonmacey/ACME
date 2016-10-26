@@ -57,6 +57,7 @@ contains
     use cam_history_support, only: max_fieldname_len
     use cam_grid_support,    only: cam_grid_get_local_size, cam_grid_get_gcid
     use cam_map_utils,       only: iMap
+    use shr_mem_mod !ndk for print_memory_usage
     implicit none
     type(file_desc_t),intent(inout) :: ncid_ini, ncid_topo
     type (dyn_import_t), target, intent(inout) :: dyn_in   ! dynamics import
@@ -92,6 +93,8 @@ contains
     else
        nullify(elem)
     end if
+
+    call print_memory_usage("ndk00 inidat.F90:read_inidat", 0)
 
     lsize = cam_grid_get_local_size(dyn_decomp)	
 
@@ -404,6 +407,7 @@ contains
        call edgeVunpack(edge, elem(ie)%state%Q(:,:,:,:),nlev*pcnst,kptr,ie)
     end do
 
+    !write(*,*) ' ndk00 nelemd=', nelemd
 !$omp parallel do private(ie, t, m_cnst)
     do ie=1,nelemd
        do t=2,3
@@ -411,6 +415,7 @@ contains
           elem(ie)%state%v(:,:,:,:,t)=elem(ie)%state%v(:,:,:,:,1)
           elem(ie)%state%T(:,:,:,t)=elem(ie)%state%T(:,:,:,1)
        end do
+       !write(*,*) ' ndk00 shr_vmath_log ie', ie, ' size(elem(ie)%state%lnps)=', size(elem(ie)%state%lnps)
        call shr_vmath_log(elem(ie)%state%ps_v,elem(ie)%state%lnps,size(elem(ie)%state%lnps))
     end do
 

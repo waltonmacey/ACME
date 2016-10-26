@@ -27,12 +27,14 @@
 #include <sys/time.h>
 #endif
 
+// ndk: -DHAVE_SLASHPROC is being set and used, but this file not picking it up?
+//#define HAVE_SLASHPROC
 #ifdef HAVE_SLASHPROC
 
-#include <sys/time.h>
-#include <sys/types.h>
+//ndk #include <sys/time.h>
+//ndk #include <sys/types.h>
 #include <stdio.h>
-#include <unistd.h>
+//ndk #include <unistd.h>
 
 #elif (defined __APPLE__)
 
@@ -107,10 +109,10 @@ int GPTLget_memusage (int *size, int *rss, int *share, int *text, int *datastack
 
 #elif (defined HAVE_SLASHPROC)
   FILE *fd;                       /* file descriptor for fopen */
-  int pid;                        /* process id */
-  static char *head = "/proc/";   /* part of path */
-  static char *tail = "/statm";   /* part of path */
-  char file[19];                  /* full path to file in /proc */
+  //int pid;                        /* process id */
+  //static char *head = "/proc/";   /* part of path */
+  //static char *tail = "/statm";   /* part of path */
+  //char file[19];                  /* full path to file in /proc */
   int dum;                        /* placeholder for unused return arguments */
   int ret;                        /* function return value */
 
@@ -118,15 +120,17 @@ int GPTLget_memusage (int *size, int *rss, int *share, int *text, int *datastack
   ** The file we want to open is /proc/<pid>/statm
   */
 
-  pid = (int) getpid ();
+  /*pid = (int) getpid ();
   if (pid > 999999) {
     fprintf (stderr, "get_memusage: pid %d is too large\n", pid);
     return -1;
   }
 
   sprintf (file, "%s%d%s", head, pid, tail);
-  if ((fd = fopen (file, "r")) < 0) {
-    fprintf (stderr, "get_memusage: bad attempt to open %s\n", file);
+  */
+
+  if ((fd = fopen ("/proc/self/statm", "r")) < 0) {
+    fprintf (stderr, "get_memusage: bad attempt to open /proc/self/statm\n");
     return -1;
   }
 
@@ -158,13 +162,16 @@ int GPTLget_memusage (int *size, int *rss, int *share, int *text, int *datastack
 
   return 0;
 
-#else
 
-  struct rusage usage;         /* structure filled in by getrusage */
+#else
 
   if (getrusage (RUSAGE_SELF, &usage) < 0)
     return -1;
   
+
+  struct rusage usage;         /* structure filled in by getrusage */
+
+
   *size      = -1;
   *rss       = usage.ru_maxrss;
   *share     = -1;

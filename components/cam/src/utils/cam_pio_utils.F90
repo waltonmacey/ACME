@@ -1096,7 +1096,7 @@ contains
   subroutine cam_pio_openfile(file, fname, mode)
     use pio,            only: pio_openfile, file_desc_t, pio_noerr, pio_iotask_rank
     use cam_abortutils, only: endrun
-
+    use shr_mem_mod !ndk for print_memory_usage
     type(file_desc_t), intent(inout), target :: file
     character(len=*), intent(in) :: fname
     integer, intent(in) :: mode
@@ -1105,10 +1105,11 @@ contains
 
     ierr = pio_openfile(pio_subsystem, file, pio_iotype, fname, mode)
 
+    call print_memory_usage("cam_io_openfile", 0)!ndk
     if(ierr/= PIO_NOERR) then
        call endrun('Failed to open restart file to read')
     else if(pio_iotask_rank(pio_subsystem) == 0) then
-       write(iulog,*) 'Opened existing file ', trim(fname), file%fh
+       write(iulog,*) 'Opened existing file (ndk00-cam)', trim(fname), file%fh
     end if
 
   end subroutine cam_pio_openfile

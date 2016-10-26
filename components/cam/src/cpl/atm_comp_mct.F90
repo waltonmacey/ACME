@@ -781,7 +781,7 @@ CONTAINS
          yr_spec=yr_spec, mon_spec=mon_spec, day_spec=day_spec, sec_spec= sec_spec )
     pname_srf_cam = trim(get_restartdir() )//fname_srf_cam
     call getfil(pname_srf_cam, fname_srf_cam)
-    
+
     call cam_pio_openfile(File, fname_srf_cam, 0)
     call pio_initdecomp(pio_subsystem, pio_double, (/ngcols/), dof, iodesc)
     allocate(tmp(size(dof)))

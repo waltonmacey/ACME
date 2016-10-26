@@ -36,7 +36,6 @@ contains
     use pio_utils, only : check_netcdf, bad_iotype
     use alloc_mod, only: alloc_check
     use pio_support, only : Debug, DebugIO, piodie, checkmpireturn 
-
 #ifdef _NETCDF
     use netcdf, only : nf90_put_var, nf90_inquire_variable   !_EXTERNAL
 #endif
@@ -69,7 +68,8 @@ contains
 
     integer(pio_offset), intent(in) :: start(:), count(:)
     integer, intent(out) :: request
-
+#define SKIP_ME
+#ifdef SKIP_ME
 
     character(len=*), parameter :: subName=modName//'::write_nfdarray_{TYPE}'
 
@@ -254,8 +254,9 @@ contains
 !  call mpi_barrier(file%iosystem%comp_comm, mpierr)
 !  call CheckMPIReturn(subName,mpierr)
 
+#endif
+  !ierr=0 !ndk
   end function WRITE_NFDARRAY_{TYPE}
-
 
 
 end module pionfwrite_mod

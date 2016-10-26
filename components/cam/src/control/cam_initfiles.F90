@@ -48,7 +48,7 @@ subroutine cam_initfiles_open()
    use pio,              only: pio_nowrite
 
    use readinitial,      only: read_initial
-
+   use shr_mem_mod !ndk for print_memory_usage
    character(len=256) :: ncdata_loc     ! filepath of initial file on local disk
    character(len=256) :: bnd_topo_loc   ! filepath of topo file on local disk
    !----------------------------------------------------------------------- 
@@ -57,6 +57,8 @@ subroutine cam_initfiles_open()
    call getfil (ncdata, ncdata_loc)
 
    allocate(fh_ini)
+   write(*,*) "ndk00 cam_initfiles.F90"
+   call print_memory_usage("ndk00 cam_initfiles.F90", 0)
    call cam_pio_openfile(fh_ini, ncdata_loc, PIO_NOWRITE)
    ! Backward compatibility: look for topography data on initial file if topo file name not provided.
    if (trim(bnd_topo) /= 'bnd_topo' .and. len_trim(bnd_topo) > 0) then

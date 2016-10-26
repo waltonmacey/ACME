@@ -221,6 +221,10 @@ contains
     
     integer(kind=int_kind) :: i,j,k,n,ii
 
+    if (d3*d4 .ne. idxUnique%NumUniquePts) then
+       write(*,'(a,i10,a,i10,a,i10)') "dof_mod.F90, UniquePoints4D problem. ndk00 d4=", d4, " d3=", d3, &
+            " Pts=", idxUnique%NumUniquePts
+    endif
     do n=1,d4
        do k=1,d3
           do ii=1,idxUnique%NumUniquePts

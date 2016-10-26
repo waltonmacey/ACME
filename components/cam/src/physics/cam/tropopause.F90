@@ -253,6 +253,7 @@ contains
     !       ... open netcdf file
     !-----------------------------------------------------------------------
     call getfil (tropopause_climo_file, locfn, 0)
+    write(*,*) "ndk00 tropopause.F90 openfile"
     call cam_pio_openfile(pio_id, trim(locfn), PIO_NOWRITE)
 
     !-----------------------------------------------------------------------
@@ -306,12 +307,10 @@ contains
     start = (/ 1, 1, 1 /)
     count = (/ nlon, nlat, ntimes /)
     ierr = pio_get_var( pio_id, vid, start, count, tropp_p_in )
-
     !------------------------------------------------------------------
     !  ... close the netcdf file
     !------------------------------------------------------------------
     call pio_closefile( pio_id )
-
     !--------------------------------------------------------------------
     !  ... regrid
     !--------------------------------------------------------------------
@@ -322,6 +321,8 @@ contains
       write(iulog,*) 'tropopause_init: tropp_p_loc allocation error = ',ierr
       call endrun
     end if
+
+    !write(*,*) "ndk00 tropopause.F90 h1 ", begchunk, endchunk
 
     do c=begchunk,endchunk
        ncols = get_ncols_p(c)

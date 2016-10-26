@@ -332,7 +332,7 @@
 	<queue walltimemax="00:30:00" jobmin="1" jobmax="4096">debug_knl</queue>
       </queues>
       <walltimes>
-        <walltime default="true">00:15:00</walltime>
+        <walltime default="true">00:25:00</walltime>
         <walltime ccsm_estcost="1">00:30:00</walltime>
         <walltime ccsm_estcost="3">00:40:00</walltime>
       </walltimes>
@@ -342,7 +342,7 @@
       <arguments>
 	<arg name="label"> --label</arg>
 	<arg name="num_tasks" > -n {{ num_tasks }}</arg>
-	<arg name="thread_count" > -c 4 --cpu_bind=threads numactl -m 1</arg>
+	<arg name="thread_count" > -c 4 --cpu_bind=threads numactl -p 1</arg>
       </arguments>
     </mpirun>
 </machine>
