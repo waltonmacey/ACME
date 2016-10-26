@@ -48,6 +48,24 @@
      </submit_args>
    </batch_system>
 
+   <batch_system type="cobalt_theta" version="x.y">
+     <batch_query>qstat</batch_query>
+     <batch_submit>qsub</batch_submit>
+     <batch_directive>#COBALT</batch_directive>
+     <jobid_pattern>(\d+)</jobid_pattern>
+     <depend_string> --dependencies</depend_string>
+     <submit_args>
+       <arg flag="-A" name="project"/>
+       <arg flag="-t" name="wall_time"/>
+       <arg flag="-n" name="num_nodes"/>
+       <arg flag="-q" name="queue"/>
+       <arg flag="--mode script"/>
+     </submit_args>
+     <directives>
+       <directive>--project {{ project }}</directive>
+     </directives>
+   </batch_system>
+
   <batch_system type="lsf" version="9.1">
     <batch_query args=" -w" >bjobs</batch_query>
     <batch_submit>bsub</batch_submit>

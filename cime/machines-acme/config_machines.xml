@@ -764,6 +764,52 @@
          </mpirun>
 </machine>
 
+<machine MACH="theta">
+         <DESC>ANL KNL machine, 64 cores/node, batch system is cobalt</DESC>
+         <NODENAME_REGEX>theta.*</NODENAME_REGEX>
+         <TESTS>acme_developer</TESTS>
+         <COMPILERS>intel</COMPILERS>
+         <MPILIBS>mpich</MPILIBS>
+         <CESMSCRATCHROOT>/projects/EarlyPerf_theta/acme/scratch/$USER</CESMSCRATCHROOT>
+         <RUNDIR>$CESMSCRATCHROOT/$CASE/run</RUNDIR>
+         <EXEROOT>$CESMSCRATCHROOT/$CASE/bld</EXEROOT>
+         <DIN_LOC_ROOT>/projects/EarlyPerf_theta/acme/inputdata</DIN_LOC_ROOT>
+         <DIN_LOC_ROOT_CLMFORC>/projects/EarlyPerf_theta/acme/inputdata/atm/datm7</DIN_LOC_ROOT_CLMFORC>
+         <DOUT_S_ROOT>$CESMSCRATCHROOT/archive/$CASE</DOUT_S_ROOT>
+         <DOUT_L_MSROOT>/projects/EarlyPerf_theta/acme/csm/$CASE</DOUT_L_MSROOT>
+         <CCSM_BASELINE>/projects/EarlyPerf_theta/acme/baselines</CCSM_BASELINE>
+         <CCSM_CPRNC>/projects/EarlyPerf_theta/acme/tools/cprnc</CCSM_CPRNC>
+         <SAVE_TIMING_DIR>/projects/EarlyPerf_theta/acme</SAVE_TIMING_DIR>
+         <OS>CNL</OS>
+         <BATCHQUERY>qstat</BATCHQUERY>
+         <BATCHSUBMIT>qsub</BATCHSUBMIT>
+         <BATCHREDIRECT></BATCHREDIRECT>
+         <SUPPORTED_BY>acme</SUPPORTED_BY>
+         <GMAKE_J>16</GMAKE_J>
+         <MAX_TASKS_PER_NODE>64</MAX_TASKS_PER_NODE>
+         <PES_PER_NODE>64</PES_PER_NODE>
+         <PROJECT_REQUIRED>TRUE</PROJECT_REQUIRED>
+         <PIO_CONFIG_OPTS> -D PIO_BUILD_TIMING:BOOL=ON </PIO_CONFIG_OPTS>
+         <batch_system type="cobalt_theta">
+           <queues>
+             <queue default="true">default</queue>
+           </queues>
+           <walltimes>
+             <walltime default="true">60</walltime>
+           </walltimes>
+         </batch_system>
+         <mpirun mpilib="default">
+           <executable>aprun</executable>
+             <arguments>
+               <arg name="num_tasks">-n {{ num_tasks }}</arg>
+               <arg name="tasks_per_node">-N {{ tasks_per_node }}</arg>
+               <arg name="thread_count">--cc depth -d {{ thread_count }}</arg>
+               <arg name="omp_stacksize">-e OMP_STACKSIZE=64M</arg>
+               <arg name="thread_count">-e OMP_NUM_THREADS={{ thread_count }}</arg>
+             </arguments>
+         </mpirun>
+</machine>
+
 <machine MACH="sooty">
          <DESC>PNL cluster, os is Linux (pgi,intel,nag), batch system is SLURM</DESC>
          <NODENAME_REGEX>sooty</NODENAME_REGEX>
