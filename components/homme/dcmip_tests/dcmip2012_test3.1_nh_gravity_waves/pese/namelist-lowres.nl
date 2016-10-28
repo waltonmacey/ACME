@@ -10,7 +10,7 @@
   qsize             = 1                         ! num tracer fields
   ndays             = 0                         ! num simulation days: 0 = use nmax steps
   nmax              = 7200                      ! total number of steps: 7200 = 3600s / tstep=0.5s
-  statefreq         = 1 !50                        ! number of steps between screen dumps
+  statefreq         = 50                        ! number of steps between screen dumps
   restartfreq       = -1                        ! don't write restart files if < 0
   runtype           = 0                         ! 0 = new run
   tstep             = 0.5                       ! largest timestep

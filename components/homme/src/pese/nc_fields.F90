@@ -7,7 +7,7 @@
 
 #define use_netcdf_interp_mod
 
-module output_fields
+module nc_fields
 
   use dimensions_mod, only: nelemd, np, ne, nc, nlev, qsize_d
   use element_mod,    only: element_t
@@ -143,6 +143,8 @@ contains
         case('Q4' ); qi=4; if(qsize_d>3) var = element%state%Q(:,:,:,qi)
         case('Q5' ); qi=5; if(qsize_d>4) var = element%state%Q(:,:,:,qi)
 
+        case('omega');var = element%state%omega
+
         ! get diagnostic variables
         case('geo'); var = element%derived%phi(:,:,:)
 
@@ -221,4 +223,4 @@ contains
     levels = s_interp
 
   end function
-end module output_fields
+end module nc_fields

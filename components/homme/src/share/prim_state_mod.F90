@@ -886,10 +886,10 @@ subroutine prim_energy_halftimes(elem,hvcoord,tl,n,t_before_advance,nets,nete)
     real (kind=real_kind) :: cp_star1,cp_star2,qval_t1,qval_t2
     real (kind=real_kind) :: Qt
     logical :: wet
-
-
     logical tstagger
     integer:: t2_qdp, t1_qdp   ! the time pointers for Qdp are not the same
+
+    call t_startf("prim_energy_halftimes")
 
     nm_f = 1
     if (t_before_advance) then
@@ -901,8 +901,6 @@ subroutine prim_energy_halftimes(elem,hvcoord,tl,n,t_before_advance,nets,nete)
        t2=tl%np1
        call TimeLevel_Qdp(tl, qsplit, t1_qdp, t2_qdp) !get np1 into t2_qdp
     endif
-
-
 
 ! energy_fixer
 !     <0         disabled, but compute energy non-staggered in time
@@ -992,8 +990,6 @@ subroutine prim_energy_halftimes(elem,hvcoord,tl,n,t_before_advance,nets,nete)
        enddo
        elem(ie)%accum%KEner(:,:,n)=suml(:,:)
 
-
-    
     !   PE   dp/dn PHIs
        suml=0
        do k=1,nlev
@@ -1005,8 +1001,6 @@ subroutine prim_energy_halftimes(elem,hvcoord,tl,n,t_before_advance,nets,nete)
           endif
        enddo
        elem(ie)%accum%PEner(:,:,n)=suml(:,:)
-
-
 
 !      compute alternate PE term which matches what is used in CAM physics
        wet =(moisture /= "dry")
@@ -1025,7 +1019,9 @@ subroutine prim_energy_halftimes(elem,hvcoord,tl,n,t_before_advance,nets,nete)
        end do
 
     enddo
-    
+
+    call t_stopf("prim_energy_halftimes")
+
 end subroutine prim_energy_halftimes
     
 !=======================================================================================================! 
@@ -1066,6 +1062,8 @@ subroutine prim_diag_scalars(elem,hvcoord,tl,n,t_before_advance,nets,nete)
     logical :: t_before_advance
     integer:: t2_qdp, tmp   ! the time pointer for Qdp are not the same
 
+    call t_startf("prim_diag_scalars")
+
     nm_f = 1
     if (t_before_advance) then
        t1=tl%nm1     
@@ -1076,7 +1074,6 @@ subroutine prim_diag_scalars(elem,hvcoord,tl,n,t_before_advance,nets,nete)
        t2=tl%np1
        call TimeLevel_Qdp(tl, qsplit, tmp, t2_qdp) !get np1 into t2_qdp (don't need tmp)
     endif
-
 
     !
     !  RK2 forward scheme.  compute everything at t2
@@ -1112,7 +1109,7 @@ subroutine prim_diag_scalars(elem,hvcoord,tl,n,t_before_advance,nets,nete)
        enddo
     endif
 
-
+    call t_stopf("prim_diag_scalars")
 
 end subroutine prim_diag_scalars
 end module prim_state_mod

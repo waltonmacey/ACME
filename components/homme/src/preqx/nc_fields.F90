@@ -7,7 +7,7 @@
 
 #define use_netcdf_interp_mod
 
-module output_fields
+module nc_fields
 
   use dimensions_mod, only: nelemd, np, ne, nc, nlev, qsize_d
   use element_mod,    only: element_t
@@ -138,12 +138,10 @@ contains
         case('v'  ); var = element%state%v(:,:,2,:,n0)
         case('p'  ); var = element%state%dp3d(:,:,:,n0)
         case('Q'  ); var = element%state%Q(:,:,:,1)
-case('Q2' ); qi=2; if(qsize_d>1) var = element%state%Q(:,:,:,qi)
-case('Q3' ); qi=3; if(qsize_d>2) var = element%state%Q(:,:,:,qi)
-case('Q4' ); qi=4; if(qsize_d>3) var = element%state%Q(:,:,:,qi)
-case('Q5' ); qi=5; if(qsize_d>4) var = element%state%Q(:,:,:,qi)
-
-        case('omega');var = element%state%omega
+        case('Q2' ); qi=2; if(qsize_d>1) var = element%state%Q(:,:,:,qi)
+        case('Q3' ); qi=3; if(qsize_d>2) var = element%state%Q(:,:,:,qi)
+        case('Q4' ); qi=4; if(qsize_d>3) var = element%state%Q(:,:,:,qi)
+        case('Q5' ); qi=5; if(qsize_d>4) var = element%state%Q(:,:,:,qi)
 
         ! get diagnostic variables
         case('geo'); var = element%derived%phi(:,:,:)
@@ -223,4 +221,4 @@ case('Q5' ); qi=5; if(qsize_d>4) var = element%state%Q(:,:,:,qi)
     levels = s_interp
 
   end function
-end module output_fields
+end module nc_fields

@@ -16,7 +16,9 @@ module netcdf_interp_mod
   use hybrid_mod,       only: hybrid_t,hybrid_create
   use hybvcoord_mod,    only: hvcoord_t
   use kinds,            only: real_kind
-  use output_fields,    only: dim_names, nc_sfield_t, nc_vfield_t, dim_names, get_scalar_field, get_vector_field, get_vertical_levels, v_interpolate, nc_vfields, nc_vars, n_dims, n_vars
+  use nc_fields,        only: dim_names, nc_sfield_t, nc_vfield_t, dim_names,         &
+                              get_scalar_field, get_vector_field, get_vertical_levels,&
+                              v_interpolate, nc_vfields, nc_vars, n_dims, n_vars
   use parallel_mod,     only: parallel_t, haltmp, syncmp
   use shr_const_mod,    only: shr_const_cday
   use time_mod,         only: timelevel_t,time_at
@@ -335,7 +337,7 @@ module netcdf_interp_mod
     var_index     = index_of(var%short_name)
     vertical_dim  = var_dim_ids(3,var_index)
     n_vert        = size_of_dim(vertical_dim)
-    if (hybrid%par%masterproc) print *,"index_of(",var%short_name,")=",var_index," vertical_dim=",vertical_dim," n_vert=",n_vert
+    !if (hybrid%par%masterproc) print *,"index_of(",var%short_name,")=",var_index," vertical_dim=",vertical_dim," n_vert=",n_vert
 
     ! interpolate scalar field data to result field
 

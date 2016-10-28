@@ -4,8 +4,10 @@
 #endif
 
 module openacc_utils_mod
-  use kinds, only: real_kind
+  use kinds,          only: real_kind
   use dimensions_mod, only: nelemd
+  use perf_mod,       only: t_startf, t_stopf
+
   implicit none
   private
 
@@ -40,6 +42,8 @@ contains
     type(element_t), intent(in) :: elem(:)
     integer        , intent(in) :: tl
     integer :: ie
+    call t_startf("copy_qdp_h2d")
+
     !$omp barrier
     !$omp master
     do ie = 1 , nelemd
@@ -47,6 +51,8 @@ contains
     enddo
     !$omp end master
     !$omp barrier
+
+    call t_stopf("copy_qdp_h2d")
   end subroutine copy_qdp_h2d
 
   subroutine copy_qdp_d2h( elem , tl )
@@ -55,6 +61,7 @@ contains
     type(element_t), intent(in) :: elem(:)
     integer        , intent(in) :: tl
     integer :: ie
+    call t_startf("copy_qdp_d2h")
     !$omp barrier
     !$omp master
     do ie = 1 , nelemd
@@ -62,6 +69,7 @@ contains
     enddo
     !$omp end master
     !$omp barrier
+    call t_stopf("copy_qdp_d2h")
   end subroutine copy_qdp_d2h
 
   subroutine copy_ondev(dest,src,len)

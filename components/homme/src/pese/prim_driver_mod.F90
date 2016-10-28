@@ -5,13 +5,17 @@
 module prim_driver_mod
 
   use prim_driver_base, only:&
+    apply_forcing, &
+    flt_advection, &
+    get_diagnostic_state, &
+    get_subcycle_timesteps, &
     leapfrog_bootstrap, &
     prim_energy_fixer, &
     prim_init1,&
     prim_init2 ,&
     prim_finalize,&
     prim_run,&
-    flt_advection
+    prim_run_subcycle_diags
 
   use control_mod,        only: statefreq, energy_fixer, ftype, qsplit, rsplit, test_cfldep, disable_diagnostics
   use dimensions_mod,     only: np, nlev, nlevp, nelem, nelemd, qsize, nc, ntrac
@@ -46,11 +50,49 @@ subroutine prim_run_subcycle(elem,fvm,hybrid,nets,nete,dt,tl,hvcoord,nsubstep)
     type (TimeLevel_t),   intent(inout) :: tl
     integer,              intent(in)    :: nsubstep                     ! nsubstep = 1 .. nsplit
 
-    logical :: compute_diagnostics = .false.
+    logical :: compute_diagnostics, compute_energy
+    real(kind=real_kind) :: dt_q, dt_remap
+    integer :: n0_qdp,np1_qdp,r,nstep_end
 
+    ! get dt_q, dt_remp, and nstep_end from dt
+    call get_subcycle_timesteps(dt_q,dt_remap,nstep_end,dt,tl)
+
+    ! enable/disable diagnositics for this time-step
+    call get_diagnostic_state(compute_diagnostics,compute_energy,tl,nstep_end)
+
+    ! compute scalar diagnostics if currently active
+    if (compute_diagnostics) call prim_diag_scalars(elem,hvcoord,tl,4,.true.,nets,nete)
+
+    ! apply cam forcing or stand-alone test forcing to state variables
+    call apply_forcing(elem,fvm,hybrid,hvcoord,tl,dt_remap,nets,nete)
+
+    ! get E(1): energy after CAM forcing
+    if (compute_energy) call prim_energy_halftimes(elem,hvcoord,tl,1,.true.,nets,nete)
+
+    ! get qmass and variance, using Q(n0),Qdp(n0)
+    if (compute_diagnostics) call prim_diag_scalars(elem,hvcoord,tl,1,.true.,nets,nete)
+
+    ! loop over rsplit vertically lagrangian timesteps
     call prim_step(elem, fvm, hybrid,nets,nete, dt, tl, hvcoord,compute_diagnostics,1)
+    do r=2,rsplit
+       call TimeLevel_update(tl,"leapfrog")
+       call prim_step(elem, fvm, hybrid,nets,nete, dt, tl, hvcoord,.false.,r)
+    enddo
+
+    ! update diagnostic variables
+    call prim_run_subcycle_diags(elem,hvcoord,tl,nets,nete)
+
+    ! apply energy fixer, if active
+    if (compute_diagnostics)  call prim_diag_scalars    (elem,hvcoord,tl,2,.false.,nets,nete)
+    if (compute_energy)       call prim_energy_halftimes(elem,hvcoord,tl,2,.false.,nets,nete)
+    if (energy_fixer > 0)     call prim_energy_fixer    (elem,hvcoord,hybrid,tl,nets,nete,nsubstep)
+    if (compute_diagnostics)  call prim_diag_scalars    (elem,hvcoord,tl,3,.false.,nets,nete)
+    if (compute_energy)       call prim_energy_halftimes(elem,hvcoord,tl,3,.false.,nets,nete)
+
+    ! update dynamics time level pointers
     call TimeLevel_update(tl,"leapfrog")
 
+    ! print some diagnostic information
     if (compute_diagnostics) call prim_printstate(elem, tl, hybrid,hvcoord,nets,nete, fvm)
 
   end subroutine prim_run_subcycle

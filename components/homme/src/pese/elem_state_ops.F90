@@ -24,7 +24,7 @@ module elem_state_ops
 
   implicit none
 
-  real(rl), allocatable:: s_interp(:), M_interp(:,:)
+  real(rl), allocatable:: s_interp(:), M_interp(:,:) !  pts, and projection matrix for vertical interpolation
 
 contains
 
@@ -136,20 +136,10 @@ contains
 
   end subroutine
 
- !_____________________________________________________________________________
-  function v_interpolate(f,ni) result(f_i)
-
-    real(rl), intent(in) :: f(nlev)
-    integer,  intent(in) :: ni
-    real(rl) :: f_i(ni)
-    f_i = matmul(M_interp,f)
-
-  end function
-
   !_____________________________________________________________________________
   function get_scalar_field(element, short_name, n0, ni) result(sfield)
 
-    ! Get vertically interpolated 3d scalar-field data by name
+    ! get scalar-field data by name
 
     character*(*),    intent(in)  :: short_name
     type(element_t),  intent(in)  :: element
@@ -206,7 +196,7 @@ contains
   !_____________________________________________________________________________
   function get_vector_field(element, short_name, n0, ni) result(vfield)
 
-    ! Get vertically interpolated vector-field data by name
+    ! get vector-field data by name
 
     character*(*),    intent(in)  :: short_name
     type(element_t),  intent(in)  :: element
@@ -221,7 +211,7 @@ contains
       case('v');
         var = element%state%v(:,:,:,:,n0)
 
-      case default; var = unset                                      ! assign special "missing" value
+      case default; var = unset                                         ! assign special "missing" value
     endselect
 
     ! interpolate each column
@@ -235,9 +225,21 @@ contains
   end function
 
   !_____________________________________________________________________________
+  function v_interpolate(f,ni) result(f_i)
+
+    ! apply vertical interpolation matrix
+
+    real(rl), intent(in) :: f(nlev)
+    integer,  intent(in) :: ni
+    real(rl) :: f_i(ni)
+    f_i = matmul(M_interp,f)
+
+  end function
+
+  !_____________________________________________________________________________
   function get_vertical_levels(ni) result(levels)
 
-    ! Get vertically interpolated levels
+    ! get vertical levels for interpolation
 
     integer, intent(in) :: ni   ! number of interpolated levels
     real(rl) :: levels(ni)

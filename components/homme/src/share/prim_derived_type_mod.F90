@@ -57,14 +57,14 @@ module prim_derived_type_mod
   subroutine initialize(object, method, elem, hvcoord, compute_diagnostics, &
            n_Q, eta_ave_w, hybrid, deriv, dt, tl, nets, nete)
 
-   use kinds, only : real_kind
-   use element_mod, only : element_t
-   use hybvcoord_mod, only : hvcoord_t
-   use hybrid_mod, only : hybrid_t
-   use derivative_mod, only : derivative_t
-   use time_mod, only : TimeLevel_t
+    use element_mod,     only: element_t
+    use kinds,           only: real_kind
+    use hybvcoord_mod,   only: hvcoord_t
+    use hybrid_mod,      only: hybrid_t
+    use derivative_mod,  only: derivative_t
+    use time_mod,        only: TimeLevel_t
 
-   implicit none 
+    implicit none
 
     integer :: ie
 
