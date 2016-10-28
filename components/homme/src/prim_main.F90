@@ -28,6 +28,8 @@ program prim_main
   use fvm_control_volume_mod, only: fvm_struct
   use fvm_control_volume_mod, only: n0_fvm
 
+  use netcdf_interp_mod, only: netcdf_interp_init, netcdf_interp_write, netcdf_interp_finish
+
 #ifdef _REFSOLN
   use prim_state_mod, only : prim_printstate_par
 #endif
@@ -193,25 +195,24 @@ program prim_main
   end if
 #endif
   
-
-#ifdef PIO_INTERP
-  ! initialize history files.  filename constructed with restart time
-  ! so we have to do this after ReadRestart in prim_init2 above
+#ifdef VERTICAL_INTERPOLATION
+  call netcdf_interp_init(elem, hybrid, hvcoord)
+#elif defined PIO_INTERP
   call interp_movie_init( elem, par,  hvcoord, tl )
 #else
   call prim_movie_init( elem, par, hvcoord, tl )
 #endif
 
-
   ! output initial state for NEW runs (not restarts or branch runs)
   if (runtype == 0 ) then
-#ifdef PIO_INTERP
-     call interp_movie_output(elem, tl, par, 0d0, fvm=fvm, hvcoord=hvcoord)
+#ifdef VERTICAL_INTERPOLATION
+    call netcdf_interp_write(elem, tl, hybrid)
+#elif defined PIO_INTERP
+     call interp_movie_output(elem, tl, par, 0d0,fvm=fvm, hvcoord=hvcoord)
 #else
-     call prim_movie_output(elem, tl, hvcoord, par, fvm)
+    call prim_movie_output(elem, tl, hvcoord, hybrid, 1,nelemd, fvm)
 #endif
   endif
-
 
   ! advance_si not yet upgraded to be self-starting.  use leapfrog bootstrap procedure:
   if(integration == 'semi_imp') then
@@ -256,12 +257,14 @@ program prim_main
      nete=nelemd 
 
 
-#ifdef PIO_INTERP
-     if (ntrac>0) call fvm_init3(elem,fvm,hybrid,nets,nete,n0_fvm)
-     call interp_movie_output(elem, tl, par, 0d0,fvm=fvm, hvcoord=hvcoord)
+#ifdef VERTICAL_INTERPOLATION
+    call netcdf_interp_write(elem, tl, hybrid)
+#elif defined PIO_INTERP
+    call interp_movie_output(elem, tl, par, 0d0,fvm=fvm, hvcoord=hvcoord)
 #else
-     call prim_movie_output(elem, tl, hvcoord, par, fvm)
+    call prim_movie_output(elem, tl, hvcoord, hybrid, 1,nelemd, fvm)
 #endif
+
 
 #ifdef _REFSOLN
      call prim_printstate_par(elem, tl,hybrid,hvcoord,nets,nete, par)
@@ -279,12 +282,14 @@ program prim_main
   if(par%masterproc) print *,"Finished main timestepping loop",tl%nstep
   call prim_finalize()
   if(par%masterproc) print *,"closing history files"
-#ifdef PIO_INTERP
+
+#ifdef VERTICAL_INTERPOLATION
+  call netcdf_interp_finish
+#elif defined PIO_INTERP
   call interp_movie_finish
 #else
   call prim_movie_finish
 #endif
-
 
   call t_stopf('Total')
   if(par%masterproc) print *,"writing timing data"

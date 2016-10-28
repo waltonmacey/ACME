@@ -206,7 +206,7 @@ contains
     s%v   (:,:,2,:,a%np1) = s%v   (:,:,2,:,a%nm1) + a%dt * rhs_v
 
     ! compute derived quantities for output
-!s%omega = omega
+    e%derived%omega_p = omega/p
 
 	end subroutine
 

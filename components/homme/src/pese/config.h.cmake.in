@@ -3,6 +3,9 @@
 /* Energy Diagnostics */
 #cmakedefine ENERGY_DIAGNOSTICS
 
+/* Vertically interpolated ouput */
+#define VERTICAL_INTERPOLATION 1
+
 /* Using PRIMITIVE */
 #define _PRIM
 

@@ -1,5 +1,5 @@
 !
-! Element Module for the PESE dynamics solver
+! elem_state data structure
 !_______________________________________________________________________
 #ifdef HAVE_CONFIG_H
 #include "config.h"

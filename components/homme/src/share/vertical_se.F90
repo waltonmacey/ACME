@@ -1,5 +1,5 @@
 !
-! vertical spectral-element operators
+! Vertical spectral-element operators for PESE and NHSE dynamics
 !_______________________________________________________________________
 
 #include "config.h"
@@ -19,7 +19,7 @@ module vertical_se
 	implicit none
 
   ! dimension for vertical se coordinates
-  integer, parameter, public :: npv = 5   ! number of points per vertical element
+  integer, parameter, public :: npv = 5  !5   ! number of points per vertical element
   integer, public :: nev                  ! number of vertical elements
 
 	!_____________________________________________________________________
@@ -400,7 +400,7 @@ module vertical_se
 
     ! compute and return advective terms
     f_adv = u*grad_f(:,:,1,:) + v*grad_f(:,:,2,:) + eta_dot * df_deta
-call vertical_dss(f_adv)
+!call vertical_dss(f_adv)
 
   end function
 
@@ -426,7 +426,7 @@ call vertical_dss(f_adv)
 
     ! compute and return advective terms
     f_adv = u*grad_f(:,:,1,:) + v*grad_f(:,:,2,:) + eta_dot * df_deta
-call vertical_dss(f_adv)
+!call vertical_dss(f_adv)
 
   end function
 
@@ -470,8 +470,8 @@ call vertical_dss(f_adv)
     ! compute and return advective terms
     v_adv(:,:,1,:) = 0.5d0*grad_vsqr(:,:,1,:) + vort_cross_v(:,:,1,:) + eta_dot*du_deta
     v_adv(:,:,2,:) = 0.5d0*grad_vsqr(:,:,2,:) + vort_cross_v(:,:,2,:) + eta_dot*dv_deta
-call vertical_dss(v_adv(:,:,1,:))
-call vertical_dss(v_adv(:,:,2,:))
+!call vertical_dss(v_adv(:,:,1,:))
+!call vertical_dss(v_adv(:,:,2,:))
 
   end function
 
@@ -511,8 +511,8 @@ call vertical_dss(v_adv(:,:,2,:))
     ! compute and return advective terms
     v_adv(:,:,1,:) = 0.5d0*grad_vsqr(:,:,1,:) + vort_cross_v(:,:,1,:) + eta_dot*du_dn
     v_adv(:,:,2,:) = 0.5d0*grad_vsqr(:,:,2,:) + vort_cross_v(:,:,2,:) + eta_dot*dv_dn
-call vertical_dss(v_adv(:,:,1,:))
-call vertical_dss(v_adv(:,:,2,:))
+!call vertical_dss(v_adv(:,:,1,:))
+!call vertical_dss(v_adv(:,:,2,:))
 
   end function
 

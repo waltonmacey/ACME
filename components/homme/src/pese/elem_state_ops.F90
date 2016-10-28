@@ -1,8 +1,9 @@
 !
 ! routines performing simple operations on all prognostic variables
 !_______________________________________________________________________
-
+#ifdef HAVE_CONFIG_H
 #include "config.h"
+#endif
 
 module elem_state_ops
 
@@ -173,8 +174,8 @@ contains
 
       ! get 3d scalar field by name
       select case(short_name)
-#if 0
-        ! get prognostic variables
+
+        ! prognostic variables
         case('T'  ); var = element%state%T(:,:,:,n0)
         case('u'  ); var = element%state%v(:,:,1,:,n0)
         case('v'  ); var = element%state%v(:,:,2,:,n0)
@@ -187,9 +188,8 @@ contains
 
         case('omega');var = element%state%omega
 
-        ! get diagnostic variables
+        ! diagnostic variables
         case('geo'); var = element%derived%phi(:,:,:)
-#endif
         case default; var = unset                                      ! assign special "missing" value
       endselect
 
