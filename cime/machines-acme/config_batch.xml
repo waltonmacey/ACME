@@ -143,6 +143,12 @@
      </directives>
    </batch_system>
 
+    <batch_system MACH="cori-haswell" version="x.y">
+      <directives>
+        <directive> --constraint=haswell</directive>
+      </directives>
+    </batch_system> 
+
     <!-- blues is PBS -->
     <batch_system MACH="blues" version="x.y">
       <directives>
