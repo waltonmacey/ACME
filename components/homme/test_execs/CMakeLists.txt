@@ -180,6 +180,7 @@ ENDIF()
 # Add the test exec subdirs for the prim executable
 IF(${BUILD_HOMME_PESE})
   ADD_SUBDIRECTORY(pese-nlev20)
+  ADD_SUBDIRECTORY(pese-nlev30)
 ENDIF()
 
 # Add the test exec subdirs for the prim executable

@@ -4,45 +4,45 @@
 
 module edge_mod
   use edge_mod_base, only: &
-    initLongEdgeBuffer, &
+    FreeEdgeBuffer, &
+    FreeGhostBuffer3D, &
+    FreeGhostBufferTR,&
     FreeLongEdgeBuffer, &
     LongEdgeVpack, &
     LongEdgeVunpackMIN, &
-    initEdgeBuffer, &
-    initEdgeSBuffer, &
-    FreeEdgeBuffer, &
-    edgeVpack, &
-    edgeVunpack,&
-    edgeVunpackMIN,&
-    edgeVunpackMAX,&
+    buffermap,&
     edgeDGVpack,&
     edgeDGVunpack,&
+    edgeDefaultVal,&
+    edgeSpack, &
+    edgeSunpackMax, &
+    edgeSunpackMin, &
+    edgeVpack, &
+    edgeVunpack,&
+    edgeVunpackMAX,&
+    edgeVunpackMIN,&
     edgeVunpackVert,&
     edgerotate,&
-    buffermap,&
-    edgeDefaultVal,&
-    initGhostBuffer3D,&
-    FreeGhostBuffer3D, &
-    ghostVpackfull,&
-    ghostVunpackfull,&
-    ghostVpack_unoriented, &
-    ghostVunpack_unoriented,&
-    ghostVpack3d, &
-    ghostVunpack3d, &
-    initGhostBufferTR,&
-    FreeGhostBufferTR,&
     ghostVpack, &
-    ghostVunpack, &
-    ghostVpackR, &
-    ghostVunpackR, &
     ghostVpack2d, &
-    ghostVunpack2d,&
-    ghostVpack2d_single, &
-    ghostVunpack2d_single, &
     ghostVpack2d_level,&
+    ghostVpack2d_single, &
+    ghostVpack3d, &
+    ghostVpackR, &
+    ghostVpack_unoriented, &
+    ghostVpackfull,&
+    ghostVunpack, &
+    ghostVunpack2d,&
     ghostVunpack2d_level,&
-    edgeSpack, &
-    edgeSunpackMin, &
-    edgeSunpackMax
+    ghostVunpack2d_single, &
+    ghostVunpack3d, &
+    ghostVunpackR, &
+    ghostVunpack_unoriented,&
+    ghostVunpackfull,&
+    initEdgeBuffer, &
+    initEdgeSBuffer, &
+    initGhostBuffer3D,&
+    initGhostBufferTR,&
+    initLongEdgeBuffer
   implicit none
 end module edge_mod

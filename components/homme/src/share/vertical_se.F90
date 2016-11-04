@@ -19,7 +19,7 @@ module vertical_se
 	implicit none
 
   ! dimension for vertical se coordinates
-  integer, parameter, public :: npv = 5  !5   ! number of points per vertical element
+  integer, parameter, public :: npv = 5  ! number of points per vertical element
   integer, public :: nev                  ! number of vertical elements
 
 	!_____________________________________________________________________
@@ -210,13 +210,17 @@ module vertical_se
 
 		! get LU decomposition of deriv matrix using lapack routine
 		LU = matmul(Dtr,D)
+    print *,"D^T D=",LU
+
     call DGETRF(npv,npv,LU,npv,ipiv,info)
 		if(info .ne. 0) then																								! halt if routine failed
+      print *,"LU=",LU
 			print *,"least squares DGETRF info = ",info; stop
 		endif
 
   end subroutine
 
+#if 0
 	!_____________________________________________________________________
 	function least_squares_integral(B,D,LU,ipiv) result(x)
 
@@ -242,70 +246,106 @@ module vertical_se
 		endif
 
 	end function
+#endif
 
-	!_____________________________________________________________________
-	function eta_integral(f, D, LU, ipiv) result(f_integral)
-
-		! get antiderivative of field f wrt vertical s coordinates
-
-		real (rl), intent(in) :: f   (np,np,npv)														! field to differentiate
-    real (rl), intent(in) :: D   (npv,npv)                              ! derivative matrix
-    real(rl),  intent(in) :: LU  (npv,npv)                              ! LU factorization
-    integer,   intent(in) :: ipiv(npv)                                  ! pivot indices
-
-		real (rl) :: f_integral(np,np,npv)
-		integer		:: i,j
-
-		do j=1,np; do i=1,np
-			f_integral(i,j,:) = least_squares_integral(f(i,j,:), D, LU, ipiv) ! get integral curve
-      f_integral(i,j,:) = f_integral(i,j,:) - f_integral(i,j,1)					! let f_integral(1)=0
-		enddo; enddo
-	end function
 
   !_____________________________________________________________________
-	function eta_integral_from_n(f, bc_n) result(x)
+	function least_squares_integral(B,A) result(x)
 
-		! Get antiderivative wrt vertical eta coordinates
+    ! to solve  A x =     B using least squares
+    ! where A is diff matrix, x is anti-deriv of 1d curve B
+		! solve [A^T A] x = [A^T B]
+
+		real(rl), intent(in) :: B(npv)																			! 1d field to integrate
+    real(rl), intent(in) :: A(npv,npv)                                  ! derivative matrix
+
+    integer, parameter :: M=npv, N=npv, NRHS=1, LDA=npv, LDB=npv
+    integer, parameter :: NB=32, LWORK = M + M*NB
+
+
+    real(rl) :: x(M), WORK(LWORK)
+		integer  :: INFO																									  ! status flag: 0=success
+
+    call DGELS('N',M,N,NRHS,A,LDA,B,LDB,WORK,LWORK,INFO)
+
+		if(info .ne. 0) then																								! halt if routine failed
+			print *,"least_squares_integral: DGELS info = ",info; stop
+		endif
+
+  end function
+
+  !_____________________________________________________________________
+  function solve(A,B,M) result (x)
+
+    ! solve A x = B for x, using DGESV
+
+		real(rl), intent(in) :: B(M)                                        ! 1d field to integrate
+    real(rl), intent(in) :: A(M,M)                                      ! derivative matrix
+    integer,  intent(in) :: M                                           ! nrows = ncols
+
+    integer  :: IPIV(M), INFO
+    real(rl) :: x(M), B_(M), A_(M,M)
+    B_=B; A_=A
+
+    !call DGESV(N, NRHS, A_, LDA, IPIV, B_, LDB, INFO)
+    call  DGESV(M, 1   , A_, M  , IPIV, B_, M  , INFO)
+
+		if(info .ne. 0) then																								! halt if routine failed
+			print *,"solve: DGESV info = ",info;
+		endif
+
+    x = B_
+
+  end function
+
+  !_____________________________________________________________________
+	function eta_integral_from_1(f, bc_1) result(x)
+
+		! Get anti-derivative wrt vertical eta coordinates
 
 		real (rl), intent(in) :: f(np,np,nlev)														  ! field to differentiate
-    real (rl), intent(in) :: bc_n(np,np)                                ! boundary condition at n
+    real (rl), intent(in) :: bc_1(np,np)                                ! boundary condition at n
 
-		real (rl) :: x(np,np,nlev), bc(np,np)
+		real (rl) :: x(np,np,nlev),bc(np,np)
+    real (rl) :: A(npv,npv), B(npv),x1(npv)
     integer		:: kt,kb,l,i,j
 
-    bc = bc_n
+    A= ddn; A(1,:)=0.0_rl; A(1,1)=1.0_rl
+    bc = bc_1
 
-    do l=nev,1,-1
-      kt = ev(l)%kt; kb = ev(l)%kb;
+    do l=1,nev,1
+      kt = ev(l)%kt; kb = ev(l)%kb
       do j=1,np; do i=1,np
-        x(i,j,kt:kb) = least_squares_integral(f(i,j,kt:kb),ddn,LU,ipiv)
-        x(i,j,kt:kb) = x(i,j,kt:kb) - x(i,j,kb) + bc(i,j)
+        B = f(i,j,kt:kb); B(1) = bc(i,j)
+        x(i,j,kt:kb) = solve(A, B, npv)
       enddo; enddo
-      bc = x(:,:,kt)
+      bc = x(:,:,kb)
     enddo
 
 	end function
 
   !_____________________________________________________________________
-	function eta_integral_from_1(f, bc_1) result(x)
+	function eta_integral_from_n(f, bc_n) result(x)
 
-		! Get antiderivative wrt vertical eta coordinates
+		! Get anti-derivative wrt vertical eta coordinates
 
 		real (rl), intent(in) :: f(np,np,nlev)														  ! field to differentiate
-    real (rl), intent(in) :: bc_1(np,np)                                ! boundary condition at n
+    real (rl), intent(in) :: bc_n(np,np)                                ! boundary condition at n
 
-		real (rl) :: x(np,np,nlev), bc(np,np)
+		real (rl) :: x(np,np,nlev),bc(np,np)
+    real (rl) :: A(npv,npv), B(npv),x1(npv)
     integer		:: kt,kb,l,i,j
 
-    bc = bc_1
+    A  = ddn; A(npv,:)=0.0_rl; A(npv,npv)=1.0_rl
+    bc = bc_n
 
-    do l=1,nev,1
-      kt = ev(l)%kt; kb = ev(l)%kb;
+    do l=nev,1,-1
+      kt = ev(l)%kt; kb = ev(l)%kb
       do j=1,np; do i=1,np
-        x(i,j,kt:kb) = least_squares_integral(f(i,j,kt:kb),ddn,LU,ipiv)
-        x(i,j,kt:kb) = x(i,j,kt:kb) - x(i,j,kt) + bc(i,j)
+        B = f(i,j,kt:kb); B(npv) = bc(i,j)
+        x(i,j,kt:kb) = solve(A, B, npv)
       enddo; enddo
-      bc = x(:,:,kb)
+      bc = x(:,:,kt)
     enddo
 
 	end function
@@ -874,7 +914,7 @@ call vertical_dss(f)
     M     = mass_matrix(gll,npv)
 
     ! store LU decomposition needed for least-squares integration
-    call get_least_squares_LU(ddn,LU,ipiv)
+    !call get_least_squares_LU(ddn,LU,ipiv)
 
     ! allocate vertical element array
     allocate ( ev(nev) )
@@ -940,7 +980,7 @@ call vertical_dss(f)
       if (hybrid%masterthread) print *,"test_vertical_operators"
       zeros = 0.0d0
 
-      ! let f = exponential(eta)
+      ! let f = e^eta * something
       do j=1,np; do i=1,np; do k=1,nlev;
          f(i,j,k) = exp(eta(k))*cos(1.0d0*i/np)*cos(1.0d0*j/np)
         !  f(i,j,k) = cos(5.0d0*eta(k))
@@ -949,14 +989,13 @@ call vertical_dss(f)
 			! compute derivative of f wrt eta
       f_deriv       = eta_derivative(f)
 			err_deriv			= f_deriv - f
-			max_err_deriv = maxval(err_deriv)
+			max_err_deriv = maxval(abs(err_deriv))
 
 			! compute integral of f wrt eta from top
       f_integral      = eta_integral_from_1(f, f(:,:,1))
-      !f_integral     = eta_integral_from_n(f, f(:,:,nlev))
-
       err_integral		= f_integral - f
-			max_err_integral= maxval(err_integral)
+
+			max_err_integral= maxval(abs(err_integral))
 
       ! get interpolated vertical values
       s_interp = evenly_spaced_eta_coords(ni)
@@ -964,21 +1003,11 @@ call vertical_dss(f)
       do k=1,nlev; f1(k)=cos(7.0*pi*eta(k)); enddo
       f1_i = matmul(M_interp,f1)
 
-      if(write_files) then
-        call write_scalar_field_1d("eta.txt",       eta(:))
-        call write_scalar_field_1d("f.txt",         f(1,1,:))
-        call write_scalar_field_1d("f_deriv.txt",   f_deriv(1,1,:))
-        call write_scalar_field_1d("f_integral.txt",f_integral(1,1,:))
-
-        call write_scalar_field_1d("f1.txt",  f1)
-        call write_scalar_field_1d("f1_i.txt",f1_i)
-        call write_scalar_field_1d("s_i.txt",  s_interp)
-      endif
 
       ! compute integral of f wrt eta from bottom
       f_integral2      = eta_integral_from_n(f, f(:,:,nlev))
       err_integral2		 = f_integral2 - f
-      max_err_integral2= maxval(err_integral2)
+      max_err_integral2= maxval(abs(err_integral2))
 
 			! compose deriv and inverse matrices
       comp      = eta_integral_from_1( f_deriv, f(:,:,1))                ! integral of deriv
@@ -986,14 +1015,27 @@ call vertical_dss(f)
 			err_comp  = comp  - f
 			err_comp2 = comp2 - f
 
-			max_err_comp  = maxval(err_comp)
-			max_err_comp2 = maxval(err_comp2)
+			max_err_comp  = maxval(abs(err_comp))
+			max_err_comp2 = maxval(abs(err_comp2))
 
       !if (hybrid%masterthread) then
      ! 		print *, "f(1,1,:)           =", f(1,1,:)
      !     print *, "f_integral(1,1,:)  =", f_integral(1,1,:)
      ! 		print *, "f_deriv(1,1,:)     =", f_deriv(1,1,:)
      ! endif
+
+     if(write_files) then
+        call write_scalar_field_1d("eta.txt",         eta(:))
+        call write_scalar_field_1d("f.txt",           f(1,1,:))
+        call write_scalar_field_1d("f_deriv.txt",     f_deriv(1,1,:))
+        call write_scalar_field_1d("f_integral.txt",  f_integral(2,2,:))
+        call write_scalar_field_1d("f_integral2.txt", f_integral2(1,1,:))
+        call write_scalar_field_1d("comp.txt",        comp(1,1,:))
+        call write_scalar_field_1d("comp2.txt",       comp2(1,1,:))
+        call write_scalar_field_1d("f1.txt",          f1)
+        call write_scalar_field_1d("f1_i.txt",        f1_i)
+        call write_scalar_field_1d("s_i.txt",         s_interp)
+      endif
 
 			if (hybrid%masterthread) then
 				print *,"max error, vertical deriv     of exp(eta)=",max_err_deriv

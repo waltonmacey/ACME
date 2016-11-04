@@ -28,7 +28,7 @@ begin
   ;_________________________________________________
   ; open file and read in data(time,lev,lat,long)
 
-  f     = addfile("./movies/dcmip2012_test2_01.nc","r")
+  f     = addfile("../movies/dcmip2012_test2_01.nc","r")
 	lat   = f->lat
 	lon   = f->lon
 	lev   = f->lev
@@ -83,7 +83,7 @@ begin
     var_name  = "v"
   end if
 
-  ps  = f->ps(t_index,equator,:)
+  ps  = f->ps(t_index,1,equator,:)
 
   norm = max(abs(var))
 

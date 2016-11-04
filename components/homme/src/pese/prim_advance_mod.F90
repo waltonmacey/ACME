@@ -207,6 +207,7 @@ contains
 
     ! compute derived quantities for output
     e%derived%omega_p = omega/p
+    s%omega           = omega
 
 	end subroutine
 

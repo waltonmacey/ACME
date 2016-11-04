@@ -264,12 +264,6 @@ subroutine dcmip2012_test2_0(elem,hybrid,hvcoord,nets,nete)
 
   if (hybrid%masterthread) write(iulog,*) 'initializing dcmip2012 test 2-0: steady state atmosphere with orography'
 
-  ! set analytic vertical coordinates
-  call get_evenly_spaced_z(zi,zm, 0.0_rl,ztop)                                    ! get evenly spaced z levels
-  hvcoord%etai  = (1.d0 - gamma/T0*zi)**exponent                        ! set eta levels from z in orography-free region
-  call set_hybrid_coefficients(hvcoord,hybrid,  hvcoord%etai(1), 1.0_rl)! set hybrid A and B from eta levels
-  call set_layer_locations(hvcoord, .true., hybrid%masterthread)
-
   ! set initial conditions
   do ie = nets,nete; do k=1,nlev; do j=1,np; do i=1,np
     call get_coordinates(lat,lon,hyam,hybm, i,j,k,elem(ie),hvcoord)
@@ -392,12 +386,6 @@ subroutine dcmip2012_test3(elem,hybrid,hvcoord,nets,nete)
   real(rl):: p,z,phis,u,v,w,T,T_mean,phis_ps,ps,rho,rho_mean,q(1),dp    ! pointwise field values
 
   if (hybrid%masterthread) write(iulog,*) 'initializing dcmip2012 test 3-0: nonhydrostatic gravity waves'
-
-  ! set analytic vertical coordinates
-  !call get_evenly_spaced_z(zi,zm, 0.0_rl,ztop)                                   ! get evenly spaced z levels
-  !hvcoord%etai  = ( (bigG/T0)*(exp(-zi*N*N/g) -1 )+1 ) **(1.0/kappa)    ! set eta levels from z at equator
-  !call set_hybrid_coefficients(hvcoord,hybrid,  hvcoord%etai(1), 1.0_rl)! set hybrid A and B from eta levels
-  !call set_layer_locations(hvcoord, .true., hybrid%masterthread)
 
   ! set initial conditions
   do ie = nets,nete; do k=1,nlev; do j=1,np; do i=1,np

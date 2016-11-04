@@ -179,7 +179,7 @@ contains
       case('v');
         var = element%state%v(:,:,:,:,n0)
 
-      case default; var = unset                                      ! assign special "missing" value
+      case default; var = unset                                         ! assign special "missing" value
     endselect
 
     ! interpolate each column

@@ -143,8 +143,8 @@ real (kind=real_kind) ::  eta_ave_w
     call t_startf("prim_step_init")
     dt_q = dt*qsplit
     do ie=nets,nete
-      elem(ie)%derived%eta_dot_dpdn = 0             ! mean vertical mass flux
-      elem(ie)%derived%vn0                  = 0             ! mean horizontal mass flux
+      elem(ie)%derived%eta_dot_dpdn = 0         ! mean vertical mass flux
+      elem(ie)%derived%vn0                  = 0 ! mean horizontal mass flux
       elem(ie)%derived%omega_p              = 0
       if (nu_p>0) then
          elem(ie)%derived%dpdiss_ave        = 0
