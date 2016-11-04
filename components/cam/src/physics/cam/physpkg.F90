@@ -633,6 +633,23 @@ subroutine phys_inidat( cam_out, pbuf2d )
     deallocate (tptr3d)
 
     call initialize_short_lived_species(fh_ini, pbuf2d)
+
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (11/04/2016)
+! Write message to ATM log file stating which version of the process
+! ordering code is currently used.
+  if (masterproc) then
+    write(iulog,*) '==================================================='
+    write(iulog,*) ' ProcOrdering - AaronDonahue '
+    write(iulog,*) ' Version 1.0 '
+    write(iulog,*) ' This version of the code allows for the change of '
+    write(iulog,*) ' of the physics process order in the tphysbc subroutine '
+    write(iulog,*) ' using a namelist variable proc_order_bc '
+    write(iulog,*) '==================================================='
+
+  end if
+!======================================================================= 
+
 end subroutine phys_inidat
 
 
@@ -1940,6 +1957,15 @@ subroutine tphysbc (ztodt,               &
     logical :: l_rad
     !HuiWan (2014/15): added for a short-term time step convergence test ==
 
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (11/04/2016):
+! Variables to control the order of physics processes in the tphysbc 
+! subroutine. 
+! NOTE: For purposes of stability, the first time step will always use
+!       the standard default order of Deep Convection/Shallow Convection
+!       first.
+    integer, dimension(5) :: proc_order_bc, proc_order
+
 
     call phys_getopts( microp_scheme_out      = microp_scheme, &
                        macrop_scheme_out      = macrop_scheme, &
@@ -1951,8 +1977,8 @@ subroutine tphysbc (ztodt,               &
                       ,l_st_mac_out           = l_st_mac           &
                       ,l_st_mic_out           = l_st_mic           &
                       ,l_rad_out              = l_rad              &
+                      ,proc_order_bc_out      = proc_order_bc      & ! ProcOrdering - AaronDonahue - (11/04/2016) Load process order from namelist
                       )
-    
     !-----------------------------------------------------------------------
     call t_startf('bc_init')
 

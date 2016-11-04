@@ -145,6 +145,21 @@ logical :: l_st_mac        = .true.
 logical :: l_st_mic        = .true.
 logical :: l_rad           = .true.
 
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (11/04/2016):
+! Variable to handle namelist variable associated with the process order
+! choice for this run.
+!
+! This is a vector of integers that has 5 elements, each entry is 
+! selected from the numbers 1-5 where each element represents a choice
+! of order such that:
+!       1 - Deep Convection (BC)
+!       2 - Shallow Convection (BC)
+!       3 - Macrophysics (BC)
+!       4 - Microphysics/Wet Deposition (BC)
+!       5 - Radiation (BC)
+integer :: proc_order_bc(5)
+!======================================================================= 
 
 !======================================================================= 
 contains
@@ -177,7 +192,8 @@ subroutine phys_ctl_readnl(nlfile)
       convproc_do_gas, convproc_method_activate, liqcf_fix, regen_fix, demott_ice_nuc, &
       mam_amicphys_optaa, n_so4_monolayers_pcage,micro_mg_accre_enhan_fac, &
       l_tracer_aero, l_vdiff, l_rayleigh, l_gw_drag, l_ac_energy_chk, &
-      l_bc_energy_fix, l_dry_adj, l_st_mac, l_st_mic, l_rad, prc_coef1,prc_exp,prc_exp1,cld_sed
+      l_bc_energy_fix, l_dry_adj, l_st_mac, l_st_mic, l_rad, prc_coef1,prc_exp,prc_exp1,cld_sed, &
+      proc_order_bc                                                       ! ProcOrdering - AaronDonahue - (11/04/2016): Added proc_order_bc to control process order
    !-----------------------------------------------------------------------------
 
    if (masterproc) then
@@ -256,6 +272,7 @@ subroutine phys_ctl_readnl(nlfile)
    call mpibcast(prc_exp,                         1 , mpir8,   0, mpicom)
    call mpibcast(prc_exp1,                        1 , mpir8,   0, mpicom)
    call mpibcast(cld_sed,                         1 , mpir8,   0, mpicom)
+   call mpibcast(proc_order_bc,                   5 , mpiint,  0, mpicom) !ProcOrdering - AaronDonahue - process ordering
 #endif
 
    call cam_ctrl_set_physics_type(cam_physpkg)
@@ -396,7 +413,9 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
                         micro_mg_accre_enhan_fac_out, liqcf_fix_out, regen_fix_out,demott_ice_nuc_out      &
                        ,l_tracer_aero_out, l_vdiff_out, l_rayleigh_out, l_gw_drag_out, l_ac_energy_chk_out  &
                        ,l_bc_energy_fix_out, l_dry_adj_out, l_st_mac_out, l_st_mic_out, l_rad_out  &
-                       ,prc_coef1_out,prc_exp_out,prc_exp1_out, cld_sed_out)
+                       ,prc_coef1_out,prc_exp_out,prc_exp1_out, cld_sed_out &
+                       ,proc_order_bc_out  &                          ! ProcOrdering - AaronDonahue - (08/03/2016): Added proc_order_bc to control process order
+                       )
 
 !-----------------------------------------------------------------------
 ! Purpose: Return runtime settings
@@ -463,6 +482,10 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
    real(r8),          intent(out), optional :: prc_exp_out
    real(r8),          intent(out), optional :: prc_exp1_out
    real(r8),          intent(out), optional :: cld_sed_out
+!======================================================================= 
+! ProcOrdering - AaronDonahue - (11/04/2016):
+! Include a call to retrieve the proc_order_bc component from namelist.
+   integer,dimension(5),intent(out),optional :: proc_order_bc_out
 
    if ( present(deep_scheme_out         ) ) deep_scheme_out          = deep_scheme
    if ( present(shallow_scheme_out      ) ) shallow_scheme_out       = shallow_scheme
@@ -519,6 +542,7 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, mi
    if ( present(prc_exp_out             ) ) prc_exp_out              = prc_exp
    if ( present(prc_exp1_out            ) ) prc_exp1_out             = prc_exp1 
    if ( present(cld_sed_out             ) ) cld_sed_out              = cld_sed
+   if ( present(proc_order_bc_out       ) ) proc_order_bc_out     = proc_order_bc ! ProcOrdering - AaronDonahue - (11/04/2016): Get process order from namelist
 
 end subroutine phys_getopts
 
