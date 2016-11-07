@@ -184,7 +184,7 @@
 	<arg name="label"> --label</arg>
 	<arg name="num_tasks" > -n {{ num_tasks }}</arg>
 	<!--arg name="thread_count" > -c {{ thread_count }}</arg-->
-	<arg name="thread_count" > -c 4 --cpu_bind=threads</arg>
+	<arg name="thread_count" > -c 2 --cpu_bind=threads</arg>
       </arguments>
     </mpirun>
 </machine>
