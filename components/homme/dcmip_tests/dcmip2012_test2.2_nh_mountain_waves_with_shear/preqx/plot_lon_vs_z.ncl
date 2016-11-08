@@ -8,7 +8,7 @@ begin
   ;_____________________________________________________________________
   ; open file and read in data(time,lev,lat,long) from 0 to n-1
 
-  data_dir ="./movies/dcmip2012_test2_11.nc"
+  data_dir ="../movies/dcmip2012_test2_21.nc"
   print ("data_dir="+data_dir)
   f    = addfile(data_dir,"r")
 
@@ -33,9 +33,9 @@ begin
   sec_per_day     = 3600.0*24
 
 
-  t_sec = time(ti)*sec_per_day
+  t = time(ti)*sec_per_day
   earth_days = time(ti)*X
-  print ("ti="+ti+" t= "+t_sec+"s earth_days="+earth_days)
+  print ("ti="+ti+" t= "+t+"s earth_days="+earth_days)
 
   equator = nlat/2                          ; The equator is at nlat/2
 
@@ -112,7 +112,6 @@ begin
 
 
   ;_____________________________________________________________________
-  ;plot  = new (1, graphic)                          ; define plot - need 3 panels
   res1                          = True
   res1@gsnDraw                  = False              ; panel plot
   res1@gsnFrame                 = False             ; don't draw yet
@@ -142,18 +141,18 @@ begin
   res1@tmYLLabelFontHeightF     = 0.03
   res1@tiYAxisFontHeightF       = 0.03
   res1@cnLevelSelectionMode     = "AutomaticLevels"
-  ;res1@cnFillPalette           ="temp_diff_18lev"; "BlWhRe"; "BlueWhiteOrangeRed";  "BlueRed"; "cmp_b2r";
   res1@lbOrientation        = "Vertical"
 
-;  res1@gsnContourZeroLineThicknessF = 0.0
+  ;res1@gsnContourZeroLineThicknessF = 0.0
 
+  ;res1@cnFillPalette           ="temp_diff_18lev"; "BlWhRe"; "BlueWhiteOrangeRed";  "BlueRed"; "cmp_b2r";
 
   print("max = "+max(var1)+" min="+min(var1))
-  prefix = "dcmip2012_test2_1_"
+  prefix = "dcmip2012_test2_2_"
 
   if (var_choice .eq. 1) then         ; Setup for T'
 
-    pltTitle = sprintf("CAM-SE Test 2-1  T'  t=%.1f s",t_sec)
+    pltTitle = sprintf("CAM-SE Test 2-2  T'  t=%.1f s",t)
     fileName = sprinti(prefix + "T_t%i",ti)
 
     res1@cnLevelSelectionMode = "ManualLevels"
@@ -165,7 +164,7 @@ begin
 
   if (var_choice .eq. 2) then		; Setup for U'
 
-    pltTitle = sprintf("CAM-SE Test 2-1  U'  t=%.1f s",t_sec)
+    pltTitle = sprintf("CAM-SE Test 2-2  U'  t=%.1f s",t)
     fileName = sprinti(prefix + "u_t%i",ti)
     res1@cnLevelSelectionMode = "ManualLevels"
     res1@cnMaxLevelValF  = 2				; max contour color label
@@ -176,7 +175,7 @@ begin
 
   if (var_choice .eq. 3) then		; Setup for OMEGA
 
-    pltTitle = sprintf("CAM-SE Test 2-1  Omega  t=%.1f s",t_sec)
+    pltTitle = sprintf("CAM-SE Test 2-2  Omega  t=%.1f s",t)
     fileName = sprinti(prefix + "omega_t%i",ti)
      res1@cnLevelSelectionMode = "ManualLevels"
      res1@cnMaxLevelValF  = 30.0				; max contour color label
@@ -187,7 +186,7 @@ begin
 
   if (var_choice .eq. 4) then		; Setup for V
 
-    pltTitle = sprintf("CAM-SE Test 2-1  V  t=%.1f s",t_sec)
+    pltTitle = sprintf("CAM-SE Test 2-2  V  t=%.1f s",t)
     fileName = sprinti(prefix + "v_t%i",ti)
      res1@cnLevelSelectionMode = "ManualLevels"
      res1@cnMaxLevelValF  = 1.8				; max contour color label
@@ -206,7 +205,7 @@ begin
 
   res1@gsnCenterString = pltTitle
 
-  ;plot = gsn_csm_contour(wks,var1(:,:),res1)		; plot var1
+;  plot = gsn_csm_contour(wks,var1(:,:),res1)		; plot var1
   plot = gsn_csm_contour(wks,var_z(:,:),res1)		; plot var1
   plot1 = ColorNegDashZeroPosContour(plot,"transparent","black","transparent")
 

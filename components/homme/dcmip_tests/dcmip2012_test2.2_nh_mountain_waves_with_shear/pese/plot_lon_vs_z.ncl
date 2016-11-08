@@ -8,7 +8,7 @@ begin
   ;_____________________________________________________________________
   ; open file and read in data(time,lev,lat,long) from 0 to n-1
 
-  data_dir ="./movies/dcmip2012_test2_21.nc"
+  data_dir ="../movies/dcmip2012_test2_21.nc"
   print ("data_dir="+data_dir)
   f    = addfile(data_dir,"r")
 

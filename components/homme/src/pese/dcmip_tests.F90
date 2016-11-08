@@ -299,12 +299,6 @@ subroutine dcmip2012_test2_x(elem,hybrid,hvcoord,nets,nete,shear)
 
   if (hybrid%masterthread) write(iulog,*) 'initializing dcmip2012 test 2-x: steady state atmosphere with orography'
 
-  ! set analytic vertical coordinates
-  call get_evenly_spaced_z(zi,zm, 0.0_rl,ztop)                                    ! get evenly spaced z levels
-  hvcoord%etai  = exp(-zi/H)                                            ! set eta levels from z in orography-free region
-  call set_hybrid_coefficients(hvcoord,hybrid,  hvcoord%etai(1), 1.0_rl)! set hybrid A and B from eta levels
-  call set_layer_locations(hvcoord, .true., hybrid%masterthread)
-
   ! set initial conditions
   do ie = nets,nete; do k=1,nlev; do j=1,np; do i=1,np
     call get_coordinates(lat,lon,hyam,hybm, i,j,k,elem(ie),hvcoord)
