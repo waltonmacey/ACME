@@ -11,6 +11,6 @@
 #SBATCH -t 00:05:00           # run time (hh:mm:ss)
 #SBATCH -A acme               # charge hours to account 1
 
-EXEC=../../test_execs/preqx-nlev60-interp/preqx-nlev60-interp           # set name of executable
+EXEC=../../../test_execs/preqx-nlev60-interp/preqx-nlev60-interp        # set name of executable
 srun -n 512 $EXEC < ./namelist-default.nl                               # launch simulation
 

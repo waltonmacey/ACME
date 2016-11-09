@@ -14,7 +14,7 @@ begin
 
   ; replace your models file name below
 
-  f    = addfile("movies/dcmip2012_test1_11.nc","r")
+  f    = addfile("../movies/dcmip2012_test1_11.nc","r")
 
 	lat  = f->lat
 	lon  = f->lon

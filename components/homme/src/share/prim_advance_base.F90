@@ -153,9 +153,12 @@ contains
          else
             dp(:,:) = elem(ie)%state%dp3d(:,:,k,n0)
          end if
+
          elem(ie)%derived%vn0(:,:,1,k)=elem(ie)%derived%vn0(:,:,1,k) + eta_ave_w*elem(ie)%state%v(:,:,1,k,n0)*dp(:,:)
          elem(ie)%derived%vn0(:,:,2,k)=elem(ie)%derived%vn0(:,:,2,k) + eta_ave_w*elem(ie)%state%v(:,:,2,k,n0)*dp(:,:)
+
       enddo
+
    end do
 #endif
 
@@ -238,14 +241,6 @@ contains
 
     call t_startf('prim_advance_exp')
 
-#   ifndef CAM
-      ! if using prescribed wind set dynamics explicitly and skip time-integration
-      if (prescribed_wind ==1 ) then
-        call set_prescribed_wind(elem,deriv,hybrid,hvcoord,dt,tl,nets,nete,eta_ave_w)
-        call t_stopf('prim_advance_exp')
-        return
-      endif
-#   endif
 
     nm1   = tl%nm1
     n0    = tl%n0
@@ -273,6 +268,15 @@ contains
       if (qsplit_stage==0) method=1       ! use RK2 on first stage
       eta_ave_w=ur_weights(qsplit_stage+1)! RK2 + LF scheme has tricky weights
     endif
+
+#   ifndef CAM
+      ! if using prescribed wind set dynamics explicitly and skip time-integration
+      if (prescribed_wind ==1 ) then
+        call set_prescribed_wind(elem,deriv,hybrid,hvcoord,dt,tl,nets,nete,eta_ave_w)
+        call t_stopf('prim_advance_exp')
+        return
+      endif
+#   endif
 
     ! integration = "explicit"
     !

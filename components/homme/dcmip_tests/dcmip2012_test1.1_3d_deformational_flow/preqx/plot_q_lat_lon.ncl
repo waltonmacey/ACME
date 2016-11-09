@@ -11,7 +11,7 @@ load "$NCARG_ROOT/lib/ncarg/nclscripts/csm/shea_util.ncl"
 
 begin
 
-  f    = addfile("movies/dcmip2012_test1_11.nc","r")
+  f    = addfile("../movies/dcmip2012_test1_11.nc","r")
   lat  = f->lat
   lon  = f->lon
   lev  = f->lev
