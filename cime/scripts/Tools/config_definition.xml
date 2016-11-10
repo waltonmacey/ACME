@@ -764,6 +764,25 @@
 	 ></entry>
 
   <!--- 
+     <entry id="ATM2LND_VMAPTYPE" 
+	    type="char"
+	    valid_values="X,Y" 
+	    value="X" 
+	    group="run_domain"
+	    sdesc="atm2ocn vector mapping file decomp type"
+	    ></entry>
+     -->
+
+  <entry id="OCN2LND_FMAPNAME" 
+	 type="char"
+	 valid_values="" 
+	 value="idmap" 
+	 group="run_domain"
+	 sdesc="ocn2atm flux mapping file"
+	 ></entry>
+
+
+  <!--- 
      <entry id="OCN2ATM_SMAPTYPE" 
 	    type="char"
 	    valid_values="X,Y" 
