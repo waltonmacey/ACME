@@ -69,6 +69,7 @@ module prep_lnd_mod
   type(mct_aVect), pointer :: a2x_lx(:) ! Atm export, lnd grid, cpl pes - allocated in driver
   type(mct_aVect), pointer :: r2x_lx(:) ! Rof export, lnd grid, lnd pes - allocated in lnd gc
   type(mct_aVect), pointer :: g2x_lx(:) ! Glc export, lnd grid, cpl pes - allocated in driver
+  type(mct_aVect), pointer :: o2x_lx(:) ! Ocn export, lnd grid, cpl pes - allocated in driver
 
   ! seq_comm_getData variables
   integer :: mpicom_CPLID                         ! MPI cpl communicator
@@ -161,6 +162,12 @@ contains
        do egi = 1,num_inst_glc
           call mct_aVect_init(g2x_lx(egi), rList=seq_flds_x2l_fields_from_glc, lsize=lsize_l)
           call mct_aVect_zero(g2x_lx(egi))
+       end do
+       
+       allocate(o2x_lx(num_inst_ocn))
+       do egi = 1,num_inst_ocn
+          call mct_aVect_init(o2x_lx(eoi), rList='Floo_qice', lsize=lsize_l)
+          call mct_aVect_zero(o2x_lx(eoi))
        end do
 
        samegrid_al = .true.
@@ -432,13 +439,13 @@ contains
     !---------------------------------------------------------------
 
     call t_drvstartf (trim(timer),barrier=mpicom_CPLID)
-    do eai = 1,num_inst_ocn
+    do eoi = 1,num_inst_ocn
        o2x_ox => component_get_c2x_cx(ocn(eoi))
        call seq_map_map(mapper_Fo2l, o2x_ox, o2x_lx(eoi), norm=.true.)
     enddo
     call t_drvstopf  (trim(timer))
 
-  end subroutine prep_lnd_calc_a2x_lx
+  end subroutine prep_lnd_calc_o2x_lx
 
   !================================================================================================
 
@@ -524,7 +531,12 @@ contains
   function prep_lnd_get_g2x_lx()
     type(mct_aVect), pointer :: prep_lnd_get_g2x_lx(:)
     prep_lnd_get_g2x_lx => g2x_lx(:)   
-  end function prep_lnd_get_g2x_lx 
+  end function prep_lnd_get_g2x_lx
+  
+  function prep_lnd_get_o2x_lx()
+    type(mct_aVect), pointer :: prep_lnd_get_o2x_lx(:)
+    prep_lnd_get_o2x_lx => o2x_lx(:)
+  end function prep_lnd_get_o2x_lx
 
   function prep_lnd_get_mapper_Sa2l()
     type(seq_map), pointer :: prep_lnd_get_mapper_Sa2l

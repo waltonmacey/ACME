@@ -2363,6 +2363,7 @@ module seq_flds_mod
         call metadata_set(attname, longname, stdname, units)
         
 	call seq_flds_add(o2x_fluxes, "Floo_qice")
+	
         longname = 'Subshelf melt flux (for runoff correction)'
         stdname  = 'Subshelf_melt_flux'
         units    = 'kg m-2 s-1'

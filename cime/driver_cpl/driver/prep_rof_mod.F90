@@ -16,6 +16,7 @@ module prep_rof_mod
   use perf_mod
   use component_type_mod, only: component_get_x2c_cx, component_get_c2x_cx
   use component_type_mod, only: rof, lnd
+  use prep_lnd_mod, only: prep_lnd_get_o2x_lx
 
   implicit none
   save
@@ -55,6 +56,7 @@ module prep_rof_mod
 
   ! accumulation variables
   type(mct_aVect), pointer :: l2racc_lx(:)   ! lnd export, lnd grid, cpl pes
+  type(mct_aVect), pointer :: o2racc_lx(:)   ! lnd export, lnd grid, cpl pes  
   integer        , target  :: l2racc_lx_cnt  ! l2racc_lx: number of time samples accumulated
 
   ! other module variables
@@ -87,7 +89,8 @@ contains
     logical                     :: iamroot_CPLID ! .true. => CPLID masterproc
     character(CL)               :: lnd_gnam      ! lnd grid
     character(CL)               :: rof_gnam      ! rof grid
-    type(mct_aVect) , pointer   :: l2x_lx 
+    type(mct_aVect) , pointer   :: l2x_lx
+    type(mct_aVect) , pointer   :: o2x_lx(:)
     type(mct_aVect) , pointer   :: x2r_rx 
     character(*)    , parameter :: subname = '(prep_rof_init)'
     character(*)    , parameter :: F00 = "('"//subname//" : ', 4A )"
@@ -163,14 +166,26 @@ contains
 
     call t_drvstartf (trim(timer),barrier=mpicom_CPLID)
     do eli = 1,num_inst_lnd
-       l2x_lx => component_get_c2x_cx(lnd(eli)) 
+       l2x_lx => component_get_c2x_cx(lnd(eli))
+       
        if (l2racc_lx_cnt == 0) then
           call mct_avect_copy(l2x_lx, l2racc_lx(eli))
        else
           call mct_avect_accum(l2x_lx, l2racc_lx(eli))
        endif
     end do
+    
+    o2x_lx => prep_lnd_get_o2x_lx()
+    do eoi = 1,num_inst_ocn
+       
+       if (o2racc_lx_cnt == 0) then
+          call mct_avect_copy(o2x_lx(eoi), o2racc_lx(eoi))
+       else
+          call mct_avect_accum(o2x_lx(eoi), o2racc_lx(eoi))
+       endif
+    end do    
     l2racc_lx_cnt = l2racc_lx_cnt + 1
+    
     call t_drvstopf (trim(timer))
 
   end subroutine prep_rof_accum
@@ -195,6 +210,8 @@ contains
     do eri = 1,num_inst_rof
        eli = mod((eri-1),num_inst_lnd) + 1
        call mct_avect_avg(l2racc_lx(eli),l2racc_lx_cnt)
+       eoi = mod((eri-1),num_inst_ocn) + 1
+       call mct_avect_avg(o2racc_lx(eoi),l2racc_lx_cnt)
     end do
     l2racc_lx_cnt = 0 
     call t_drvstopf (trim(timer))
@@ -342,6 +359,7 @@ contains
        call seq_map_map(mapper_Fl2r, l2racc_lx(eli), l2r_rx(eri), &
             fldlist=seq_flds_x2r_fluxes, norm=.true., &
             avwts_s=fractions_lx(efi), avwtsfld_s='lfrin')
+
     end do
     call t_drvstopf  (trim(timer))
 
