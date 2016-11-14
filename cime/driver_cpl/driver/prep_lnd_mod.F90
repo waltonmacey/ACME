@@ -6,10 +6,10 @@ module prep_lnd_mod
   use shr_kind_mod    , only: cxx => SHR_KIND_CXX
   use shr_sys_mod     , only: shr_sys_abort, shr_sys_flush
   use seq_comm_mct    , only: num_inst_atm, num_inst_rof, num_inst_glc
-  use seq_comm_mct    , only: num_inst_lnd, num_inst_frc
+  use seq_comm_mct    , only: num_inst_lnd, num_inst_frc, num_inst_ocn
   use seq_comm_mct    , only: CPLID, LNDID, logunit
-  use seq_comm_mct    , only: seq_comm_getData=>seq_comm_setptrs                               
-  use seq_infodata_mod, only: seq_infodata_type, seq_infodata_getdata  
+  use seq_comm_mct    , only: seq_comm_getData=>seq_comm_setptrs
+  use seq_infodata_mod, only: seq_infodata_type, seq_infodata_getdata
   use seq_map_type_mod 
   use seq_map_mod
   use seq_flds_mod
@@ -17,7 +17,7 @@ module prep_lnd_mod
   use mct_mod
   use perf_mod
   use component_type_mod, only: component_get_x2c_cx, component_get_c2x_cx
-  use component_type_mod, only: lnd, atm, rof, glc
+  use component_type_mod, only: lnd, atm, rof, glc, ocn
   use map_glc2lnd_mod   , only: map_glc2lnd_ec
 
   implicit none
@@ -44,6 +44,7 @@ module prep_lnd_mod
   public :: prep_lnd_get_mapper_Fr2l
   public :: prep_lnd_get_mapper_Sg2l
   public :: prep_lnd_get_mapper_Fg2l
+  public :: prep_lnd_get_mapper_Fo2l
 
   !--------------------------------------------------------------------------
   ! Private interfaces
@@ -62,6 +63,7 @@ module prep_lnd_mod
   type(seq_map), pointer :: mapper_Fr2l           ! needed in seq_frac_mct.F90
   type(seq_map), pointer :: mapper_Sg2l           ! currently unused (all g2l mappings use the flux mapper)
   type(seq_map), pointer :: mapper_Fg2l
+  type(seq_map), pointer :: mapper_Fo2l
 
   ! attribute vectors 
   type(mct_aVect), pointer :: a2x_lx(:) ! Atm export, lnd grid, cpl pes - allocated in driver
@@ -105,13 +107,16 @@ contains
     logical                  :: samegrid_al   ! samegrid atm and land
     logical                  :: samegrid_lr   ! samegrid land and rof
     logical                  :: samegrid_lg   ! samegrid land and glc
+    logical                  :: samegrid_lo   ! samegrid land and ocn
     logical                  :: esmf_map_flag ! .true. => use esmf for mapping
     logical                  :: lnd_present   ! .true. => land is present
+    logical                  :: ocn_present   ! .true. => ocean is present
     logical                  :: iamroot_CPLID ! .true. => CPLID masterproc
     character(CL)            :: atm_gnam      ! atm grid
     character(CL)            :: lnd_gnam      ! lnd grid
     character(CL)            :: rof_gnam      ! rof grid
     character(CL)            :: glc_gnam      ! glc grid
+    character(CL)            :: ocn_gnam      ! ocn grid
     type(mct_avect), pointer :: l2x_lx
     character(*), parameter  :: subname = '(prep_lnd_init)'
     character(*), parameter  :: F00 = "('"//subname//" : ', 4A )"
@@ -120,16 +125,19 @@ contains
     call seq_infodata_getData(infodata, &
          esmf_map_flag=esmf_map_flag,   &
          lnd_present=lnd_present,       &
+	 ocn_present=ocn_present,       &
          atm_gnam=atm_gnam,             &
          lnd_gnam=lnd_gnam,             &
          rof_gnam=rof_gnam,             &
-         glc_gnam=glc_gnam)
+         glc_gnam=glc_gnam,             &
+	 ocn_gnam=ocn_gnam)
 
     allocate(mapper_Sa2l)
     allocate(mapper_Fa2l)
     allocate(mapper_Fr2l)
     allocate(mapper_Sg2l)
     allocate(mapper_Fg2l)
+    allocate(mapper_Fo2l)
 
     if (lnd_present) then
        
@@ -155,12 +163,14 @@ contains
           call mct_aVect_zero(g2x_lx(egi))
        end do
 
-       samegrid_al = .true. 
+       samegrid_al = .true.
        samegrid_lr = .true.
        samegrid_lg = .true.
+       samegrid_lo = .true.
        if (trim(atm_gnam) /= trim(lnd_gnam)) samegrid_al = .false.
        if (trim(lnd_gnam) /= trim(rof_gnam)) samegrid_lr = .false.
        if (trim(lnd_gnam) /= trim(glc_gnam)) samegrid_lg = .false.
+       if (trim(lnd_gnam) /= trim(ocn_gnam)) samegrid_lo = .false.
        
        if (rof_c2_lnd) then
           if (iamroot_CPLID) then
@@ -209,6 +219,17 @@ contains
 
           call prep_lnd_set_glc2lnd_fields()
        endif
+       
+       if (ocn_present) then
+          if (iamroot_CPLID) then
+             write(logunit,*) ' '
+             write(logunit,F00) 'Initializing mapper_Fo2l'
+          end if
+	  call seq_map_init_rcfile(mapper_Fo2l, ocn(1), lnd(1), &
+               'seq_maps.rc','ocn2lnd_fmapname:','ocn2lnd_fmaptype:',samegrid_lo, &
+               'mapper_Fo2l initialization',esmf_map_flag)
+       end if
+       
        call shr_sys_flush(logunit)
 
     end if
@@ -396,6 +417,31 @@ contains
 
   !================================================================================================
 
+  subroutine prep_lnd_calc_o2x_lx(timer)
+    !---------------------------------------------------------------
+    ! Description
+    ! Create  o2x_lx (note that o2x_lx is a local module variable)
+    !
+    ! Arguments
+    character(len=*), intent(in) :: timer
+    !
+    ! Local Variables
+    integer :: eoi
+    type(mct_aVect), pointer :: o2x_ox
+    character(*), parameter  :: subname = '(prep_lnd_calc_o2x_lx)'
+    !---------------------------------------------------------------
+
+    call t_drvstartf (trim(timer),barrier=mpicom_CPLID)
+    do eai = 1,num_inst_ocn
+       o2x_ox => component_get_c2x_cx(ocn(eoi))
+       call seq_map_map(mapper_Fo2l, o2x_ox, o2x_lx(eoi), norm=.true.)
+    enddo
+    call t_drvstopf  (trim(timer))
+
+  end subroutine prep_lnd_calc_a2x_lx
+
+  !================================================================================================
+
   subroutine prep_lnd_calc_r2x_lx(timer)
     !---------------------------------------------------------------
     ! Description
@@ -504,5 +550,10 @@ contains
     type(seq_map), pointer :: prep_lnd_get_mapper_Fg2l
     prep_lnd_get_mapper_Fg2l => mapper_Fg2l  
   end function prep_lnd_get_mapper_Fg2l
+  
+  function prep_lnd_get_mapper_Fo2l()
+    type(seq_map), pointer :: prep_lnd_get_mapper_Fo2l
+    prep_lnd_get_mapper_Fo2l => mapper_Fo2l  
+  end function prep_lnd_get_mapper_Fo2l
   
 end module prep_lnd_mod
