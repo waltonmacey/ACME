@@ -46,9 +46,11 @@ begin
 
   g = 9.80616d0; Gravity (m s^2)
   heights = f->geo(0,:,0,0)/g
-  
+  print ("heights = "+heights+" eta="+lev)
+
 ;  level = (nlev-1) - closest_val(4900,heights(::-1))
-  level = (nlev-1) - closest_val(5100,heights(::-1))
+;  level = (nlev-1) - closest_val(5100,heights(::-1))
+  level = closest_val(0.56,lev)
 
   ; use level index from command line if specified
   if(isvar("l"))

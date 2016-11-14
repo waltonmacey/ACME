@@ -16,12 +16,12 @@ module netcdf_interp_mod
   use hybrid_mod,       only: hybrid_t,hybrid_create
   use hybvcoord_mod,    only: hvcoord_t
   use kinds,            only: real_kind
-  use nc_fields,        only: dim_names, nc_sfield_t, nc_vfield_t, dim_names,         &
-                              get_scalar_field, get_vector_field, get_vertical_levels,&
-                              v_interpolate, nc_vfields, nc_vars, n_dims, n_vars
+  use nc_fields,        only: dim_names,nc_sfield_t,nc_vfield_t,dim_names,get_scalar_field,&
+                              get_vector_field,nc_vfields,nc_vars,n_dims,n_vars
   use parallel_mod,     only: parallel_t, haltmp, syncmp
   use shr_const_mod,    only: shr_const_cday
   use time_mod,         only: timelevel_t,time_at
+  use vertical_se,      only: v_interpolate, L_interp
 
   use common_io_mod,    only: &
     max_output_streams, output_frequency, &
@@ -212,7 +212,7 @@ module netcdf_interp_mod
 
     allocate(lon(n_lon)); lon  = get_interp_lon()                       ! allocate and fill longitude array
     allocate(lat(n_lat)); lat  = get_interp_lat()                       ! allocate and fill latitiude array
-    allocate(lev(ni));    lev  = get_vertical_levels(ni)                ! allocate and fill level array
+    allocate(lev(ni));    lev  = L_interp                               ! allocate and fill level array
     allocate(hyam(ni));   hyam = v_interpolate(hvcoord%hyam,ni)         ! allocate and fill hybrid A array
     allocate(hybm(ni));   hybm = v_interpolate(hvcoord%hybm,ni)         ! allocate and fill hybrid B array
 

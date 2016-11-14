@@ -1613,17 +1613,12 @@ OMP_SIMD
 #if (defined COLUMN_OPENMP)
     !$omp parallel do private(k,q)
 #endif
-
-!print *,"max ustar =", maxval(abs( elem(ie)%derived%vn0(:,:,1,:) ))," max vstar =", maxval(abs( elem(ie)%derived%vn0(:,:,2,:) ))
-
     do k = 1 , nlev    !  Loop index added (AAM)
       ! derived variable divdp_proj() (DSS'd version of divdp) will only be correct on 2nd and 3rd stage
       ! but that's ok because rhs_multiplier=0 on the first stage:
       dp(:,:,k) = elem(ie)%derived%dp(:,:,k) - rhs_multiplier * dt * elem(ie)%derived%divdp_proj(:,:,k)
       Vstar(:,:,1,k) = elem(ie)%derived%vn0(:,:,1,k) / dp(:,:,k)
       Vstar(:,:,2,k) = elem(ie)%derived%vn0(:,:,2,k) / dp(:,:,k)
-
-
 
       if ( limiter_option == 8) then
         ! Note that the term dpdissk is independent of Q

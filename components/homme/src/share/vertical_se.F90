@@ -54,10 +54,12 @@ module vertical_se
   real(rl) :: eta_t, eta_b                                              ! position of bottom and top of the column
   real(rl) :: ds_deta, deta_ds												 								  ! metric terms for linear map
   real(rl) :: eta(nlev)                                                 ! array of all eta values in the column
-  integer  :: ipiv(npv)                                                ! pivot indices for integration
+  integer  :: ipiv(npv)                                                 ! pivot indices for integration
 
   type(velem_t), allocatable :: ev(:)                                   ! array of vertical element data structures
   real(rl) :: elem_height                                               ! height of vertical elements in s coords
+
+  real(rl), allocatable:: M_interp(:,:), L_interp(:)                    ! vertical interpolation matrix and levels
 
 	CONTAINS
 
@@ -631,6 +633,39 @@ module vertical_se
     L = L/D
 
   end function
+
+  !_____________________________________________________________________________
+  subroutine init_vertical_interp(levels, ni)
+
+    ! Get vertically interpolated levels
+
+    real(rl), intent(in) :: levels(ni)  ! vector of vertical interp coordinates
+    integer,  intent(in) :: ni          ! number of interpolated levels
+
+    ! allocate and store vertical interpolation matrix
+
+    if(.not. allocated(M_interp)) then
+
+      allocate(L_interp(ni))
+      allocate(M_interp(ni,nlev))
+
+      L_interp = levels
+      M_interp = vertical_interp_matrix(levels,ni)
+    endif
+
+  end subroutine
+
+  !_____________________________________________________________________________
+  function v_interpolate(f,ni) result(f_i)
+
+    real(rl), intent(in) :: f(nlev)
+    integer,  intent(in) :: ni
+    real(rl) :: f_i(ni)
+
+    f_i = matmul(M_interp,f)
+
+  end function
+
   !_____________________________________________________________________
   function vertical_interp_matrix(s, ni) result(M)
 

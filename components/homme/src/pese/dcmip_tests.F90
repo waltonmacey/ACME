@@ -3,7 +3,7 @@
 
 module dcmip_tests
 
-! Implementation of the dcmip2012 dycore tests for the preqx dynamics target
+! Implementation of the dcmip2012 dycore tests for the PESE dynamics target
 
 use control_mod,          only: test_case
 use dcmip2012_test1_2_3,  only: test1_advection_deformation, test1_advection_hadley, test1_advection_orography, &
@@ -15,7 +15,7 @@ use hybrid_mod,           only: hybrid_t
 use hybvcoord_mod,        only: hvcoord_t, set_layer_locations
 use kinds,                only: rl=>real_kind, iulog
 use parallel_mod,         only: abortmp
-
+use vertical_se,          only: init_vertical_interp
 implicit none
 
 ! physical constants used by dcmip2012 test 3.1
@@ -57,16 +57,16 @@ subroutine dcmip2012_test1_1(elem,hybrid,hvcoord,nets,nete,time,n0,n1)
 
   integer :: i,j,k,ie                                                   ! loop indices
   real(rl):: lon,lat                                                    ! pointwise coordiantes
-  real(rl):: p,z,phis,u,v,w,T,phis_ps,ps,rho,q(4),dp,eta_dot,dp_dn       ! pointwise field values
+  real(rl):: p,z,phis,u,v,w,T,phis_ps,ps,rho,q(4),dp,eta_dot,dp_dn      ! pointwise field values
+  real(rl):: etai(nlevp),etam(nlev)                                           ! vertical interpolation levels
 
-  ! set analytic vertical coordinates at t=0
+  ! set vertical interpolation coordinates
   if(.not. initialized) then
     if (hybrid%masterthread) write(iulog,*) 'initializing dcmip2012 test 1-1: 3d deformational flow'
     call get_evenly_spaced_z(zi,zm, 0.0_rl,ztop)                        ! get evenly spaced z levels
-    hvcoord%etai  = exp(-zi/H)                                          ! set eta levels from z
-    call set_hybrid_coefficients(hvcoord,hybrid, hvcoord%etai(1),1.0_rl)! set hybrid A and B from eta levels
-    call set_layer_locations(hvcoord, .true., hybrid%masterthread)
-    initialized = .true.
+    etai  = exp(-zi/H)                                                  ! set interpolated eta levels from z
+    etam  = 0.5_rl*(etai(1:nlev)+etai(2:nlevp))
+    call init_vertical_interp(etam,nlev)
   endif
 
   ! set prescribed state at level midpoints
@@ -127,16 +127,6 @@ subroutine dcmip2012_test1_2(elem,hybrid,hvcoord,nets,nete,time,n0,n1)
   real(rl):: lon,lat                                                    ! pointwise coordiantes
   real(rl):: p,z,phis,u,v,w,T,phis_ps,ps,rho,q(2),dp,eta_dot,dp_dn       ! pointwise field values
 
-  ! set analytic vertical coordinates at t=0
-  if(.not. initialized) then
-    if (hybrid%masterthread) write(iulog,*) 'initializing dcmip2012 test 1-2: Hadley-like Meridional Circulation'
-    call get_evenly_spaced_z(zi,zm, 0.0_rl,ztop)                        ! get evenly spaced z levels
-    hvcoord%etai  = exp(-zi/H)                                          ! set eta levels from z
-    call set_hybrid_coefficients(hvcoord,hybrid, hvcoord%etai(1),1.0_rl)! set hybrid A and B from eta levels
-    call set_layer_locations(hvcoord, .true., hybrid%masterthread)
-    initialized = .true.
-  endif
-
   ! set prescribed state at level midpoints
   do ie = nets,nete; do k=1,nlev; do j=1,np; do i=1,np
       lon  = elem(ie)%spherep(i,j)%lon; lat  = elem(ie)%spherep(i,j)%lat
@@ -196,16 +186,6 @@ subroutine dcmip2012_test1_3(elem,hybrid,hvcoord,nets,nete,time,n0,n1,deriv)
   real(rl):: lon,lat,hyam,hybm,hyai,hybi                                ! pointwise coordiantes
   real(rl):: p,z,phis,u,v,w,T,phis_ps,ps,rho,q(4),dp,gc                 ! pointwise field values
   real(rl):: grad_p(np,np,2),p_i(np,np),u_i(np,np),v_i(np,np)
-
-  ! set analytic vertical coordinates at t=0
-  if(.not. initialized) then
-    if (hybrid%masterthread) write(iulog,*) 'initializing dcmip2012 test 1-3: Advection of thin clouds over orography'
-    call get_evenly_spaced_z(zi,zm, 0.0_rl,ztop)                        ! get evenly spaced z levels
-    hvcoord%etai  = exp(-zi/H)                                          ! set eta levels from z
-    call set_hybrid_coefficients(hvcoord,hybrid, hvcoord%etai(1),1.0_rl)! set hybrid A and B from eta levels
-    call set_layer_locations(hvcoord, .true., hybrid%masterthread)
-    initialized = .true.
-  endif
 
   ! set prescribed state at level midpoints
   do ie = nets,nete; do k=1,nlev; do j=1,np; do i=1,np

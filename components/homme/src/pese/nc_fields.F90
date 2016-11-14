@@ -14,7 +14,7 @@ module nc_fields
   use kinds,          only: rl => real_kind
   use pio_io_mod,     only: pio_double
   use shr_const_mod,  only: unset => shr_const_spval
-  use vertical_se,    only: evenly_spaced_eta_coords, vertical_interp_matrix
+  use vertical_se,    only: v_interpolate
 
   implicit none
 
@@ -42,8 +42,6 @@ module nc_fields
     integer         :: n_comp             ! number of components
     character*(4)   :: short_name(2)      ! name of each component
   endtype
-
-  real(rl), allocatable:: s_interp(:), M_interp(:,:)
 
   !_____________________________________________________________________
   !  possible output variables
@@ -192,35 +190,4 @@ contains
 
   end function
 
-  !_____________________________________________________________________________
-  function v_interpolate(f,ni) result(f_i)
-
-    real(rl), intent(in) :: f(nlev)
-    integer,  intent(in) :: ni
-    real(rl) :: f_i(ni)
-    f_i = matmul(M_interp,f)
-
-  end function
-
-  
-  !_____________________________________________________________________________
-  function get_vertical_levels(ni) result(levels)
-
-    ! Get vertically interpolated levels
-
-    integer, intent(in) :: ni   ! number of interpolated levels
-    real(rl) :: levels(ni)
-
-    ! allocate vertical interpolation points and interpolation matrix
-
-    if(.not. allocated(s_interp)) then
-      allocate(s_interp(ni))
-      allocate(M_interp(ni,nlev))
-      s_interp = evenly_spaced_eta_coords(ni)
-      M_interp = vertical_interp_matrix(s_interp,ni)
-    endif
-
-    levels = s_interp
-
-  end function
-end module nc_fields
+  end module nc_fields
