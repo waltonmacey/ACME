@@ -113,7 +113,7 @@ contains
 
     real(rl) :: sfield(np,np,ni)
     real(rl) :: var(np,np,nlev),var2d(np,np)
-    integer i,j,qi
+    integer i,j,k,qi
 
     if(ni==1) then
 
@@ -135,6 +135,9 @@ contains
         case('u'  ); var = element%state%v(:,:,1,:,n0)
         case('v'  ); var = element%state%v(:,:,2,:,n0)
         case('p'  ); var = element%state%dp3d(:,:,:,n0)
+        case('ps' ); forall(k=1:ni) var(:,:,k) = element%state%ps_v(:,:,n0)
+
+
         case('Q'  ); var = element%state%Q(:,:,:,1)
         case('Q2' ); qi=2; if(qsize_d>1) var = element%state%Q(:,:,:,qi)
         case('Q3' ); qi=3; if(qsize_d>2) var = element%state%Q(:,:,:,qi)

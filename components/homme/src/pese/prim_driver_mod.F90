@@ -17,18 +17,18 @@ module prim_driver_mod
     prim_run,&
     prim_run_subcycle_diags
 
-  use control_mod,        only: statefreq, energy_fixer, ftype, qsplit, rsplit, test_cfldep, disable_diagnostics
+  use control_mod,        only: energy_fixer, statefreq, ftype, qsplit, rsplit
   use dimensions_mod,     only: np, nlev, nlevp, nelem, nelemd, qsize, nc, ntrac
-  use element_mod,        only: element_t, timelevels,  allocate_element_desc
+  use element_mod,        only: element_t, timelevels, allocate_element_desc
   use fvm_control_volume_mod, only: n0_fvm, fvm_struct
   use hybrid_mod,         only: hybrid_t
   use hybvcoord_mod,      only: hvcoord_t
   use kinds,              only: real_kind, iulog
   use parallel_mod,       only: abortmp
   use perf_mod,           only: t_startf, t_stopf
-  use prim_advance_mod,   only: applycamforcing, applycamforcing_dynamics, compute_and_apply_rhs  
+  use prim_advance_mod,   only: compute_and_apply_rhs
+  use prim_advection_mod, only: advect_tracers
   use prim_state_mod,     only: prim_printstate, prim_diag_scalars, prim_energy_halftimes
-  use reduction_mod,      only: parallelmax
   use test_mod,           only: apply_test_forcing
   use time_mod,           only: timeLevel_t, timelevel_update, timelevel_qdp, nsplit
 
@@ -79,9 +79,6 @@ subroutine prim_run_subcycle(elem,fvm,hybrid,nets,nete,dt,tl,hvcoord,nsubstep)
        call prim_step(elem, fvm, hybrid,nets,nete, dt, tl, hvcoord,.false.,r)
     enddo
 
-    ! update diagnostic variables
-    call prim_run_subcycle_diags(elem,hvcoord,tl,nets,nete)
-
     ! apply energy fixer, if active
     if (compute_diagnostics)  call prim_diag_scalars    (elem,hvcoord,tl,2,.false.,nets,nete)
     if (compute_energy)       call prim_energy_halftimes(elem,hvcoord,tl,2,.false.,nets,nete)
@@ -112,8 +109,6 @@ subroutine prim_step(elem, fvm, hybrid,nets,nete,dt,tl,hvcoord,compute_diagnosti
     use parallel_mod,       only: abortmp
     use prim_advance_mod,   only: prim_advance_exp, overwrite_SEdensity
     use prim_advection_mod, only: prim_advec_tracers_fvm, prim_advec_tracers_remap, deriv
-    use reduction_mod,      only: parallelmax
-    use time_mod,           only: time_at,TimeLevel_t, timelevel_update, nsplit
 
     type(element_t),      intent(inout) :: elem(:)
     type(fvm_struct),     intent(inout) :: fvm(:)
@@ -138,14 +133,15 @@ real (kind=real_kind) ::  eta_ave_w
     real (kind=real_kind) ::  tempflux(nc,nc,4)
     real (kind=real_kind) :: dp_np1(np,np)
 
-    ! Clear derived quantities
+    ! clear derived quantities
 
     call t_startf("prim_step_init")
     dt_q = dt*qsplit
+
     do ie=nets,nete
-      elem(ie)%derived%eta_dot_dpdn = 0         ! mean vertical mass flux
-      elem(ie)%derived%vn0                  = 0 ! mean horizontal mass flux
-      elem(ie)%derived%omega_p              = 0
+      !elem(ie)%derived%eta_dot_dpdn = 0         ! mean vertical mass flux
+      !elem(ie)%derived%vn0                  = 0 ! mean horizontal mass flux
+      !elem(ie)%derived%omega_p              = 0
       if (nu_p>0) then
          elem(ie)%derived%dpdiss_ave        = 0
          elem(ie)%derived%dpdiss_biharmonic = 0
@@ -153,30 +149,14 @@ real (kind=real_kind) ::  eta_ave_w
     enddo
     call t_stopf("prim_step_init")
 
-    ! Take qsplit dynamics steps
+    ! take qsplit dynamics steps, followed by one tracer step
+    do n=1,qsplit
+      call prim_advance_exp(elem, deriv(hybrid%ithr), hvcoord, hybrid, dt, tl, nets, nete, compute_diagnostics)
+      if(n<qsplit) call TimeLevel_update(tl,"leapfrog")
+    enddo
 
-    call t_startf("prim_step_dyn")
-    n_Q = tl%n0  ! n_Q = timelevel of FV tracers at time t. 
-
-    qn0=n_Q
-    nm1   = tl%nm1
-    n0    = tl%n0
-    np1   = tl%np1
-    nstep = tl%nstep
-    eta_ave_w = 1.0d0
-
-    call t_startf("RK3_timestep")
-       call compute_and_apply_rhs(np1,n0,n0,qn0,dt/3,elem,hvcoord,hybrid,deriv(hybrid%ithr),nets,nete,compute_diagnostics,0d0)
-       ! u2 = u0 + dt/2 RHS(u1)
-       call compute_and_apply_rhs(np1,n0,np1,qn0,dt/2,elem,hvcoord,hybrid,deriv(hybrid%ithr),nets,nete,.false.,0d0)
-       ! u3 = u0 + dt RHS(u2)
-       call compute_and_apply_rhs(np1,n0,np1,qn0,dt,elem,hvcoord,hybrid,deriv(hybrid%ithr),nets,nete,.false.,eta_ave_w)
-       call t_stopf("RK3_timestep")
-    !call compute_and_apply_rhs(np1,nm1,n0,n_Q,dt,elem,hvcoord,hybrid, deriv(hybrid%ithr),nets,nete,compute_diagnostics,eta_ave_w)
-    !call prim_advance_exp(elem, deriv(hybrid%ithr), hvcoord, hybrid, dt, tl, nets, nete, compute_diagnostics)
-    call t_stopf("prim_step_dyn")
-
-    ! Advect tracers
+    ! take one tracer timestep
+    if (qsize > 0) call advect_tracers(elem, hybrid, nets, nete, hvcoord, dt_q, tl)
 
   end subroutine prim_step
 

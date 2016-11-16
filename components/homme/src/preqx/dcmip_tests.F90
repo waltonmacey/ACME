@@ -1,4 +1,6 @@
-#ifndef CAM
+!
+! DCMIP Tests for the preqx Target
+!_______________________________________________________________________#ifndef CAM
 #include "config.h"
 
 module dcmip_tests

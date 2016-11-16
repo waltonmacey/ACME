@@ -1,3 +1,6 @@
+!
+! DCMIP Tests for the PESE Target
+!_______________________________________________________________________
 #ifndef CAM
 #include "config.h"
 
@@ -15,7 +18,7 @@ use hybrid_mod,           only: hybrid_t
 use hybvcoord_mod,        only: hvcoord_t, set_layer_locations
 use kinds,                only: rl=>real_kind, iulog
 use parallel_mod,         only: abortmp
-use vertical_se,          only: init_vertical_interp
+use vertical_se,          only: init_vertical_interp, ddn_hyai,ddn_hybi
 implicit none
 
 ! physical constants used by dcmip2012 test 3.1
@@ -30,7 +33,6 @@ real(rl), parameter ::              &
 
 real(rl), dimension(:,:,:,:), allocatable :: u0, v0                     ! storage for dcmip2-x sponge layer
 real(rl):: zi(nlevp), zm(nlev)                                          ! z coordinates
-real(rl):: ddn_hyai(nlevp), ddn_hybi(nlevp)                             ! vertical derivativess of hybrid coefficients
 
 contains
 
@@ -62,6 +64,7 @@ subroutine dcmip2012_test1_1(elem,hybrid,hvcoord,nets,nete,time,n0,n1)
 
   ! set vertical interpolation coordinates
   if(.not. initialized) then
+    initialized = .true.
     if (hybrid%masterthread) write(iulog,*) 'initializing dcmip2012 test 1-1: 3d deformational flow'
     call get_evenly_spaced_z(zi,zm, 0.0_rl,ztop)                        ! get evenly spaced z levels
     etai  = exp(-zi/H)                                                  ! set interpolated eta levels from z
@@ -78,7 +81,9 @@ subroutine dcmip2012_test1_1(elem,hybrid,hvcoord,nets,nete,time,n0,n1)
 
       dp = pressure_thickness(ps,k,hvcoord)
       call set_state(u,v,T,ps,phis,dp,zm(k), i,j,k,elem(ie),n0,n1)
-      if(time==0) call set_tracers(q,qsize,dp,i,j,k,lat,lon,elem(ie))
+      if(time==0) then
+        call set_tracers(q,qsize,dp,i,j,k,lat,lon,elem(ie))
+      endif
 
   enddo; enddo; enddo; enddo
 
@@ -125,7 +130,18 @@ subroutine dcmip2012_test1_2(elem,hybrid,hvcoord,nets,nete,time,n0,n1)
 
   integer :: i,j,k,ie                                                   ! loop indices
   real(rl):: lon,lat                                                    ! pointwise coordiantes
-  real(rl):: p,z,phis,u,v,w,T,phis_ps,ps,rho,q(2),dp,eta_dot,dp_dn       ! pointwise field values
+  real(rl):: p,z,phis,u,v,w,T,phis_ps,ps,rho,q(2),dp,eta_dot,dp_dn      ! pointwise field values
+  real(rl):: etai(nlevp),etam(nlev)                                     ! vertical interpolation levels
+
+  ! set vertical interpolation coordinates
+  if(.not. initialized) then
+    initialized = .true.
+    if (hybrid%masterthread) write(iulog,*) 'initializing dcmip2012 test 1-2: Hadley-like Meridional Circulation'
+    call get_evenly_spaced_z(zi,zm, 0.0_rl,ztop)                        ! get evenly spaced z levels
+    etai  = exp(-zi/H)                                                  ! set interpolated eta levels from z
+    etam  = 0.5_rl*(etai(1:nlev)+etai(2:nlevp))
+    call init_vertical_interp(etam,nlev)
+  endif
 
   ! set prescribed state at level midpoints
   do ie = nets,nete; do k=1,nlev; do j=1,np; do i=1,np
@@ -186,6 +202,17 @@ subroutine dcmip2012_test1_3(elem,hybrid,hvcoord,nets,nete,time,n0,n1,deriv)
   real(rl):: lon,lat,hyam,hybm,hyai,hybi                                ! pointwise coordiantes
   real(rl):: p,z,phis,u,v,w,T,phis_ps,ps,rho,q(4),dp,gc                 ! pointwise field values
   real(rl):: grad_p(np,np,2),p_i(np,np),u_i(np,np),v_i(np,np)
+  real(rl):: etai(nlevp),etam(nlev)                                     ! vertical interpolation levels
+
+  ! set vertical interpolation coordinates
+  if(.not. initialized) then
+    initialized = .true.
+    if (hybrid%masterthread) write(iulog,*) 'initializing dcmip2012 test 1-1: 3d deformational flow'
+    call get_evenly_spaced_z(zi,zm, 0.0_rl,ztop)                        ! get evenly spaced z levels
+    etai  = exp(-zi/H)                                                  ! set interpolated eta levels from z
+    etam  = 0.5_rl*(etai(1:nlev)+etai(2:nlevp))
+    call init_vertical_interp(etam,nlev)
+  endif
 
   ! set prescribed state at level midpoints
   do ie = nets,nete; do k=1,nlev; do j=1,np; do i=1,np

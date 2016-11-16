@@ -54,6 +54,9 @@ module vertical_se
   real(rl) :: eta_t, eta_b                                              ! position of bottom and top of the column
   real(rl) :: ds_deta, deta_ds												 								  ! metric terms for linear map
   real(rl) :: eta(nlev)                                                 ! array of all eta values in the column
+  real(rl) :: ddn_hyam(nlev),  ddn_hybm(nlev)                           ! vertical derivatives of hybrid coefficients
+  real(rl) :: ddn_hyai(nlevp), ddn_hybi(nlevp)                          ! vertical derivatives of hybrid coefficients
+
   integer  :: ipiv(npv)                                                 ! pivot indices for integration
 
   type(velem_t), allocatable :: ev(:)                                   ! array of vertical element data structures
@@ -981,6 +984,12 @@ call vertical_dss(f)
     hvcoord%hyam  = hvcoord%hyai(2:nlev+1)
     hvcoord%hybm  = hvcoord%hybi(2:nlev+1)
     call set_layer_locations(hvcoord, .true., hybrid%masterthread)
+
+    ! compute vertical derivatives of hybrid coefficients 
+    ddn_hyam = eta_derivative_1d(hvcoord%hyam)
+    ddn_hybm = eta_derivative_1d(hvcoord%hybm)
+    ddn_hyai(2:nlevp) = ddn_hyam; ddn_hyai(1)=0
+    ddn_hybi(2:nlevp) = ddn_hybm; ddn_hybi(1)=0
 
     call test_vertical_operators(hybrid)
 

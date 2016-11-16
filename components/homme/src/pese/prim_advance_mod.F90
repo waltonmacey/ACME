@@ -13,25 +13,28 @@ module prim_advance_mod
     edge_buffer,              &
     overwrite_SEdensity,      &
     preq_robert3,             &
-    prim_advance_exp,         &
     prim_advance_init,        &
     prim_advance_si,          &
     smooth_phis
 
   use bndry_mod,			 only: bndry_exchangev
+  use control_mod,     only: qsplit, prescribed_wind
   use derivative_mod,  only: derivative_t,  divergence_sphere, gradient_sphere
+  use diffusion_mod,   only: prim_diffusion
   use dimensions_mod,  only: np, nlev, nlevp
   use edge_mod,				 only: initEdgeBuffer
   use edgetype_mod,    only: edgebuffer_t
   use element_mod,		 only: element_t, elem_state_t, derived_state_t
+  use elem_state_ops,  only: pack_edge_data, unpack_edge_data, apply_map, apply_vertical_dss, display_max_and_min
   use hybrid_mod,			 only: hybrid_t
   use hybvcoord_mod,	 only: hvcoord_t
 	use kinds,					 only: rl => real_kind
-  use elem_state_ops,  only: pack_edge_data, unpack_edge_data, apply_map, apply_vertical_dss, display_max_and_min
   use physical_constants, only : cp, cpwater_vapor, Rgas, kappa, p0, g
-  use vertical_se,     only: npv, solver_args, pack_solver_args, eta_derivative, advection2, self_advection2, eta_integral_from_n,  &
-                             eta_integral_from_1, make_vertical_mesh
-  implicit none
+  use test_mod,        only: set_test_prescribed_wind
+  use time_mod,        only: timeLevel_t, timelevel_update, timelevel_qdp, nsplit
+  use vertical_se,     only: npv, solver_args, pack_solver_args, eta_derivative, advection2,&
+                             self_advection2, eta_integral_from_n,eta_integral_from_1, make_vertical_mesh
+   implicit none
 
   integer,parameter :: n_rhs    = 1 + 3*nlev  ! ps + T + u + v          ! num levels in rhs and edge-buffer
   logical,parameter :: verbose  = .false.                               ! verbose output flag
@@ -56,6 +59,47 @@ contains
     call make_vertical_mesh(hybrid, hvcoord)
 
 	end subroutine
+
+  !_____________________________________________________________________
+  subroutine prim_advance_exp(elem,deriv,hvcoord,hybrid,dt,tl,nets,nete,compute_diagnostics)
+
+
+    type (element_t),   intent(inout), target :: elem(:)
+    type (derivative_t),intent(in)            :: deriv
+    type (hvcoord_t)                          :: hvcoord
+    type (hybrid_t),    intent(in)            :: hybrid
+    real (rl),          intent(in)            :: dt
+    type (TimeLevel_t), intent(in)            :: tl
+    integer,            intent(in)            :: nets, nete
+    logical,            intent(in)            :: compute_diagnostics
+
+    integer :: ie, t, q,k,i,j,n, qn0
+    integer :: nm1,n0,np1,nstep
+    real (rl) ::  eta_ave_w
+
+    qn0   = 1
+
+    nm1   = tl%nm1
+    n0    = tl%n0
+    np1   = tl%np1
+
+    nstep = tl%nstep
+    eta_ave_w = 1d0/qsplit  ! set q subcycle time averaging weight
+
+    ! if test uses prescribed wind, set dynamic variables analytically and return
+    if (prescribed_wind ==1 ) then
+      call set_test_prescribed_wind(elem,deriv,hybrid,hvcoord,dt,tl,nets,nete)
+      return
+    endif
+
+    ! integrate dynamics in time using and explicit Runge-Kutta scheme
+    call compute_and_apply_rhs(np1,n0,n0,qn0,dt/3,elem,hvcoord,hybrid,deriv,nets,nete,compute_diagnostics,0d0)
+    ! u2 = u0 + dt/2 RHS(u1)
+    call compute_and_apply_rhs(np1,n0,np1,qn0,dt/2,elem,hvcoord,hybrid,deriv,nets,nete,.false.,0d0)
+    ! u3 = u0 + dt RHS(u2)
+    call compute_and_apply_rhs(np1,n0,np1,qn0,dt,elem,hvcoord,hybrid,deriv,nets,nete,.false.,eta_ave_w)
+
+  end subroutine
 
 	!_____________________________________________________________________
   subroutine compute_and_apply_rhs(np1,nm1,n0,qn0,dt2,elem,hvcoord,hybrid,deriv,nets,nete,compute_diagnostics,eta_ave_w)

@@ -4,8 +4,7 @@
 
 !#define _DBG_ print *,"File:",__FILE__," at ",__LINE__
 !#define _DBG_ !DBG
-!
-!
+
 module prim_advance_base
 
   use control_mod,    only: qsplit,rsplit
