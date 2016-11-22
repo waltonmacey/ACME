@@ -1052,7 +1052,7 @@ contains
                  vtens(i,j,2,k,ie)=spheremp(i,j)*vtens(i,j,2,k,ie)
                  Afdv1=0.d0
                  Afdv2=0.d0
-                 Afds=1.d0
+                 Afds=.9d0
                  call bracket(fcor(i,j),zeta(i,j),grade(i,j,1),grade(i,j,2),div(i,j),&
                  ulatlon(i,j,1),ulatlon(i,j,2),Afdv1,Afdv2,Afds,ptens(i,j,k,ie))
                  ptens(i,j,k,ie)=spheremp(i,j)*ptens(i,j,k,ie)
