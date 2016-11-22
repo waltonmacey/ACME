@@ -1036,7 +1036,6 @@ contains
               end do
            enddo
         else if (brackint==2) then
-	     print *, 'Im still here'
            do j=1,np
               do i=1,np
                  Afdv1=1.0d0
@@ -1046,7 +1045,7 @@ contains
                  ulatlon(i,j,1),ulatlon(i,j,2),Afdv1,Afdv2,Afds,vtens(i,j,1,k,ie))
                  vtens(i,j,1,k,ie)=spheremp(i,j)*vtens(i,j,1,k,ie)
                  Afdv1=0.d0
-                 Afdv2=.9d0
+                 Afdv2=1.0d0
                  Afds=0.d0
                  call bracket(fcor(i,j),zeta(i,j),grade(i,j,1),grade(i,j,2),&
                  div(i,j),ulatlon(i,j,1),ulatlon(i,j,2),Afdv1,Afdv2,Afds,vtens(i,j,2,k,ie))
