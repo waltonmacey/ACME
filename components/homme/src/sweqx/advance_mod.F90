@@ -1025,7 +1025,7 @@ contains
         ! ==============================================
         ! Compute velocity tendency terms
         ! ==============================================
-	brackint=1
+	brackint=2
         if (brackint==1) then
            do j=1,np
               do i=1,np
