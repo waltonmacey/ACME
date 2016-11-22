@@ -964,12 +964,12 @@ contains
 
   type (hybrid_t)      , intent(in) :: hybrid
   type (element_t)     , intent(inout), target :: elem(:)
-  integer :: nm1,np1,n0,nets,nete
+  integer :: nm1,np1,n0,nets,nete,brackint
   real (kind=real_kind), dimension(np,np,2,nlev,nets:nete)  :: vtens
   real (kind=real_kind), dimension(np,np,nlev,nets:nete) :: ptens
   type (EdgeBuffer_t)  , intent(inout) :: edge3
   type (derivative_t)  , intent(in) :: deriv
-  real (kind=real_kind) :: dt2,pmean,real_time
+  real (kind=real_kind) :: dt2,pmean,real_time,Afdv1,Afdv2,Afds,s
 
   ! local
   ! pointer ...
@@ -1007,6 +1007,7 @@ contains
               
               v1     = elem(ie)%state%v(i,j,1,k,n0)   ! contra
               v2     = elem(ie)%state%v(i,j,2,k,n0)   ! contra 
+	      s      = elem(ie)%state%p(i,j,k,n0)
               ulatlon(i,j,1)=elem(ie)%D(i,j,1,1)*v1 + elem(ie)%D(i,j,1,2)*v2   ! contra->latlon
               ulatlon(i,j,2)=elem(ie)%D(i,j,2,1)*v1 + elem(ie)%D(i,j,2,2)*v2   ! contra->latlon
               
@@ -1024,14 +1025,45 @@ contains
         ! ==============================================
         ! Compute velocity tendency terms
         ! ==============================================
-        do j=1,np
-           do i=1,np
+	brackint=1
+        if (brackint==1) then
+           do j=1,np
+              do i=1,np
               ! accumulate strong form terms, apply mass matrix
-              vtens(i,j,1,k,ie)=spheremp(i,j)*(ulatlon(i,j,2)*(fcor(i,j) + zeta(i,j))  - grade(i,j,1))
-              vtens(i,j,2,k,ie)=spheremp(i,j)*(-ulatlon(i,j,1)*(fcor(i,j) + zeta(i,j)) - grade(i,j,2))
-              ptens(i,j,k,ie) =  -spheremp(i,j)*div(i,j)
+                 vtens(i,j,1,k,ie)=spheremp(i,j)*(ulatlon(i,j,2)*(fcor(i,j) + zeta(i,j))  - grade(i,j,1))
+                 vtens(i,j,2,k,ie)=spheremp(i,j)*(-ulatlon(i,j,1)*(fcor(i,j) + zeta(i,j)) - grade(i,j,2))
+                 ptens(i,j,k,ie) =  -spheremp(i,j)*div(i,j)
+              end do
+           enddo
+        else if (brackint==2) then
+           do j=1,np
+              do i=1,np
+                 Afdv1=1.0d0
+                 Afdv2=0.d0
+                 Afds=0.d0
+                 call bracket(fcor(i,j),zeta(i,j),grade(i,j,1),grade(i,j,2),div(i,j),&
+                 ulatlon(i,j,1),ulatlon(i,j,2),Afdv1,Afdv2,Afds,vtens(i,j,1,k,ie))
+                 vtens(i,j,1,k,ie)=spheremp(i,j)*vtens(i,j,1,k,ie)
+                 Afdv1=0.d0
+                 Afdv2=1.d0
+                 Afds=0.d0
+                 call bracket(fcor(i,j),zeta(i,j),grade(i,j,1),grade(i,j,2),&
+                 div(i,j),ulatlon(i,j,1),ulatlon(i,j,2),Afdv1,Afdv2,Afds,vtens(i,j,2,k,ie))
+                 vtens(i,j,2,k,ie)=spheremp(i,j)*vtens(i,j,2,k,ie)
+                 Afdv1=0.d0
+                 Afdv2=0.d0
+                 Afds=1.d0
+                 call bracket(fcor(i,j),zeta(i,j),grade(i,j,1),grade(i,j,2),div(i,j),&
+                 ulatlon(i,j,1),ulatlon(i,j,2),Afdv1,Afdv2,Afds,ptens(i,j,k,ie))
+                 ptens(i,j,k,ie)=spheremp(i,j)*ptens(i,j,k,ie)
+              end do
            end do
-        end do
+        else
+           vtens(i,j,1,k,ie)=spheremp(i,j)*0.d0
+           vtens(i,j,2,k,ie)=spheremp(i,j)*0.d0
+           ptens(i,j,k,ie)=spheremp(i,j)*0.d0
+           print *, vtens(i,j,1,k,ie), vtens(i,j,2,k,ie), ptens(i,j,k,ie)
+        end if        
      end do
      
      ! ===================================================
@@ -1381,5 +1413,20 @@ subroutine swsys_flux(numeqn,elem,deriv,fjmax,si,si_neighbor,uvcontra,fluxout)
 
  end subroutine  swsys_flux 
 !=======================================================================================================! 
+
+ subroutine bracket(fcor,zeta,grade1,grade2,div,u1,u2,Afdv1,Afdv2,Afds,u)
+ !
+ ! Subroutine bracket computes returns the integrand in \{u,H\} for use in the subroutine
+ ! compute_and_apply_rhs
+ !
+ ! Inputs: fcor,zeta,grade1,grade2,div,u1,u2,Afdv1,Afdv2,Afds,u
+ !
+ ! Afd* = functional derivative of f with respect to *
+ !
+   real (kind=real_kind) fcor,zeta,grade1,grade2,div,u1,u2,Afdv1, Afdv2, Afds, u
+
+   u=(fcor+zeta)*(u2*Afdv1-u1*Afdv2)-Afdv1*grade1-Afdv2*grade2-Afds*div
+
+ end subroutine bracket
 
 end module advance_mod
