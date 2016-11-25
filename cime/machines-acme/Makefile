@@ -424,10 +424,10 @@ ifeq ($(MODEL),cam)
    # These RRTMG files take an extraordinarily long time to compile with optimization.
    # Until mods are made to read the data from files, just remove optimization from
    # their compilation.
-rrtmg_lw_k_g.o: rrtmg_lw_k_g.f90
-	$(FC) -c $(FPPFLAGS) $(INCLDIR) $(INCS) $(FREEFLAGS) $(FFLAGS_NOOPT) $<
-rrtmg_sw_k_g.o: rrtmg_sw_k_g.f90
-	$(FC) -c $(FPPFLAGS) $(INCLDIR) $(INCS) $(FREEFLAGS) $(FFLAGS_NOOPT) $<
+#ndk rrtmg_lw_k_g.o: rrtmg_lw_k_g.f90
+#ndk	$(FC) -c $(FPPFLAGS) $(INCLDIR) $(INCS) $(FREEFLAGS) $(FFLAGS_NOOPT) $<
+#ndk rrtmg_sw_k_g.o: rrtmg_sw_k_g.f90
+#ndk	$(FC) -c $(FPPFLAGS) $(INCLDIR) $(INCS) $(FREEFLAGS) $(FFLAGS_NOOPT) $<
 
 
 ifdef COSP_LIBDIR
