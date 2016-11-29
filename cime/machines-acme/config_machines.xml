@@ -142,7 +142,7 @@
 
 <machine MACH="cori-haswell">
     <DESC>NERSC XC40 Haswell, os is CNL, 32 pes/node, batch system is SLURM</DESC>
-    <NODENAME_REGEX>cori</NODENAME_REGEX>
+    <NODENAME_REGEX>cori-trick-to-use-knl-below</NODENAME_REGEX>
     <TESTS>acme_developer</TESTS>
     <COMPILERS>intel,gnu,cray</COMPILERS>
     <MPILIBS>mpt,mpi-serial</MPILIBS>
@@ -173,9 +173,9 @@
 	<queue walltimemax="00:30:00" jobmin="1" jobmax="4096">debug</queue>
       </queues>
       <walltimes>
-        <walltime default="true">01:15:00</walltime>
+        <walltime default="true">00:30:00</walltime>
         <walltime ccsm_estcost="1">01:50:00</walltime>
-        <walltime ccsm_estcost="3">05:00:00</walltime>
+        <walltime ccsm_estcost="3">02:00:00</walltime>
       </walltimes>
     </batch_system>
     <mpirun mpilib="default">
@@ -222,8 +222,8 @@
       </queues>
       <walltimes>
         <walltime default="true">01:15:00</walltime>
-        <walltime ccsm_estcost="1">01:50:00</walltime>
-        <walltime ccsm_estcost="3">05:00:00</walltime>
+        <walltime ccsm_estcost="1">00:30:00</walltime>
+        <walltime ccsm_estcost="3">01:50:00</walltime>
       </walltimes>
     </batch_system>
     <mpirun mpilib="default">
