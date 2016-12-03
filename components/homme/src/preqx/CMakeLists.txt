@@ -72,7 +72,7 @@ SET(PREQX_SRCS_F90
   ${SRC_SHARE_DIR}/kinds.F90
   ${SRC_SHARE_DIR}/linear_algebra_mod.F90 
   ${SRC_SHARE_DIR}/ll_mod.F90
-  ${SRC_SHARE_DIR}/manager.F90
+  ${SRC_SHARE_DIR}/Manager.F90
   ${SRC_SHARE_DIR}/mass_matrix_mod.F90 
   ${SRC_SHARE_DIR}/mesh_mod.F90
   ${SRC_SHARE_DIR}/metagraph_mod.F90

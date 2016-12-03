@@ -15,7 +15,8 @@ module prim_driver_mod
     prim_init2 ,&
     prim_finalize,&
     prim_run,&
-    prim_run_subcycle_diags
+    prim_run_subcycle_diags, &
+    smooth_topo_datasets
 
   use control_mod,        only: energy_fixer, statefreq, ftype, qsplit, rsplit
   use dimensions_mod,     only: np, nlev, nlevp, nelem, nelemd, qsize, nc, ntrac
@@ -29,7 +30,6 @@ module prim_driver_mod
   use prim_advance_mod,   only: compute_and_apply_rhs
   use prim_advection_mod, only: advect_tracers
   use prim_state_mod,     only: prim_printstate, prim_diag_scalars, prim_energy_halftimes
-  use test_mod,           only: apply_test_forcing
   use time_mod,           only: timeLevel_t, timelevel_update, timelevel_qdp, nsplit
 
   implicit none

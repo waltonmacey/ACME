@@ -1,8 +1,9 @@
 !
 ! Vertical spectral-element operators for PESE and NHSE dynamics
 !_______________________________________________________________________
-
+#ifdef HAVE_CONFIG_H
 #include "config.h"
+#endif
 
 module vertical_se
 

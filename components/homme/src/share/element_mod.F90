@@ -14,8 +14,6 @@ module element_mod
   implicit none
   public
 
-#ifdef _PRIM
-
   public :: setup_element_pointers
 
   real (kind=real_kind), allocatable, target, public :: state_Qdp         (:,:,:,:,:,:)! (np,np,nlev,qsize_d,2,nelemd)
@@ -91,26 +89,6 @@ module element_mod
     real (kind=real_kind) :: Q1mass(np,np,qsize_d)                    ! Q mass at full time levels
 
   end type elem_accum_t
-
-#else
-! ================== SHALLOW-WATER DATA-STRUCTURES ===================
-
-  type, public :: elem_state_t
-
-    ! prognostic variables for shallow-water solver
-     real (kind=real_kind) :: p(np,np,nlev,timelevels)
-     real (kind=real_kind) :: ps(np,np)                               ! surface geopotential
-     real (kind=real_kind) :: gradps(np,np,2)                         ! gradient of surface geopotential
-     real (kind=real_kind) :: v(np,np,2,nlev,timelevels)              ! contravarient comp
-
-  end type elem_state_t
-
-  !___________________________________________________________________
-  type, public :: derived_state_t
-     real (kind=real_kind) :: vstar(np,np,2,nlev)                     ! velocity on Lagrangian surfaces
-  end type derived_state_t
-
-#endif
 
 ! ============= DATA-STRUCTURES COMMON TO ALL SOLVERS ================
 

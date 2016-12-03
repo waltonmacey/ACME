@@ -10,7 +10,8 @@ module prim_driver_mod
     prim_init2 ,&
     prim_finalize,&
     prim_run, &
-    prim_run_subcycle
+    prim_run_subcycle, &
+    smooth_topo_datasets
 
   implicit none
   contains

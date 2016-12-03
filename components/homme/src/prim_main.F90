@@ -210,7 +210,7 @@ program prim_main
 #elif defined PIO_INTERP
      call interp_movie_output(elem, tl, par, 0d0,fvm=fvm, hvcoord=hvcoord)
 #else
-    call prim_movie_output(elem, tl, hvcoord, hybrid, 1,nelemd, fvm)
+    call prim_movie_output(elem, tl, hvcoord, par, fvm)
 #endif
   endif
 
@@ -262,7 +262,7 @@ program prim_main
 #elif defined PIO_INTERP
     call interp_movie_output(elem, tl, par, 0d0,fvm=fvm, hvcoord=hvcoord)
 #else
-    call prim_movie_output(elem, tl, hvcoord, hybrid, 1,nelemd, fvm)
+    call prim_movie_output(elem, tl, hvcoord, par, fvm)
 #endif
 
 

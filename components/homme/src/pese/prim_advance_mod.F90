@@ -30,11 +30,15 @@ module prim_advance_mod
   use hybvcoord_mod,	 only: hvcoord_t
 	use kinds,					 only: rl => real_kind
   use physical_constants, only : cp, cpwater_vapor, Rgas, kappa, p0, g
-  use test_mod,        only: set_test_prescribed_wind
   use time_mod,        only: timeLevel_t, timelevel_update, timelevel_qdp, nsplit
   use vertical_se,     only: npv, solver_args, pack_solver_args, eta_derivative, advection2,&
                              self_advection2, eta_integral_from_n,eta_integral_from_1, make_vertical_mesh
-   implicit none
+
+#ifndef CAM
+  use test_mod,        only: set_test_prescribed_wind
+#endif
+
+  implicit none
 
   integer,parameter :: n_rhs    = 1 + 3*nlev  ! ps + T + u + v          ! num levels in rhs and edge-buffer
   logical,parameter :: verbose  = .false.                               ! verbose output flag
@@ -86,11 +90,13 @@ contains
     nstep = tl%nstep
     eta_ave_w = 1d0/qsplit  ! set q subcycle time averaging weight
 
+#ifndef CAM
     ! if test uses prescribed wind, set dynamic variables analytically and return
     if (prescribed_wind ==1 ) then
       call set_test_prescribed_wind(elem,deriv,hybrid,hvcoord,dt,tl,nets,nete)
       return
     endif
+#endif
 
     ! integrate dynamics in time using and explicit Runge-Kutta scheme
     call compute_and_apply_rhs(np1,n0,n0,qn0,dt/3,elem,hvcoord,hybrid,deriv,nets,nete,compute_diagnostics,0d0)

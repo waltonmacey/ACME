@@ -1,7 +1,11 @@
 !
 ! DCMIP Tests for the preqx Target
 !_______________________________________________________________________#ifndef CAM
+#ifndef CAM
+
+#ifdef HAVE_CONFIG_H
 #include "config.h"
+#endif
 
 module dcmip_tests
 
@@ -536,4 +540,5 @@ subroutine set_tracers(q,nq, dp,i,j,k,lat,lon,elem)
 
 end subroutine
 end module dcmip_tests
+
 #endif

@@ -12,7 +12,7 @@ module nc_fields
   use dimensions_mod, only: nelemd, np, ne, nc, nlev, qsize_d
   use element_mod,    only: element_t
   use kinds,          only: rl => real_kind
-  use pio_io_mod,     only: pio_double
+  use pio_types,      only: pio_double
   use shr_const_mod,  only: unset => shr_const_spval
   use vertical_se,    only: evenly_spaced_eta_coords, vertical_interp_matrix
 

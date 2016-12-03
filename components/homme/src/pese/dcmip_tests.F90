@@ -2,7 +2,10 @@
 ! DCMIP Tests for the PESE Target
 !_______________________________________________________________________
 #ifndef CAM
+
+#ifdef HAVE_CONFIG_H
 #include "config.h"
+#endif
 
 module dcmip_tests
 
@@ -523,4 +526,5 @@ subroutine set_tracers(q,nq, dp,i,j,k,lat,lon,elem)
 
 end subroutine
 end module dcmip_tests
+
 #endif

@@ -6,7 +6,7 @@
 #define _DBG_
 module prim_driver_base
 
-  use control_mod,      only: qsplit, rsplit, statefreq
+  use control_mod,      only: qsplit, rsplit, statefreq, ftype
   use cg_mod,           only: cg_t
   use derivative_mod,   only: derivative_t
   use dimensions_mod,   only: np, nlev, nlevp, nelem, nelemd, nelemdmax, GlobalUniqueCols, ntrac, qsize, nc,nhc
@@ -994,7 +994,7 @@ contains
   subroutine prim_run(elem, hybrid,nets,nete, dt, tl, hvcoord, advance_name)
     use hybvcoord_mod, only : hvcoord_t
     use time_mod, only : TimeLevel_t, timelevel_update, smooth
-    use control_mod, only: statefreq, integration, ftype, qsplit, disable_diagnostics
+    use control_mod, only: statefreq, integration, qsplit, disable_diagnostics
     use prim_advance_mod, only : prim_advance_exp, prim_advance_si, preq_robert3
     use prim_state_mod, only : prim_printstate, prim_diag_scalars, prim_energy_halftimes
     use prim_advection_mod, only: deriv
@@ -1214,6 +1214,8 @@ contains
   subroutine apply_forcing(elem,fvm,hybrid,hvcoord,tl,dt_remap,nets,nete)
 
     ! apply forcing from CAM or HOMME stand-alone tests
+
+    use prim_advance_mod, only: ApplyCAMForcing, ApplyCAMForcing_dynamics
 
     implicit none
     type(element_t),      intent(inout) :: elem(:)

@@ -1,18 +1,17 @@
 !
 ! List of valid output variables and methods to access them
 !_______________________________________________________________________
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-
-#define use_netcdf_interp_mod
 
 module nc_fields
 
   use dimensions_mod, only: nelemd, np, ne, nc, nlev, qsize_d
   use element_mod,    only: element_t
   use kinds,          only: rl => real_kind
-  use pio_io_mod,     only: pio_double
+  use pio_types ,     only: pio_double
   use shr_const_mod,  only: unset => shr_const_spval
   use vertical_se,    only: v_interpolate
 
