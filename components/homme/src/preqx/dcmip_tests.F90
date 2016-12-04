@@ -14,6 +14,7 @@ module dcmip_tests
 use control_mod,          only: test_case
 use dcmip2012_test1_2_3,  only: test1_advection_deformation, test1_advection_hadley, test1_advection_orography, &
                                 test2_steady_state_mountain, test2_schaer_mountain,test3_gravity_wave
+use tropical_cyclone,     only: tropical_cyclone_test
 use derivative_mod,       only: derivative_t, gradient_sphere
 use dimensions_mod,       only: np, nlev, nlevp, qsize, qsize_d, nelemd
 use element_mod,          only: element_t, elem_state_t, derived_state_t, nt=>timelevels
@@ -409,6 +410,175 @@ subroutine dcmip2012_test3(elem,hybrid,hvcoord,nets,nete)
   do ie = nets,nete; do k=1,nlev; do j=1,np; do i=1,np
     call get_coordinates(lat,lon,hyam,hybm, i,j,k,elem(ie),hvcoord)
     call test3_gravity_wave(lon,lat,p,z,zcoords,use_eta,hyam,hybm,u,v,w,T,T_mean,phis,ps,rho,rho_mean,q(1))
+    dp = pressure_thickness(ps,k,hvcoord)
+    call set_state(u,v,T,ps,phis,dp,zm(k), i,j,k,elem(ie),1,nt)
+    call set_tracers(q,1, dp,i,j,k,lat,lon,elem(ie))
+  enddo; enddo; enddo; enddo
+
+end subroutine
+
+!_____________________________________________________________________
+subroutine dcmip2016_test1(elem,hybrid,hvcoord,nets,nete)
+
+  ! moist baroclininc wave
+
+  type(element_t),    intent(inout), target :: elem(:)                  ! element array
+  type(hybrid_t),     intent(in)            :: hybrid                   ! hybrid parallel structure
+  type(hvcoord_t),    intent(inout)         :: hvcoord                  ! hybrid vertical coordinates
+  integer,            intent(in)            :: nets,nete                ! start, end element index
+
+  integer,  parameter :: zcoords = 0                                    ! we are not using z coords
+  logical,  parameter :: use_eta = .true.                               ! we are using hybrid eta coords
+
+  real(rl), parameter ::    &                                           ! parameters needed to get eta from z
+    T0      = 300.d0,       &	! temperature (k)
+    ztop    = 10000.d0,     & ! model top (m)
+    N       = 0.01d0,       & ! Brunt-Vaisala frequency
+    bigG    = (g*g)/(N*N*Cp)  ! temperature, isothermal
+
+  integer :: i,j,k,ie                                                   ! loop indices
+  real(rl):: lon,lat,hyam,hybm                                          ! pointwise coordiantes
+  real(rl):: p,z,phis,u,v,w,T,T_mean,phis_ps,ps,rho,rho_mean,q(1),dp    ! pointwise field values
+
+  if (hybrid%masterthread) write(iulog,*) 'initializing dcmip2012 test 3-0: nonhydrostatic gravity waves'
+
+  ! set analytic vertical coordinates
+  call get_evenly_spaced_z(zi,zm, 0.0_rl,ztop)                                   ! get evenly spaced z levels
+  hvcoord%etai  = ( (bigG/T0)*(exp(-zi*N*N/g) -1 )+1 ) **(1.0/kappa)    ! set eta levels from z at equator
+  call set_hybrid_coefficients(hvcoord,hybrid,  hvcoord%etai(1), 1.0_rl)! set hybrid A and B from eta levels
+  call set_layer_locations(hvcoord, .true., hybrid%masterthread)
+
+  ! set initial conditions
+  do ie = nets,nete; do k=1,nlev; do j=1,np; do i=1,np
+    call get_coordinates(lat,lon,hyam,hybm, i,j,k,elem(ie),hvcoord)
+    !call test3_gravity_wave(lon,lat,p,z,zcoords,use_eta,hyam,hybm,u,v,w,T,T_mean,phis,ps,rho,rho_mean,q(1))
+    dp = pressure_thickness(ps,k,hvcoord)
+    call set_state(u,v,T,ps,phis,dp,zm(k), i,j,k,elem(ie),1,nt)
+    call set_tracers(q,1, dp,i,j,k,lat,lon,elem(ie))
+  enddo; enddo; enddo; enddo
+
+end subroutine
+
+!_____________________________________________________________________
+subroutine dcmip2016_test2(elem,hybrid,hvcoord,nets,nete)
+
+  ! tropical cyclone
+
+  type(element_t),    intent(inout), target :: elem(:)                  ! element array
+  type(hybrid_t),     intent(in)            :: hybrid                   ! hybrid parallel structure
+  type(hvcoord_t),    intent(inout)         :: hvcoord                  ! hybrid vertical coordinates
+  integer,            intent(in)            :: nets,nete                ! start, end element index
+
+  logical,  parameter :: use_eta = .true.                               ! we are using hybrid eta coords
+
+  real(rl), parameter :: ztop = 15000.d0                                ! model top (m)
+
+  integer :: i,j,k,ie,zcoords                                           ! loop indices
+  real(rl):: lon,lat                                                    ! pointwise coordiantes
+  real(rl):: p,z,phis,u,v,w,T,thetav,ps,rho,q(1),dp,eta                 ! pointwise field values
+  real(rl):: A,B,etai
+
+  if (hybrid%masterthread) write(iulog,*) 'initializing dcmip2012 test 3-0: nonhydrostatic gravity waves'
+
+  ! set analytic vertical coordinates
+  call get_evenly_spaced_z(zi,zm, 0.0_rl,ztop)                          ! get evenly spaced z levels
+
+  ! compute B,eta from pressure at vertical interfaces over lat=lon=0
+  zcoords=1; lon =0; lat = 0
+  do k=1,nlevp
+    B = 1.0 - zi(k)/zi(1)
+    call tropical_cyclone_test(lon,lat,p,zi(k),1,u,v,t,thetav,phis,ps,rho,q(1))
+    A = (p - B*ps)/p0
+    etai = A+B
+    hvcoord%hyai(k) = A
+    hvcoord%hybi(k) = B
+    hvcoord%etai(k) = etai
+    if (hybrid%masterthread) print *,"A=",A," B=",B," etai=",etai
+  enddo
+
+  ! set midpoint coefficients from interface coefficients
+  hvcoord%hyam = 0.5_rl *(hvcoord%hyai(2:nlev+1) + hvcoord%hyai(1:nlev))
+  hvcoord%hybm = 0.5_rl *(hvcoord%hybi(2:nlev+1) + hvcoord%hybi(1:nlev))
+  hvcoord%etam = hvcoord%hyam + hvcoord%hybm
+
+  call set_layer_locations(hvcoord, .true., hybrid%masterthread)
+
+  ! set initial conditions
+  do ie = nets,nete; do k=1,nlev; do j=1,np; do i=1,np
+    lon  = elem(ie)%spherep(i,j)%lon
+    lat  = elem(ie)%spherep(i,j)%lat
+
+    ! call routine just to get ps value
+    z=0; call tropical_cyclone_test(lon,lat,p,z,1,u,v,t,thetav,phis,ps,rho,q(1))
+
+    ! get pressure from ps and level
+    p = hvcoord%hyam(k)*p0 + hvcoord%hybm(k)*ps
+
+    ! call routine again using vertical pressure on eta level
+    call tropical_cyclone_test(lon,lat,p,z,0,u,v,t,thetav,phis,ps,rho,q(1))
+    dp = pressure_thickness(ps,k,hvcoord)
+    call set_state(u,v,T,ps,phis,dp,zm(k), i,j,k,elem(ie),1,nt)
+    call set_tracers(q,1, dp,i,j,k,lat,lon,elem(ie))
+  enddo; enddo; enddo; enddo
+
+end subroutine
+
+!_____________________________________________________________________
+subroutine dcmip2016_test2_forcing(elem,hybrid,hvcoord,nets,nete,n,dt)
+
+  ! get forcing terms for tropical cyclone tests
+
+  type(element_t),    intent(inout), target :: elem(:)                  ! element array
+  type(hybrid_t),     intent(in)            :: hybrid                   ! hybrid parallel structure
+  type(hvcoord_t),    intent(in)            :: hvcoord                  ! hybrid vertical coordinates
+  integer,            intent(in)            :: nets,nete                ! start, end element index
+  integer,            intent(in)            :: n                        ! time level index
+  real(rl),           intent(in)            :: dt                       ! time-step size
+
+  integer :: ie, k
+
+  ! get forcing terms for momentum, temperature, and tracer equations
+  elem(ie)%derived%FM = 0.0d0
+  elem(ie)%derived%FQ = 0.0d0
+  elem(ie)%derived%FT = 0.0d0
+
+end subroutine
+
+!_____________________________________________________________________
+subroutine dcmip2016_test3(elem,hybrid,hvcoord,nets,nete)
+
+  ! supercell storm
+
+  type(element_t),    intent(inout), target :: elem(:)                  ! element array
+  type(hybrid_t),     intent(in)            :: hybrid                   ! hybrid parallel structure
+  type(hvcoord_t),    intent(inout)         :: hvcoord                  ! hybrid vertical coordinates
+  integer,            intent(in)            :: nets,nete                ! start, end element index
+
+  integer,  parameter :: zcoords = 0                                    ! we are not using z coords
+  logical,  parameter :: use_eta = .true.                               ! we are using hybrid eta coords
+
+  real(rl), parameter ::    &                                           ! parameters needed to get eta from z
+    T0      = 300.d0,       &	! temperature (k)
+    ztop    = 10000.d0,     & ! model top (m)
+    N       = 0.01d0,       & ! Brunt-Vaisala frequency
+    bigG    = (g*g)/(N*N*Cp)  ! temperature, isothermal
+
+  integer :: i,j,k,ie                                                   ! loop indices
+  real(rl):: lon,lat,hyam,hybm                                          ! pointwise coordiantes
+  real(rl):: p,z,phis,u,v,w,T,T_mean,phis_ps,ps,rho,rho_mean,q(1),dp    ! pointwise field values
+
+  if (hybrid%masterthread) write(iulog,*) 'initializing dcmip2012 test 3-0: nonhydrostatic gravity waves'
+
+  ! set analytic vertical coordinates
+  call get_evenly_spaced_z(zi,zm, 0.0_rl,ztop)                                   ! get evenly spaced z levels
+  hvcoord%etai  = ( (bigG/T0)*(exp(-zi*N*N/g) -1 )+1 ) **(1.0/kappa)    ! set eta levels from z at equator
+  call set_hybrid_coefficients(hvcoord,hybrid,  hvcoord%etai(1), 1.0_rl)! set hybrid A and B from eta levels
+  call set_layer_locations(hvcoord, .true., hybrid%masterthread)
+
+  ! set initial conditions
+  do ie = nets,nete; do k=1,nlev; do j=1,np; do i=1,np
+    call get_coordinates(lat,lon,hyam,hybm, i,j,k,elem(ie),hvcoord)
+    !call test3_gravity_wave(lon,lat,p,z,zcoords,use_eta,hyam,hybm,u,v,w,T,T_mean,phis,ps,rho,rho_mean,q(1))
     dp = pressure_thickness(ps,k,hvcoord)
     call set_state(u,v,T,ps,phis,dp,zm(k), i,j,k,elem(ie),1,nt)
     call set_tracers(q,1, dp,i,j,k,lat,lon,elem(ie))
