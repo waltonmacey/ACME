@@ -6,6 +6,8 @@ module test_mod
 
 use control_mod,    only: test_case, sub_case
 use derivative_mod, only: derivative_t, gradient_sphere
+use dimensions_mod, only: qsize, qsize_d
+
 use element_mod,    only: element_t, elem_state_t, derived_state_t, nt=>timelevels
 use fvm_control_volume_mod, only: fvm_struct
 use hybrid_mod,     only: hybrid_t
@@ -108,40 +110,50 @@ subroutine set_test_prescribed_wind(elem, deriv, hybrid, hvcoord, dt, tl, nets, 
 end subroutine
 
 !_______________________________________________________________________
-subroutine apply_test_forcing(elem,fvm,hybrid,hvcoord,n,n_tracer,dt,nets,nete)
+subroutine apply_test_forcing(elem,fvm,hybrid,hvcoord,np1,np1_q,dt,nets,nete)
 
   ! apply forcing terms produced by HOMME stand-alone tests
 
-  use dcmip_tests, only:  dcmip2012_test2_x_forcing
+  use dcmip_tests, only:  dcmip2012_test2_x_forcing, dcmip2016_test2_forcing
+
   implicit none
   type(element_t),  intent(inout) :: elem(:)                            ! element array
   type(fvm_struct), intent(inout) :: fvm(:)                             ! finite volume structure
   type(hybrid_t),   intent(in)    :: hybrid                             ! hybrid parallel structure
   type(hvcoord_t),  intent(in)    :: hvcoord
   real(kind=rl),    intent(in)    :: dt
-  integer,          intent(in)    :: n,nets,nete,n_tracer
+  integer,          intent(in)    :: nets,nete
+  integer,          intent(in)    :: np1,np1_q                          !dynamics and tracer time levels
 
-  integer :: ie
+  integer :: ie,q
 
   do ie=nets,nete
     elem(ie)%derived%FT = 0
     elem(ie)%derived%FM = 0
+    elem(ie)%derived%FQ = 0
   enddo
 
   ! get forcing from test case
   select case(test_case)
-    case('dcmip2012_test2_1');  call dcmip2012_test2_x_forcing(elem, hybrid,hvcoord,nets,nete,n,dt)
-    case('dcmip2012_test2_2');  call dcmip2012_test2_x_forcing(elem, hybrid,hvcoord,nets,nete,n,dt)
-    case('dcmip2016_test2');    call dcmip2016_test2_forcing  (elem, hybrid,hvcoord,nets,nete,n,dt)
+    case('dcmip2012_test2_1');  call dcmip2012_test2_x_forcing(elem, hybrid,hvcoord,nets,nete,np1,dt)
+    case('dcmip2012_test2_2');  call dcmip2012_test2_x_forcing(elem, hybrid,hvcoord,nets,nete,np1,dt)
+    case('dcmip2016_test2');    call dcmip2016_test2_forcing  (elem, hybrid,hvcoord,nets,nete,np1,np1_q,dt)
   endselect
 
   do ie=nets,nete
 
     ! apply dynamics forcing
-    elem(ie)%state%T(:,:,:,  n) = elem(ie)%state%T(:,:,:,  n) + dt * elem(ie)%derived%FT(:,:,:,  n)
-    elem(ie)%state%v(:,:,:,:,n) = elem(ie)%state%v(:,:,:,:,n) + dt * elem(ie)%derived%FM(:,:,:,:,n)
+    elem(ie)%state%T(:,:,:,  np1) = elem(ie)%state%T(:,:,:,  np1) + dt * elem(ie)%derived%FT(:,:,:,  np1)
+    elem(ie)%state%v(:,:,:,:,np1) = elem(ie)%state%v(:,:,:,:,np1) + dt * elem(ie)%derived%FM(:,:,:,:,np1)
 
-    ! apply tracer forcing (todo)
+    do q=1,qsize
+      ! apply tracer forcing
+      elem(ie)%state%Q(:,:,:,q) = elem(ie)%state%Q(:,:,:,q) + dt * elem(ie)%derived%FQ(:,:,:,q,np1_q)
+      elem(ie)%state%Q(:,:,:,q) = max(elem(ie)%state%Q(:,:,:,q),0.0_rl) ! enforce Q>0
+      elem(ie)%state%Q(:,:,:,q) = min(elem(ie)%state%Q(:,:,:,q),1.0_rl) ! enforce Q<1
+      elem(ie)%state%Qdp(:,:,:,q,np1_q) = elem(ie)%state%Q(:,:,:,q)*elem(ie)%state%dp3d(:,:,:,np1)
+    enddo
+
   enddo
 
 end subroutine

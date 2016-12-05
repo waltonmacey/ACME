@@ -23,7 +23,7 @@
 !     zi        (IN) heights of model interfaces levels in the grid column (m)
 !     lat       (IN) latitude of column
 !     nz        (IN) number of levels in the column
-!     precl     (IN) large-scale precip rate (m/s)
+!     precl    (OUT) large-scale precip rate (m/s)
 !     pbl_type  (IN) type of planetary boundary layer to use (0,1)
 !                    0 = Default Reed-Jablonowski boundary layer
 !                    1 = Modified Bryan boundary layer
@@ -51,13 +51,13 @@
 !
 !=======================================================================
 module dcmip2016_physics_z
+
 use kessler_physics, only: KESSLER
 
 implicit none
 contains
 
-SUBROUTINE DCMIP2016_PHYSICS(test, u, v, p, qv, qc, qr, rho, &
-                             dt, z, zi, lat, nz, precl, pbl_type, prec_type)
+SUBROUTINE DCMIP2016_PHYSICS(test,u,v,p,qv,qc,qr,rho,dt,z,zi,lat,nz,precl,pbl_type,prec_type)
 
   IMPLICIT NONE
 
@@ -82,9 +82,9 @@ SUBROUTINE DCMIP2016_PHYSICS(test, u, v, p, qv, qc, qr, rho, &
   REAL(8), INTENT(IN) :: & 
             dt           ! Time step (s)
 
-  REAL(8), DIMENSION(nz), INTENT(IN) :: &
-            z       ,  & ! Heights of model levels (m)
-            zi           ! Heights of model interfaces (m)
+  REAL(8), INTENT(IN) :: &
+            z(nz)       ,  & ! Heights of model levels (m)
+            zi(nz+1)         ! Heights of model interfaces (m)
 
   REAL(8), INTENT(IN) :: &
             lat          ! Latitude of column (radians)

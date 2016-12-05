@@ -475,7 +475,7 @@ subroutine dcmip2016_test2(elem,hybrid,hvcoord,nets,nete)
 
   integer :: i,j,k,ie,zcoords                                           ! loop indices
   real(rl):: lon,lat                                                    ! pointwise coordiantes
-  real(rl):: p,z,phis,u,v,w,T,thetav,ps,rho,q(1),dp,eta                 ! pointwise field values
+  real(rl):: p,z,phis,u,v,w,T,thetav,ps,rho,q(3),dp,eta                 ! pointwise field values
   real(rl):: A,B,etai
 
   if (hybrid%masterthread) write(iulog,*) 'initializing dcmip2012 test 3-0: nonhydrostatic gravity waves'
@@ -516,15 +516,19 @@ subroutine dcmip2016_test2(elem,hybrid,hvcoord,nets,nete)
 
     ! call routine again using vertical pressure on eta level
     call tropical_cyclone_test(lon,lat,p,z,0,u,v,t,thetav,phis,ps,rho,q(1))
+    q(2)=0
+    q(3)=0
     dp = pressure_thickness(ps,k,hvcoord)
     call set_state(u,v,T,ps,phis,dp,zm(k), i,j,k,elem(ie),1,nt)
-    call set_tracers(q,1, dp,i,j,k,lat,lon,elem(ie))
+    call set_tracers(q,3, dp,i,j,k,lat,lon,elem(ie))
   enddo; enddo; enddo; enddo
 
 end subroutine
 
 !_____________________________________________________________________
-subroutine dcmip2016_test2_forcing(elem,hybrid,hvcoord,nets,nete,n,dt)
+subroutine dcmip2016_test2_forcing(elem,hybrid,hvcoord,nets,nete,n,n_q,dt)
+
+  use dcmip2016_physics_z, only: dcmip2016_physics
 
   ! get forcing terms for tropical cyclone tests
 
@@ -532,15 +536,62 @@ subroutine dcmip2016_test2_forcing(elem,hybrid,hvcoord,nets,nete,n,dt)
   type(hybrid_t),     intent(in)            :: hybrid                   ! hybrid parallel structure
   type(hvcoord_t),    intent(in)            :: hvcoord                  ! hybrid vertical coordinates
   integer,            intent(in)            :: nets,nete                ! start, end element index
-  integer,            intent(in)            :: n                        ! time level index
+  integer,            intent(in)            :: n, n_q                   ! dynamics and tracer time indices
   real(rl),           intent(in)            :: dt                       ! time-step size
 
-  integer :: ie, k
+  real(rl), dimension(nlev) :: u0,v0,T0,qv0,qc0,qr0
+  real(rl), dimension(nlev) :: u,v,p,qv,qc,qr,rho,T,dp,z_m
+  real(rl) :: lat, precl, z_i(nlevp)
+  integer :: ie, i,j,k
+  integer, parameter :: test     = 2
+  integer, parameter :: pbl_type = 1  ! 0=Reed_jablonowski, 1=Bryan boundary layer
+  integer, parameter :: prec_type= 0  ! 0=Kessler physics,  1=Reed-Jabolonowski microphysics
 
-  ! get forcing terms for momentum, temperature, and tracer equations
-  elem(ie)%derived%FM = 0.0d0
-  elem(ie)%derived%FQ = 0.0d0
-  elem(ie)%derived%FT = 0.0d0
+  ! call physics routine one column at a time
+  do ie = nets,nete; do j=1,np; do i=1,np
+
+    dp  = elem(ie)%state%dp3d(i,j,:,n)
+    T   = elem(ie)%state%T   (i,j,:,n)
+    z_m = elem(ie)%derived%phi(i,j,:)/g
+    z_i(1:nlev)=z_m; z_i(nlevp)=0        ! (TODO: get accurate levels for precl from Reed-Jablonowski)
+
+    ! get pressure from pressure-thickness
+    p(1) =hvcoord%hyai(1)*hvcoord%ps0 + dp(1)/2
+    do k=2,nlev; p(k) = p(k-1) + dp(k-1)/2 + dp(k)/2; enddo
+
+    ! get dry air density from ideal gas law
+    rho = p/(Rd*T)
+
+    ! get each state vector at column i,j
+    lat = elem(ie)%spherep(i,j)%lat
+    u   = elem(ie)%state%v(i,j,1,:,n)
+    v   = elem(ie)%state%v(i,j,2,:,n)
+    qv  = elem(ie)%state%Qdp(i,j,:,1,n_q)/dp  ! vapor mixing ratio        (gm/gm)
+    qc  = elem(ie)%state%Qdp(i,j,:,2,n_q)/dp  ! cloud water mixing ratio  (gm/gm)
+    qr  = elem(ie)%state%Qdp(i,j,:,3,n_q)/dp  ! rain water mixing ratio   (gm/gm)
+
+    precl = 0 ! precipitation rate (output from physics routine)
+
+    ! store current column values to compute differences after update
+    u0=u;   v0=v;   T0=T;   qv0=qv;   qc0=qc;   qr0=qr
+
+    ! apply KESSLER/Reed-Jabolonowski microphysics and Reed-Jablonoswki/Bryan boundary layer
+    call DCMIP2016_PHYSICS(test,u,v,p,qv,qc,qr,rho,dt,z_m,z_i,lat,nlev,precl,pbl_type,prec_type)
+
+    ! compute new temperatures from ideal gas law applied to new pressures
+    T = p/(Rd*rho)
+
+    ! get forcing terms from difference between old and new column values
+    elem(ie)%derived%FM(i,j,1,:,n  )  = u  - u0
+    elem(ie)%derived%FM(i,j,2,:,n  )  = v  - v0
+    elem(ie)%derived%FT(i,j,  :,n  )  = T  - T0
+    elem(ie)%derived%FQ(i,j,:,1,n_q)  = qv - qv0
+    elem(ie)%derived%FQ(i,j,:,2,n_q)  = qc - qc0
+    elem(ie)%derived%FQ(i,j,:,3,n_q)  = qr - qr0
+
+    enddo; enddo;
+
+  enddo
 
 end subroutine
 

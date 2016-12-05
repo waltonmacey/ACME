@@ -1228,6 +1228,8 @@ contains
 
     integer :: n0_qdp
 
+    call TimeLevel_Qdp(tl, qsplit, n0_qdp)
+
 #ifdef CAM
     ! Apply CAM Physics forcing
     !   ftype= 2: Q was adjusted by physics, but apply u,T forcing here
@@ -1235,7 +1237,6 @@ contains
     !   ftype= 0: apply all forcing here
     !   ftype=-1: do not apply forcing
 
-    call TimeLevel_Qdp(tl, qsplit, n0_qdp)
 
     if (ftype==0) then
       call t_startf("ApplyCAMForcing")

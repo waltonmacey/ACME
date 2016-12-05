@@ -1,25 +1,26 @@
 !
-! namelist for dcmip2012 test 3-1 nonhydrostatic gravity waves
+! namelist for dcmip2016 test 2 tropical cyclone
 !_______________________________________________________________________
 &ctl_nl
   nthreads          = 1
   partmethod        = 4                         ! mesh parition method: 4 = space filling curve
   topology          = "cube"                    ! mesh type: cubed sphere
   test_case         = "dcmip2016_test2"         ! test identifier
-  ne                = 30                        ! number of elements per cube face
-  qsize             = 1                         ! num tracer fields
-  ndays             = 10                         ! num simulation days: 0 = use nmax steps
+  ne                = 60                        ! number of elements per cube face (60=0.5dg)
+  qsize             = 3                         ! num tracer fields
+  ndays             = 10                        ! num simulation days: 0 = use nmax steps
   statefreq         = 100                       ! number of steps between screen dumps
   restartfreq       = -1                        ! don't write restart files if < 0
   runtype           = 0                         ! 0 = new run
-  tstep             = 0.2                       ! largest timestep
+  tstep             = 10                        ! largest timestep
+  tstep_type        = 3                         ! 1 => default method
   integration       = 'explicit'                ! explicit time integration
-  tstep_type        = 1                         ! 1 => default method
   smooth            = 0                         ! timestep smooting (nonzero smoothing breaks this test)
-  nu                = 5.0e16                     ! reduced earth hyperviz
-  nu_s              = 5.0e16
+  nu                = 1.0e16                    ! reduced earth hyperviz
+  nu_s              = 1.0e16
   hypervis_order    = 2                         ! 2 = hyperviscosity
   hypervis_subcycle = 1                         ! 1 = no hyperviz subcycling
+  rsplit            = 1
 /
 &filter_nl/
 &solver_nl
@@ -35,8 +36,8 @@
 &analysis_nl
   output_dir        = "../movies/"              ! destination dir for netcdf file
   output_timeunits  = 2,                        ! 1=days, 2=hours, 0=timesteps
-  output_frequency  = 4,                        ! 500 sec / 0.5 sec per step
-  output_varnames1  ='T','ps','u','v','omega','Q'   ! variables to write to file
+  output_frequency  = 3,                        ! every 3 hours
+  output_varnames1  ='ps','v','omega','Q','Q2','Q3'  !'T' ! variables to write to file
   interp_type       = 0                         ! 0=native grid, 1=bilinear
   output_type       ='netcdf'                   ! netcdf or pnetcdf
   num_io_procs      = 16         

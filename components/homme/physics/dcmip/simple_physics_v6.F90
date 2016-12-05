@@ -5,7 +5,7 @@
 !  Simple Physics Package
 !
 !  SIMPLE_PHYSICS includes large-scale precipitation, surface fluxes and
-!  boundary-leyer mixing. The processes are time-split in that order.
+!  boundary-layer mixing. The processes are time-split in that order.
 !  A partially implicit formulation is used to foster numerical
 !  stability. The routine assumes that the model levels are ordered
 !  in a top-down approach, e.g. level 1 denotes the uppermost full model
