@@ -576,7 +576,7 @@ subroutine dcmip2016_test2_forcing(elem,hybrid,hvcoord,nets,nete,n,n_q,dt)
     u0=u;   v0=v;   T0=T;   qv0=qv;   qc0=qc;   qr0=qr
 
     ! apply KESSLER/Reed-Jabolonowski microphysics and Reed-Jablonoswki/Bryan boundary layer
-    call DCMIP2016_PHYSICS(test,u,v,p,qv,qc,qr,rho,dt,z_m,z_i,lat,nlev,precl,pbl_type,prec_type)
+    call dcmip2016_physics(test,u,v,p,qv,qc,qr,rho,dt,z_m,z_i,lat,nlev,precl,pbl_type,prec_type)
 
     ! compute new temperatures from ideal gas law applied to new pressures
     T = p/(Rd*rho)

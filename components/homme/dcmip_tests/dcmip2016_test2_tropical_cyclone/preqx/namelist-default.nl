@@ -12,7 +12,7 @@
   statefreq         = 100                       ! number of steps between screen dumps
   restartfreq       = -1                        ! don't write restart files if < 0
   runtype           = 0                         ! 0 = new run
-  tstep             = 10                        ! largest timestep
+  tstep             = 3                         ! largest timestep
   tstep_type        = 3                         ! 1 => default method
   integration       = 'explicit'                ! explicit time integration
   smooth            = 0                         ! timestep smooting (nonzero smoothing breaks this test)
@@ -31,7 +31,7 @@
 &vert_nl
   vform             = "ccm"                     ! vertical coordinate type "ccm"=hybrid pressure/terrain
   vanalytic         = 1                         ! set vcoords in initialization routine
-  vtop              = 2.73919e-1                ! vertical coordinate at top of atm (z=10000m)
+  vtop              = 0.130                     ! vertical coordinate at top of atm (z=15000m)
 /
 &analysis_nl
   output_dir        = "../movies/"              ! destination dir for netcdf file

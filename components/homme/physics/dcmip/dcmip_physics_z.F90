@@ -358,14 +358,14 @@ SUBROUTINE DCMIP2016_PHYSICS(test,u,v,p,qv,qc,qr,rho,dt,z,zi,lat,nz,precl,pbl_ty
   enddo
   qsats = epsilo * e0 / ps * exp(-latvap / rh2o * ((one/Tsurf)-(one/T0)))
 
-  u(1) = u(1) / (one + dt * Cd * wind / za)
-  v(1) = v(1) / (one + dt * Cd * wind / za)
-  qsv(1) = (qsv(1) + C * wind * qsats * dt / za) / (one + C * wind * dt / za)
-  t(1) = (t(1) + C * wind * Tsurf * dt / za) / (one + C * wind * dt / za)
+  u(1)  = u(1) / (one + dt * Cd * wind / za)
+  v(1)  = v(1) / (one + dt * Cd * wind / za)
+  qsv(1)= (qsv(1) + C * wind * qsats * dt / za) / (one + C * wind * dt / za)
+  t(1)  = (t(1) + C * wind * Tsurf * dt / za) / (one + C * wind * dt / za)
 
-  qv(1) = qsv(1) / (1.0 - qsv(1))
+  qv(1)   = qsv(1) / (1.0 - qsv(1))
   rhom(1) = rho(1) / (1.0 - qsv(1))
-  p(1) = t(1) * rhom(1) * rair * (one + zvir * qv(1))
+  p(1)    = t(1) * rhom(1) * rair * (one + zvir * qv(1))
 
   !------------------------------------------------
   ! Boundary layer
@@ -416,10 +416,11 @@ SUBROUTINE DCMIP2016_PHYSICS(test,u,v,p,qv,qc,qr,rho,dt,z,zi,lat,nz,precl,pbl_ty
     endif
   enddo
 
-  u(nz) = CFu(nz)
-  v(nz) = CFv(nz)
+  u(nz)     = CFu(nz)
+  v(nz)     = CFv(nz)
   theta(nz) = CFt(nz)
-  qsv(nz) = CFq(nz)
+  qsv(nz)   = CFq(nz)
+
 
   do k=nz-1,1,-1
     u(k) = CEm(k) * u(k+1) + CFu(k)
@@ -436,6 +437,8 @@ SUBROUTINE DCMIP2016_PHYSICS(test,u,v,p,qv,qc,qr,rho,dt,z,zi,lat,nz,precl,pbl_ty
     thetav = theta(k) * (one + zvir * qv(k))
     p(k) = p0 * (rhom(k) * rair * thetav / p0)**(cpair/(cpair-rair))
   enddo
+
+print *,"p=",p
 
   return
 

@@ -1,14 +1,15 @@
 #!/bin/bash
 #
-#   Jobscript for launching dcmip2012 test3-1 on the NERSC Edison machine
+#   Jobscript for launching dcmip2016 test2 on the NERSC Edison machine
 #
-#SBATCH -J dcmip3-1           # job name
-#SBATCH -o out_dcmip3-1.o%j   # output and error file name (%j expands to jobID)
-#SBATCH -n 600                # total number of mpi tasks requested
-#SBATCH -p debug              # queue (partition) -- normal, development, etc.
-#SBATCH -t 00:05:00           # run time (hh:mm:ss)
-#SBATCH -A acme               # charge hours to account 1
+#SBATCH -J dcmip16-2          # job name
+#SBATCH -o out_dcmip16-1.o%j  # output and error file name (%j expands to jobID)
+#SBATCH -n 5400               # total number of mpi tasks requested
+#SBATCH -p regular            # queue (partition) -- normal, development, etc.
+#SBATCH --qos=premium
+#SBATCH -t 01:00:00           # run time (hh:mm:ss)
+#SBATCH -A m2618 #acme               # charge hours to account 1
 
-EXEC=../../../test_execs/pese-nlev20/pese-nlev20                        # set name of executable
-srun -n 600 $EXEC < ./namelist-default.nl                               # launch simulation
+EXEC=../../../test_execs/pese-nlev30/pese-nlev30                        # set name of executable
+srun -n 5400 $EXEC < ./namelist-default.nl                              # launch simulation
 

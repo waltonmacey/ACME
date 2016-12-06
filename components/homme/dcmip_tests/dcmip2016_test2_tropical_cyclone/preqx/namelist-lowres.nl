@@ -31,7 +31,7 @@
 &vert_nl
   vform             = "ccm"                     ! vertical coordinate type "ccm"=hybrid pressure/terrain
   vanalytic         = 1                         ! set vcoords in initialization routine
-  vtop              = 2.73919e-1                ! vertical coordinate at top of atm (z=10000m)
+  vtop              = 0.130                     ! vertical coordinate at top of atm (z=15000m)
 /
 &analysis_nl
   output_dir        = "../movies/"              ! destination dir for netcdf file

@@ -133,6 +133,7 @@ subroutine apply_test_forcing(elem,fvm,hybrid,hvcoord,np1,np1_q,dt,nets,nete)
     elem(ie)%derived%FQ = 0
   enddo
 
+
   ! get forcing from test case
   select case(test_case)
     case('dcmip2012_test2_1');  call dcmip2012_test2_x_forcing(elem, hybrid,hvcoord,nets,nete,np1,dt)
@@ -151,6 +152,7 @@ subroutine apply_test_forcing(elem,fvm,hybrid,hvcoord,np1,np1_q,dt,nets,nete)
       elem(ie)%state%Q(:,:,:,q) = elem(ie)%state%Q(:,:,:,q) + dt * elem(ie)%derived%FQ(:,:,:,q,np1_q)
       elem(ie)%state%Q(:,:,:,q) = max(elem(ie)%state%Q(:,:,:,q),0.0_rl) ! enforce Q>0
       elem(ie)%state%Q(:,:,:,q) = min(elem(ie)%state%Q(:,:,:,q),1.0_rl) ! enforce Q<1
+
       elem(ie)%state%Qdp(:,:,:,q,np1_q) = elem(ie)%state%Q(:,:,:,q)*elem(ie)%state%dp3d(:,:,:,np1)
     enddo
 

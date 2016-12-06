@@ -20,8 +20,11 @@ module vertical_se
 	implicit none
 
   ! dimension for vertical se coordinates
-  integer, parameter, public :: npv = 5  ! number of points per vertical element
-  integer, public :: nev                  ! number of vertical elements
+  integer, parameter, public :: npv = 5         ! number of points per vertical element
+!integer, parameter, public :: npv = 30         ! number of points per vertical element
+
+  integer, parameter, public :: nev = nlev/npv  ! number of vertical elements
+  integer, parameter, public :: n_unique = nev*(npv-1)+1
 
 	!_____________________________________________________________________
 	type, public :: velem_t
@@ -200,6 +203,41 @@ module vertical_se
 
   end function
 
+  !_____________________________________________________________________
+  function compress(f) result(fout)
+
+    ! remove duplicate values at vertical edge nodes
+
+    real(rl), intent(in) :: f(nlev)
+    real(rl) :: fout(n_unique)
+    integer :: l,i,j, ni
+    ni = npv-1 ! number of interiod nodes per element
+
+    i=1; j=1
+    do l=1,nev-1
+      fout(i:i+ni-1) = f(j:j+ni-1)
+      i=i+ni; j=j+npv
+    enddo
+    fout(i:i+npv-1)=f(j:j+npv-1)
+
+  end function
+
+
+  !_____________________________________________________________________
+  function decompress(f) result(fout)
+
+    ! restore duplicate values at vertical edge nodes
+
+    real(rl), intent(in) :: f(n_unique)
+    real(rl) :: fout(nlev)
+    integer :: l,i,j
+    i=1; j=1
+    do l=1,nev
+      fout(i:i+npv-1)=f(j:j+npv-1)
+      i=i+npv; j=j+npv-1
+    enddo
+
+  end function
   !_____________________________________________________________________
   subroutine get_least_squares_LU(D,LU,ipiv)
 
@@ -920,7 +958,7 @@ call vertical_dss(f)
     if (hybrid%masterthread) print *,"make vertical mesh:"
 
     ! ensure nlev is an integer multple of npv
-    nev = nlev/npv
+    !nev = nlev/npv
     if( MOD(nlev,npv) /= 0) then
       print *,"error: nlev=",nlev,"must be a multple of npv=",npv
       stop

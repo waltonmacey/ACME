@@ -29,7 +29,7 @@ module prim_advance_mod
   use hybrid_mod,			 only: hybrid_t
   use hybvcoord_mod,	 only: hvcoord_t
 	use kinds,					 only: rl => real_kind
-  use physical_constants, only : cp, cpwater_vapor, Rgas, kappa, p0, g
+  use physical_constants, only : cp, cpwater_vapor, Rgas, kappa, p0, g, Rwater_vapor
   use time_mod,        only: timeLevel_t, timelevel_update, timelevel_qdp, nsplit
   use vertical_se,     only: npv, solver_args, pack_solver_args, eta_derivative, advection2,&
                              self_advection2, eta_integral_from_n,eta_integral_from_1, make_vertical_mesh
@@ -151,7 +151,7 @@ contains
     integer,          intent(in)            :: ie                       ! element index
 		type(solver_args),intent(inout)         :: a                        ! solver arguments
 
-		real (rl), dimension(np,np,nlev)	:: u,v,T,p,phi,rho,Tv             ! local copies of 3d fields
+		real (rl), dimension(np,np,nlev)	:: u,v,T,p,phi,rhom,Tv,qv         ! local copies of 3d fields
 		real (rl), dimension(np,np)				:: ps                             ! local copies of 2d fields
 		real (rl), dimension(np,np,nlev)	:: dp_deta, dT_deta								! vertical hydrostatic pressure gradient
     real (rl), dimension(np,np,nlev)	:: du_deta, dv_deta               ! vertical velocity gradients
@@ -170,6 +170,7 @@ contains
     real (rl), dimension(np,np,2,nlev):: adv_v                          ! advective terms 2d
 		real (rl), dimension(np,np,nlev)	:: rhs_T,rhs_u,rhs_v              ! partial time derivatives
     real (rl), dimension(np,np)       :: rhs_ps
+    real (rl), dimension(np,np,nlev)  :: CpStar
     type (elem_state_t), pointer      :: s															! pointer to element state variables
 
     integer :: i,j,k                                                    ! loop indices
@@ -180,6 +181,7 @@ contains
     v   = s%v   (:,:,2,:, a%n0)
     T   = s%T   (:,:,:,   a%n0)
     ps  = s%ps_v(:,:,     a%n0)
+    qv  = s%Q   (:,:,:,1)       ! water vapor mixing ratio
 
     ! get hydrostatic-pressure at eta levels
     forall(k=1:nlev) p(:,:,k)= a%hvcoord%hyam(k)*p0 + a%hvcoord%hybm(k)*ps
@@ -188,10 +190,11 @@ contains
     do k=1,nlev; grad_p (:,:,:,k) = gradient_sphere(p (:,:,k), a%deriv, e%Dinv); enddo
 
     ! get virtual temperature (TODO)
-    Tv = T
+    Tv      = T *(1.0_rl + (Rwater_vapor/Rgas - 1.0_rl)*qv)
+    CpStar  = Cp*(1.0_rl + (Cpwater_vapor/Cp  - 1.0_rl)*qv)
 
-    ! get density from temperature and pressure
-    rho = p/(Rgas*Tv)
+    ! get mpost density from virtual temperature and pressure
+    rhom = p/(Rgas*Tv)
 
     ! get vertical derivatives
     dp_deta = eta_derivative(p)
@@ -200,7 +203,7 @@ contains
     dT_deta = eta_derivative(T)
 
     ! get geopotential-height by integrating hydrostatic balance from bottom
-    phi = eta_integral_from_n( -dp_deta/rho, s%phis )
+    phi = eta_integral_from_n( -dp_deta/rhom, s%phis )
 
     ! get horizontal gradient of geopotential-height
     do k=1,nlev; grad_phi(:,:,:,k) = gradient_sphere(phi(:,:,k),a%deriv,e%Dinv); enddo
@@ -235,9 +238,9 @@ contains
     enddo
 
     ! get total time-derivs
-    ddt_u  = -grad_p(:,:,1,:)/rho -grad_phi(:,:,1,:) -f_corilois(:,:,1,:)
-    ddt_v  = -grad_p(:,:,2,:)/rho -grad_phi(:,:,2,:) -f_corilois(:,:,2,:)
-    ddt_T  = omega/(rho*Cp)
+    ddt_u  = -grad_p(:,:,1,:)/rhom -grad_phi(:,:,1,:) -f_corilois(:,:,1,:)
+    ddt_v  = -grad_p(:,:,2,:)/rhom -grad_phi(:,:,2,:) -f_corilois(:,:,2,:)
+    ddt_T  = omega/(rhom*Cp)
 
     ! get advection terms
     adv_T  = advection2(T,dT_deta,u,v,eta_dot,a,e)
@@ -256,9 +259,10 @@ contains
     s%v   (:,:,2,:,a%np1) = s%v   (:,:,2,:,a%nm1) + a%dt * rhs_v
 
     ! compute derived quantities for output
-    e%derived%omega_p = omega/p
-    e%derived%phi     = phi
-    s%omega           = omega
+    s%dp3d(:,:,:,a%n0)  = 1
+    e%derived%omega_p   = omega/p
+    e%derived%phi       = phi
+    s%omega             = omega
 
 	end subroutine
 

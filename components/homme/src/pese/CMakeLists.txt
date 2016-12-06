@@ -14,14 +14,13 @@ SET (EXEC_INCLUDE_DIRS ${PIO_INCLUDE_DIRS} ${UTILS_TIMING_DIR} )
 
 # Find F90 files in target directory
 FILE(GLOB TARGET_F90  ${TARGET_DIR}/*.F90)
+FILE(GLOB DCMIP_PHYS  ${PHYSICS_DIR}/dcmip/*.F90)
+FILE(GLOB TEST_SRC    ${SRC_DIR}/test_src/*.F90)
 
 SET(PESE_SRCS_F90
   ${TARGET_F90}
-  ${SRC_DIR}/test_src/asp_tests.F90
-  ${SRC_DIR}/test_src/baroclinic_inst_mod.F90
-  ${SRC_DIR}/test_src/dcmip2012_test1_2_3.F90
-  ${SRC_DIR}/test_src/dcmip2012_test4.F90
-  ${SRC_DIR}/test_src/dcmip2012_test5.F90
+  ${DCMIP_PHYS}
+  ${TEST_SRC}
   ${SRC_DIR}/checksum_mod.F90 
   ${SRC_DIR}/common_io_mod.F90
   ${SRC_DIR}/common_movie_mod.F90

@@ -1,29 +1,25 @@
 !
-! PESE namelist for dcmip2012 test 3-1 nonhydrostatic gravity waves
+! PESE: namelist for dcmip2016 test 2 tropical cyclone
 !_______________________________________________________________________
 &ctl_nl
   nthreads          = 1
   partmethod        = 4                         ! mesh parition method: 4 = space filling curve
   topology          = "cube"                    ! mesh type: cubed sphere
-  test_case         = "dcmip2012_test3"         ! test identifier
-  ne                = 7                         ! number of elements per cube face
-  qsize             = 1                         ! num tracer fields
-  ndays             = 0                         ! num simulation days: 0 = use nmax steps
-  nmax              = 7200                      ! total number of steps: 7200 = 3600s / tstep=0.5s
-  statefreq         = 50                        ! number of steps between screen dumps
+  test_case         = "dcmip2016_test2"         ! test identifier
+  ne                = 7                         ! number of elements per cube face (2dg)
+  qsize             = 3                         ! num tracer fields
+  ndays             = 10                        ! num simulation days: 0 = use nmax steps
+  statefreq         = 1 !10                        ! number of steps between screen dumps
   restartfreq       = -1                        ! don't write restart files if < 0
   runtype           = 0                         ! 0 = new run
-  tstep             = 0.5                       ! largest timestep
+  tstep             = 10                        ! largest timestep
+  tstep_type        = 3                         ! 1 => default method
   integration       = 'explicit'                ! explicit time integration
-  tstep_type        = 3 !1                         ! 1 => default method
   smooth            = 0                         ! timestep smooting (nonzero smoothing breaks this test)
-  nu                = 8.0e6                     ! reduced earth hyperviz 
-  nu_s              = 8.0e6
+  nu                = 1.0e16                    ! reduced earth hyperviz
+  nu_s              = 1.0e16
   hypervis_order    = 2                         ! 2 = hyperviscosity
   hypervis_subcycle = 1                         ! 1 = no hyperviz subcycling
-  rearth            = 50969.76                  ! scaled earth radius = a/125.0
-  omega             = 0.0                       ! earth angular speed = 0.0
-  rsplit = 0
 /
 &filter_nl/
 &solver_nl
@@ -34,18 +30,18 @@
 &vert_nl
   vform             = "ccm"                     ! vertical coordinate type "ccm"=hybrid pressure/terrain
   vanalytic         = 1                         ! set vcoords in initialization routine
-  vtop              = 2.73919e-1                ! vertical coordinate at top of atm (z=10000m)
+  vtop              = 0.130                     ! vertical coordinate at top of atm (z=15000m)
 /
 &analysis_nl
   output_dir        = "../movies/"              ! destination dir for netcdf file
-  output_timeunits  = 0,                        ! 1=days, 2=hours, 0=timesteps
-  output_frequency  = 200,                      ! 100 sec / 0.5 sec per step
-  output_varnames1  ='T','ps','u','v','omega'   ! variables to write to file
+  output_timeunits  = 0  !   !2,                   ! 1=days, 2=hours, 0=timesteps
+  output_frequency  = 1 ! 50 !  !3,                   ! 100 sec / 0.5 sec per step
+  output_varnames1  ='ps','v','omega','Q','Q2','Q3'  !'T' ! variables to write to file
   interp_type       = 0                         ! 0=native grid, 1=bilinear
   output_type       ='netcdf'                   ! netcdf or pnetcdf
-  io_stride         = 8
-  interp_nlat       = 65
-  interp_nlon       = 128
+  num_io_procs      = 16         
+  interp_nlat       = 128
+  interp_nlon       = 256
 /
 &prof_inparm
   profile_outpe_num   = 100
