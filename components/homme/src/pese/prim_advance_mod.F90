@@ -28,6 +28,7 @@ module prim_advance_mod
   use elem_state_ops,  only: pack_edge_data, unpack_edge_data, apply_map, apply_vertical_dss, display_max_and_min
   use hybrid_mod,			 only: hybrid_t
   use hybvcoord_mod,	 only: hvcoord_t
+  use hyperviz_mod,    only: apply_hyperviscosity
 	use kinds,					 only: rl => real_kind
   use physical_constants, only : cp, cpwater_vapor, Rgas, kappa, p0, g, Rwater_vapor
   use time_mod,        only: timeLevel_t, timelevel_update, timelevel_qdp, nsplit
@@ -104,6 +105,9 @@ contains
     call compute_and_apply_rhs(np1,n0,np1,qn0,dt/2,elem,hvcoord,hybrid,deriv,nets,nete,.false.,0d0)
     ! u3 = u0 + dt RHS(u2)
     call compute_and_apply_rhs(np1,n0,np1,qn0,dt,elem,hvcoord,hybrid,deriv,nets,nete,.false.,eta_ave_w)
+
+    ! apply viscosity or hyperviscosity to u,v,T,ps
+    call apply_hyperviscosity(elem,edge_buffer,hvcoord,hybrid,deriv,np1,nets,nete,dt,eta_ave_w)
 
   end subroutine
 

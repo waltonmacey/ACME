@@ -438,7 +438,7 @@ SUBROUTINE DCMIP2016_PHYSICS(test,u,v,p,qv,qc,qr,rho,dt,z,zi,lat,nz,precl,pbl_ty
     p(k) = p0 * (rhom(k) * rair * thetav / p0)**(cpair/(cpair-rair))
   enddo
 
-print *,"p=",p
+!print *,"p=",p
 
   return
 
