@@ -271,14 +271,11 @@ contains
 ! module doesn't know about element_t.  
   subroutine setup_element_pointers(elem)
     use dimensions_mod, only: nelemd, qsize
-#if USE_OPENACC
     use element_state, only : state_Qdp, derived_vn0, derived_divdp, derived_divdp_proj
-#endif
     implicit none
     type(element_t), intent(inout) :: elem(:)
     integer :: ie
-#if USE_OPENACC
-    allocate( state_Qdp                (np,np,nlev,qsize,2,nelemd)            )
+    allocate( state_Qdp                (np,np,nlev,qsize,nelemd,2)            )
     allocate( derived_vn0              (np,np,2,nlev,nelemd)                  )
     allocate( derived_divdp            (np,np,nlev,nelemd)                    )
     allocate( derived_divdp_proj       (np,np,nlev,nelemd)                    )
@@ -288,7 +285,6 @@ contains
       elem(ie)%derived%divdp             => derived_divdp            (:,:,:,ie)    
       elem(ie)%derived%divdp_proj        => derived_divdp_proj       (:,:,:,ie)    
     enddo
-#endif
   end subroutine setup_element_pointers
 
 

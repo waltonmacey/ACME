@@ -224,6 +224,7 @@ contains
 !-----------------------------------------------------------------------------
 
   subroutine precompute_divdp( elem , hybrid , deriv , dt , nets , nete , n0_qdp )
+    use element_state, only : derived_vn0, derived_divdp, derived_divdp_proj
     implicit none
     type(element_t)      , intent(inout) :: elem(:)
     type (hybrid_t)      , intent(in   ) :: hybrid
@@ -234,8 +235,8 @@ contains
 
     do ie = nets , nete 
       do k = 1 , nlev   ! div( U dp Q),
-        elem(ie)%derived%divdp(:,:,k) = divergence_sphere(elem(ie)%derived%vn0(:,:,:,k),deriv,elem(ie))
-        elem(ie)%derived%divdp_proj(:,:,k) = elem(ie)%derived%divdp(:,:,k)
+        derived_divdp(:,:,k,ie) = divergence_sphere(derived_vn0(:,:,:,k,ie),deriv,elem(ie))
+        derived_divdp_proj(:,:,k,ie) = derived_divdp(:,:,k,ie)
       enddo  
     enddo
   end subroutine precompute_divdp
@@ -243,6 +244,7 @@ contains
 !-----------------------------------------------------------------------------
 
   subroutine qdp_time_avg( elem , rkstage , n0_qdp , np1_qdp , limiter_option , nu_p , nets , nete )
+    use element_state, only : state_Qdp
     implicit none
     type(element_t)     , intent(inout) :: elem(:)
     integer             , intent(in   ) :: rkstage , n0_qdp , np1_qdp , nets , nete , limiter_option
@@ -251,9 +253,9 @@ contains
     real(kind=real_kind) :: rrkstage
 
     do ie=nets,nete
-      elem(ie)%state%Qdp(:,:,:,1:qsize,np1_qdp) =               &
-                   ( elem(ie)%state%Qdp(:,:,:,1:qsize,n0_qdp) + &
-                     (rkstage-1)*elem(ie)%state%Qdp(:,:,:,1:qsize,np1_qdp) ) / rkstage
+      state_Qdp(:,:,:,1:qsize,np1_qdp,ie) =               &
+                   ( state_Qdp(:,:,:,1:qsize,n0_qdp,ie) + &
+                     (rkstage-1)*state_Qdp(:,:,:,1:qsize,np1_qdp,ie) ) / rkstage
     enddo
 
   end subroutine qdp_time_avg
@@ -277,6 +279,7 @@ contains
   use dimensions_mod , only : np, nlev
   use hybrid_mod     , only : hybrid_t
   use element_mod    , only : element_t
+  use element_state  , only :  state_Qdp, derived_vn0, derived_divdp, derived_divdp_proj
   use derivative_mod , only : derivative_t, divergence_sphere, gradient_sphere, vorticity_sphere, limiter_optim_iter_full
   use edge_mod       , only : edgevpack, edgevunpack
   use bndry_mod      , only : bndry_exchangev
@@ -359,7 +362,7 @@ OMP_SIMD
 #endif
       do q = 1 , qsize
         do k=1,nlev
-          Qtens_biharmonic(:,:,k,q,ie) = elem(ie)%state%Qdp(:,:,k,q,n0_qdp)/dp(:,:,k)
+          Qtens_biharmonic(:,:,k,q,ie) = state_Qdp(:,:,k,q,n0_qdp,ie)/dp(:,:,k)
           if ( rhs_multiplier == 1 ) then
              ! for this stage, we skip neighbor_minmax() call, but update
              ! qmin/qmax with any new local extrema:
@@ -450,9 +453,9 @@ OMP_SIMD
     do k = 1 , nlev    !  Loop index added (AAM)
       ! derived variable divdp_proj() (DSS'd version of divdp) will only be correct on 2nd and 3rd stage
       ! but that's ok because rhs_multiplier=0 on the first stage:
-      dp(:,:,k) = elem(ie)%derived%dp(:,:,k) - rhs_multiplier * dt * elem(ie)%derived%divdp_proj(:,:,k)
-      Vstar(:,:,1,k) = elem(ie)%derived%vn0(:,:,1,k) / dp(:,:,k)
-      Vstar(:,:,2,k) = elem(ie)%derived%vn0(:,:,2,k) / dp(:,:,k)
+      dp(:,:,k) = elem(ie)%derived%dp(:,:,k) - rhs_multiplier * dt * derived_divdp_proj(:,:,k,ie)
+      Vstar(:,:,1,k) = derived_vn0(:,:,1,k,ie) / dp(:,:,k)
+      Vstar(:,:,2,k) = derived_vn0(:,:,2,k,ie) / dp(:,:,k)
 
       if ( limiter_option == 8) then
         ! Note that the term dpdissk is independent of Q
@@ -484,10 +487,10 @@ OMP_SIMD
     do q = 1 , qsize
       do k = 1 , nlev  !  dp_star used as temporary instead of divdp (AAM)
         ! div( U dp Q),
-        gradQ(:,:,1) = Vstar(:,:,1,k) * elem(ie)%state%Qdp(:,:,k,q,n0_qdp)
-        gradQ(:,:,2) = Vstar(:,:,2,k) * elem(ie)%state%Qdp(:,:,k,q,n0_qdp)
+        gradQ(:,:,1) = Vstar(:,:,1,k) * state_Qdp(:,:,k,q,n0_qdp,ie)
+        gradQ(:,:,2) = Vstar(:,:,2,k) * state_Qdp(:,:,k,q,n0_qdp,ie)
         dp_star(:,:,k) = divergence_sphere( gradQ , deriv , elem(ie) )
-        Qtens(:,:,k) = elem(ie)%state%Qdp(:,:,k,q,n0_qdp) - dt * dp_star(:,:,k)
+        Qtens(:,:,k) = state_Qdp(:,:,k,q,n0_qdp,ie) - dt * dp_star(:,:,k)
         ! optionally add in hyperviscosity computed above:
         if ( rhs_viss /= 0 ) Qtens(:,:,k) = Qtens(:,:,k) + Qtens_biharmonic(:,:,k,q,ie)
       enddo
@@ -502,17 +505,17 @@ OMP_SIMD
       ! dont do this earlier, since we allow np1_qdp == n0_qdp
       ! and we dont want to overwrite n0_qdp until we are done using it
       do k = 1 , nlev
-        elem(ie)%state%Qdp(:,:,k,q,np1_qdp) = elem(ie)%spheremp(:,:) * Qtens(:,:,k)
+        state_Qdp(:,:,k,q,np1_qdp,ie) = elem(ie)%spheremp(:,:) * Qtens(:,:,k)
       enddo
 
       if ( limiter_option == 4 ) then
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
         ! sign-preserving limiter, applied after mass matrix
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
-        call limiter2d_zero( elem(ie)%state%Qdp(:,:,:,q,np1_qdp))
+        call limiter2d_zero( state_Qdp(:,:,:,q,np1_qdp,ie))
       endif
 
-      call edgeVpack(edgeAdvp1 , elem(ie)%state%Qdp(:,:,:,q,np1_qdp) , nlev , nlev*(q-1) , ie )
+      call edgeVpack(edgeAdvp1 , state_Qdp(:,:,:,q,np1_qdp,ie) , nlev , nlev*(q-1) , ie )
     enddo
   enddo ! ie loop
 
@@ -535,9 +538,9 @@ OMP_SIMD
 !$omp parallel do private(q,k)
 #endif
     do q = 1 , qsize
-      call edgeVunpack( edgeAdvp1 , elem(ie)%state%Qdp(:,:,:,q,np1_qdp) , nlev , nlev*(q-1) , ie )
+      call edgeVunpack( edgeAdvp1 , state_Qdp(:,:,:,q,np1_qdp,ie) , nlev , nlev*(q-1) , ie )
       do k = 1 , nlev    !  Potential loop inversion (AAM)
-        elem(ie)%state%Qdp(:,:,k,q,np1_qdp) = elem(ie)%rspheremp(:,:) * elem(ie)%state%Qdp(:,:,k,q,np1_qdp)
+        state_Qdp(:,:,k,q,ie,np1_qdp) = elem(ie)%rspheremp(:,:) * state_Qdp(:,:,k,q,np1_qdp,ie)
       enddo
     enddo
   enddo
@@ -614,6 +617,7 @@ OMP_SIMD
   use dimensions_mod , only : np, nlev
   use hybrid_mod     , only : hybrid_t
   use element_mod    , only : element_t
+  use element_state, only: state_Qdp
   use derivative_mod , only : derivative_t
   use edge_mod       , only : edgevpack, edgevunpack
   use edgetype_mod   , only : EdgeBuffer_t
@@ -666,7 +670,7 @@ OMP_SIMD
           do k = 1 , nlev
             dp(:,:,k) = elem(ie)%derived%dp(:,:,k) - dt2*elem(ie)%derived%divdp_proj(:,:,k)
             Qtens(:,:,k,q,ie) = elem(ie)%derived%dpdiss_ave(:,:,k)*&
-                                elem(ie)%state%Qdp(:,:,k,q,nt_qdp) / dp(:,:,k)
+                                state_Qdp(:,:,k,q,ie,nt_qdp) / dp(:,:,k)
           enddo
         enddo
 
@@ -679,7 +683,7 @@ OMP_SIMD
             dp(:,:,k) = elem(ie)%derived%dp(:,:,k) - dt2*elem(ie)%derived%divdp_proj(:,:,k)
             dp0 = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) ) * hvcoord%ps0 + &
                   ( hvcoord%hybi(k+1) - hvcoord%hybi(k) ) * hvcoord%ps0
-            Qtens(:,:,k,q,ie) = dp0*elem(ie)%state%Qdp(:,:,k,q,nt_qdp) / dp(:,:,k)
+            Qtens(:,:,k,q,ie) = dp0*state_Qdp(:,:,k,q,nt_qdp,ie) / dp(:,:,k)
           enddo
         enddo
       endif
@@ -698,7 +702,7 @@ OMP_SIMD
             do i = 1 , np
               ! advection Qdp.  For mass advection consistency:
               ! DIFF( Qdp) ~   dp0 DIFF (Q)  =  dp0 DIFF ( Qdp/dp )
-              elem(ie)%state%Qdp(i,j,k,q,nt_qdp) = elem(ie)%state%Qdp(i,j,k,q,nt_qdp) * elem(ie)%spheremp(i,j) &
+              state_Qdp(i,j,k,q,nt_qdp,ie) = state_Qdp(i,j,k,q,nt_qdp,ie) * elem(ie)%spheremp(i,j) &
                                                    - dt * nu_q * Qtens(i,j,k,q,ie)
             enddo
           enddo
@@ -706,11 +710,11 @@ OMP_SIMD
         
         if (limiter_option .ne. 0 ) then
            ! smooth some of the negativities introduced by diffusion:
-           call limiter2d_zero( elem(ie)%state%Qdp(:,:,:,q,nt_qdp) )
+           call limiter2d_zero( state_Qdp(:,:,:,q,nt_qdp,ie) )
         endif
 
       enddo
-      call edgeVpack  ( edgeAdv , elem(ie)%state%Qdp(:,:,:,:,nt_qdp) , qsize*nlev , 0 , ie )
+      call edgeVpack  ( edgeAdv , state_Qdp(:,:,:,:,nt_qdp,ie) , qsize*nlev , 0 , ie )
     enddo ! ie loop
 
     call t_startf('ah_scalar_bexchV')
@@ -718,14 +722,14 @@ OMP_SIMD
     call t_stopf('ah_scalar_bexchV')
 
     do ie = nets , nete
-      call edgeVunpack( edgeAdv , elem(ie)%state%Qdp(:,:,:,:,nt_qdp) , qsize*nlev , 0 , ie )
+      call edgeVunpack( edgeAdv , state_Qdp(:,:,:,:,nt_qdp,ie) , qsize*nlev , 0 , ie )
 #if (defined COLUMN_OPENMP)
 !$omp parallel do private(q,k) collapse(2)
 #endif
       do q = 1 , qsize
         ! apply inverse mass matrix
         do k = 1 , nlev
-          elem(ie)%state%Qdp(:,:,k,q,nt_qdp) = elem(ie)%rspheremp(:,:) * elem(ie)%state%Qdp(:,:,k,q,nt_qdp)
+          state_Qdp(:,:,k,q,nt_qdp,ie) = elem(ie)%rspheremp(:,:) * state_Qdp(:,:,k,q,nt_qdp,ie)
         enddo
       enddo
     enddo ! ie loop
