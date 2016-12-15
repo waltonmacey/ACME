@@ -32,6 +32,7 @@ module vertremap_mod_base
   use dimensions_mod, only         : np,nlev,qsize,nlevp,npsq
   use hybvcoord_mod, only          : hvcoord_t
   use element_mod, only            : element_t
+  use element_state, only          : state_Qdp
   use perf_mod, only               : t_startf, t_stopf  ! _EXTERNAL
   use parallel_mod, only           : abortmp, parallel_t
   use control_mod, only : vert_remap_q_alg
@@ -166,7 +167,7 @@ module vertremap_mod_base
      if (qsize>0) then
 
        call t_startf('vertical_remap1_3')
-       call remap1(elem(ie)%state%Qdp(:,:,:,:,np1_qdp),np,qsize,dp_star,dp)
+       call remap1(state_Qdp(:,:,:,:,np1_qdp,ie),np,qsize,dp_star,dp)
        call t_stopf('vertical_remap1_3')
 
      endif
