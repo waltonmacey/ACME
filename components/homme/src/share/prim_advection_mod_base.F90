@@ -355,7 +355,7 @@ OMP_SIMD
       ! add hyperviscosity to RHS.  apply to Q at timelevel n0, Qdp(n0)/dp
 OMP_SIMD
       do k = 1 , nlev    !  Loop index added with implicit inversion (AAM)
-        dp(:,:,k) = elem(ie)%derived%dp(:,:,k) - rhs_multiplier*dt*elem(ie)%derived%divdp_proj(:,:,k)
+        dp(:,:,k) = elem(ie)%derived%dp(:,:,k) - rhs_multiplier*dt*derived_divdp_proj(:,:,k,ie)
       enddo
 #if (defined COLUMN_OPENMP)
 !$omp parallel do private(q,k) collapse(2)
@@ -444,7 +444,7 @@ OMP_SIMD
     ! all zero so we only have to DSS 1:nlev
     if ( DSSopt == DSSeta         ) DSSvar => elem(ie)%derived%eta_dot_dpdn(:,:,:)
     if ( DSSopt == DSSomega       ) DSSvar => elem(ie)%derived%omega_p(:,:,:)
-    if ( DSSopt == DSSdiv_vdp_ave ) DSSvar => elem(ie)%derived%divdp_proj(:,:,:)
+    if ( DSSopt == DSSdiv_vdp_ave ) DSSvar => derived_divdp_proj(:,:,:,ie)
 
     ! Compute velocity used to advance Qdp
 #if (defined COLUMN_OPENMP)
@@ -460,7 +460,7 @@ OMP_SIMD
       if ( limiter_option == 8) then
         ! Note that the term dpdissk is independent of Q
         ! UN-DSS'ed dp at timelevel n0+1:
-        dpdissk(:,:,k) = dp(:,:,k) - dt * elem(ie)%derived%divdp(:,:,k)
+        dpdissk(:,:,k) = dp(:,:,k) - dt * derived_divdp(:,:,k,ie)
         if ( nu_p > 0 .and. rhs_viss /= 0 ) then
           ! add contribution from UN-DSS'ed PS dissipation
 !          dpdiss(:,:) = ( hvcoord%hybi(k+1) - hvcoord%hybi(k) ) *
@@ -526,7 +526,7 @@ OMP_SIMD
   do ie = nets , nete
     if ( DSSopt == DSSeta         ) DSSvar => elem(ie)%derived%eta_dot_dpdn(:,:,:)
     if ( DSSopt == DSSomega       ) DSSvar => elem(ie)%derived%omega_p(:,:,:)
-    if ( DSSopt == DSSdiv_vdp_ave ) DSSvar => elem(ie)%derived%divdp_proj(:,:,:)
+    if ( DSSopt == DSSdiv_vdp_ave ) DSSvar => derived_divdp_proj(:,:,:,ie)
 
     call edgeVunpack( edgeAdvp1 , DSSvar(:,:,1:nlev) , nlev , qsize*nlev , ie )
 OMP_SIMD
@@ -617,7 +617,7 @@ OMP_SIMD
   use dimensions_mod , only : np, nlev
   use hybrid_mod     , only : hybrid_t
   use element_mod    , only : element_t
-  use element_state, only: state_Qdp
+  use element_state  , only : state_Qdp, derived_divdp_proj
   use derivative_mod , only : derivative_t
   use edge_mod       , only : edgevpack, edgevunpack
   use edgetype_mod   , only : EdgeBuffer_t
@@ -668,7 +668,7 @@ OMP_SIMD
 #endif
         do q = 1 , qsize
           do k = 1 , nlev
-            dp(:,:,k) = elem(ie)%derived%dp(:,:,k) - dt2*elem(ie)%derived%divdp_proj(:,:,k)
+            dp(:,:,k) = elem(ie)%derived%dp(:,:,k) - dt2 * derived_divdp_proj(:,:,k,ie)
             Qtens(:,:,k,q,ie) = elem(ie)%derived%dpdiss_ave(:,:,k)*&
                                 state_Qdp(:,:,k,q,ie,nt_qdp) / dp(:,:,k)
           enddo
@@ -680,7 +680,7 @@ OMP_SIMD
 #endif
         do q = 1 , qsize
           do k = 1 , nlev
-            dp(:,:,k) = elem(ie)%derived%dp(:,:,k) - dt2*elem(ie)%derived%divdp_proj(:,:,k)
+            dp(:,:,k) = elem(ie)%derived%dp(:,:,k) - dt2*derived_divdp_proj(:,:,k,ie)
             dp0 = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) ) * hvcoord%ps0 + &
                   ( hvcoord%hybi(k+1) - hvcoord%hybi(k) ) * hvcoord%ps0
             Qtens(:,:,k,q,ie) = dp0*state_Qdp(:,:,k,q,nt_qdp,ie) / dp(:,:,k)
