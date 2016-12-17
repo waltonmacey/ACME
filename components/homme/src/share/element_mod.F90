@@ -275,11 +275,12 @@ contains
     implicit none
     type(element_t), intent(inout) :: elem(:)
     integer :: ie
-    allocate( state_Qdp                (np,np,nlev,qsize,nelemd,2)            )
+    allocate( state_Qdp                (np,np,nlev,qsize,2,nelemd)            )
     allocate( derived_vn0              (np,np,2,nlev,nelemd)                  )
     allocate( derived_divdp            (np,np,nlev,nelemd)                    )
     allocate( derived_divdp_proj       (np,np,nlev,nelemd)                    )
     do ie = 1 , nelemd
+print *, 'here'
       elem(ie)%state%Qdp                 => state_Qdp                (:,:,:,:,:,ie)
       elem(ie)%derived%vn0               => derived_vn0              (:,:,:,:,ie)  
       elem(ie)%derived%divdp             => derived_divdp            (:,:,:,ie)    
