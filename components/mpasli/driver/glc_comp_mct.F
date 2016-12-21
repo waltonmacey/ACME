@@ -133,7 +133,7 @@ contains
     integer :: errorCode  ! error code
     integer :: err_tmp
     integer :: ioerr
-    character(len=StrKIND) :: ioerrstr, scratchFName
+    character(len=StrKIND) :: ioerrstr
 
     character(len=StrKIND) :: cpl_seq_option
 
@@ -288,8 +288,7 @@ contains
     stdout_shr = shr_file_getUnit()
 #ifndef MPAS_DEBUG
     if ( iam /= 0 ) then
-       write (scratchFName,'(a,i9.9)') 'scratch_glc_',iam
-       open(stdout_shr, file=trim(scratchFName), iostat=ioerr)
+       open(stdout_shr, file='/dev/null', position='APPEND', iostat=ioerr)
        if (ioerr /= 0) then
           write (ioerrstr,'(a,i9,a,i6,a,i9)') 'rank=',iam,',unit=',stdout_shr,',iostat=',ioerr
           call mpas_dmpar_global_abort('ERROR in glc_init_mct open stdout_shr '//trim(ioerrstr))
@@ -730,6 +729,16 @@ contains
     write(glcStdErrUnit,'(a,i6)') '=== Completed glc_init_mct: rank=',iam
     call shr_sys_flush(glcStdErrUnit)
 
+#ifndef MPAS_DEBUG
+    if ( iam /= 0 ) then
+       close(stdout_shr, iostat=ioerr)
+       if (ioerr /= 0) then
+          write (ioerrstr,'(a,i9,a,i6,a,i9)') 'rank=',iam,',unit=',stdout_shr,',iostat=',ioerr
+          call mpas_dmpar_global_abort('ERROR in glc_init_mct close stdout_shr '//trim(ioerrstr))
+       endif
+    end if
+#endif
+
 !-----------------------------------------------------------------------
 !EOC
 
@@ -778,11 +787,21 @@ contains
       character(len=StrKIND), pointer :: config_restart_timestamp_name
 
       type (MPAS_Time_Type) :: currTime
-      character(len=StrKIND) :: timeStamp, streamName
+      character(len=StrKIND) :: timeStamp, streamName, ioerrstr
       integer :: err, err_tmp, globalErr, streamDirection, iam
       logical :: solveVelo, streamActive
 
       iam = domain % dminfo % my_proc_id
+
+#ifndef MPAS_DEBUG
+      if ( iam /= 0 ) then
+         open(glcStdErrUnit, file='/dev/null', position='APPEND', iostat=ioerr)
+         if (ioerr /= 0) then
+            write (ioerrstr,'(a,i9,a,i6,a,i9)') 'rank=',iam,',unit=',glcStdErrUnit,',iostat=',ioerr
+            call mpas_dmpar_global_abort('ERROR in glc_run_mct open glcStdErrUnit '//trim(ioerrstr))
+         endif
+      endif
+#endif
 
       call mpas_io_units_set_stdout(glcStdOutUnit)
       call mpas_io_units_set_stderr(glcStdErrUnit)
@@ -989,6 +1008,16 @@ contains
       call shr_file_setLogUnit (shrlogunit)
       call shr_file_setLogLevel(shrloglev)
 
+#ifndef MPAS_DEBUG
+      if ( iam /= 0 ) then
+         close(glcStdErrUnit, iostat=ioerr)
+         if (ioerr /= 0) then
+            write (ioerrstr,'(a,i9,a,i6,a,i9)') 'rank=',iam,',unit=',glcStdErrUnit,',iostat=',ioerr
+            call mpas_dmpar_global_abort('ERROR in glc_run_mct close glcStdErrUnit '//trim(ioerrstr))
+         endif
+      end if
+#endif
+
 !-----------------------------------------------------------------------
   end subroutine glc_run_mct!}}}
 
@@ -1032,6 +1061,16 @@ contains
 
     iam = domain % dminfo % my_proc_id
 
+#ifndef MPAS_DEBUG
+    if ( iam /= 0 ) then
+       open(glcStdErrUnit, file='/dev/null', position='APPEND', iostat=ioerr)
+       if (ioerr /= 0) then
+          write (ioerrstr,'(a,i9,a,i6,a,i9)') 'rank=',iam,',unit=',glcStdErrUnit,',iostat=',ioerr
+          call mpas_dmpar_global_abort('ERROR in glc_final_mct open glcStdErrUnit '//trim(ioerrstr))
+       endif
+    endif
+#endif
+
     call mpas_io_units_set_stdout(glcStdOutUnit)
     call mpas_io_units_set_stderr(glcStdErrUnit)
 
@@ -1056,7 +1095,7 @@ contains
 
 #ifndef MPAS_DEBUG
     if ( iam /= 0 ) then
-       close(glcStdErrUnit, status='DELETE', iostat=ioerr)
+       close(glcStdErrUnit, iostat=ioerr)
        if (ioerr /= 0) then
           write (ioerrstr,'(a,i9,a,i6,a,i9)') 'rank=',iam,',unit=',glcStdErrUnit,',iostat=',ioerr
           call mpas_dmpar_global_abort('ERROR in glc_final_mct close glcStdErrUnit '//trim(ioerrstr))

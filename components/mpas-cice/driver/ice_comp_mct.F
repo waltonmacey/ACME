@@ -135,7 +135,7 @@ contains
 
     integer :: errorCode  ! error code
     integer :: ioerr
-    character(len=StrKIND) :: ioerrstr, scratchFName
+    character(len=StrKIND) :: ioerrstr
 
     character(len=StrKIND) :: cpl_seq_option
 
@@ -291,8 +291,7 @@ contains
     stdout_shr = shr_file_getUnit()
 #ifndef MPAS_DEBUG
     if ( iam /= 0 ) then
-       write (scratchFName,'(a,i9.9)') 'scratch_ice_',iam
-       open(stdout_shr, file=trim(scratchFName), iostat=ioerr)
+       open(stdout_shr, file='/dev/null', position='APPEND', iostat=ioerr)
        if (ioerr /= 0) then
           write (ioerrstr,'(a,i9,a,i6,a,i9)') 'rank=',iam,',unit=',stdout_shr,',iostat=',ioerr
           call mpas_dmpar_global_abort('ERROR in ice_init_mct open stdout_shr '//trim(ioerrstr))
@@ -685,6 +684,16 @@ contains
     write(iceStdErrUnit,'(a,i6)') '=== Completed ice_init_mct: rank=',iam
     call shr_sys_flush(stderrUnit)
 
+#ifndef MPAS_DEBUG
+    if ( iam /= 0 ) then
+       close(stdout_shr, iostat=ioerr)
+       if (ioerr /= 0) then
+          write (ioerrstr,'(a,i9,a,i6,a,i9)') 'rank=',iam,',unit=',stdout_shr,',iostat=',ioerr
+          call mpas_dmpar_global_abort('ERROR in ice_init_mct close stdout_shr '//trim(ioerrstr))
+       endif
+    end if
+#endif
+
 !-----------------------------------------------------------------------
 !EOC
 
@@ -727,7 +736,7 @@ contains
             shortwave
 
       type (MPAS_Time_Type) :: currTime
-      character(len=StrKIND) :: timeStamp, streamName
+      character(len=StrKIND) :: timeStamp, streamName, ioerrstr
       type (MPAS_timeInterval_type) :: timeStep
       integer :: ierr, streamDirection, iam
       logical :: streamActive
@@ -738,6 +747,16 @@ contains
             dayOfNextShortwaveCalculation ! needed for CESM like coupled simulations
 
       iam = domain % dminfo % my_proc_id
+
+#ifndef MPAS_DEBUG
+      if ( iam /= 0 ) then
+         open(iceStdErrUnit, file='/dev/null', position='APPEND', iostat=ioerr)
+         if (ioerr /= 0) then
+            write (ioerrstr,'(a,i9,a,i6,a,i9)') 'rank=',iam,',unit=',iceStdErrUnit,',iostat=',ioerr
+            call mpas_dmpar_global_abort('ERROR in ice_run_mct open iceStdErrUnit '//trim(ioerrstr))
+         endif
+      end if
+#endif
 
       call mpas_io_units_set_stdout(iceStdOutUnit)
       call mpas_io_units_set_stderr(iceStdErrUnit)
@@ -897,6 +916,16 @@ contains
       call shr_file_setLogUnit (shrlogunit)
       call shr_file_setLogLevel(shrloglev)
 
+#ifndef MPAS_DEBUG
+      if ( iam /= 0 ) then
+         close(iceStdErrUnit, iostat=ioerr)
+         if (ioerr /= 0) then
+            write (ioerrstr,'(a,i9,a,i6,a,i9)') 'rank=',iam,',unit=',iceStdErrUnit,',iostat=',ioerr
+            call mpas_dmpar_global_abort('ERROR in ice_run_mct close iceStdErrUnit '//trim(ioerrstr))
+         endif
+      end if
+#endif
+
 !-----------------------------------------------------------------------
 !EOC
 
@@ -941,6 +970,16 @@ contains
 !-----------------------------------------------------------------------
     iam = domain % dminfo % my_proc_id
 
+#ifndef MPAS_DEBUG
+    if ( iam /= 0 ) then
+       open(iceStdErrUnit, file='/dev/null', position='APPEND', iostat=ioerr)
+       if (ioerr /= 0) then
+          write (ioerrstr,'(a,i9,a,i6,a,i9)') 'rank=',iam,',unit=',iceStdErrUnit,',iostat=',ioerr
+          call mpas_dmpar_global_abort('ERROR in ice_final_mct open iceStdErrUnit '//trim(ioerrstr))
+       endif
+    end if
+#endif
+
     call mpas_io_units_set_stdout(iceStdOutUnit)
     call mpas_io_units_set_stderr(iceStdErrUnit)
 
@@ -965,7 +1004,7 @@ contains
 
 #ifndef MPAS_DEBUG
     if ( iam /= 0 ) then
-       close(iceStdErrUnit, status='DELETE', iostat=ioerr)
+       close(iceStdErrUnit, iostat=ioerr)
        if (ioerr /= 0) then
           write (ioerrstr,'(a,i9,a,i6,a,i9)') 'rank=',iam,',unit=',iceStdErrUnit,',iostat=',ioerr
           call mpas_dmpar_global_abort('ERROR in ice_final_mct close iceStdErrUnit '//trim(ioerrstr))

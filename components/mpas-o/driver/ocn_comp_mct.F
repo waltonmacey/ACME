@@ -141,7 +141,7 @@ contains
 
     integer :: errorCode  ! error code
     integer :: ioerr
-    character(len=StrKIND) :: ioerrstr, scratchFName
+    character(len=StrKIND) :: ioerrstr
 
     character(len=StrKIND) :: cpl_seq_option
 
@@ -297,8 +297,7 @@ contains
     stdout_shr = shr_file_getUnit()
 #ifndef MPAS_DEBUG
     if ( iam /= 0 ) then
-       write (scratchFName,'(a,i9.9)') 'scratch_ocn_',iam
-       open(stdout_shr, file=trim(scratchFName), iostat=ioerr)
+       open(stdout_shr, file='/dev/null', position='APPEND', iostat=ioerr)
        if (ioerr /= 0) then
           write (ioerrstr,'(a,i9,a,i6,a,i9)') 'rank=',iam,',unit=',stdout_shr,',iostat=',ioerr
           call mpas_dmpar_global_abort('ERROR in ocn_init_mct open stdout_shr '//trim(ioerrstr))
@@ -720,6 +719,16 @@ contains
     write(ocnStdErrUnit,'(a,i6)') '=== Completed ocn_init_mct: rank=',iam
     call shr_sys_flush(stderrUnit)
 
+#ifndef MPAS_DEBUG
+    if ( iam /= 0 ) then
+       close(stdout_shr, iostat=ioerr)
+       if (ioerr /= 0) then
+          write (ioerrstr,'(a,i9,a,i6,a,i9)') 'rank=',iam,',unit=',stdout_shr,',iostat=',ioerr
+          call mpas_dmpar_global_abort('ERROR in ocn_init_mct close stdout_shr'//trim(ioerrstr))
+       endif
+    endif
+#endif
+
 !-----------------------------------------------------------------------
 !EOC
 
@@ -761,7 +770,7 @@ contains
 
       type (MPAS_Time_Type) :: currTime
       type (domain_type), pointer :: domain_ptr
-      character(len=StrKIND) :: timeStamp, streamName
+      character(len=StrKIND) :: timeStamp, streamName, ioerrstr
       type (MPAS_timeInterval_type) :: timeStep
       integer :: iam, ierr, streamDirection
       logical :: streamActive
@@ -769,6 +778,17 @@ contains
       character (len=StrKIND), pointer :: config_restart_timestamp_name
 
       iam = domain % dminfo % my_proc_id
+
+#ifndef MPAS_DEBUG
+      if ( iam /= 0 ) then
+         open(ocnStdErrUnit, file='/dev/null', position='APPEND', iostat=ioerr)
+         if (ioerr /= 0) then
+            write (ioerrstr,'(a,i9,a,i6,a,i9)') 'rank=',iam,',unit=',ocnStdErrUnit,',iostat=',ioerr
+            call mpas_dmpar_global_abort('ERROR in ocn_run_mct open ocnStdErrUnit '//trim(ioerrstr))
+         endif
+      endif
+#endif
+
       call mpas_io_units_set_stdout(ocnStdOutUnit)
       call mpas_io_units_set_stderr(ocnStdErrUnit)
 
@@ -948,6 +968,16 @@ contains
       call shr_file_setLogUnit (shrlogunit)
       call shr_file_setLogLevel(shrloglev)
 
+#ifndef MPAS_DEBUG
+      if ( iam /= 0 ) then
+         close(ocnStdErrUnit, iostat=ioerr)
+         if (ioerr /= 0) then
+            write (ioerrstr,'(a,i9,a,i6,a,i9)') 'rank=',iam,',unit=',ocnStdErrUnit,',iostat=',ioerr
+            call mpas_dmpar_global_abort('ERROR in ocn_run_mct close ocnStdErrUnit '//trim(ioerrstr))
+         endif
+      endif
+#endif
+
 !-----------------------------------------------------------------------
 !EOC
 
@@ -994,6 +1024,16 @@ contains
 !-----------------------------------------------------------------------
     iam = domain % dminfo % my_proc_id
 
+#ifndef MPAS_DEBUG
+    if ( iam /= 0 ) then
+       open(ocnStdErrUnit, file='/dev/null', position='APPEND', iostat=ioerr)
+       if (ioerr /= 0) then
+          write (ioerrstr,'(a,i9,a,i6,a,i9)') 'rank=',iam,',unit=',ocnStdErrUnit,',iostat=',ioerr
+          call mpas_dmpar_global_abort('ERROR in ocn_final_mct open ocnStdErrUnit '//trim(ioerrstr))
+       endif
+    endif
+#endif
+
     call mpas_io_units_set_stdout(ocnStdOutUnit)
     call mpas_io_units_set_stderr(ocnStdErrUnit)
 
@@ -1020,7 +1060,7 @@ contains
 
 #ifndef MPAS_DEBUG
     if ( iam /= 0 ) then
-       close(ocnStdErrUnit, status='DELETE', iostat=ioerr)
+       close(ocnStdErrUnit, iostat=ioerr)
        if (ioerr /= 0) then
           write (ioerrstr,'(a,i9,a,i6,a,i9)') 'rank=',iam,',unit=',ocnStdErrUnit,',iostat=',ioerr
           call mpas_dmpar_global_abort('ERROR in ocn_final_mct close ocnStdErrUnit '//trim(ioerrstr))
