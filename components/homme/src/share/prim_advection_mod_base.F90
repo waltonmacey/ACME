@@ -670,7 +670,7 @@ OMP_SIMD
           do k = 1 , nlev
             dp(:,:,k) = elem(ie)%derived%dp(:,:,k) - dt2 * derived_divdp_proj(:,:,k,ie)
             Qtens(:,:,k,q,ie) = elem(ie)%derived%dpdiss_ave(:,:,k)*&
-                                state_Qdp(:,:,k,q,ie,nt_qdp) / dp(:,:,k)
+                                state_Qdp(:,:,k,q,nt_qdp,ie) / dp(:,:,k)
           enddo
         enddo
 
