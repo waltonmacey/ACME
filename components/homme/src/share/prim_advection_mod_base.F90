@@ -540,7 +540,7 @@ OMP_SIMD
     do q = 1 , qsize
       call edgeVunpack( edgeAdvp1 , state_Qdp(:,:,:,q,np1_qdp,ie) , nlev , nlev*(q-1) , ie )
       do k = 1 , nlev    !  Potential loop inversion (AAM)
-        state_Qdp(:,:,k,q,ie,np1_qdp) = elem(ie)%rspheremp(:,:) * state_Qdp(:,:,k,q,np1_qdp,ie)
+        state_Qdp(:,:,k,q,np1_qdp,ie) = elem(ie)%rspheremp(:,:) * state_Qdp(:,:,k,q,np1_qdp,ie)
       enddo
     enddo
   enddo
