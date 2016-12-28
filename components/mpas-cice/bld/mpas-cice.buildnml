@@ -125,9 +125,9 @@ if ( $ICE_GRID eq 'oEC60to30' ) {
         $decomp_date .= '160930';
         $decomp_prefix .= 'mpas-cice.graph.info.';
 } elsif ( $ICE_GRID eq 'oRRS30to10v3' ) {
-        $grid_date .= '161102';
+        $grid_date .= '161221';
         $grid_prefix .= 'cice.RRS30to10v3';
-        $decomp_date .= '161102';
+        $decomp_date .= '161221';
         $decomp_prefix .= 'mpas-cice.graph.info.';
 } elsif ( $ICE_GRID eq 'oRRS30to10wLIv3' ) {
         $grid_date .= '160930';
