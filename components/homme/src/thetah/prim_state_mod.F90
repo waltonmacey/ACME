@@ -32,7 +32,7 @@ private
 
   public :: prim_printstate
   public :: prim_printstate_init
-  public :: prim_energy_halftimes
+  public :: prim_energy
   public :: prim_diag_scalars
 
 contains
@@ -498,18 +498,6 @@ contains
     IEhorz = global_integral(elem, tmp(:,:,nets:nete),hybrid,npts,nets,nete)
     IEhorz = IEhorz*scale
 
-    do ie=nets,nete
-       tmp(:,:,ie) = elem(ie)%accum%IEhorz1_wet + elem(ie)%accum%IEhorz2_wet
-    enddo
-    IEhorz_wet = global_integral(elem, tmp(:,:,nets:nete),hybrid,npts,nets,nete)
-    IEhorz_wet = IEhorz_wet*scale
-
-    do ie=nets,nete
-       tmp(:,:,ie) = elem(ie)%accum%IEvert1_wet + elem(ie)%accum%IEvert2_wet
-    enddo
-    IEvert_wet = global_integral(elem, tmp(:,:,nets:nete),hybrid,npts,nets,nete)
-    IEvert_wet = IEvert_wet*scale
-
     !   KE->PE
     do ie=nets,nete
        tmp(:,:,ie) = elem(ie)%accum%T1
@@ -524,23 +512,10 @@ contains
     T2 = T2*scale
 
     do ie=nets,nete
-       tmp(:,:,ie) = elem(ie)%accum%T2_s
-    enddo
-    T2_s = global_integral(elem, tmp(:,:,nets:nete),hybrid,npts,nets,nete)
-    T2_s = T2_s*scale
-    T2_m = T2 - T2_s
-
-    do ie=nets,nete
        tmp(:,:,ie) = elem(ie)%accum%S1
     enddo
     S1 = global_integral(elem, tmp(:,:,nets:nete),hybrid,npts,nets,nete)
     S1 = S1*scale
-
-    do ie=nets,nete
-       tmp(:,:,ie) = elem(ie)%accum%S1_wet
-    enddo
-    S1_wet = global_integral(elem, tmp(:,:,nets:nete),hybrid,npts,nets,nete)
-    S1_wet = S1_wet*scale
 
     do ie=nets,nete
        tmp(:,:,ie) = elem(ie)%accum%S2
@@ -550,7 +525,7 @@ contains
 
 
 #else
-    T1=0; T2=0; T2_s=0; T2_m=0; S1_wet = 0; S1=0; S2=0; KEvert=0; IEvert=0; KEhorz=0; IEhorz=0
+    T1=0; T2=0; S1=0; S2=0; KEvert=0; IEvert=0; KEhorz=0; IEhorz=0
 #endif
 
 
@@ -642,7 +617,7 @@ contains
    
    
 
-subroutine prim_energy_halftimes(elem,hvcoord,tl,n,t_before_advance,nets,nete)
+subroutine prim_energy(elem,hvcoord,tl,n,t_before_advance,nets,nete)
 ! 
 !  called at the end of a timestep, before timelevel update.  
 !  Solution is known at two timelevels.  We originally tried to
@@ -779,7 +754,7 @@ subroutine prim_energy_halftimes(elem,hvcoord,tl,n,t_before_advance,nets,nete)
 
     enddo
     
-end subroutine prim_energy_halftimes
+end subroutine prim_energy
     
 !=======================================================================================================! 
   

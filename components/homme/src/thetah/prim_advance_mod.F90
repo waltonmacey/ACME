@@ -1000,54 +1000,17 @@ contains
      ! =========================================================
 
      if (compute_diagnostics) then
-        elem(ie)%accum%KEhorz1=0
-        elem(ie)%accum%KEhorz2=0
-        elem(ie)%accum%IEhorz1=0
-        elem(ie)%accum%IEhorz2=0
-        elem(ie)%accum%IEhorz1_wet=0
-        elem(ie)%accum%IEhorz2_wet=0
- 	elem(ie)%accum%PEhorz1=0 
+        elem(ie)%accum%KEhoriz1=0
+ 	elem(ie)%accum%PEhoriz1=0 
         elem(ie)%accum%KEvert1=0
-        elem(ie)%accum%KEvert2=0
+	elem(ie)%accum%KEvert2=0
         elem(ie)%accum%IEvert1=0
-        elem(ie)%accum%IEvert2=0
-        elem(ie)%accum%IEvert1_wet=0
-        elem(ie)%accum%IEvert2_wet=0
+        elem(ie)%accum%PEvert1=0
         elem(ie)%accum%T1=0
         elem(ie)%accum%T2=0
-        elem(ie)%accum%T2_s=0
         elem(ie)%accum%S1=0
-        elem(ie)%accum%S1_wet=0
         elem(ie)%accum%S2=0
- 
-        !
-        ! TODO:  ptop and phitop terms?, wet atmosphere
-        !        
-        ! Energy H = int(KE+PE+IE)
-        ! KE = 0.5*ps*u^2 +0.5*ps*w^2
-        ! IE = cp* ps*theta*p^kappa + p* dphi/ds + ptop*phitop
-        ! PE = ps*phi
-        !
-        ! dH/dt = int(dKE/dt+dPE/dt+dIE/dt)=0
-        ! dKE/dt = KEhorz1+KEvert1+T1+T2-pi*g*w + (sdot terms)
-        ! dPE/dt = PEhorz1 + S1+S2 + pi*g*w + (sdot terms)
-        ! dIE/dt = IEhorz2 + (sdot terms)
-        ! 
-        ! Note: as of now, we do not form the dp/ds * g * w terms
-	! KEhorz1 = -0.5*u^2 + div(u *ps) - 0.5*ps * grad(u^2)^T u
-        ! KEvert1 = -0.5*w^2 *div(u*ps) - ps*(grad(w)^T u)*w (likely to be the troublsome term)
-        ! T1 = -theta*grad(p^kappa)^T u
-        ! T2 = - (dp/ds)*grad(phi)^T u +(dp/ds)*g*w
-        ! PEhorz1 = -phi*div(ps*u)-ps*grad(phi)^T u
-        ! IEvert1 = (d/ds)(p dphi/dt)+ptop*dphitop/dt
-        ! S1 = -p^kappa div(theta*u)
-        ! S2 = (dp/ds) grad(phi)^T u - (dp/ds)*g*w
-        !
-        ! Forming S2 and T2 is unnecessary, since these terms will cancel automatically
-        ! 
-        ! Upon integration, we should have:  KEhorz1=KEvert1=0,
-        ! T1=S1, T2=S2, PEhorz1=0, IEvert1=0 
-        ! likely will not have KEver1 = 0, should hopefully be small
+        ! See element_state.F90 for an account of what these variables are defined as
 
         do j=1,np
            do i=1,np
@@ -1069,39 +1032,45 @@ contains
            enddo
            vtemp = gradient_sphere(Ephi,deriv,elem(ie)%Dinv)
            vtemp2 = gradient_sphere(elem(ie)%state%w(:,:,:,n0),deriv,elem(ie)%Dinv)
+           divtemp=divergence_sphere(thetau(:,:),deriv,elem(ie))
+           ! vtemp = grad_phi(:,:,k)
+           vtemp  =gradient_sphere(phi(:,:,k),deriv,elem(ie)%Dinv)
+
            do j=1,np
               do i=1,np
 	          v1 = elem(ie)%state%v(i,j,1,k,n0)
                   v2 = elem(ie)%state%v(i,j,2,k,n0)
                   w = elem(ie)%state%w(i,j,k,n0)
-               !  Form KEhorz1
-                  elem(ie)%accum%KEhorz1(i,j) = (v1*vtemp(i,j,1)+v2*vtemp(i,j,2))*dp3d(i,j,k) &
-                  +Ephi(i,j)*divdp(i,j,k)
+               !  Form KEhoriz1
+                  elem(ie)%accum%KEhoriz1(i,j) = -(v1*vtemp(i,j,1)+v2*vtemp(i,j,2))*dp3d(i,j,k) &
+                  -Ephi(i,j)*divdp(i,j,k)
+               !  Form KEhoriz2
+                  elem(ie)%accum%KEhoriz2(i,j)=-dp3d(i,j,k)*w *(v1*vtemp2(i,j,1)+               &
+                  v2*vtemp2(i,j,2))-0.5*w**2 * divdp(i,j,k)
 	       !  Form KEvert1
-                  elem(ie)%accum%KEvert1(i,j) = 0.5*w*w * divdp(i,j,k)+dp3d(i,j,k)*w*(v1*     &
+                  elem(ie)%accum%KEvert1(i,j) = 0.5*w*w * divdp(i,j,k)+dp3d(i,j,k)*w*(v1*       &
                   vtemp2(i,j,1)+v2*vtemp2(i,j,2))          
+               !  Form PEhoriz1
+                  elem(ie)accum%PEhorz1(i,j)=-phi(i,j,k)*divdp(i,j,k)-dp3d(i,j,k)*              &
+                  (vtemp(i,j,1)*v1+vtemp(i,j,2)*v2)
               enddo
            enddo
 
 
            ! vtemp = grad_phi(:,:,k)
            vtemp  =gradient_sphere(phi(:,:,k),deriv,elem(ie)%Dinv)
-           vtemp2 =gradient_sphere(exner(:,:,k),deriv,elem(ie)%Dinv)
-           divtemp=divergence_sphere(thetau(:,:),deriv,elem(ie))
-           do j=1,np
-              do i=1,np
+           
+           
                  v1 = elem(ie)%state%v(i,j,1,k,n0)
                  v2 = elem(ie)%state%v(i,j,2,k,n0)
                  E = 0.5D0*( v1*v1 + v2*v2 )
                ! Form T1
-                 elem(ie)%accum%T1(i,j)=-theta(i,j,k)*(vtemp2(i,j,1)*v1+vtemp2(i,j,1)*v2)
+                 elem(ie)%accum%T1(i,j)=-theta(i,j,k)*(grad_exner(i,j,1,k)*v1+grad_exner(i,j,2,k)*v2)
                ! Form S1
                  elem(ie)%accum%S1(i,j)=-exner(i,j,k)*divtemp
-               ! Form PEhorz1 
-		 elem(ie)accum%PEhorz1(i,j)=-phi(i,j,k)*divdp(i,j,k)-dp3d(i,j,k)*(vtemp(i,j,1)* &
-                 v1+vtemp(i,j,2)*v2)	
-              enddo
-           enddo        
+               	
+              
+                   
         enddo
      endif
 #endif
