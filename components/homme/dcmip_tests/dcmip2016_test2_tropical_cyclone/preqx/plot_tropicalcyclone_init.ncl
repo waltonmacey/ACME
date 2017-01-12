@@ -14,7 +14,7 @@ begin
 ; Input parameters
 ;************************************************
 
-  datafilename = "../movies/dcmip2016_test21.nc"
+  datafilename = "./movies/dcmip2016_test21.nc"
 
 ;************************************************
 ; Initialize workspace
