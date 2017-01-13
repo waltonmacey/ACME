@@ -96,6 +96,7 @@
 <config_dynamics_subcycle_number ice_grid="oEC60to30">1</config_dynamics_subcycle_number>
 <config_dynamics_subcycle_number ice_grid="oRRS30to10">1</config_dynamics_subcycle_number>
 <config_dynamics_subcycle_number ice_grid="oRRS18to6">2</config_dynamics_subcycle_number>
+<config_dynamics_subcycle_number ice_grid="oRRS18to6v3">2</config_dynamics_subcycle_number>
 <config_dynamics_subcycle_number ice_grid="oRRS15to5">2</config_dynamics_subcycle_number>
 <config_rotate_cartesian_grid>true</config_rotate_cartesian_grid>
 <config_include_metric_terms>true</config_include_metric_terms>
