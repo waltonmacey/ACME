@@ -1,3 +1,12 @@
+module vrtmap_mod
+
+implicit none
+
+private
+
+public :: vrtmap
+
+contains
 
 subroutine vrtmap (pkdim   ,pmap    ,sigln   ,dsigln  ,kdpmap  )
 !----------------------------------------------------------------------- 
@@ -12,14 +21,9 @@ subroutine vrtmap (pkdim   ,pmap    ,sigln   ,dsigln  ,kdpmap  )
 ! Author: Jerry Olson
 ! 
 !-----------------------------------------------------------------------
-   use shr_kind_mod, only: r8 => shr_kind_r8
+   use shr_kind_mod,     only: r8 => shr_kind_r8
    use cam_abortutils,   only: endrun
-   use cam_logfile,  only: iulog
-#if (!defined UNICOSMP)
-   use srchutil,     only: ismin
-#endif
-!-----------------------------------------------------------------------
-   implicit none
+   use cam_logfile,      only: iulog
 !-----------------------------------------------------------------------
 !
 ! Arguments
@@ -42,15 +46,12 @@ subroutine vrtmap (pkdim   ,pmap    ,sigln   ,dsigln  ,kdpmap  )
    real(r8) del              ! artificial grid interval
    real(r8) dp               ! artificial departure point
    real(r8) eps              ! epsilon factor
-#if (defined UNICOSMP)
-   integer, external :: ismin
-#endif
 !
 !-----------------------------------------------------------------------
 !
    eps = 1.e-05_r8
    del = ( sigln(pkdim) - sigln(1) )/real(pmap,r8)
-   imin = ismin( pkdim-1,dsigln, 1 )
+   imin = minloc( dsigln(:pkdim-1), dim=1 )
    if (del + eps  >=  dsigln(imin)) then
       newmap = ( sigln(pkdim) - sigln(1) )/dsigln(imin) + 1
       write(iulog,9000) pmap,newmap
@@ -73,3 +74,4 @@ subroutine vrtmap (pkdim   ,pmap    ,sigln   ,dsigln  ,kdpmap  )
             ' Reset parameter "pmap" to at least ',i20)
 end subroutine vrtmap
 
+end module vrtmap_mod
