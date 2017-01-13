@@ -70,6 +70,8 @@
   <GMAKE_J>8</GMAKE_J>
   <MAX_TASKS_PER_NODE>48</MAX_TASKS_PER_NODE>
   <PES_PER_NODE>24</PES_PER_NODE>
+  <PROJECT>acme</PROJECT>
+  <PROJECT_REQUIRED>TRUE</PROJECT_REQUIRED>
   <CESMSCRATCHROOT>$ENV{SCRATCH}/acme_scratch</CESMSCRATCHROOT>
   <DIN_LOC_ROOT>/project/projectdirs/acme/inputdata</DIN_LOC_ROOT>
   <DIN_LOC_ROOT_CLMFORC>/project/projectdirs/acme/inputdata/atm/datm7</DIN_LOC_ROOT_CLMFORC>
@@ -274,7 +276,7 @@
 
       <modules compiler="!intel">
 	<command name="rm">cray-libsci</command>
-	<command name="load">cray-libsci/16.06.1</command>
+	<command name="load">cray-libsci/16.09.1</command>
       </modules>
 
       <modules mpilib="mpi-serial">
@@ -305,15 +307,10 @@
       <env name="OMP_PROC_BIND">spread</env>
       <env name="OMP_PLACES">threads</env>
 
-    <!-- Where to put commands such as these? -->
-    <!-- module list >& software_environment.txt -->
-    <!-- env >>&  software_environment.txt -->
-    <!-- limit coredumpsize unlimited -->
-    <!-- limit stacksize unlimited -->
     </environment_variables>
 </machine>
 
-<!-- Think of this as a stub entry.  Will have access and can test soon.  ndk -->
+<!-- KNL nodes of Cori -->
 <machine MACH="cori-knl">
     <DESC>Cori. XC40 Cray system at NERSC. KNL partition. os is CNL, 68 pes/node (for now only use 64), batch system is SLURM</DESC>
     <NODENAME_REGEX>cori-knl-haswell-is-default</NODENAME_REGEX>
@@ -401,7 +398,7 @@
 	<command name="switch">gcc gcc/6.2.0</command>
       </modules>
       <modules compiler="!intel">
-	<command name="switch">cray-libsci/16.06.1</command>
+	<command name="switch">cray-libsci/16.09.1</command>
       </modules>
 
       <modules>
@@ -415,10 +412,12 @@
       </modules>
 
       <modules mpilib="mpi-serial">
+	<command name="rm">cray-netcdf-hdf5parallel</command>
 	<command name="load">cray-hdf5/1.8.16</command>
 	<command name="load">cray-netcdf/4.4.0</command>
       </modules>
       <modules mpilib="!mpi-serial">
+	<command name="rm">cray-netcdf-hdf5parallel</command>
 	<command name="load">cray-netcdf-hdf5parallel/4.4.0</command>
 	<command name="load">cray-hdf5-parallel/1.8.16</command>
 	<command name="load">cray-parallel-netcdf/1.7.0</command>
@@ -440,12 +439,6 @@
       <env name="OMP_STACKSIZE">128M</env>
       <env name="OMP_PROC_BIND">spread</env>
       <env name="OMP_PLACES">threads</env>
-
-   <!-- Where to put commands such as these? -->
-   <!-- module list >& software_environment.txt -->
-   <!-- env >>&  software_environment.txt -->
-   <!-- limit coredumpsize unlimited -->
-   <!-- limit stacksize unlimited -->
 
     </environment_variables>
 </machine>
