@@ -5,6 +5,7 @@ module clm_bgc_interface_data
 ! Created by wgs @ ORNL
 !
 ! date: 8/25/2015
+! update: 9/16/2016
 !!=================================================================================================
   !! USES:
   use shr_log_mod           , only : errMsg => shr_log_errMsg
