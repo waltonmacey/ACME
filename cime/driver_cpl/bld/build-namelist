@@ -84,7 +84,7 @@ my %opts = ( help        => 0,
 	     atm_grid    => 0,
 	     lnd_grid    => 0,
 	     ocn_grid    => 0,
-             pio_version => 1);
+             pio_version => 2);
 
 GetOptions(
     "h|help"        => \$opts{'help'},
