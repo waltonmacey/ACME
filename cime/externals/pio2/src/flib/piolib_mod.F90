@@ -12,7 +12,7 @@ module piolib_mod
   use pio_kinds
   !--------------
   use pio_types, only : file_desc_t, iosystem_desc_t, var_desc_t, io_desc_t, &
-	pio_iotype_netcdf, pio_iotype_pnetcdf, pio_iotype_netcdf4p, pio_iotype_netcdf4c, &
+        pio_iotype_netcdf, pio_iotype_pnetcdf, pio_iotype_netcdf4p, pio_iotype_netcdf4c, &
         pio_noerr, pio_rearr_subset
   !--------------
   use pio_support, only : piodie, debug, debugio, debugasync, checkmpireturn
@@ -1212,7 +1212,7 @@ contains
 !! @brief  Create a NetCDF or PNetCDF file using PIO.
 !! @details  Input parameters are read on comp task 0 and ignored elsewhere
 !! @param iosystem : A defined pio system descriptor created by a call to @ref PIO_init (see PIO_types)
-!! @param file	:  The returned file descriptor
+!! @param file  :  The returned file descriptor
 !! @param iotype : @copydoc PIO_iotype
 !! @param fname : The name of the file to open
 !! @param amode_in : The NetCDF creation mode flag. the following flags are available:
@@ -1267,7 +1267,7 @@ contains
 !! @brief open an existing file using pio
 !! @details  Input parameters are read on comp task 0 and ignored elsewhere.
 !! @param iosystem : a defined pio system descriptor created by a call to @ref PIO_init (see PIO_types)
-!! @param file	:  the returned file descriptor
+!! @param file  :  the returned file descriptor
 !! @param iotype : @copybrief PIO_iotype
 !! @param fname : the name of the file to open
 !! @param mode : a zero value (or PIO_nowrite) specifies the default

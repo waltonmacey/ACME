@@ -42,18 +42,18 @@
 /** Handle MPI errors. This should only be used with MPI library
  * function calls. */
 #define MPIERR(e) do {                                                  \
-	MPI_Error_string(e, err_buffer, &resultlen);			\
+	MPI_Error_string(e, err_buffer, &resultlen);                    \
 	fprintf(stderr, "MPI error, line %d, file %s: %s\n", __LINE__, __FILE__, err_buffer); \
-	MPI_Finalize();							\
-	return 2;							\
+	MPI_Finalize();                                                 \
+	return 2;                                                       \
     } while (0)
 
 /** Handle non-MPI errors by finalizing the MPI library and exiting
  * with an exit code. */
-#define ERR(e) do {				\
-        fprintf(stderr, "Error %d in %s, line %d\n", e, __FILE__, __LINE__); \
-	MPI_Finalize();				\
-	return e;				\
+#define ERR(e) do {                             \
+	fprintf(stderr, "Error %d in %s, line %d\n", e, __FILE__, __LINE__); \
+	MPI_Finalize();                         \
+	return e;                               \
     } while (0)
 
 /** Global err buffer for MPI. When there is an MPI error, this buffer
@@ -278,7 +278,7 @@ main(int argc, char **argv)
 	    int storage;
 	    size_t my_chunksize[NDIM];
 	    if ((ret = PIOc_inq_var_chunking(ncid, 0, &storage, my_chunksize)))
-	    	ERR(ret);
+		ERR(ret);
 
 	    /** For serial netCDF-4, only processor rank 0 gets the answers. */
 	    if (format[fmt] == PIO_IOTYPE_NETCDF4C && !my_rank ||
@@ -288,7 +288,7 @@ main(int argc, char **argv)
 		    ERR(ERR_AWFUL);
 		for (int d = 0; d < NDIM; d++)
 		    if (my_chunksize[d] != chunksize[d])
-		    	ERR(ERR_AWFUL);
+			ERR(ERR_AWFUL);
 	    }
 
 	    /* Check that the inv_var_deflate functions works. */
@@ -296,7 +296,7 @@ main(int argc, char **argv)
 	    int deflate;
 	    int deflate_level;
 	    if ((ret = PIOc_inq_var_deflate(ncid, 0, &shuffle, &deflate, &deflate_level)))
-	    	ERR(ret);
+		ERR(ret);
 
 	    /** For serial netCDF-4, only processor rank 0 gets the
 	     * answers. Also deflate is turned on by default */

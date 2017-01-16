@@ -17,8 +17,8 @@ endif ()
 
 # Look for GPTL
 if (PIO_ENABLE_TIMING)
-    find_package (GPTL COMPONENTS C QUIET)
-    find_package (GPTL COMPONENTS Fortran_Perf QUIET)
+  find_package (GPTL COMPONENTS C QUIET)
+  find_package (GPTL COMPONENTS Fortran_Perf QUIET)
 endif ()
 
 #==============================================================================
@@ -27,13 +27,15 @@ endif ()
 
 # Build GPTL only if necessary
 if (PIO_ENABLE_TIMING)
-    if (NOT GPTL_C_FOUND OR NOT GPTL_Fortran_Perf_FOUND)
-        add_subdirectory (gptl)
-    endif ()
+  if (NOT GPTL_C_FOUND OR NOT GPTL_Fortran_Perf_FOUND)
+    add_subdirectory (gptl)
+  endif ()
 endif ()
 
 # Build the C library
 add_subdirectory (clib)
 
 # Build the Fortran library
-add_subdirectory (flib)
+if (PIO_ENABLE_FORTRAN)
+  add_subdirectory (flib)
+endif ()

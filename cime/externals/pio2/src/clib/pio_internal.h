@@ -1,9 +1,9 @@
 /**
- * @file 
+ * @file
  * Private headers and defines for the PIO C interface.
  * @author Jim Edwards
  * @date  2014
- * 
+ *
  * @see http://code.google.com/p/parallelio/
  */
 
@@ -22,12 +22,22 @@
 #ifndef MPI_Offset
 #define MPI_Offset long long
 #endif
+
+#if defined(MPT_VERSION) || defined(OPEN_MPI)
+/* Some MPI implementations do not allow passing MPI_DATATYPE_NULL to comm functions 
+ * even though the send or recv length is 0, in these cases we use MPI_CHAR */
+#define PIO_DATATYPE_NULL MPI_CHAR
+#else
+#define PIO_DATATYPE_NULL MPI_DATATYPE_NULL
+#endif
+
 #include <bget.h>
 #include <limits.h>
 #include <math.h>
 #ifdef TIMING
 #include <gptl.h>
 #endif
+#include <assert.h>
 
 #if PIO_ENABLE_LOGGING
 void pio_log(int severity, const char *fmt, ...);
@@ -36,15 +46,15 @@ void pio_log(int severity, const char *fmt, ...);
 #define LOG(e)
 #endif /* PIO_ENABLE_LOGGING */
 
-#define max(a,b)				\
-    ({ __typeof__ (a) _a = (a);			\
-	__typeof__ (b) _b = (b);		\
-	_a > _b ? _a : _b; })
+#define max(a,b)                                \
+    ({ __typeof__ (a) _a = (a);                 \
+        __typeof__ (b) _b = (b);                \
+        _a > _b ? _a : _b; })
 
-#define min(a,b)				\
-    ({ __typeof__ (a) _a = (a);			\
-	__typeof__ (b) _b = (b);		\
-	_a < _b ? _a : _b; })
+#define min(a,b)                                \
+    ({ __typeof__ (a) _a = (a);                 \
+        __typeof__ (b) _b = (b);                \
+        _a < _b ? _a : _b; })
 
 #define MAX_GATHER_BLOCK_SIZE 0
 #define PIO_REQUEST_ALLOC_CHUNK 16
@@ -53,119 +63,188 @@ void pio_log(int severity, const char *fmt, ...);
 extern "C" {
 #endif
 
-    extern PIO_Offset PIO_BUFFER_SIZE_LIMIT;
+    extern PIO_Offset pio_buffer_size_limit;
+
+    /** If this is true, then InitDecomp() will save decompositions to
+     * a file. */
     extern bool PIO_Save_Decomps;
 
     /** Used to sort map points in the subset rearranger. */
     typedef struct mapsort
     {
-	int rfrom;
-	PIO_Offset soffset;
-	PIO_Offset iomap;
+        int rfrom;
+        PIO_Offset soffset;
+        PIO_Offset iomap;
     } mapsort;
 
     /** swapm defaults. */
     typedef struct pio_swapm_defaults
     {
-	int nreqs;
-	bool handshake;
-	bool isend;
+        int nreqs;
+        bool handshake;
+        bool isend;
     } pio_swapm_defaults;
 
+    /* Handle an error in the PIO library. */
+    int pio_err(iosystem_desc_t *ios, file_desc_t *file, int err_num, const char *fname,
+                int line);
+
+    /* For async cases, this runs on IO tasks and listens for messages. */
+    int pio_msg_handler2(int io_rank, int component_count, iosystem_desc_t **iosys,
+                         MPI_Comm io_comm);
+    
     void pio_get_env(void);
     int  pio_add_to_iodesc_list(io_desc_t *iodesc);
     io_desc_t *pio_get_iodesc_from_id(int ioid);
     int pio_delete_iodesc_from_list(int ioid);
+    int pio_num_iosystem(int *niosysid);
 
-    file_desc_t *pio_get_file_from_id(int ncid);
+    int pio_get_file(int ncid, file_desc_t **filep);
     int pio_delete_file_from_list(int ncid);
     void pio_add_to_file_list(file_desc_t *file);
     void pio_push_request(file_desc_t *file, int request);
 
+    /* Open a file with optional retry as netCDF-classic if first
+     * iotype does not work. */
+    int PIOc_openfile_retry(int iosysid, int *ncidp, int *iotype,
+                            const char *filename, int mode, int retry);
+
     iosystem_desc_t *pio_get_iosystem_from_id(int iosysid);
     int pio_add_to_iosystem_list(iosystem_desc_t *ios);
-  
-    int check_netcdf(file_desc_t *file,const int status, const char *fname, const int line);
-    int iotype_error(const int iotype, const char *fname, const int line);
-    void piodie(const char *msg,const char *fname, const int line);
-    void pioassert(bool exp, const char *msg,const char *fname, const int line);
-    int CalcStartandCount(const int basetype, const int ndims, const int *gdims, const int num_io_procs,
-			  const int myiorank, PIO_Offset *start, PIO_Offset *kount);
-    void CheckMPIReturn(const int ierr,const char file[],const int line);
-    int pio_fc_gather( void *sendbuf, const int sendcnt, const MPI_Datatype sendtype,
-		       void *recvbuf, const int recvcnt, const MPI_Datatype recvtype, const int root, 
-		       MPI_Comm comm, const int flow_cntl);
-    int pio_fc_gatherv( void *sendbuf, const int sendcnt, const MPI_Datatype sendtype,
-			void *recvbuf, const int recvcnts[], const int recvdispl[], const MPI_Datatype recvtype, const int root, 
-			MPI_Comm comm, const int flow_cntl);
-  
-    int pio_fc_gatherv( void *sendbuf, const int sendcnt, const MPI_Datatype sendtype,
-			void *recvbuf, const int recvcnts[], const int rdispls[], const MPI_Datatype recvtype, const int root, 
-			MPI_Comm comm, const int flow_cntl);
-  
-    int pio_swapm(void *sndbuf, int sndlths[], int sdispls[], MPI_Datatype stypes[], 
-		  void *rcvbuf, int rcvlths[], int rdispls[], MPI_Datatype rtypes[], 
-		  MPI_Comm comm, const bool handshake, bool isend, const int max_requests);
-  
-    long long lgcd_array(int nain, long long*ain);
-  
+
+    /* Check the return code from a netCDF call. */
+    int check_netcdf(file_desc_t *file, int status, const char *fname, int line);
+
+    /* Check the return code from a netCDF call, with ios pointer. */
+    int check_netcdf2(iosystem_desc_t *ios, file_desc_t *file, int status,
+                      const char *fname, int line);
+
+    /* Check whether an IO type is valid for this build. */
+    int iotype_is_valid(int iotype);    
+
+    /* Print error message and abort. */
+    void piodie(const char *msg, const char *fname, int line);
+
+    /* Assert that an expression is true. */
+    void pioassert(bool exp, const char *msg, const char *fname, int line);
+    
+    int CalcStartandCount(int basetype, int ndims, const int *gdims, int num_io_procs,
+                          int myiorank, PIO_Offset *start, PIO_Offset *kount);
+
+    /* Check return from MPI function and print error message. */
+    void CheckMPIReturn(int ierr, const char *file, int line);
+
+    /* Like MPI_Alltoallw(), but with flow control. */
+    int pio_swapm(void *sndbuf, int *sndlths, int *sdispls, MPI_Datatype *stypes,
+                  void *rcvbuf, int *rcvlths, int *rdispls, MPI_Datatype *rtypes,
+                  MPI_Comm comm, bool handshake, bool isend, int max_requests);
+
+    long long lgcd_array(int nain, long long* ain);
+
     void PIO_Offset_size(MPI_Datatype *dtype, int *tsize);
-    PIO_Offset GCDblocksize(const int arrlen, const PIO_Offset arr_in[]);
-  
-    int subset_rearrange_create(const iosystem_desc_t ios,const int maplen, PIO_Offset compmap[], const int gsize[],
-				const int ndim, io_desc_t *iodesc);
-  
+    PIO_Offset GCDblocksize(int arrlen, const PIO_Offset *arr_in);
 
-    int box_rearrange_create(const iosystem_desc_t ios,const int maplen, const PIO_Offset compmap[], const int gsize[],
-			     const int ndim, io_desc_t *iodesc);
-  
+    /* Create a subset rearranger. */
+    int subset_rearrange_create(iosystem_desc_t ios, int maplen, PIO_Offset *compmap, const int *gsize,
+                                int ndim, io_desc_t *iodesc);
 
-    int rearrange_io2comp(const iosystem_desc_t ios, io_desc_t *iodesc, void *sbuf,
-			  void *rbuf);
-    int rearrange_comp2io(const iosystem_desc_t ios, io_desc_t *iodesc, void *sbuf,
-			  void *rbuf, const int nvars);
-    int calcdisplace(const int bsize, const int numblocks,const PIO_Offset map[],int displace[]);
-    io_desc_t *malloc_iodesc(const int piotype, const int ndims);
+
+    /* Create a box rearranger. */
+    int box_rearrange_create(iosystem_desc_t ios, int maplen, const PIO_Offset *compmap, const int *gsize,
+                             int ndim, io_desc_t *iodesc);
+
+
+    int rearrange_io2comp(iosystem_desc_t ios, io_desc_t *iodesc, void *sbuf, void *rbuf);
+
+    int rearrange_comp2io(iosystem_desc_t ios, io_desc_t *iodesc, void *sbuf, void *rbuf, int nvars);
+
+    io_desc_t *malloc_iodesc(int piotype, int ndims);
     void performance_tune_rearranger(iosystem_desc_t ios, io_desc_t *iodesc);
-  
+
     int flush_output_buffer(file_desc_t *file, bool force, PIO_Offset addsize);
     void compute_maxIObuffersize(MPI_Comm io_comm, io_desc_t *iodesc);
-    io_region *alloc_region(const int ndims);
+    io_region *alloc_region(int ndims);
     int pio_delete_iosystem_from_list(int piosysid);
-    int gcd(int a, int b); 
-    long long lgcd (long long a,long long b );
+
+    /* Find greatest commond divisor. */
+    int gcd(int a, int b);
+
+    /* Find greatest commond divisor for long long. */
+    long long lgcd (long long a, long long b );
+
+    /* Find greatest commond divisor in an array. */
     int gcd_array(int nain, int *ain);
+    
     void free_region_list(io_region *top);
-    void gindex_to_coord(const int ndims, const PIO_Offset gindex, const PIO_Offset gstride[], PIO_Offset *gcoord);
-    PIO_Offset coord_to_lindex(const int ndims, const PIO_Offset lcoord[], const PIO_Offset count[]);
 
-    int ceil2(const int i);
-    int pair(const int np, const int p, const int k);
-    int define_iodesc_datatypes(const iosystem_desc_t ios, io_desc_t *iodesc);
+    /* Convert a global coordinate value into a local array index. */
+    PIO_Offset coord_to_lindex(int ndims, const PIO_Offset *lcoord, const PIO_Offset *count);
 
-    int create_mpi_datatypes(const MPI_Datatype basetype,const int msgcnt,const PIO_Offset dlen, 
-			     const PIO_Offset mindex[],const int mcount[],int *mfrom, MPI_Datatype mtype[]);
-    int compare_offsets(const void *a,const void *b) ;
+    int ceil2(int i);
+    int pair(int np, int p, int k);
+    int define_iodesc_datatypes(iosystem_desc_t ios, io_desc_t *iodesc);
 
-    int subset_rearrange_create(const iosystem_desc_t ios, int maplen, PIO_Offset compmap[], 
-				const int gsize[], const int ndims, io_desc_t *iodesc);
+    /* Create the derived MPI datatypes used for comp2io and io2comp
+     * transfers. */
+    int create_mpi_datatypes(MPI_Datatype basetype, int msgcnt, PIO_Offset dlen, const PIO_Offset *mindex,
+                             const int *mcount, int *mfrom, MPI_Datatype *mtype);
+    int compare_offsets(const void *a, const void *b) ;
+
+    int subset_rearrange_create(iosystem_desc_t ios, int maplen, PIO_Offset *compmap,
+                                const int *gsize, int ndims, io_desc_t *iodesc);
     void print_trace (FILE *fp);
     void cn_buffer_report(iosystem_desc_t ios, bool collective);
-    void compute_buffer_init(iosystem_desc_t ios);
+
+    /* Initialize the compute buffer. */
+    int compute_buffer_init(iosystem_desc_t ios);
+    
     void free_cn_buffer_pool(iosystem_desc_t ios);
     void flush_buffer(int ncid, wmulti_buffer *wmb, bool flushtodisk);
-    void piomemerror(iosystem_desc_t ios, size_t req, char *fname, const int line);
-    void compute_maxaggregate_bytes(const iosystem_desc_t ios, io_desc_t *iodesc);
-    int check_mpi(file_desc_t *file, const int mpierr, const char *filename,
-		  const int line);
+    void piomemerror(iosystem_desc_t ios, size_t req, char *fname, int line);
+    void compute_maxaggregate_bytes(iosystem_desc_t ios, io_desc_t *iodesc);
 
-#ifdef BGQ
-    void identity(MPI_Comm comm, int *iotask);
-    void determineiotasks(const MPI_Comm comm, int *numiotasks,int *base, int *stride, int *rearr, 
-			  bool *iamIOtask);
+    /* Check the return code from an MPI function call. */
+    int check_mpi(file_desc_t *file, int mpierr, const char *filename, int line);
 
-#endif
+    /* Check the return code from an MPI function call. */
+    int check_mpi2(iosystem_desc_t *ios, file_desc_t *file, int mpierr, const char *filename,
+                   int line);
 
+    /* Darray support functions. */
+    int pio_write_darray_multi_nc(file_desc_t *file, int nvars, const int *vid, int iodesc_ndims,
+                                  MPI_Datatype basetype, const PIO_Offset *gsize, int maxregions,
+                                  io_region *firstregion, PIO_Offset llen, int maxiobuflen, int num_aiotasks,
+                                  void *iobuf, const int *frame);
+    int pio_write_darray_multi_nc_serial(file_desc_t *file, int nvars, const int *vid, int iodesc_ndims,
+                                         MPI_Datatype basetype, const PIO_Offset *gsize, int maxregions,
+                                         io_region *firstregion, PIO_Offset llen, int maxiobuflen, int num_aiotasks,
+                                         void *iobuf, const int *frame);
+    int pio_read_darray_nc(file_desc_t *file, io_desc_t *iodesc, int vid, void *iobuf);
+    int pio_read_darray_nc_serial(file_desc_t *file, io_desc_t *iodesc, int vid, void *iobuf);
+
+    /* Generalized get functions. */
+    int PIOc_get_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Offset *count,
+                         const PIO_Offset *stride, nc_type xtype, void *buf);
+    int PIOc_get_var1_tc(int ncid, int varid, const PIO_Offset *index, nc_type xtype,
+                         void *buf);
+
+    /* Generalized put functions. */
+    int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Offset *count,
+                         const PIO_Offset *stride, nc_type xtype, const void *buf);
+    int PIOc_put_var1_tc(int ncid, int varid, const PIO_Offset *index, nc_type xtype,
+                         const void *op);
+
+    /* An internal replacement for a function pnetcdf does not
+     * have. */
+    int pioc_pnetcdf_inq_type(int ncid, nc_type xtype, char *name,
+			      PIO_Offset *sizep);
+
+    /* Handle end and re-defs. */
+    int pioc_change_def(int ncid, int is_enddef);    
+
+    /* Initialize and finalize logging. */
+    void pio_init_logging(void);
+    void pio_finalize_logging(void );
 #if defined(__cplusplus)
 }
 #endif

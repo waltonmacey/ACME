@@ -13,7 +13,7 @@ module pio_types
     !-------------------------------------------
     type, public :: DecompMap_t
 #ifdef SEQUENCE
-	sequence
+        sequence
 #endif
         integer(i4) :: start
         integer(i4) :: length
@@ -73,7 +73,7 @@ module pio_types
 !<
    type, public :: io_desc_t
 #ifdef SEQUENCE
-	sequence
+        sequence
 #endif
         integer(i4)         :: ioid
     end type
@@ -228,5 +228,18 @@ module pio_types
 #endif
 #endif
    integer, public, parameter :: PIO_num_OST =  16
+
+   type, public :: PIO_rearr_comm_fc_opt_t
+      logical :: enable_hs            ! Enable handshake?
+      logical :: enable_isend         ! Enable isends?
+      integer :: max_pend_req         ! Maximum pending requests
+    end type PIO_rearr_comm_fc_opt_t
+
+    type, public :: PIO_rearr_opt_t
+      integer                         :: comm_type
+      integer                         :: fcd       ! Flow control direction
+      type(PIO_rearr_comm_fc_opt_t)   :: comm_fc_opts_comp2io
+      type(PIO_rearr_comm_fc_opt_t)   :: comm_fc_opts_io2comp
+    end type PIO_rearr_opt_t
 
 end module pio_types

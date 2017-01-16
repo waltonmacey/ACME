@@ -23,12 +23,9 @@ Program pio_unit_test_driver
        ltest_netcdf4c,     &
        ltest_pnetcdf,    &
        stride
-#if defined( _NETCDF4) && defined(LOGGING)
-  integer, external :: nc_set_log_level2
-#endif
   integer ret_val
-  character(len=80) :: errmsg
-  character(len=80) :: expected
+  character(len=pio_max_name) :: errmsg
+  character(len=pio_max_name) :: expected
   
   ! Set up MPI
   call MPI_Init(ierr)
@@ -156,9 +153,6 @@ Program pio_unit_test_driver
                 write(*,"(A,I0)") "Error, not configured for test #", test_id
            call MPI_Abort(MPI_COMM_WORLD, 0, ierr)
         end select
-#if defined( _NETCDF4) && defined(LOGGING)
-        if(master_task) ierr = nc_set_log_level2(3)
-#endif
         
         ! test_create()
         if (master_task) write(*,"(3x,A,1x)") "testing PIO_createfile..."
@@ -208,6 +202,9 @@ Program pio_unit_test_driver
   end if
 
   call PIO_finalize(pio_iosystem, ierr)
+#ifdef TIMING
+  call t_finalizef()
+#endif
   call MPI_Finalize(ierr)
   if(fail_cnt>0) then
      stop 1

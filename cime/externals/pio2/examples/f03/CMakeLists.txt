@@ -18,4 +18,3 @@ endif()
 SET(SRC examplePio.f90)
 ADD_EXECUTABLE(examplePio_f90 ${SRC})
 TARGET_LINK_LIBRARIES(examplePio_f90 piof pioc ${TIMING_LINK_LIB})
-
