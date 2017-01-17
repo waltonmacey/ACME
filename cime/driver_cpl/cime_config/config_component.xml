@@ -3158,6 +3158,7 @@
       <value compset="_SLND.*SOCN.*_MPASLI">1</value>
       <value compset="_DATM.*_SLND.*MPASO.*_MPASLI">24</value>
       <value compset="_CAM.*_CLM.*MPASO">48</value>
+      <value compset="_CAM.*_CLM.*MPASO" grid="a%ne4np4">$ATM_NCPL</value>
       <value compset="_CAM.*_CLM.*MPASO" grid="a%ne11np4">12</value>
       <value compset="_CAM.*_CLM.*MPASO" grid="a%ne120np4">96</value>
     </values>
@@ -3177,6 +3178,7 @@
       <value compset="_SLND.*SOCN.*_MPASLI">1</value>
       <value compset="_DATM.*_SLND.*MPASO.*_MPASLI">24</value>
       <value compset="_CAM.*_CLM.*MPASO">48</value>
+      <value compset="_CAM.*_CLM.*MPASO" grid="a%ne4np4">$ATM_NCPL</value>
       <value compset="_CAM.*_CLM.*MPASO" grid="a%ne11np4">12</value>
       <value compset="_CAM.*_CLM.*MPASO" grid="a%ne120np4">96</value>
     </values>
@@ -3204,6 +3206,7 @@
       <value compset="_SLND.*SOCN.*_MPASLI">1</value>
       <value compset="_DATM.*_SLND.*MPASO.*_MPASLI">24</value>
       <value compset="_CAM.*_CLM.*MPASO">48</value>
+      <value compset="_CAM.*_CLM.*MPASO" grid="a%ne4np4">$ATM_NCPL</value>
       <value compset="_CAM.*_CLM.*MPASO" grid="a%ne11np4">12</value>
       <value compset="_CAM.*_CLM.*MPASO" grid="oi%oRRS18to6">48</value>
       <value compset="_CAM.*_CLM.*MPASO" grid="oi%oRRS15to5">96</value>
@@ -3248,6 +3251,7 @@
       <value compset="_SLND.*SOCN.*_MPASLI">1</value>
       <value compset="_DATM.*_SLND.*MPASO.*_MPASLI">24</value>
       <value compset="_CAM.*_CLM.*MPASO">8</value>
+      <value compset="_CAM.*_CLM.*MPASO" grid="a%ne4np4">6</value>
       <value compset="_CAM.*_CLM.*MPASO" grid="a%ne11np4">4</value>
       <value compset="_CAM.*_CLM.*MPASO" grid="a%ne120np4">8</value>
     </values>
