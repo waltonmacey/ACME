@@ -173,10 +173,12 @@ parser.add_option("--trans2", dest="trans2", default=False, action="store_true",
                   help = 'Tranisnent phase 2 (1901-2010) - CRUNCEP only')
 parser.add_option("--spinup_vars", dest="spinup_vars", default=False, \
                   help = 'Limit output vars in spinup runs', action="store_true")
-parser.add_option("--cn_only", dest="cn_only", default=True, \
+parser.add_option("--c_only", dest="c_only", default=False, \
+                 help="Carbon only (supplemental P and N)", action="store_true")
+parser.add_option("--cn_only", dest="cn_only", default=False, \
                   help = 'Carbon/Nitrogen only (supplemental P)', action="store_true")
-parser.add_option("--cnp", dest="cnp", default=False, \
-                  help = 'CNP model', action = "store_true")
+parser.add_option("--cp_only", dest="cp_only", default=False, \
+                  help = 'Carbon/Phosphorus only (supplemental N)', action = "store_true")
 parser.add_option("--ensemble_file", dest="ensemble_file", default='', \
                   help = 'Parameter sample file to generate ensemble')
 parser.add_option("--mc_ensemble", dest="mc_ensemble", default=-1, \
@@ -189,6 +191,10 @@ parser.add_option("--archiveroot", dest="archiveroot", default='', \
 #Added by Kirk to include the modified parameter file
 parser.add_option("--mod_parm_file", dest="mod_parm_file", default='', \
                   help = "adding the path to the modified parameter file")
+parser.add_option("--parm_list", dest="parm_list", default='parm_list', \
+                  help = 'File containing list of parameters to vary')
+parser.add_option("--postproc_file", dest="postproc_file", default="", \
+                  help = 'File for ensemble post processing')
 
 (options, args) = parser.parse_args()
 
@@ -253,7 +259,7 @@ pftphys_stamp = 'clm40.c130424'
 if ('CLM45' in compset):
     isclm45 = True
     surfdir = 'surfdata_map'
-    pftphys_stamp = 'c160128'
+    pftphys_stamp = 'c160711' #'c160711_root'
 CNPstamp = 'c131108'
 
 
@@ -459,11 +465,11 @@ if (options.compset == 'ICLM45CN' or options.compset == 'ICLM45BGC' or '2000' in
 #parameter (pft-phys) modifications if desired
 tmpdir = csmdir+'/components/clm/tools/clm4_5/pointclm/temp'
 os.system('mkdir -p '+tmpdir)
-os.system('cp '+options.ccsm_input+'/lnd/clm2/paramdata/clm_params.'+pftphys_stamp+'.nc ' \
-              +tmpdir+'/clm_params.'+pftphys_stamp+'.'+casename+'.nc')
-os.system('chmod u+w ' +tmpdir+'/clm_params.'+pftphys_stamp+'.'+casename+'.nc')
+os.system('cp '+options.ccsm_input+'/lnd/clm2/paramdata/clm_params_'+pftphys_stamp+'.nc ' \
+              +tmpdir+'/clm_params_'+pftphys_stamp+'.'+casename+'.nc')
+os.system('chmod u+w ' +tmpdir+'/clm_params_'+pftphys_stamp+'.'+casename+'.nc')
 if (options.parm_file != ''):
-    pftfile = tmpdir+'/clm_params.'+pftphys_stamp+'.'+casename+'.nc'
+    pftfile = tmpdir+'/clm_params_'+pftphys_stamp+'.'+casename+'.nc'
     input   = open(os.path.abspath(options.parm_file))
     for s in input:
         if s[0:1] != '#':
@@ -645,7 +651,7 @@ os.system('./xmlchange -file env_run.xml -id ' \
 #--------------------------CESM setup ----------------------------------------
 
 if (options.clean_config):
-    os.system('./cesm_setup -clean')
+    os.system('./case.setup -clean')
     os.system('rm -f Macro')
     os.system('rm -f user-nl-*')
 
@@ -665,6 +671,11 @@ for i in range(1,int(options.ninst)+1):
     output.write('&clm_inparm\n')
 
     #history file options
+    if ('20TR' not in compset and int(options.hist_mfilt) == -1):
+	#default to annual for spinup runs if not specified
+	options.hist_mfilt = 1
+	options.hist_nhtfrq = -8760
+
     if (options.hist_mfilt != -1):
         if (options.ad_spinup):
             output.write(" hist_mfilt = "+str(options.hist_mfilt)+", "+str(options.hist_mfilt)+"\n")
@@ -693,7 +704,7 @@ for i in range(1,int(options.ninst)+1):
         hvars_file.close()
     if (options.spinup_vars and (not '20TR' in compset)):
         output.write(" hist_empty_htapes = .true.\n")
-        output.write(" hist_fincl1 = 'NPOOL', 'RETRANSN', 'PCO2', 'PBOT', 'NDEP_TO_SMINN', 'OCDEP', 'BCDEP', 'COL_FIRE_CLOSS', 'HDM', 'LNFM', 'NEE', 'GPP', 'FPSN', 'AR', 'HR', 'MR', 'GR', 'ER', 'NPP', 'TLAI', 'TOTSOMC', 'LEAFC', 'DEADSTEMC', 'DEADCROOTC', 'FROOTC', 'LIVESTEMC', 'LIVECROOTC', 'TOTVEGC', 'TOTCOLC', 'TOTLITC', 'BTRAN', 'CWDC', 'QVEGE', 'QVEGT', 'QSOIL', 'QDRAI', 'QRUNOFF', 'FPI', 'FPG'\n")
+        output.write(" hist_fincl1 = 'NPOOL', 'EFLX_LH_TOT', 'RETRANSN', 'PCO2', 'PBOT', 'NDEP_TO_SMINN', 'OCDEP', 'BCDEP', 'COL_FIRE_CLOSS', 'HDM', 'LNFM', 'NEE', 'GPP', 'FPSN', 'AR', 'HR', 'MR', 'GR', 'ER', 'NPP', 'TLAI', 'SOIL3C', 'SOIL4C', 'TOTSOMC', 'LEAFC', 'DEADSTEMC', 'DEADCROOTC', 'FROOTC', 'LIVESTEMC', 'LIVECROOTC', 'TOTVEGC', 'TOTCOLC', 'TOTLITC', 'BTRAN', 'CWDC', 'QVEGE', 'QVEGT', 'QSOIL', 'QDRAI', 'QRUNOFF', 'FPI', 'FPG'\n")
 
     if (options.ad_spinup):
         output.write(" hist_dov2xy = .true., .false.\n")
@@ -716,7 +727,7 @@ for i in range(1,int(options.ninst)+1):
         output.write(" fsurdat = '"+options.ccsm_input+"/lnd/clm2/"+surfdir+"/surfdata_"+str(numxpts)+'x'+ \
                          str(numypts)+"pt_"+options.site+"_simyr"+str(mysimyr)+".nc'\n")
     else:
-        output.write(" fsurdat = './surfdata_"+str(numxpts)+'x'+ \
+        output.write(" fsurdat = '"+rundir+"/surfdata_"+str(numxpts)+'x'+ \
                          str(numypts)+"pt_"+casename+"_simyr"+str(mysimyr)+".nc'\n")
     #pft dynamics file for transient run
     if ('20TR' in compset):
@@ -727,7 +738,7 @@ for i in range(1,int(options.ninst)+1):
 	        output.write(" flanduse_timeseries = '"+options.ccsm_input+"/lnd/clm2/"+surfdir+ \
                   "/surfdata.pftdyn_"+str(numxpts)+'x'+str(numypts)+"pt_"+options.site+".nc'\n")
             else:
-                output.write(" flanduse_timeseries = './surfdata.pftdyn_"+str(numxpts)+'x' \
+                output.write(" flanduse_timeseries = '"+rundir+"/surfdata.pftdyn_"+str(numxpts)+'x' \
                              +str(numypts)+"pt_"+casename+".nc'\n")
         output.write(' check_finidat_fsurdat_consistency = .false.\n')
         output.write(' check_finidat_year_consistency = .false.\n')
@@ -736,38 +747,49 @@ for i in range(1,int(options.ninst)+1):
         if (options.mod_parm_file != ''):
             output.write(" paramfile = '"+options.mod_parm_file+"'\n")
     else:
-        output.write(" paramfile = './clm_params."+pftphys_stamp+"."+ \
-                     casename+".nc'\n")
-    #soil order parameter file
-    output.write(" fsoilordercon = './CNP_parameters_"+CNPstamp+ \
+        output.write(" paramfile = '"+rundir+"/clm_params_"+pftphys_stamp+"."+ \
                      casename+".nc'\n")
 
-    #nitrogen deposition file
+
     if ('CN' in compset or 'BGC' in compset):
+        #soil order parameter file
+        output.write(" fsoilordercon = '"+rundir+"/CNP_parameters_"+CNPstamp+ \
+          casename+".nc'\n")
         output.write( " stream_fldfilename_ndep = '"+options.ccsm_input+ \
-        "/lnd/clm2/ndepdata/fndep_clm_hist_simyr1849-2006_1.9x2.5_c100428.nc'\n")
-    if (options.vsoilc):
-        output.write(" use_vertsoilc = .true.\n")
-    if (options.centbgc):
-        output.write(" use_century_decomp = .true.\n")
-    if (options.no_dynroot):
-        output.write(" use_dynroot = .false.\n")
-    if (options.bulk_denitrif):
-        output.write(" use_nitrif_denitrif = .false.\n")
-    else:
-        output.write(" use_nitrif_denitrif = .true.\n")
-    if (options.CH4 or (not options.bulk_denitrif)):
-        output.write(" use_lch4 = .true.\n")
-    if (options.nofire and isclm45):
-        output.write(" use_nofire = .true.\n")
-    if (options.cn_only or options.ad_spinup):
-        output.write(" suplphos = 'ALL'\n")
-    elif (options.cnp):
-        output.write(" suplphos = 'NONE'\n")
-    if (options.C13):
-        output.write(" use_c13 = .true.\n")
-    if (options.C14):
-        output.write(" use_c14 = .true.\n")
+          "/lnd/clm2/ndepdata/fndep_clm_hist_simyr1849-2006_1.9x2.5_" + \
+                      "c100428.nc'\n")
+        if (options.vsoilc):
+            output.write(" use_vertsoilc = .true.\n")
+        if (options.centbgc):
+            output.write(" use_century_decomp = .true.\n")
+        if (options.no_dynroot):
+            output.write(" use_dynroot = .false.\n")
+        if (options.bulk_denitrif):
+            output.write(" use_nitrif_denitrif = .false.\n")
+        else:
+            output.write(" use_nitrif_denitrif = .true.\n")
+        if (options.CH4 or (not options.bulk_denitrif)):
+            output.write(" use_lch4 = .true.\n")
+        if (options.nofire and isclm45):
+            output.write(" use_nofire = .true.\n")
+        if (options.c_only):
+            options.write(" suplphos = 'ALL'\n")
+            options.write(" suplnitro  = 'ALL'\n")
+        elif (options.cn_only or options.ad_spinup):
+            output.write(" suplphos = 'ALL'\n")
+            output.write(" suplnitro = 'NONE'\n")
+        elif (options.cp_only):
+            output.write(" suplphos = 'NONE'\n")
+            output.write(" suplnitro = 'ALL'\n")
+        else:
+            output.write(" suplphos = 'NONE'\n")
+            output.write(" suplnitro = 'NONE'\n")
+        if (options.C13):
+            output.write(" use_c13 = .true.\n")
+        if (options.C14):
+            output.write(" use_c14 = .true.\n")
+        output.write(" nyears_ad_carbon_only = 25\n")
+        output.write(" spinup_mortality_factor = 10\n")
     if (cpl_bypass):
         if (use_cruncep):
             output.write(" metdata_type = 'cru-ncep'\n")
@@ -781,14 +803,13 @@ for i in range(1,int(options.ninst)+1):
                          +options.co2_file+"'\n")
         output.write(" aero_file = '"+options.ccsm_input+"/atm/cam/chem/" \
                          +"trop_mozart_aero/aero/aerosoldep_monthly_1849-2006_1.9x2.5_c090803.nc'\n")
-    output.write(" nyears_ad_carbon_only = 25\n")
-    output.write(" spinup_mortality_factor = 10\n")
+
 
     output.close()
 
 #configure case
 if (options.no_config == False):
-    os.system('./cesm_setup')
+    os.system('./case.setup')
 else:
     print("Warning:  No case configure performed")
     sys.exit()
@@ -936,10 +957,10 @@ if (not cpl_bypass):
 
 #clean build if requested
 if (options.clean_build):
-    os.system('./'+casename+'.clean_build')
+    os.system('./case.build --clean')
 #compile cesm
 if (options.no_build == False):
-    os.system('./'+casename+'.build')
+    os.system('./case.build')
 else:
     print ('no_build set.  Assuming model has already been built.')
     print ('Creating run directory.  Setting BUILD_COMPLETE = TRUE')
@@ -978,31 +999,33 @@ if (options.no_submit == False and options.mc_ensemble < 0 and options.ensemble_
         f.close()
         os.system("qsub qsub.csh")
     else:
-        os.system("qsub "+casename+".run")
+        os.system("./case.submit")
 
-    
+
+
 #------------------------- Code to generate and run parameter ensembles --------------------------------------
 
 os.chdir(PTCLMdir)
 
 if (options.ensemble_file != '' or options.mc_ensemble != -1):
-    if (not(os.path.isfile('parm_list'))):
+    if (not(os.path.isfile(options.parm_list))):
 	print('parm_list file does not exist')
         sys.exit()
     else:
         param_names=[]
         param_min=[]
         param_max=[]
-        input = open('parm_list','r')
+        input = open(options.parm_list,'r')
         for s in input:
 	    if (s):
                 param_names.append(s.split()[0])
-                if (len(s.split()) == 3):
-                  param_min.append(float(s.split()[1]))
-                  param_max.append(float(s.split()[2]))
-                else:
-                  param_min.append(float(s.split()[2]))
-                  param_max.append(float(s.split()[3]))
+                if (options.mc_ensemble > 0):
+                    if (len(s.split()) == 3):
+                        param_min.append(float(s.split()[1]))
+                        param_max.append(float(s.split()[2]))
+                    else:
+                        param_min.append(float(s.split()[2]))
+                        param_max.append(float(s.split()[3]))
         input.close() 
         n_parameters = len(param_names)
 
@@ -1038,107 +1061,41 @@ if (options.ensemble_file != '' or options.mc_ensemble != -1):
     n_scripts = int(math.ceil(nsamples/float(options.ninst*options.ng)))
  
     num=0
-    #create ensemble directories 
+    #Launch ensemble if requested 
     if (options.ensemble_file != '' or options.mc_ensemble != -1):
-        for i in range(0,nsamples):
-            #write the PBS scripts to copy directories and run the ensembles for this case
-            if (i % int(options.ng) == 0):
-                input = open(caseroot+'/'+casename+'/'+casename+'.run')
-                numst=str(1000+num)
-                output_copy = open(tmpdir+'/ensemble_copy_'+casename+'_'+numst[1:]+'.pbs','w')
-                output_run  = open(tmpdir+'/ensemble_run_'+casename+'_'+numst[1:]+'.pbs','w')
-                for s in input:
-                    if ("perl" in s):
-                        output_copy.write("#!/bin/csh -f\n")
-                        output_run.write("#!/bin/csh -f\n")
-                    elif ("#PBS" in s or "#!" in s):
-                        #edit number of required nodes for ensemble runs
-                        if ('nodes' in s):
-                            output_copy.write('#PBS -l nodes=1:ppn='+str(ppn)+'\n')
-                            output_run.write('#PBS -l nodes='+str(int(math.ceil(np_total/(ppn*1.0))))+ \
-                                             ':ppn='+str(ppn)+'\n')
-                        elif ('walltime' in s): 
-                            output_copy.write('#PBS -l walltime=3:00:00\n')
-                            output_run.write('#PBS -l walltime=3:00:00\n')
-                        else:
-                            output_copy.write(s)
-                            output_run.write(s)
-                input.close()
-                output_copy.write("\n")
-                output_run.write("\n")
-            ngst=str(100000+(i % int(options.ng))+1)
-            if ('oic' in options.machine or 'cades' in options.machine):
-                #need to distribute jobs to nodes manually on oic
-                myline_end = int(options.np)*((i % int(options.ng))+1)*int(options.ninst)
-                output_run.write('head -'+str(myline_end)+' $PBS_NODEFILE | tail -1 > '+tmpdir+ \
-                              '/mynodefile'+ngst[1:]+'\n')
-            est=str(100000+i+1)
-            ens_dir  = runroot+'/UQ/'+casename+'/g'+est[1:]
-            if (int(est)-100000 <= math.ceil(float(nsamples)/options.ninst)):
-              output_copy.write('cd '+csmdir+'/components/clm/tools/clm4_5/pointclm/\n')
-              output_copy.write('python ensemble_copy.py --case '+casename+' --runroot '+runroot \
-                                    +' --ens_num '+str(i+1)+' --ens_file '+options.ensemble_file+' &\n')
-              if ((i+1) % ppn == 0 or (i == nsamples-1)):
-	        output_copy.write('wait\n')
-	        
-              output_copy.write('mkdir -p '+ens_dir+'/timing/checkpoints\n')
-              if ('oic' in options.machine or 'cades' in options.machine):
-                   mpi_args = ' -np '+str(options.np)+' --hostfile '+tmpdir+'/mynodefile'+ngst[1:]
-                   if ('cades' in options.machine):        #NOTE - will work with np=1 only
-                  	mpi_args = mpi_args+' --cpu-set '+str(i % ppn)
-                   output_run.write('cd '+ens_dir+'\n')
-                   output_run.write('mpirun '+mpi_args+' '+exeroot+'/cesm.exe > ccsm_log.txt &\n')
-              elif (('titan' in options.machine or 'eos' in options.machine) and int(options.ninst) == 1):
-                  #use wraprun utility on nccs to manage the ensemble
-                  output_run.write('cd '+ens_dir+'\n')
-                  if ( (i % ppn) == 0):
-                      cmd = 'wraprun -n '
-                      for pp in range(0,ppn-1):
-                          cmd = cmd+'1,'
-                      cmd = cmd+'1 --w-cd '+ens_dir
-                  elif ( (i % ppn) < (ppn-1)):
-                      cmd = cmd+','+ens_dir
-                  else:
-                    output_run.write(cmd+','+ens_dir+' '+exeroot+'/cesm.exe > ccsm_log.txt &\n')
+        #write the PBS scripts to copy directories and run the ensembles for this case
+        myinput = open(caseroot+'/'+casename+'/'+casename+'.run')
+        output_run  = open(tmpdir+'/ensemble_run_'+casename+'.pbs','w')
+        for s in myinput:
+            if ("perl" in s):
+                output_run.write("#!/bin/csh -f\n")
+            elif ("#PBS" in s or "#!" in s):
+                #edit number of required nodes for ensemble runs
+                if ('nodes' in s):
+                    output_run.write('#PBS -l nodes='+str(int(math.ceil(np_total/(ppn*1.0))))+ \
+                                     ':ppn='+str(ppn)+'\n')
+                elif ('walltime' in s): 
+                    output_run.write('#PBS -l walltime=24:00:00\n')
+                else:
+                    output_run.write(s)
+        myinput.close()
 
-            if ((i+1) % int(options.ng) == 0 or (i+1) == nsamples):          
-                output_copy.write('wait\n')
-                output_run.write('wait\n')
-                                 
-                output_copy.close()
-                output_run.close()
-
-                if (not options.no_submit):
-                    if (num == 0):
-                        if (not options.ensemble_nocopy):
-                            subprocess.call('qsub '+tmpdir+'/ensemble_copy_'+ \
-                                                casename+'_'+numst[1:]+'.pbs > '+tmpdir+ \
-                                                '/jobinfo_copy', shell=True)
-                            myinput = open(tmpdir+'/jobinfo_copy')
-                            for s in myinput:
-                                lastjob = s.split('.')[0]
-                            myinput.close()
-                            subprocess.call('qsub -W depend=afterok '+lastjob+' '+tmpdir+'/ensemble_run_'+ \
-                                                casename+'_'+numst[1:]+'.pbs > '+tmpdir+ \
-                                                '/jobinfo_run', shell=True)
-                        else:
-                            subprocess.call('qsub '+tmpdir+'/ensemble_run_'+ \
-                                                casename+'_'+numst[1:]+'.pbs > '+tmpdir+ \
-                                                '/jobinfo_run', shell=True) 
-                    else:
-                        if (not options.ensemble_nocopy):
-                            myinput = open(tmpdir+'/jobinfo_copy')
-                            for s in myinput:
-                                lastjob = s.split('.')[0]
-                            myinput.close()
-                            subprocess.call('qsub '+tmpdir+'/ensemble_copy_'+ \
-                                                casename+'_'+numst[1:]+'.pbs > '+tmpdir+ \
-                                                '/jobinfo_copy', shell=True)
-                        myinput = open(tmpdir+'/jobinfo_run')
-                        for s in myinput:
-                            lastjob = s.split('.')[0]
-                        myinput.close()
-                        subprocess.call('qsub -W depend=afterok:'+lastjob+' '+tmpdir+ \
-                              '/ensemble_run_'+casename+'_'+ \
-                              numst[1:]+'.pbs > '+tmpdir+'/jobinfo_run', shell=True)
-                num = num+1
+        output_run.write("\n")
+        output_run.write('cd '+csmdir+'/components/clm/tools/clm4_5/pointclm/\n')
+        if ('oic' in options.machine or 'cades' in options.machine):
+            mpicmd = 'mpirun'
+            if ('cades' in options.machine):
+                mpicmd = '/software/dev_tools/swtree/cs400_centos7.2_pe2016-08/openmpi/1.10.3/centos7.2_gnu5.3.0/bin/mpirun'
+            cmd = mpicmd+' -np '+str(np_total)+' --hostfile $PBS_NODEFILE python manage_ensemble.py ' \
+               +'--case '+casename+' --runroot '+runroot+' --n_ensemble '+str(nsamples)+' --ens_file '+ \
+               options.ensemble_file+' --exeroot '+exeroot+' --parm_list '+options.parm_list
+        elif (('titan' in options.machine or 'eos' in options.machine) and int(options.ninst) == 1):
+            cmd = 'aprun -n '+str(np_total)+' python manage_ensemble.py ' \
+               +'--case '+casename+' --runroot '+runroot+' --n_ensemble '+str(nsamples)+' --ens_file '+ \
+               options.ensemble_file+' --exeroot '+exeroot+' --parm_list '+options.parm_list
+        if (options.postproc_file != ''): 
+            cmd = cmd + ' --postproc_file '+options.postproc_file
+        output_run.write(cmd+'\n')
+        output_run.close()
+        if (options.no_submit == False):
+            os.system('qsub '+tmpdir+'/ensemble_run_'+casename+'.pbs')

@@ -109,9 +109,11 @@ parser.add_option("--spinup_vars", dest = "spinup_vars", default=False, help = "
 parser.add_option("--cn_only", dest="cn_only", default=False, help='Carbon/Nitrogen only (saturated P)', action ="store_true")
 parser.add_option("--ensemble_file", dest="ensemble_file", default='', \
                   help = 'Parameter sample file to generate ensemble')
+parser.add_option("--parm_list", dest="parm_list", default='parm_list', \
+                  help = 'File containing list of parameters to vary')
 parser.add_option("--mc_ensemble", dest="mc_ensemble", default=-1, \
                   help = 'Monte Carlo ensemble (argument is # of simulations)')
-parser.add_option("--ng", dest="ng", default=64, \
+parser.add_option("--ng", dest="ng", default=256, \
                   help = 'number of groups to run in ensemble mode')
 #Changed by Ming for mesabi
 parser.add_option("--archiveroot", dest="archiveroot", default='', \
@@ -174,12 +176,13 @@ for row in AFdatareader:
 
         site_endyear = int(row[7])
         ncycle   = endyear-startyear+1   #number of years in met cycle
+        ny_ad = options.ny_ad
+	ny_fin = options.nyears_final_spinup
         if (int(options.ny_ad) % ncycle != 0):
           #AD spinup and final spinup lengths must be multiples of met data cyle.
-          options.ny_ad = str(int(options.ny_ad) + ncycle - (int(options.ny_ad) % ncycle))
+          ny_ad = str(int(ny_ad) + ncycle - (int(ny_ad) % ncycle))
         if (int(options.nyears_final_spinup) % ncycle !=0):
-          options.nyears_final_spinup = str(int(options.nyears_final_spinup) + ncycle - \
-                (int(options.nyears_final_spinup) % ncycle))
+          ny_fin = str(int(ny_fin) + ncycle - (int(ny_fin) % ncycle))
 
         if (translen == -1):
           translen = endyear-1850+1        #length of transient run
@@ -194,7 +197,7 @@ for row in AFdatareader:
             else:
                 options.parm_file = ''
 
-        fsplen = int(options.nyears_final_spinup)
+        fsplen = int(ny_fin)
  
         #get align_year
         year_align = (endyear-1850+1) % ncycle
@@ -251,8 +254,9 @@ for row in AFdatareader:
             basecmd = basecmd+' --caseroot '+options.caseroot
         if (options.runroot != ''):
             basecmd = basecmd+' --runroot '+options.runroot
-        if (options.ensemble_file != ''):
+        if (options.ensemble_file != ''):   
             basecmd = basecmd+' --ensemble_file '+options.ensemble_file
+            basecmd = basecmd+' --parm_list '+options.parm_list
         if (options.archiveroot !=''):
             basecmd = basecmd+' --archiveroot '+options.archiveroot
         if (options.mod_parm_file !=''):
@@ -270,7 +274,7 @@ for row in AFdatareader:
 
         #AD spinup
         cmd_adsp = basecmd+' --ad_spinup --nyears_ad_spinup '+ \
-            str(options.ny_ad)+' --align_year '+str(year_align+1)
+            str(ny_ad)+' --align_year '+str(year_align+1)
         if (int(options.hist_mfilt_spinup) == -999):
             cmd_adsp = cmd_adsp+' --hist_mfilt 1 --hist_nhtfrq -'+ \
             str((endyear-startyear+1)*8760)
@@ -301,8 +305,8 @@ for row in AFdatareader:
             ad_exeroot = os.path.abspath(runroot+'/'+ad_case+'/bld')
         if (options.clm40):
             cmd_exsp = basecmd+' --exit_spinup --compset I1850'+mybgc+ \
-                ' --finidat_case '+ad_case+' --finidat_year '+str(options.ny_ad)+ \
-                ' --run_units nyears --run_n 1 --nyears_ad_spinup '+str(options.ny_ad)
+                ' --finidat_case '+ad_case+' --finidat_year '+str(ny_ad)+ \
+                ' --run_units nyears --run_n 1 --nyears_ad_spinup '+str(ny_ad)
 	    if (options.spinup_vars):
                cmd_exsp = cmd_exsp + ' --spinup_vars'
         #final spinup
@@ -325,7 +329,7 @@ for row in AFdatareader:
                   basecase=site+'_I1850CLM45'+mybgc
         if (options.clm40):
            cmd_fnsp = basecmd+' --finidat_case '+basecase+'_exit_spinup '+ \
-                '--finidat_year '+str(int(options.ny_ad)+2)+' --run_units nyears --run_n '+ \
+                '--finidat_year '+str(int(ny_ad)+2)+' --run_units nyears --run_n '+ \
                 str(fsplen)
         else:
             if (options.noad):
@@ -335,7 +339,7 @@ for row in AFdatareader:
                     cmd_fnsp = cmd_fnsp+' --exeroot '+ad_exeroot+' --no_build'
             else:
                 cmd_fnsp = basecmd+' --finidat_case '+basecase+'_ad_spinup '+ \
-                    '--finidat_year '+str(int(options.ny_ad)+1)+' --run_units nyears --run_n '+ \
+                    '--finidat_year '+str(int(ny_ad)+1)+' --run_units nyears --run_n '+ \
                     str(fsplen)+' --align_year '+str(year_align+1)+' --no_build' + \
                     ' --exeroot '+ad_exeroot
         if (int(options.hist_mfilt_spinup) == -999):
@@ -350,6 +354,9 @@ for row in AFdatareader:
             cmd_fnsp = cmd_fnsp+' --compset I1850CLM45CB'+mybgc
         if (options.spinup_vars):
 		cmd_fnsp = cmd_fnsp+' --spinup_vars'
+        if (options.ensemble_file != '' and options.notrans):	
+                cmd_fnsp = cmd_fnsp + ' --postproc_file postproc_vars'
+
         #transient
         cmd_trns = basecmd+' --finidat_case '+basecase+ \
             ' --finidat_year '+str(fsplen+1)+' --run_units nyears' \
@@ -364,7 +371,9 @@ for row in AFdatareader:
         else:
             cmd_trns = cmd_trns+' --compset I20TRCLM45'+mybgc
         if (options.spinup_vars):
-               cmd_trns = cmd_trns + ' --spinup_vars'
+            cmd_trns = cmd_trns + ' --spinup_vars'
+        if (options.ensemble_file != ''):  #Transient post-processing
+            cmd_trns = cmd_trns + ' --postproc_file postproc_vars'
         #transient phase 2 (CRU-NCEP only)
         if (options.cruncep and not options.cpl_bypass):
             basecase=basecase.replace('1850','20TR')+'_phase1'
@@ -439,11 +448,11 @@ for row in AFdatareader:
             output.write("cd "+os.path.abspath(".")+'\n')
             if (options.bgc):
                 output.write("python adjust_restart.py --rundir "+os.path.abspath(runroot)+'/'+ad_case+ \
-                                 '/run/ --casename '+ ad_case+' --restart_year '+str(int(options.ny_ad)+1)+ \
+                                 '/run/ --casename '+ ad_case+' --restart_year '+str(int(ny_ad)+1)+ \
                                  ' --BGC\n')
             else:
                 output.write("python adjust_restart.py --rundir "+os.path.abspath(runroot)+'/'+ad_case+ \
-                                 '/run/ --casename '+ad_case+' --restart_year '+str(int(options.ny_ad)+1)+'\n')
+                                 '/run/ --harvest --casename '+ad_case+' --restart_year '+str(int(ny_ad)+1)+'\n')
         output.write("cd "+os.path.abspath(csmdir+"/cime/scripts/"+basecase+"_I1850"+modelst+"\n"))
         output.write("./"+basecase+"_I1850"+modelst+".run\n")
         if (options.notrans == False):
@@ -454,13 +463,6 @@ for row in AFdatareader:
 
         #if ensemble simulations requested, submit jobs created by pointclm.py in correct order
         if (options.ensemble_file != ''):
-            nsamples = 0
-            myinput = open(options.csmdir+'/components/clm/tools/clm4_5/pointclm/'+options.ensemble_file)
-            #count number of samples
-            for s in myinput:
-                nsamples = nsamples+1
-            myinput.close()
-            n_qsub_files = int(math.ceil(nsamples*1.0/int(options.ng)))
             cases=[]
             #build list of cases for fullrun
             if (options.noad == False):
@@ -468,21 +470,10 @@ for row in AFdatareader:
             cases.append(basecase+'_I1850'+modelst)
             if (options.notrans == False):
                 cases.append(basecase+'_I20TR'+modelst)
-                
-            job_depend_copy = ''
-            job_depend_run = ''
+            
+            job_depend_run=''    
             for thiscase in cases:
-                for i in range(0,n_qsub_files):
-                    if (i == 0):
-                        job_depend_copy = submit('temp/ensemble_copy_'+thiscase+'_'+str(1000+i)[1:]+'.pbs', \
-                                                     job_depend=job_depend_run)
-                        job_depend_run = submit('temp/ensemble_run_'+thiscase+'_'+str(1000+i)[1:]+'.pbs', \
-                                                    job_depend=job_depend_copy)
-                    else:
-                        job_depend_copy = submit('temp/ensemble_copy_'+thiscase+'_'+str(1000+i)[1:]+'.pbs', \
-                                                     job_depend=job_depend_copy)
-                        job_depend_run = submit('temp/ensemble_run_'+thiscase+'_'+str(1000+i)[1:]+'.pbs', \
-                                                    job_depend=job_depend_run)         
+                job_depend_run = submit('temp/ensemble_run_'+thiscase+'.pbs',job_depend=job_depend_run)
         else:  #submit single job
             if ('edison' in options.machine):
                 job_fullrun = submit('temp/site_fullrun.pbs', submit_type='sbatch')
