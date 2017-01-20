@@ -17,7 +17,7 @@ module EDCLMLinkMod
   use WaterStateType        , only : waterstate_type
   use EcophysConType        , only : ecophyscon
   use PatchType             , only : pft
-  use ColumnType            , only : col
+  use ColumnType            , only : col_pp
   use LandunitType          , only : lun
   use EDVecPatchtype        , only : EDpft
   use EDBioType             , only : EDbio_type
@@ -95,10 +95,10 @@ contains
       ! retrieve the first soil patch associated with each gridcell. 
       firstsoilpatch(bounds%begg:bounds%endg) = -999
       do c = bounds%begc,bounds%endc
-         g = col%gridcell(c)
+         g = col_pp%gridcell(c)
          ! make sure we only get the first patch value for places which have soil. 
-         if( (lun%itype(col%landunit(c)) == istsoil).and.(col%itype(c) == istsoil))then 
-            firstsoilpatch(g) = col%pfti(c)
+         if( (lun%itype(col_pp%landunit(c)) == istsoil).and.(col_pp%itype(c) == istsoil))then 
+            firstsoilpatch(g) = col_pp%pfti(c)
             sitecolumn(g) = c
          endif
       enddo
@@ -512,17 +512,17 @@ contains
     integer istheresoil(bounds%begg:bounds%endg) 
     integer landunit
 
-    cgridcell => col%gridcell
+    cgridcell => col_pp%gridcell
     !decides whetehr this gridcell is subject to ED dynamics according to whether there is any soil landunit. 
     !not sure why this is a column loop. that seems extraneous to me. 
     istheresoil(bounds%begg:bounds%endg)  = 0
     do c = bounds%begc,bounds%endc
        g = cgridcell(c)   
        currentSite => geds_local(g)%spnt
-       landunit = col%landunit(c)
-       ! FIX(SPM,032414) check if istsoil is compatible with col%itype !
+       landunit = col_pp%landunit(c)
+       ! FIX(SPM,032414) check if istsoil is compatible with col_pp%itype !
        ! make sure we only get the first patch value for places which have soil. 
-       if(lun%itype(landunit) == istsoil.and.col%itype(c) == istsoil)then  
+       if(lun%itype(landunit) == istsoil.and.col_pp%itype(c) == istsoil)then  
           istheresoil(g) = 1
        endif
        currentSite%istheresoil = istheresoil(g)

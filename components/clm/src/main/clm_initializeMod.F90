@@ -24,7 +24,7 @@ module clm_initializeMod
   use GridcellType           , only : grc
   use TopounitType           , only : top_pp, top_es, top_ws
   use LandunitType           , only : lun                
-  use ColumnType             , only : col                
+  use ColumnType             , only : col_pp                
   use PatchType              , only : pft                
   use EDVecPatchType         , only : EDpft                   
   use EDVecCohortType        , only : coh                ! unique to ED, used for domain decomp
@@ -213,7 +213,7 @@ contains
     call top_ws%Init (bounds_proc%begg, bounds_proc%endg) ! water state
     ! --end ALM-v1 block
     call lun%Init (bounds_proc%begl, bounds_proc%endl)
-    call col%Init (bounds_proc%begc, bounds_proc%endc)
+    call col_pp%Init (bounds_proc%begc, bounds_proc%endc)
     call pft%Init (bounds_proc%begp, bounds_proc%endp)
     if ( use_ed ) then
        call EDpft%Init(bounds_proc)
@@ -256,19 +256,19 @@ contains
     ! initialize glc_topo
     ! TODO - does this belong here?
     do c = bounds_proc%begc, bounds_proc%endc
-       l = col%landunit(c)
-       g = col%gridcell(c)
+       l = col_pp%landunit(c)
+       g = col_pp%gridcell(c)
 
        if (lun%itype(l) == istice_mec) then
           ! For ice_mec landunits, initialize glc_topo based on surface dataset; this
           ! will get overwritten in the run loop by values sent from CISM
-          icemec_class = col_itype_to_icemec_class(col%itype(c))
-          col%glc_topo(c) = topo_glc_mec(g, icemec_class)
+          icemec_class = col_itype_to_icemec_class(col_pp%itype(c))
+          col_pp%glc_topo(c) = topo_glc_mec(g, icemec_class)
        else
           ! For other landunits, arbitrarily initialize glc_topo to 0 m; for landunits
           ! where this matters, this will get overwritten in the run loop by values sent
           ! from CISM
-          col%glc_topo(c) = 0._r8
+          col_pp%glc_topo(c) = 0._r8
        end if
     end do
 
@@ -450,16 +450,16 @@ contains
     ! First put in history calls for subgrid data structures - these cannot appear in the
     ! module for the subgrid data definition due to circular dependencies that are introduced
     
-    data2dptr => col%dz(:,-nlevsno+1:0)
-    col%dz(bounds_proc%begc:bounds_proc%endc,:) = spval
+    data2dptr => col_pp%dz(:,-nlevsno+1:0)
+    col_pp%dz(bounds_proc%begc:bounds_proc%endc,:) = spval
     call hist_addfld2d (fname='SNO_Z', units='m', type2d='levsno',  &
          avgflag='A', long_name='Snow layer thicknesses', &
          ptr_col=data2dptr, no_snow_behavior=no_snow_normal, default='inactive')
 
-    col%zii(bounds_proc%begc:bounds_proc%endc) = spval
+    col_pp%zii(bounds_proc%begc:bounds_proc%endc) = spval
     call hist_addfld1d (fname='ZII', units='m', &
          avgflag='A', long_name='convective boundary height', &
-         ptr_col=col%zii, default='inactive')
+         ptr_col=col_pp%zii, default='inactive')
 
     call clm_inst_biogeophys(bounds_proc)
 
@@ -909,7 +909,7 @@ contains
     character(len=32)     :: subname = 'initialize3'
     !----------------------------------------------------------------------
 
-    zi                   =>    col%zi                             ! Input:  [real(r8) (:,:) ]  interface level below a "z" level (m)
+    zi                   =>    col_pp%zi                             ! Input:  [real(r8) (:,:) ]  interface level below a "z" level (m)
 
     h2osoi_liq           =>    waterstate_vars%h2osoi_liq_col     ! Output: [real(r8) (:,:) ]  liquid water (kg/m2)
     h2osoi_ice           =>    waterstate_vars%h2osoi_ice_col     ! Output: [real(r8) (:,:) ]  ice water (kg/m2)

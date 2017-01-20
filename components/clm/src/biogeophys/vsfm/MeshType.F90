@@ -134,7 +134,7 @@ contains
     !
     ! !USES:
     use clm_varpar                  , only : nlevgrnd
-    use ColumnType                  , only : col
+    use ColumnType                  , only : col_pp
     use LandunitType                , only : lun
     use landunit_varcon             , only : istcrop, istsoil
     use column_varcon               , only : icol_road_perv
@@ -187,10 +187,10 @@ contains
 
     first_active_hydro_col_id = -1
     do c = begc, endc
-       l = col%landunit(c)
+       l = col_pp%landunit(c)
 
-       if (col%active(c) .and. &
-            (lun%itype(l) == istsoil .or. col%itype(c) == icol_road_perv .or. &
+       if (col_pp%active(c) .and. &
+            (lun%itype(l) == istsoil .or. col_pp%itype(c) == icol_road_perv .or. &
             lun%itype(l) == istcrop)) then
           if (first_active_hydro_col_id == -1) then
              first_active_hydro_col_id = c
@@ -209,7 +209,7 @@ contains
        do j = 1, this%nlev
 
           icell = icell + 1
-          l = col%landunit(c)
+          l = col_pp%landunit(c)
 
           this%x (icell) = 0.0_r8
           this%y (icell) = 0.0_r8
@@ -218,9 +218,9 @@ contains
           this%dy(icell) = 1.0_r8
 
 
-          if (col%active(c) .and. &
+          if (col_pp%active(c) .and. &
                (lun%itype(l) == istsoil        .or. &
-                col%itype(c) == icol_road_perv .or. &
+                col_pp%itype(c) == icol_road_perv .or. &
                 lun%itype(l) == istcrop)) then
              col_id = c
              this%is_active(icell) = PETSC_TRUE
@@ -229,11 +229,11 @@ contains
              this%is_active(icell) = PETSC_FALSE
           endif
 
-          this%z(icell) = -0.5_r8*(col%zi(col_id,j-1) + col%zi(col_id,j))
-          this%z_m(icell) = -col%zi(col_id,j-1)
-          this%z_p(icell) = -col%zi(col_id,j  )
+          this%z(icell) = -0.5_r8*(col_pp%zi(col_id,j-1) + col_pp%zi(col_id,j))
+          this%z_m(icell) = -col_pp%zi(col_id,j-1)
+          this%z_p(icell) = -col_pp%zi(col_id,j  )
 
-          this%dz(icell) = col%dz(col_id,j)
+          this%dz(icell) = col_pp%dz(col_id,j)
           this%vol(icell) = this%dx(icell)*this%dy(icell)*this%dz(icell)
        enddo
     enddo

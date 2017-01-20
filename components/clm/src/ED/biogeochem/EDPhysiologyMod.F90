@@ -127,7 +127,7 @@ contains
   subroutine root_fraction( currentPatch )
 
     use PatchType   , only : pft
-    use ColumnType  , only : col
+    use ColumnType  , only : col_pp
     use clm_varpar  , only : nlevsoi, nlevgrnd
     use pftvarcon   , only : roota_par, rootb_par      
 
@@ -140,7 +140,7 @@ contains
     real(r8), pointer :: zi(:,:)
 
     pcolumn  => pft%column  
-    zi       => col%zi      
+    zi       => col_pp%zi      
 
     p = currentPatch%clm_pno
     c = pcolumn(p) 

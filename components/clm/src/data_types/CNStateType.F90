@@ -14,7 +14,7 @@ module CNStateType
   use clm_varctl     , only : use_vertsoilc, use_c14, use_cn 
   use clm_varctl     , only : iulog, fsurdat
   use LandunitType   , only : lun                
-  use ColumnTypeNew     , only : col_pp                
+  use ColumnType     , only : col_pp                
   use PatchType      , only : pft                
   ! 
   ! !PUBLIC TYPES:

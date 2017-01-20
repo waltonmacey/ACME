@@ -13,7 +13,7 @@ module CNCarbonFluxType
   use pftvarcon              , only : npcropmin
   use CNDecompCascadeConType , only : decomp_cascade_con
   use PatchType              , only : pft                
-  use ColumnType             , only : col                
+  use ColumnType             , only : col_pp                
   use LandunitType           , only : lun
   use clm_varctl             , only : nu_com
   ! bgc interface & pflotran
@@ -3556,7 +3556,7 @@ contains
 
     num_special_col = 0
     do c = bounds%begc, bounds%endc
-       l = col%landunit(c)
+       l = col_pp%landunit(c)
        if (lun%ifspecial(l)) then
           num_special_col = num_special_col + 1
           special_col(num_special_col) = c
@@ -3615,7 +3615,7 @@ contains
     end do
 
     do c = bounds%begc, bounds%endc
-       l = col%landunit(c)
+       l = col_pp%landunit(c)
 
        if (lun%ifspecial(l)) then
           this%annsum_npp_col(c) = spval
