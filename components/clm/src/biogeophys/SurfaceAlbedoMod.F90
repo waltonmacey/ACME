@@ -24,7 +24,7 @@ module SurfaceAlbedoMod
   use WaterstateType    , only : waterstate_type
   use GridcellType      , only : grc                
   use LandunitType      , only : lun                
-  use ColumnType        , only : col                
+  use ColumnType        , only : col_pp                
   use PatchType         , only : pft                
   use EDSurfaceAlbedoMod, only : ED_Norman_Radiation
   !
@@ -118,7 +118,7 @@ contains
        call endrun(msg=' ERROR: SOIL_COLOR NOT on surfdata file'//errMsg(__FILE__, __LINE__)) 
     end if
     do c = bounds%begc, bounds%endc
-       g = col%gridcell(c)
+       g = col_pp%gridcell(c)
        isoicol(c) = soic2d(g)
     end do
     deallocate(soic2d)
@@ -348,7 +348,7 @@ contains
        coszen_gcell(g) = shr_orb_cosz (nextsw_cday, grc%lat(g), grc%lon(g), declinp1)
     end do
     do c = bounds%begc,bounds%endc
-       g = col%gridcell(c)
+       g = col_pp%gridcell(c)
        coszen_col(c) = coszen_gcell(g)
     end do
     do fp = 1,num_nourbanp
@@ -1017,7 +1017,7 @@ contains
      SHR_ASSERT_ALL((ubound(albsni) == (/bounds%endc, numrad/)), errMsg(__FILE__, __LINE__))
 
    associate(&
-          snl          => col%snl                         , & ! Input:  [integer  (:)   ]  number of snow layers                    
+          snl          => col_pp%snl                         , & ! Input:  [integer  (:)   ]  number of snow layers                    
 
           t_grnd       => temperature_vars%t_grnd_col     , & ! Input:  [real(r8) (:)   ]  ground temperature (Kelvin)             
 
@@ -1037,7 +1037,7 @@ contains
        do fc = 1,num_nourbanc
           c = filter_nourbanc(fc)
           if (coszen(c) > 0._r8) then
-             l = col%landunit(c)
+             l = col_pp%landunit(c)
 
              if (lun%itype(l) == istsoil .or. lun%itype(l) == istcrop)  then ! soil
                 inc    = max(0.11_r8-0.40_r8*h2osoi_vol(c,1), 0._r8)

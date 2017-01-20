@@ -27,7 +27,7 @@ module CNAllocationMod
   use CropType            , only : crop_type
   use EcophysConType      , only : ecophyscon
   use LandunitType        , only : lun                
-  use ColumnType          , only : col                
+  use ColumnType          , only : col_pp                
   use PatchType           , only : pft
   ! bgc interface & pflotran module switches
   use clm_varctl          , only: use_bgc_interface,use_clm_bgc, use_pflotran, pf_cmode
@@ -1347,7 +1347,7 @@ contains
             do j = 1, nlevdecomp
                do fc=1,num_soilc
                   c = filter_soilc(fc)      
-                  l = col%landunit(c)
+                  l = col_pp%landunit(c)
                   if (sum_ndemand_vr(c,j)*dt < sminn_vr(c,j)) then
 
                      ! N availability is not limiting immobilization or plant
@@ -1358,7 +1358,7 @@ contains
                      sminn_to_plant_vr(c,j) = col_plant_ndemand(c) * nuptake_prof(c,j)
                   else if ( cnallocate_carbon_only() .or. cnallocate_carbonphosphorus_only() ) then !.or. &
                      !                (crop_supln .and. (lun%itype(l) == istcrop) .and. &
-                     !                (ivt(col%pfti(c)) >= npcropmin)) )then
+                     !                (ivt(col_pp%pfti(c)) >= npcropmin)) )then
                      ! this code block controls the addition of N to sminn pool
                      ! to eliminate any N limitation, when Carbon_Only is set.  This lets the
                      ! model behave essentially as a carbon-only model, but with the
@@ -1405,14 +1405,14 @@ contains
                   solution_nh4conc(c,j) = sminn_vr(c,j) / (bd(c,j)*2.76 + h2osoi_vol(c,j)) ! convert to per soil water based
                   e_km_n = 0._r8
                   decompmicc(c,j) = 0.0_r8
-                  do p = col%pfti(c), col%pftf(c)
+                  do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
                         e_km_n = e_km_n + e_plant_scalar*frootc(p)*froot_prof(p,j)*pft%wtcol(p)/km_plant_nh4(ivt(p))
                         decompmicc(c,j) = decompmicc(c,j) + decompmicc_patch_vr(ivt(p),j)*pft%wtcol(p)
                      end if
                   end do
                   e_km_n = e_km_n + e_decomp_scalar*decompmicc(c,j)*(1._r8/km_decomp_nh4 )
-                  do p = col%pfti(c), col%pftf(c)
+                  do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
                         compet_plant_n(p) = solution_nh4conc(c,j) / ( km_plant_nh4(ivt(p)) * (1 + &
                              solution_nh4conc(c,j)/km_plant_nh4(ivt(p)) + e_km_n))
@@ -1425,7 +1425,7 @@ contains
                   ! relative demand approach: root nutrient uptake profile is based on nutrient concentration profile
                   ! nu_com with ECA or MIC: root nutrient uptake profile is based on fine root density profile
                   col_plant_ndemand_vr(c,j) = 0._r8
-                  do p = col%pfti(c), col%pftf(c)
+                  do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
                         ! scaling factor based on  CN ratio flexibility
                         cn_scalar(p) = min(max(((leafc(p) + leafc_storage(p) + leafc_xfer(p))/max(leafn(p) + leafn_storage(p) + leafn_xfer(p), 1e-20_r8) - leafcn(ivt(p))*(1- cn_stoich_var)) / &
@@ -1459,7 +1459,7 @@ contains
                      sminn_to_plant_vr(c,j) = col_plant_ndemand_vr(c,j)
                   else if ( cnallocate_carbon_only() .or. cnallocate_carbonphosphorus_only() ) then !.or. &
                      !                (crop_supln .and. (lun%itype(l) == istcrop) .and. &
-                     !                (ivt(col%pfti(c)) >= npcropmin)) )then
+                     !                (ivt(col_pp%pfti(c)) >= npcropmin)) )then
                      ! this code block controls the addition of N to sminn pool
                      ! to eliminate any N limitation, when Carbon_Only is set.  This lets the
                      ! model behave essentially as a carbon-only model, but with the
@@ -1502,7 +1502,7 @@ contains
             do j = 1, nlevdecomp
                do fc=1,num_soilc
                   c = filter_soilc(fc)
-                  l = col%landunit(c)
+                  l = col_pp%landunit(c)
                   if (sum_pdemand_vr(c,j)*dt < solutionp_vr(c,j)) then
 
                      ! P availability is not limiting immobilization or plant
@@ -1575,7 +1575,7 @@ contains
                   solution_pconc(c,j) = solutionp_vr(c,j)/h2osoi_vol(c,j) ! convert to per soil water based
                   e_km_p = 0._r8
                   decompmicc(c,j) = 0.0_r8
-                  do p = col%pfti(c), col%pftf(c)
+                  do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
                         e_km_p = e_km_p + e_plant_scalar*frootc(p)*froot_prof(p,j)*pft%wtcol(p)/km_plant_p(ivt(p))
                         decompmicc(c,j) = decompmicc(c,j) + decompmicc_patch_vr(ivt(p),j)*pft%wtcol(p)
@@ -1583,7 +1583,7 @@ contains
                   end do
                   e_km_p = e_km_p + e_decomp_scalar*decompmicc(c,j)/km_decomp_p + &
                        max(0._r8,vmax_minsurf_p_vr(isoilorder(c),j)-labilep_vr(c,j))/km_minsurf_p_vr(isoilorder(c),j)
-                  do p = col%pfti(c), col%pftf(c)
+                  do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
                         compet_plant_p(p) = solution_pconc(c,j) / ( km_plant_p(ivt(p)) * (1 + &
                              solution_pconc(c,j)/km_plant_p(ivt(p)) + e_km_p))
@@ -1598,7 +1598,7 @@ contains
                   ! relative demand approach: root nutrient uptake profile is based on nutrient concentration profile
                   ! nu_com with ECA or MIC: root nutrient uptake profile is based on fine root density profile
                   col_plant_pdemand_vr(c,j) = 0._r8
-                  do p = col%pfti(c), col%pftf(c)
+                  do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
                         ! scaling factor based on  CP ratio flexibility
                         cp_scalar(p) = min(max(((leafc(p) + leafc_storage(p) + leafc_xfer(p))/max(leafp(p) + leafp_storage(p) + leafp_xfer(p), 1e-20_r8) - leafcp(ivt(p))*(1- cp_stoich_var)) / &
@@ -1804,7 +1804,7 @@ contains
                   else
                      fpg_p_vr(c,j) = 1.0_r8
                   end if
-                  do p = col%pfti(c), col%pftf(c)
+                  do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
                         sminn_to_plant_patch(p) = sminn_to_plant_patch(p) + plant_ndemand_vr_patch(p,j) * &
                              fpg_vr(c,j) *dzsoi_decomp(j)
@@ -1956,7 +1956,7 @@ contains
          if (nu_com .ne. 'RD') then
             do fc=1,num_soilc
                c = filter_soilc(fc)
-               do p = col%pfti(c), col%pftf(c)
+               do p = col_pp%pfti(c), col_pp%pftf(c)
                   pnup_pfrootc(p) =  0.0_r8
                   if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
                         do j = 1, nlevdecomp
@@ -1987,8 +1987,8 @@ contains
             do j = 1, nlevdecomp
                do fc=1,num_soilc
                   c = filter_soilc(fc)
-                  l = col%landunit(c)
-                  p = col%pfti(c) ! compet_plant_nh4(col%pfti(c) : col%pftf(c)) are all the same for RD mode
+                  l = col_pp%landunit(c)
+                  p = col_pp%pfti(c) ! compet_plant_nh4(col_pp%pfti(c) : col_pp%pftf(c)) are all the same for RD mode
 
                   !  first compete for nh4
                   sum_nh4_demand(c,j) = col_plant_ndemand(c) * nuptake_prof(c,j) + potential_immob_vr(c,j) + pot_f_nit_vr(c,j)
@@ -2093,7 +2093,7 @@ contains
                   e_km_nh4 = 0._r8
                   e_km_no3 = 0._r8
                   decompmicc(c,j) = 0.0_r8
-                  do p = col%pfti(c), col%pftf(c)
+                  do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
                         e_km_nh4 = e_km_nh4 + e_plant_scalar*frootc(p)*froot_prof(p,j)*pft%wtcol(p)/km_plant_nh4(ivt(p))
                         e_km_no3 = e_km_no3 + e_plant_scalar*frootc(p)*froot_prof(p,j)*pft%wtcol(p)/km_plant_no3(ivt(p))
@@ -2101,7 +2101,7 @@ contains
                   end do
                   e_km_nh4 = e_km_nh4 + e_decomp_scalar*decompmicc(c,j)*(1._r8/km_decomp_nh4 + 1._r8/km_nit)
                   e_km_no3 = e_km_no3 + e_decomp_scalar*decompmicc(c,j)*(1._r8/km_decomp_no3 + 1._r8/km_den)
-                  do p = col%pfti(c), col%pftf(c)
+                  do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
                         compet_plant_nh4(p) = solution_nh4conc(c,j) / ( km_plant_nh4(ivt(p)) * (1 + &
                              solution_nh4conc(c,j)/km_plant_nh4(ivt(p)) + e_km_nh4))
@@ -2121,7 +2121,7 @@ contains
                   ! nu_com with ECA or MIC: root nutrient uptake profile is based on fine root density profile
                   col_plant_nh4demand_vr(c,j) = 0._r8
                   col_plant_no3demand_vr(c,j) = 0._r8
-                  do p = col%pfti(c), col%pftf(c)
+                  do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
                         ! scaling factor based on  CN ratio flexibility
                         cn_scalar(p) = min(max(((leafc(p) + leafc_storage(p) + leafc_xfer(p))/max(leafn(p) + leafn_storage(p) + leafn_xfer(p), 1e-20_r8) - leafcn(ivt(p))*(1- cn_stoich_var)) / &
@@ -2317,7 +2317,7 @@ contains
             do j = 1, nlevdecomp
                do fc=1,num_soilc
                   c = filter_soilc(fc)
-                  l = col%landunit(c)
+                  l = col_pp%landunit(c)
                   if (sum_pdemand_vr(c,j)*dt < solutionp_vr(c,j)) then
 
                      ! P availability is not limiting immobilization or plant
@@ -2390,7 +2390,7 @@ contains
                   solution_pconc(c,j) = solutionp_vr(c,j)/h2osoi_vol(c,j) ! convert to per soil water based
                   e_km_p = 0._r8
                   decompmicc(c,j) = 0.0_r8
-                  do p = col%pfti(c), col%pftf(c)
+                  do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
                         e_km_p = e_km_p + e_plant_scalar*frootc(p)*froot_prof(p,j)*pft%wtcol(p)/km_plant_p(ivt(p))
                         decompmicc(c,j) = decompmicc(c,j) + decompmicc_patch_vr(ivt(p),j)*pft%wtcol(p)
@@ -2398,7 +2398,7 @@ contains
                   end do
                   e_km_p = e_km_p + e_decomp_scalar*decompmicc(c,j)/km_decomp_p + &
                        max(0._r8,vmax_minsurf_p_vr(isoilorder(c),j)-labilep_vr(c,j))/km_minsurf_p_vr(isoilorder(c),j)
-                  do p = col%pfti(c), col%pftf(c)
+                  do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
                         compet_plant_p(p) = solution_pconc(c,j) / ( km_plant_p(ivt(p)) * (1 + &
                              solution_pconc(c,j)/km_plant_p(ivt(p)) + e_km_p))
@@ -2413,7 +2413,7 @@ contains
                   ! relative demand approach: root nutrient uptake profile is based on nutrient concentration profile
                   ! nu_com with ECA or MIC: root nutrient uptake profile is based on fine root density profile
                   col_plant_pdemand_vr(c,j) = 0._r8
-                  do p = col%pfti(c), col%pftf(c)
+                  do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
                         ! scaling factor based on  CP ratio flexibility
                         cp_scalar(p) = min(max(((leafc(p) + leafc_storage(p) + leafc_xfer(p))/max(leafp(p) + leafp_storage(p) + leafp_xfer(p), 1e-20_r8) - leafcp(ivt(p))*(1- cp_stoich_var)) / &
@@ -2661,7 +2661,7 @@ contains
                   else
                      fpg_p_vr(c,j) = 1.0_r8
                   end if
-                  do p = col%pfti(c), col%pftf(c)
+                  do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
                         smin_nh4_to_plant_patch(p) = smin_nh4_to_plant_patch(p) + plant_nh4demand_vr_patch(p,j) * fpg_nh4_vr(c,j) *dzsoi_decomp(j)
                         smin_no3_to_plant_patch(p) = smin_no3_to_plant_patch(p) + plant_no3demand_vr_patch(p,j) * fpg_no3_vr(c,j) *dzsoi_decomp(j)
@@ -2876,7 +2876,7 @@ contains
          if (nu_com .ne. 'RD') then
             do fc=1,num_soilc
                c = filter_soilc(fc)
-               do p = col%pfti(c), col%pftf(c)
+               do p = col_pp%pfti(c), col_pp%pftf(c)
                   pnup_pfrootc(p) =  0.0_r8
                   if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
                         do j = 1, nlevdecomp
@@ -3151,7 +3151,7 @@ contains
       if (nu_com .eq. 'RD') then
          do fc=1,num_soilc
             c = filter_soilc(fc)
-            do p = col%pfti(c), col%pftf(c)
+            do p = col_pp%pfti(c), col_pp%pftf(c)
                if (pft%active(p) .and. (pft%itype(p) .ne. noveg)) then
                   plant_n_uptake_flux(c) = plant_n_uptake_flux(c) + plant_ndemand(p) * fpg(c)*pft%wtcol(p)
                   plant_p_uptake_flux(c) = plant_p_uptake_flux(c) + plant_pdemand(p) * fpg_p(c)*pft%wtcol(p)
@@ -3161,7 +3161,7 @@ contains
       else ! ECA or MIC mode
          do fc=1,num_soilc
             c = filter_soilc(fc)
-            do p = col%pfti(c), col%pftf(c)
+            do p = col_pp%pfti(c), col_pp%pftf(c)
                if (pft%active(p) .and. (pft%itype(p) .ne. noveg)) then
                   plant_n_uptake_flux(c) = plant_n_uptake_flux(c) + (smin_nh4_to_plant_patch(p)+smin_no3_to_plant_patch(p))*pft%wtcol(p)
                   plant_p_uptake_flux(c) = plant_p_uptake_flux(c) + sminp_to_plant_patch(p)*pft%wtcol(p)

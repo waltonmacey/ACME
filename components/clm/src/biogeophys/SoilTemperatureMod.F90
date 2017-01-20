@@ -24,7 +24,7 @@ module SoilTemperatureMod
   use EnergyFluxType    , only : energyflux_type
   use TemperatureType   , only : temperature_type
   use LandunitType      , only : lun                
-  use ColumnType        , only : col                
+  use ColumnType        , only : col_pp                
   use PatchType         , only : pft                
   !
   ! !PUBLIC TYPES:
@@ -191,10 +191,10 @@ contains
     !-----------------------------------------------------------------------
 
     associate(                                                                   & 
-         snl                     => col%snl                                 , & ! Input:  [integer  (:)   ]  number of snow layers                    
-         zi                      => col%zi                                  , & ! Input:  [real(r8) (:,:) ]  interface level below a "z" level (m) 
-         dz                      => col%dz                                  , & ! Input:  [real(r8) (:,:) ]  layer depth (m)                       
-         z                       => col%z                                   , & ! Input:  [real(r8) (:,:) ]  layer thickness (m)                   
+         snl                     => col_pp%snl                                 , & ! Input:  [integer  (:)   ]  number of snow layers                    
+         zi                      => col_pp%zi                                  , & ! Input:  [real(r8) (:,:) ]  interface level below a "z" level (m) 
+         dz                      => col_pp%dz                                  , & ! Input:  [real(r8) (:,:) ]  layer depth (m)                       
+         z                       => col_pp%z                                   , & ! Input:  [real(r8) (:,:) ]  layer thickness (m)                   
          
          t_building_max          => urbanparams_vars%t_building_max         , & ! Input:  [real(r8) (:)   ]  maximum internal building temperature (K)
          t_building_min          => urbanparams_vars%t_building_min         , & ! Input:  [real(r8) (:)   ]  minimum internal building temperature (K)
@@ -292,8 +292,8 @@ contains
          c = filter_nolakec(fc)
          jtop(c) = snl(c)
          ! compute jbot
-         if ((col%itype(c) == icol_sunwall .or. col%itype(c) == icol_shadewall &
-              .or. col%itype(c) == icol_roof) ) then
+         if ((col_pp%itype(c) == icol_sunwall .or. col_pp%itype(c) == icol_shadewall &
+              .or. col_pp%itype(c) == icol_roof) ) then
             jbot(c) = nlevurb
          else
             jbot(c) = nlevgrnd
@@ -429,9 +429,9 @@ contains
       do j = -nlevsno+1,nlevgrnd
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
-            if ((col%itype(c) == icol_sunwall .or. col%itype(c) == icol_shadewall &
-                 .or. col%itype(c) == icol_roof) .and. j <= nlevurb) then
+            l = col_pp%landunit(c)
+            if ((col_pp%itype(c) == icol_sunwall .or. col_pp%itype(c) == icol_shadewall &
+                 .or. col_pp%itype(c) == icol_roof) .and. j <= nlevurb) then
                if (j >= snl(c)+1) then
                   if (j <= nlevurb-1) then
                      fn1(c,j) = tk(c,j)*(t_soisno(c,j+1)-t_soisno(c,j))/(z(c,j+1)-z(c,j))
@@ -444,8 +444,8 @@ contains
                      fn(c,j)  = tk(c,j) * (t_building(l) - tssbef(c,j))/(zi(c,j) - z(c,j))
                   end if
                end if
-            else if (col%itype(c) /= icol_sunwall .and. col%itype(c) /= icol_shadewall &
-                 .and. col%itype(c) /= icol_roof) then
+            else if (col_pp%itype(c) /= icol_sunwall .and. col_pp%itype(c) /= icol_shadewall &
+                 .and. col_pp%itype(c) /= icol_roof) then
                if (j >= snl(c)+1) then
                   if (j <= nlevgrnd-1) then
                      fn1(c,j) = tk(c,j)*(t_soisno(c,j+1)-t_soisno(c,j))/(z(c,j+1)-z(c,j))
@@ -459,9 +459,9 @@ contains
 
       do fc = 1,num_nolakec
          c = filter_nolakec(fc)
-         l = col%landunit(c)
+         l = col_pp%landunit(c)
          if (lun%urbpoi(l)) then
-            if (col%itype(c) == icol_sunwall .or. col%itype(c) == icol_shadewall .or. col%itype(c) == icol_roof) then
+            if (col_pp%itype(c) == icol_sunwall .or. col_pp%itype(c) == icol_shadewall .or. col_pp%itype(c) == icol_roof) then
                eflx_building_heat(c) = cnfac*fn(c,nlevurb) + (1._r8-cnfac)*fn1(c,nlevurb)
             else
                eflx_building_heat(c) = 0._r8
@@ -520,7 +520,7 @@ contains
 
       do fc = 1,num_nolakec
          c = filter_nolakec(fc)
-         l = col%landunit(c)
+         l = col_pp%landunit(c)
          if (.not. lun%urbpoi(l)) then
             hc_soisno(c) = 0._r8
             hc_soi(c)    = 0._r8
@@ -533,7 +533,7 @@ contains
       do j = -nlevsno+1,nlevgrnd
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
+            l = col_pp%landunit(c)
 
             if (j == 1) then ! this only needs to be done once
                eflx_fgr12(c) = -cnfac*fn(c,1) - (1._r8-cnfac)*fn1(c,1)
@@ -616,10 +616,10 @@ contains
     SHR_ASSERT_ALL((ubound(tk_h2osfc) == (/bounds%endc/)),           errMsg(__FILE__, __LINE__))
 
     associate(                                                 & 
-         snl          =>    col%snl			     , & ! Input:  [integer  (:)   ]  number of snow layers                    
-         dz           =>    col%dz			     , & ! Input:  [real(r8) (:,:) ]  layer depth (m)                       
-         zi           =>    col%zi			     , & ! Input:  [real(r8) (:,:) ]  interface level below a "z" level (m) 
-         z            =>    col%z			     , & ! Input:  [real(r8) (:,:) ]  layer thickness (m)                   
+         snl          =>    col_pp%snl			     , & ! Input:  [integer  (:)   ]  number of snow layers                    
+         dz           =>    col_pp%dz			     , & ! Input:  [real(r8) (:,:) ]  layer depth (m)                       
+         zi           =>    col_pp%zi			     , & ! Input:  [real(r8) (:,:) ]  interface level below a "z" level (m) 
+         z            =>    col_pp%z			     , & ! Input:  [real(r8) (:,:) ]  layer thickness (m)                   
          
          nlev_improad =>    urbanparams_vars%nlev_improad    , & ! Input:  [integer  (:)   ]  number of impervious road layers         
          tk_wall      =>    urbanparams_vars%tk_wall	     , & ! Input:  [real(r8) (:,:) ]  thermal conductivity of urban wall    
@@ -657,16 +657,16 @@ contains
 
             ! Only examine levels from 1->nlevgrnd
             if (j >= 1) then    
-               l = col%landunit(c)
-               if ((col%itype(c) == icol_sunwall .OR. col%itype(c) == icol_shadewall) .and. j <= nlevurb) then
+               l = col_pp%landunit(c)
+               if ((col_pp%itype(c) == icol_sunwall .OR. col_pp%itype(c) == icol_shadewall) .and. j <= nlevurb) then
                   thk(c,j) = tk_wall(l,j)
-               else if (col%itype(c) == icol_roof .and. j <= nlevurb) then
+               else if (col_pp%itype(c) == icol_roof .and. j <= nlevurb) then
                   thk(c,j) = tk_roof(l,j)
-               else if (col%itype(c) == icol_road_imperv .and. j >= 1 .and. j <= nlev_improad(l)) then
+               else if (col_pp%itype(c) == icol_road_imperv .and. j >= 1 .and. j <= nlev_improad(l)) then
                   thk(c,j) = tk_improad(l,j)
                else if (lun%itype(l) /= istwet .AND. lun%itype(l) /= istice .AND. lun%itype(l) /= istice_mec &
-                    .AND. col%itype(c) /= icol_sunwall .AND. col%itype(c) /= icol_shadewall .AND. &
-                    col%itype(c) /= icol_roof) then
+                    .AND. col_pp%itype(c) /= icol_sunwall .AND. col_pp%itype(c) /= icol_shadewall .AND. &
+                    col_pp%itype(c) /= icol_roof) then
 
                   satw = (h2osoi_liq(c,j)/denh2o + h2osoi_ice(c,j)/denice)/(dz(c,j)*watsat(c,j))
                   satw = min(1._r8, satw)
@@ -712,8 +712,8 @@ contains
       do j = -nlevsno+1,nlevgrnd
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            if ((col%itype(c) == icol_sunwall .or. col%itype(c) == icol_shadewall &
-                 .or. col%itype(c) == icol_roof) .and. j <= nlevurb) then
+            if ((col_pp%itype(c) == icol_sunwall .or. col_pp%itype(c) == icol_shadewall &
+                 .or. col_pp%itype(c) == icol_roof) .and. j <= nlevurb) then
                if (j >= snl(c)+1 .AND. j <= nlevurb-1) then
                   tk(c,j) = thk(c,j)*thk(c,j+1)*(z(c,j+1)-z(c,j)) &
                        /(thk(c,j)*(z(c,j+1)-zi(c,j))+thk(c,j+1)*(zi(c,j)-z(c,j)))
@@ -724,8 +724,8 @@ contains
                   ! building temperature. (See Oleson urban notes of 6/18/03).
                   tk(c,j) = thk(c,j)
                end if
-            else if (col%itype(c) /= icol_sunwall .and. col%itype(c) /= icol_shadewall &
-                 .and. col%itype(c) /= icol_roof) then
+            else if (col_pp%itype(c) /= icol_sunwall .and. col_pp%itype(c) /= icol_shadewall &
+                 .and. col_pp%itype(c) /= icol_roof) then
                if (j >= snl(c)+1 .AND. j <= nlevgrnd-1) then
                   tk(c,j) = thk(c,j)*thk(c,j+1)*(z(c,j+1)-z(c,j)) &
                        /(thk(c,j)*(z(c,j+1)-zi(c,j))+thk(c,j+1)*(zi(c,j)-z(c,j)))
@@ -752,16 +752,16 @@ contains
       do j = 1, nlevgrnd
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
-            if ((col%itype(c) == icol_sunwall .OR. col%itype(c) == icol_shadewall) .and. j <= nlevurb) then
+            l = col_pp%landunit(c)
+            if ((col_pp%itype(c) == icol_sunwall .OR. col_pp%itype(c) == icol_shadewall) .and. j <= nlevurb) then
                cv(c,j) = cv_wall(l,j) * dz(c,j)
-            else if (col%itype(c) == icol_roof .and. j <= nlevurb) then
+            else if (col_pp%itype(c) == icol_roof .and. j <= nlevurb) then
                cv(c,j) = cv_roof(l,j) * dz(c,j)
-            else if (col%itype(c) == icol_road_imperv .and. j >= 1 .and. j <= nlev_improad(l)) then
+            else if (col_pp%itype(c) == icol_road_imperv .and. j >= 1 .and. j <= nlev_improad(l)) then
                cv(c,j) = cv_improad(l,j) * dz(c,j)
             else if (lun%itype(l) /= istwet .AND. lun%itype(l) /= istice .AND. lun%itype(l) /= istice_mec &
-                 .AND. col%itype(c) /= icol_sunwall .AND. col%itype(c) /= icol_shadewall .AND. &
-                 col%itype(c) /= icol_roof) then
+                 .AND. col_pp%itype(c) /= icol_sunwall .AND. col_pp%itype(c) /= icol_shadewall .AND. &
+                 col_pp%itype(c) /= icol_roof) then
                cv(c,j) = csol(c,j)*(1._r8-watsat(c,j))*dz(c,j) + (h2osoi_ice(c,j)*cpice + h2osoi_liq(c,j)*cpliq)
             else if (lun%itype(l) == istwet) then 
                cv(c,j) = (h2osoi_ice(c,j)*cpice + h2osoi_liq(c,j)*cpliq)
@@ -841,8 +841,8 @@ contains
     SHR_ASSERT_ALL((ubound(dhsdT) == (/bounds%endc/)), errMsg(__FILE__, __LINE__))
 
     associate(                                                                   & 
-         snl                       =>    col%snl                               , & ! Input:  [integer  (:)   ] number of snow layers                    
-         dz                        =>    col%dz                                , & ! Input:  [real(r8) (:,:) ] layer thickness (m)                    
+         snl                       =>    col_pp%snl                               , & ! Input:  [integer  (:)   ] number of snow layers                    
+         dz                        =>    col_pp%dz                                , & ! Input:  [real(r8) (:,:) ] layer thickness (m)                    
          
          frac_sno                  =>    waterstate_vars%frac_sno_eff_col      , & ! Input:  [real(r8) (:)   ] fraction of ground covered by snow (0 to 1)
          frac_h2osfc               =>    waterstate_vars%frac_h2osfc_col       , & ! Input:  [real(r8) (:)   ] fraction of ground covered by surface water (0 to 1)
@@ -1046,8 +1046,8 @@ contains
     SHR_ASSERT_ALL((ubound(dhsdT) == (/bounds%endc/)), errMsg(__FILE__, __LINE__))
 
     associate(                                                        & 
-         snl              =>    col%snl                             , & ! Input:  [integer  (:)   ] number of snow layers                    
-         dz               =>    col%dz                              , & ! Input:  [real(r8) (:,:) ] layer thickness (m)                    
+         snl              =>    col_pp%snl                             , & ! Input:  [integer  (:)   ] number of snow layers                    
+         dz               =>    col_pp%dz                              , & ! Input:  [real(r8) (:,:) ] layer thickness (m)                    
          
          bsw              =>    soilstate_vars%bsw_col              , & ! Input:  [real(r8) (:,:) ] Clapp and Hornberger "b"               
          sucsat           =>    soilstate_vars%sucsat_col           , & ! Input:  [real(r8) (:,:) ] minimum soil suction (mm)              
@@ -1087,7 +1087,7 @@ contains
 
       do fc = 1,num_nolakec
          c = filter_nolakec(fc)
-         l = col%landunit(c)
+         l = col_pp%landunit(c)
 
          qflx_snomelt(c) = 0._r8
          xmf(c) = 0._r8
@@ -1144,11 +1144,11 @@ contains
       do j = 1,nlevgrnd             
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
+            l = col_pp%landunit(c)
             supercool(c,j) = 0.0_r8
             ! add in urban condition if-block
-            if ((col%itype(c) /= icol_sunwall .and. col%itype(c) /= icol_shadewall &
-                 .and. col%itype(c) /= icol_roof) .or. ( j <= nlevurb)) then
+            if ((col_pp%itype(c) /= icol_sunwall .and. col_pp%itype(c) /= icol_shadewall &
+                 .and. col_pp%itype(c) /= icol_roof) .or. ( j <= nlevurb)) then
 
 
 
@@ -1161,7 +1161,7 @@ contains
 
                ! from Zhao (1997) and Koren (1999)
                supercool(c,j) = 0.0_r8
-               if (lun%itype(l) == istsoil .or. lun%itype(l) == istcrop .or. col%itype(c) == icol_road_perv) then
+               if (lun%itype(l) == istsoil .or. lun%itype(l) == istcrop .or. col_pp%itype(c) == icol_road_perv) then
                   if(t_soisno(c,j) < tfrz) then
                      smp = hfus*(tfrz-t_soisno(c,j))/(grav*t_soisno(c,j)) * 1000._r8  !(mm)
                      supercool(c,j) = watsat(c,j)*(smp/sucsat(c,j))**(-1._r8/bsw(c,j))
@@ -1196,8 +1196,8 @@ contains
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
 
-            if ((col%itype(c) /= icol_sunwall .and. col%itype(c) /= icol_shadewall &
-                 .and. col%itype(c) /= icol_roof) .or. ( j <= nlevurb)) then
+            if ((col_pp%itype(c) /= icol_sunwall .and. col_pp%itype(c) /= icol_shadewall &
+                 .and. col_pp%itype(c) /= icol_roof) .or. ( j <= nlevurb)) then
 
                if (j >= snl(c)+1) then
 
@@ -1331,7 +1331,7 @@ contains
             ! Note that qflx_glcice can also include a positive component from excess snow,
             ! as computed in HydrologyDrainageMod.F90.
 
-            l = col%landunit(c)
+            l = col_pp%landunit(c)
             if (lun%itype(l)==istice_mec) then
 
                if (j>=1 .and. h2osoi_liq(c,j) > 0._r8) then   ! ice layer with meltwater
@@ -1354,7 +1354,7 @@ contains
       do fc = 1,num_nolakec
          c = filter_nolakec(fc)
          eflx_snomelt(c) = qflx_snomelt(c) * hfus
-         l = col%landunit(c)
+         l = col_pp%landunit(c)
          if (lun%urbpoi(l)) then
             eflx_snomelt_u(c) = eflx_snomelt(c)
          else if (lun%itype(l) == istsoil .or. lun%itype(l) == istcrop) then
@@ -1438,8 +1438,8 @@ contains
     SHR_ASSERT_ALL((ubound(sabg_lyr_col)  == (/bounds%endc,1/)), errMsg(__FILE__, __LINE__))
 
     associate(                                                                &
-         snl                     => col%snl                                 , & ! Input:  [integer (:)    ]  number of snow layers
-         z                       => col%z                                   , & ! Input:  [real(r8) (:,:) ]  layer thickness (m)
+         snl                     => col_pp%snl                                 , & ! Input:  [integer (:)    ]  number of snow layers
+         z                       => col_pp%z                                   , & ! Input:  [real(r8) (:,:) ]  layer thickness (m)
          
          forc_lwrad              => atm2lnd_vars%forc_lwrad_downscaled_col  , & ! Input:  [real(r8) (:)   ]  downward infrared (longwave) radiation (W/m**2)
          
@@ -1508,8 +1508,8 @@ contains
       do pi = 1,max_patch_per_col
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            if ( pi <= col%npfts(c) ) then
-               p = col%pfti(c) + pi - 1
+            if ( pi <= col_pp%npfts(c) ) then
+               p = col_pp%pfti(c) + pi - 1
                l = pft%landunit(p)
                g = pft%gridcell(p)
 
@@ -1537,7 +1537,7 @@ contains
                      ! interactions between urban columns.
 
                      ! All wasteheat and traffic flux goes into canyon floor
-                     if (col%itype(c) == icol_road_perv .or. col%itype(c) == icol_road_imperv) then
+                     if (col_pp%itype(c) == icol_road_perv .or. col_pp%itype(c) == icol_road_imperv) then
                         eflx_wasteheat_patch(p) = eflx_wasteheat(l)/(1._r8-lun%wtlunit_roof(l))
                         eflx_heat_from_ac_patch(p) = eflx_heat_from_ac(l)/(1._r8-lun%wtlunit_roof(l))
                         eflx_traffic_patch(p) = eflx_traffic(l)/(1._r8-lun%wtlunit_roof(l))
@@ -1587,8 +1587,8 @@ contains
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
             lyr_top = snl(c) + 1
-            if ( pi <= col%npfts(c) ) then
-               p = col%pfti(c) + pi - 1
+            if ( pi <= col_pp%npfts(c) ) then
+               p = col_pp%pfti(c) + pi - 1
                if (pft%active(p)) then
                   g = pft%gridcell(p)
                   l = pft%landunit(p)
@@ -1668,9 +1668,9 @@ contains
     SHR_ASSERT_ALL((ubound(fn)   == (/bounds%endc, nlevgrnd/)), errMsg(__FILE__, __LINE__))
 
     associate(&
-         zi         => col%zi                          , & ! Input: [real(r8) (:,:) ] interface level below a "z" level (m)
-         dz         => col%dz                          , & ! Input: [real(r8) (:,:) ] layer depth (m)
-         z          => col%z                           , & ! Input: [real(r8) (:,:) ] layer thickness (m)
+         zi         => col_pp%zi                          , & ! Input: [real(r8) (:,:) ] interface level below a "z" level (m)
+         dz         => col_pp%dz                          , & ! Input: [real(r8) (:,:) ] layer depth (m)
+         z          => col_pp%z                           , & ! Input: [real(r8) (:,:) ] layer thickness (m)
          t_building => temperature_vars%t_building_lun , & ! Input: [real(r8) (:)   ] internal building temperature (K)       
          t_soisno   => temperature_vars%t_soisno_col   , & ! Input: [real(r8) (:,:) ] soil temperature (Kelvin)             
          eflx_bot   => energyflux_vars%eflx_bot_col      & ! Input: [real(r8) (:)   ] heat flux from beneath column (W/m**2) [+ = upward]
@@ -1683,11 +1683,11 @@ contains
       do j = -nlevsno+1,nlevgrnd
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
-            if ((col%itype(c) == icol_sunwall .or. col%itype(c) == icol_shadewall &
-                 .or. col%itype(c) == icol_roof) .and. j <= nlevurb) then
-               if (j >= col%snl(c)+1) then
-                  if (j == col%snl(c)+1) then
+            l = col_pp%landunit(c)
+            if ((col_pp%itype(c) == icol_sunwall .or. col_pp%itype(c) == icol_shadewall &
+                 .or. col_pp%itype(c) == icol_roof) .and. j <= nlevurb) then
+               if (j >= col_pp%snl(c)+1) then
+                  if (j == col_pp%snl(c)+1) then
                      fact(c,j) = dtime/cv(c,j)
                      fn(c,j) = tk(c,j)*(t_soisno(c,j+1)-t_soisno(c,j))/(z(c,j+1)-z(c,j))
                   else if (j <= nlevurb-1) then
@@ -1702,10 +1702,10 @@ contains
                      fn(c,j) = tk(c,j) * (t_building(l) - cnfac*t_soisno(c,j))/(zi(c,j) - z(c,j))
                   end if
                end if
-            else if (col%itype(c) /= icol_sunwall .and. col%itype(c) /= icol_shadewall &
-                 .and. col%itype(c) /= icol_roof) then
-               if (j >= col%snl(c)+1) then
-                  if (j == col%snl(c)+1) then
+            else if (col_pp%itype(c) /= icol_sunwall .and. col_pp%itype(c) /= icol_shadewall &
+                 .and. col_pp%itype(c) /= icol_roof) then
+               if (j >= col_pp%snl(c)+1) then
+                  if (j == col_pp%snl(c)+1) then
                      fact(c,j) = dtime/cv(c,j) * dz(c,j) / (0.5_r8*(z(c,j)-zi(c,j-1)+capr*(z(c,j+1)-zi(c,j-1))))
                      fn(c,j) = tk(c,j)*(t_soisno(c,j+1)-t_soisno(c,j))/(z(c,j+1)-z(c,j))
                   else if (j <= nlevgrnd-1) then
@@ -2054,7 +2054,7 @@ contains
     SHR_ASSERT_ALL((ubound(rt)           == (/bounds%endc, -1/)),       errMsg(__FILE__, __LINE__))
 
     associate(        &
-         z => col%z   & ! Input: [real(r8) (:,:) ]  layer thickness (m)
+         z => col_pp%z   & ! Input: [real(r8) (:,:) ]  layer thickness (m)
          )
 
       !
@@ -2063,12 +2063,12 @@ contains
       do j = -nlevsno+1,0
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
+            l = col_pp%landunit(c)
             if (lun%urbpoi(l)) then
-               if ((col%itype(c) == icol_sunwall .or. col%itype(c) == icol_shadewall &
-                    .or. col%itype(c) == icol_roof)) then
-                  if (j >= col%snl(c)+1) then
-                     if (j == col%snl(c)+1) then
+               if ((col_pp%itype(c) == icol_sunwall .or. col_pp%itype(c) == icol_shadewall &
+                    .or. col_pp%itype(c) == icol_roof)) then
+                  if (j >= col_pp%snl(c)+1) then
+                     if (j == col_pp%snl(c)+1) then
                         dzp     = z(c,j+1)-z(c,j)
                         ! changed hs to hs_top
                         rt(c,j-1) = t_soisno(c,j) +  fact(c,j)*( hs_top(c) - dhsdT(c)*t_soisno(c,j) + cnfac*fn(c,j) )
@@ -2138,7 +2138,7 @@ contains
     SHR_ASSERT_ALL((ubound(rt)           == (/bounds%endc, -1/)),       errMsg(__FILE__, __LINE__))
 
     associate(         &
-         z  => col%z   & ! Input: [real(r8) (:,:) ]  layer thickness (m)
+         z  => col_pp%z   & ! Input: [real(r8) (:,:) ]  layer thickness (m)
          )
 
       !
@@ -2147,11 +2147,11 @@ contains
       do j = -nlevsno+1,0
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
+            l = col_pp%landunit(c)
             if (lun%urbpoi(l)) then
-               if (col%itype(c) == icol_road_imperv .or. col%itype(c) == icol_road_perv) then
-                  if (j >= col%snl(c)+1) then
-                     if (j == col%snl(c)+1) then
+               if (col_pp%itype(c) == icol_road_imperv .or. col_pp%itype(c) == icol_road_perv) then
+                  if (j >= col_pp%snl(c)+1) then
+                     if (j == col_pp%snl(c)+1) then
                         dzp     = z(c,j+1)-z(c,j)
                         rt(c,j-1) = t_soisno(c,j) +  fact(c,j)*( hs_top_snow(c) &
                              - dhsdT(c)*t_soisno(c,j) + cnfac*fn(c,j) )
@@ -2219,7 +2219,7 @@ contains
     SHR_ASSERT_ALL((ubound(rt)           == (/bounds%endc, -1/)),       errMsg(__FILE__, __LINE__))
 
     associate(       &
-         z => col%z  & ! Input: [real(r8) (:,:) ]  layer thickness (m)
+         z => col_pp%z  & ! Input: [real(r8) (:,:) ]  layer thickness (m)
          )
 
       !
@@ -2228,10 +2228,10 @@ contains
       do j = -nlevsno+1,0
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
+            l = col_pp%landunit(c)
             if (.not. lun%urbpoi(l)) then
-               if (j >= col%snl(c)+1) then
-                  if (j == col%snl(c)+1) then
+               if (j >= col_pp%snl(c)+1) then
+                  if (j == col_pp%snl(c)+1) then
                      dzp     = z(c,j+1)-z(c,j)
                      rt(c,j-1) = t_soisno(c,j) +  fact(c,j)*( hs_top_snow(c) &
                           - dhsdT(c)*t_soisno(c,j) + cnfac*fn(c,j) )
@@ -2309,7 +2309,7 @@ contains
        c = filter_nolakec(fc)
 
        ! surface water layer has two coefficients
-       dzm=(0.5*dz_h2osfc(c)+col%z(c,1))
+       dzm=(0.5*dz_h2osfc(c)+col_pp%z(c,1))
 
        fn_h2osfc(c)=tk_h2osfc(c)*(t_soisno(c,1)-t_h2osfc(c))/dzm
        rt(c,1)= t_h2osfc(c) +  (dtime/c_h2osfc(c)) &
@@ -2550,7 +2550,7 @@ contains
     SHR_ASSERT_ALL((ubound(rt)           == (/bounds%endc, nlevgrnd/)), errMsg(__FILE__, __LINE__))
 
     associate(                                      &
-         z        => col%z                          & ! Input: [real(r8) (:,:) ]  layer thickness (m)
+         z        => col_pp%z                          & ! Input: [real(r8) (:,:) ]  layer thickness (m)
          )
 
       !
@@ -2559,12 +2559,12 @@ contains
       do j = 1,nlevurb
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
+            l = col_pp%landunit(c)
             if (lun%urbpoi(l)) then
-               if ((col%itype(c) == icol_sunwall .or. col%itype(c) == icol_shadewall &
-                    .or. col%itype(c) == icol_roof)) then
-                  if (j >= col%snl(c)+1) then
-                     if (j == col%snl(c)+1) then
+               if ((col_pp%itype(c) == icol_sunwall .or. col_pp%itype(c) == icol_shadewall &
+                    .or. col_pp%itype(c) == icol_roof)) then
+                  if (j >= col_pp%snl(c)+1) then
+                     if (j == col_pp%snl(c)+1) then
                         ! changed hs to hs_top
                         rt(c,j) = t_soisno(c,j) +  fact(c,j)*( hs_top(c) - dhsdT(c)*t_soisno(c,j) + cnfac*fn(c,j) )
                      else if (j <= nlevurb-1) then
@@ -2643,7 +2643,7 @@ contains
     SHR_ASSERT_ALL((ubound(rt)           == (/bounds%endc, nlevgrnd/)), errMsg(__FILE__, __LINE__))
 
     associate(                                              &
-         z            => col%z                              & ! Input: [real(r8) (:,:) ]  layer thickness (m)
+         z            => col_pp%z                              & ! Input: [real(r8) (:,:) ]  layer thickness (m)
          )
 
       !
@@ -2652,10 +2652,10 @@ contains
       do j = 1,nlevgrnd
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
+            l = col_pp%landunit(c)
             if (lun%urbpoi(l)) then
-               if (col%itype(c) == icol_road_imperv .or. col%itype(c) == icol_road_perv) then
-                  if (j == col%snl(c)+1) then
+               if (col_pp%itype(c) == icol_road_imperv .or. col_pp%itype(c) == icol_road_perv) then
+                  if (j == col_pp%snl(c)+1) then
                      rt(c,j) = t_soisno(c,j) +  fact(c,j)*( hs_top_snow(c) &
                           - dhsdT(c)*t_soisno(c,j) + cnfac*fn(c,j) )
                   else if (j == 1) then
@@ -2730,7 +2730,7 @@ contains
     SHR_ASSERT_ALL((ubound(rt)           == (/bounds%endc, nlevgrnd/)), errMsg(__FILE__, __LINE__))
 
     associate(       &
-         z  => col%z & ! Input:  [real(r8) (:,:)]  layer thickness (m)
+         z  => col_pp%z & ! Input:  [real(r8) (:,:)]  layer thickness (m)
          )
 
       !
@@ -2739,9 +2739,9 @@ contains
       do j = 1,nlevgrnd
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
+            l = col_pp%landunit(c)
             if (.not. lun%urbpoi(l)) then
-               if (j == col%snl(c)+1) then
+               if (j == col_pp%snl(c)+1) then
                   rt(c,j) = t_soisno(c,j) +  fact(c,j)*( hs_top_snow(c) &
                        - dhsdT(c)*t_soisno(c,j) + cnfac*fn(c,j) )
                else if (j == 1) then
@@ -2895,7 +2895,7 @@ contains
     SHR_ASSERT_ALL((ubound(bmatrix)   == (/bounds%endc, nband, nlevgrnd/)), errMsg(__FILE__, __LINE__))
 
     associate(                                              &
-         z            => col%z                            , & ! Input: [real(r8) (:,:) ]  layer thickness (m)
+         z            => col_pp%z                            , & ! Input: [real(r8) (:,:) ]  layer thickness (m)
          frac_h2osfc  => waterstate_vars%frac_h2osfc_col  , & ! Input: [real(r8) (:)   ]  fraction of ground covered by surface water (0 to 1)
          frac_sno_eff => waterstate_vars%frac_sno_eff_col , & ! Input: [real(r8) (:)   ]  fraction of ground covered by snow (0 to 1)
          begc         => bounds%begc                      , & ! Input: [integer        ] beginning column index
@@ -3235,7 +3235,7 @@ contains
     SHR_ASSERT_ALL((ubound(bmatrix_snow)   == (/bounds%endc, nband, -1/)), errMsg(__FILE__, __LINE__))
 
     associate(& 
-         z  => col%z  & ! Input:  [real(r8) (:,:)]  layer thickness (m)
+         z  => col_pp%z  & ! Input:  [real(r8) (:,:)]  layer thickness (m)
          )
 
       !
@@ -3244,12 +3244,12 @@ contains
       do j = -nlevsno+1,0
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
+            l = col_pp%landunit(c)
             if (lun%urbpoi(l)) then
-               if ((col%itype(c) == icol_sunwall .or. col%itype(c) == icol_shadewall &
-                    .or. col%itype(c) == icol_roof)) then
-                  if (j >= col%snl(c)+1) then
-                     if (j == col%snl(c)+1) then
+               if ((col_pp%itype(c) == icol_sunwall .or. col_pp%itype(c) == icol_shadewall &
+                    .or. col_pp%itype(c) == icol_roof)) then
+                  if (j >= col_pp%snl(c)+1) then
+                     if (j == col_pp%snl(c)+1) then
                         dzp     = z(c,j+1)-z(c,j)
                         bmatrix_snow(c,4,j-1) = 0._r8
                         bmatrix_snow(c,3,j-1) = 1._r8+(1._r8-cnfac)*fact(c,j)*tk(c,j)/dzp-fact(c,j)*dhsdT(c)
@@ -3314,7 +3314,7 @@ contains
     SHR_ASSERT_ALL((ubound(bmatrix_snow)   == (/bounds%endc, nband, -1/)), errMsg(__FILE__, __LINE__))
 
     associate(& 
-         z => col%z & ! Input:  [real(r8) (:,:)]  layer thickness (m)
+         z => col_pp%z & ! Input:  [real(r8) (:,:)]  layer thickness (m)
          )
 
       !
@@ -3323,11 +3323,11 @@ contains
       do j = -nlevsno+1,0
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
+            l = col_pp%landunit(c)
             if (lun%urbpoi(l)) then
-               if (col%itype(c) == icol_road_imperv .or. col%itype(c) == icol_road_perv) then
-                  if (j >= col%snl(c)+1) then
-                     if (j == col%snl(c)+1) then
+               if (col_pp%itype(c) == icol_road_imperv .or. col_pp%itype(c) == icol_road_perv) then
+                  if (j >= col_pp%snl(c)+1) then
+                     if (j == col_pp%snl(c)+1) then
                         dzp     = z(c,j+1)-z(c,j)
                         bmatrix_snow(c,4,j-1) = 0._r8
                         bmatrix_snow(c,3,j-1) = 1._r8+(1._r8-cnfac)*fact(c,j)*tk(c,j)/dzp-fact(c,j)*dhsdT(c)
@@ -3391,7 +3391,7 @@ contains
     SHR_ASSERT_ALL((ubound(bmatrix_snow)   == (/bounds%endc, nband, -1/)), errMsg(__FILE__, __LINE__))
 
     associate(& 
-         z => col%z  & ! Input:  [real(r8) (:,:)]  layer thickness (m)
+         z => col_pp%z  & ! Input:  [real(r8) (:,:)]  layer thickness (m)
          )
 
       !
@@ -3400,10 +3400,10 @@ contains
       do j = -nlevsno+1,0
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
+            l = col_pp%landunit(c)
             if (.not. lun%urbpoi(l)) then
-               if (j >= col%snl(c)+1) then
-                  if (j == col%snl(c)+1) then
+               if (j >= col_pp%snl(c)+1) then
+                  if (j == col_pp%snl(c)+1) then
                      dzp     = z(c,j+1)-z(c,j)
                      bmatrix_snow(c,4,j-1) = 0._r8
                      bmatrix_snow(c,3,j-1) = 1._r8+(1._r8-cnfac)*fact(c,j)*tk(c,j)/dzp-fact(c,j)*dhsdT(c)
@@ -3561,7 +3561,7 @@ contains
     SHR_ASSERT_ALL((ubound(bmatrix_snow_soil)   == (/bounds%endc, nband, -1/)), errMsg(__FILE__, __LINE__))
 
     associate(& 
-         z  => col%z  & ! Input:  [real(r8) (:,:)]  layer thickness (m)
+         z  => col_pp%z  & ! Input:  [real(r8) (:,:)]  layer thickness (m)
          )
       !
       ! urban non-road columns ---------------------------------------------------------
@@ -3569,12 +3569,12 @@ contains
       do j = 0,0
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
+            l = col_pp%landunit(c)
             if (lun%urbpoi(l)) then
-               if ((col%itype(c) == icol_sunwall .or. col%itype(c) == icol_shadewall &
-                    .or. col%itype(c) == icol_roof)) then
-                  if (j >= col%snl(c)+1) then
-                     if (j == col%snl(c)+1) then
+               if ((col_pp%itype(c) == icol_sunwall .or. col_pp%itype(c) == icol_shadewall &
+                    .or. col_pp%itype(c) == icol_roof)) then
+                  if (j >= col_pp%snl(c)+1) then
+                     if (j == col_pp%snl(c)+1) then
                         dzp     = z(c,j+1)-z(c,j)
                         bmatrix_snow_soil(c,1,j-1) =  -(1._r8-cnfac)*fact(c,j)*tk(c,j)/dzp
                      else if (j <= nlevurb-1) then
@@ -3628,7 +3628,7 @@ contains
     SHR_ASSERT_ALL((ubound(bmatrix_snow_soil)   == (/bounds%endc, nband, -1/)), errMsg(__FILE__, __LINE__))
 
     associate(& 
-         z  => col%z  & ! Input:  [real(r8) (:,:)]  layer thickness (m)
+         z  => col_pp%z  & ! Input:  [real(r8) (:,:)]  layer thickness (m)
          )
 
       !
@@ -3637,11 +3637,11 @@ contains
       do j = 0,0
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
+            l = col_pp%landunit(c)
             if (lun%urbpoi(l)) then
-               if (col%itype(c) == icol_road_imperv .or. col%itype(c) == icol_road_perv) then
-                  if (j >= col%snl(c)+1) then
-                     if (j == col%snl(c)+1) then
+               if (col_pp%itype(c) == icol_road_imperv .or. col_pp%itype(c) == icol_road_perv) then
+                  if (j >= col_pp%snl(c)+1) then
+                     if (j == col_pp%snl(c)+1) then
                         dzp     = z(c,j+1)-z(c,j)
                         bmatrix_snow_soil(c,1,j-1) =  -(1._r8-cnfac)*fact(c,j)*tk(c,j)/dzp
                      else if (j <= nlevgrnd-1) then
@@ -3695,7 +3695,7 @@ contains
     SHR_ASSERT_ALL((ubound(bmatrix_snow_soil)   == (/bounds%endc, nband, -1/)), errMsg(__FILE__, __LINE__))
 
     associate(&
-         z => col%z & ! Input:  [real(r8) (:,:)]  layer thickness (m)
+         z => col_pp%z & ! Input:  [real(r8) (:,:)]  layer thickness (m)
          )
 
       !
@@ -3704,10 +3704,10 @@ contains
       do j = 0,0
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
+            l = col_pp%landunit(c)
             if (.not. lun%urbpoi(l)) then
-               if (j >= col%snl(c)+1) then
-                  if (j == col%snl(c)+1) then
+               if (j >= col_pp%snl(c)+1) then
+                  if (j == col_pp%snl(c)+1) then
                      dzp     = z(c,j+1)-z(c,j)
                      bmatrix_snow_soil(c,1,j-1) =  -(1._r8-cnfac)*fact(c,j)*tk(c,j)/dzp
                   else if (j <= nlevgrnd-1) then
@@ -3800,7 +3800,7 @@ contains
          c = filter_nolakec(fc)
 
          ! surface water layer has two coefficients
-         dzm=(0.5*dz_h2osfc(c)+col%z(c,1))
+         dzm=(0.5*dz_h2osfc(c)+col_pp%z(c,1))
 
          ! diagonal element correction for presence of h2osfc
          if ( frac_h2osfc(c) /= 0.0_r8 ) then
@@ -3919,8 +3919,8 @@ contains
     SHR_ASSERT_ALL((ubound(bmatrix_soil)   == (/bounds%endc, nband, nlevgrnd/)), errMsg(__FILE__, __LINE__))
 
     associate(               &
-         zi   =>    col%zi , & ! Input:  [real(r8) (:,:)]  interface level below a "z" level (m)
-         z    =>    col%z    & ! Input:  [real(r8) (:,:)]  layer thickness (m)
+         zi   =>    col_pp%zi , & ! Input:  [real(r8) (:,:)]  interface level below a "z" level (m)
+         z    =>    col_pp%z    & ! Input:  [real(r8) (:,:)]  layer thickness (m)
          )
 
       !
@@ -3929,12 +3929,12 @@ contains
       do j = 1,nlevurb
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
+            l = col_pp%landunit(c)
             if (lun%urbpoi(l)) then
-               if ((col%itype(c) == icol_sunwall .or. col%itype(c) == icol_shadewall &
-                    .or. col%itype(c) == icol_roof)) then
-                  if (j >= col%snl(c)+1) then
-                     if (j == col%snl(c)+1) then
+               if ((col_pp%itype(c) == icol_sunwall .or. col_pp%itype(c) == icol_shadewall &
+                    .or. col_pp%itype(c) == icol_roof)) then
+                  if (j >= col_pp%snl(c)+1) then
+                     if (j == col_pp%snl(c)+1) then
                         dzp     = z(c,j+1)-z(c,j)
                         if (j /= 1) then
                            bmatrix_soil(c,4,j) = 0._r8
@@ -4013,7 +4013,7 @@ contains
     SHR_ASSERT_ALL((ubound(bmatrix_soil)   == (/bounds%endc, nband, nlevgrnd/)), errMsg(__FILE__, __LINE__))
 
     associate(       &
-         z => col%z  & ! Input:  [real(r8) (:,:)]  layer thickness (m)
+         z => col_pp%z  & ! Input:  [real(r8) (:,:)]  layer thickness (m)
          )
 
       !
@@ -4022,11 +4022,11 @@ contains
       do j = 1,nlevgrnd
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
+            l = col_pp%landunit(c)
             if (lun%urbpoi(l)) then
-               if (col%itype(c) == icol_road_imperv .or. col%itype(c) == icol_road_perv) then
-                  if (j >= col%snl(c)+1) then
-                     if (j == col%snl(c)+1) then
+               if (col_pp%itype(c) == icol_road_imperv .or. col_pp%itype(c) == icol_road_perv) then
+                  if (j >= col_pp%snl(c)+1) then
+                     if (j == col_pp%snl(c)+1) then
                         dzp     = z(c,j+1)-z(c,j)
                         if (j /= 1) then
                            bmatrix_soil(c,4,j) = 0._r8
@@ -4110,7 +4110,7 @@ contains
     SHR_ASSERT_ALL((ubound(bmatrix_soil)   == (/bounds%endc, nband, nlevgrnd/)), errMsg(__FILE__, __LINE__))
 
     associate(       &
-         z  => col%z & ! Input:  [real(r8) (:,:)]  layer thickness (m)
+         z  => col_pp%z & ! Input:  [real(r8) (:,:)]  layer thickness (m)
          )
 
       !
@@ -4119,10 +4119,10 @@ contains
       do j = 1,nlevgrnd
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
+            l = col_pp%landunit(c)
             if (.not. lun%urbpoi(l)) then
-               if (j >= col%snl(c)+1) then
-                  if (j == col%snl(c)+1) then
+               if (j >= col_pp%snl(c)+1) then
+                  if (j == col_pp%snl(c)+1) then
                      dzp     = z(c,j+1)-z(c,j)
                      if (j /= 1) then
                         bmatrix_soil(c,4,j) = 0._r8
@@ -4304,19 +4304,19 @@ contains
     SHR_ASSERT_ALL((ubound(bmatrix_soil_snow)   == (/bounds%endc, nband, 1/)), errMsg(__FILE__, __LINE__))
 
     associate(           &
-         z  => col%z     & ! Input:  [real(r8) (:,:)]  layer thickness (m)
+         z  => col_pp%z     & ! Input:  [real(r8) (:,:)]  layer thickness (m)
          )
       !
       !
       do j = 1,1
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
+            l = col_pp%landunit(c)
             if (lun%urbpoi(l)) then
-               if ((col%itype(c) == icol_sunwall .or. col%itype(c) == icol_shadewall &
-                    .or. col%itype(c) == icol_roof)) then
-                  if (j >= col%snl(c)+1) then
-                     if (j == col%snl(c)+1) then
+               if ((col_pp%itype(c) == icol_sunwall .or. col_pp%itype(c) == icol_shadewall &
+                    .or. col_pp%itype(c) == icol_roof)) then
+                  if (j >= col_pp%snl(c)+1) then
+                     if (j == col_pp%snl(c)+1) then
                         dzp     = z(c,j+1)-z(c,j)
                         bmatrix_soil_snow(c,5,j) = 0._r8
                      else if (j <= nlevurb-1) then
@@ -4372,7 +4372,7 @@ contains
     SHR_ASSERT_ALL((ubound(bmatrix_soil_snow)   == (/bounds%endc, nband, 1/)), errMsg(__FILE__, __LINE__))
 
     associate(& 
-         z => col%z & ! Input:  [real(r8) (:,:)]  layer thickness (m)
+         z => col_pp%z & ! Input:  [real(r8) (:,:)]  layer thickness (m)
          )
 
       !
@@ -4381,11 +4381,11 @@ contains
       do j = 1,1
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
+            l = col_pp%landunit(c)
             if (lun%urbpoi(l)) then
-               if (col%itype(c) == icol_road_imperv .or. col%itype(c) == icol_road_perv) then
-                  if (j >= col%snl(c)+1) then
-                     if (j == col%snl(c)+1) then
+               if (col_pp%itype(c) == icol_road_imperv .or. col_pp%itype(c) == icol_road_perv) then
+                  if (j >= col_pp%snl(c)+1) then
+                     if (j == col_pp%snl(c)+1) then
                         dzp     = z(c,j+1)-z(c,j)
                         bmatrix_soil_snow(c,5,j) = 0._r8
                      else if (j == 1) then
@@ -4444,7 +4444,7 @@ contains
     SHR_ASSERT_ALL((ubound(bmatrix_soil_snow)   == (/bounds%endc, nband, 1/)), errMsg(__FILE__, __LINE__))
 
     associate(&
-         z => col%z  & ! Input:  [real(r8) (:,:)]  layer thickness (m)
+         z => col_pp%z  & ! Input:  [real(r8) (:,:)]  layer thickness (m)
          )
 
       !
@@ -4453,10 +4453,10 @@ contains
       do j = 1,1
          do fc = 1,num_nolakec
             c = filter_nolakec(fc)
-            l = col%landunit(c)
+            l = col_pp%landunit(c)
             if (.not. lun%urbpoi(l)) then
-               if (j >= col%snl(c)+1) then
-                  if (j == col%snl(c)+1) then
+               if (j >= col_pp%snl(c)+1) then
+                  if (j == col_pp%snl(c)+1) then
                      dzp     = z(c,j+1)-z(c,j)
                      bmatrix_soil_snow(c,5,j) = 0._r8
                   else if (j == 1) then
@@ -4525,7 +4525,7 @@ contains
        c = filter_nolakec(fc)
 
        ! surface water layer has two coefficients
-       dzm=(0.5*dz_h2osfc(c)+col%z(c,1))
+       dzm=(0.5*dz_h2osfc(c)+col_pp%z(c,1))
 
        bmatrix_ssw(c,3,0)= 1._r8+(1._r8-cnfac)*(dtime/c_h2osfc(c)) &
             *tk_h2osfc(c)/dzm -(dtime/c_h2osfc(c))*dhsdT(c) !interaction from atm
@@ -4581,7 +4581,7 @@ contains
        c = filter_nolakec(fc)
 
        ! surface water layer has two coefficients
-       dzm=(0.5*dz_h2osfc(c)+col%z(c,1))
+       dzm=(0.5*dz_h2osfc(c)+col_pp%z(c,1))
 
        bmatrix_ssw_soil(c,2,0)= -(1._r8-cnfac)*(dtime/c_h2osfc(c))*tk_h2osfc(c)/dzm !flux to top soil layer
 
@@ -4633,7 +4633,7 @@ contains
        c = filter_nolakec(fc)
 
        ! surface water layer has two coefficients
-       dzm=(0.5*dz_h2osfc(c)+col%z(c,1))
+       dzm=(0.5*dz_h2osfc(c)+col_pp%z(c,1))
 
        ! top soil layer has sub coef shifted to 2nd super diagonal
        if ( frac_h2osfc(c) /= 0.0_r8 )then

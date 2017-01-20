@@ -40,7 +40,7 @@ contains
     use TemperatureType    ,  only : temperature_type
     use EnergyFluxType     ,  only : energyflux_type
     use GridcellType       ,  only : grc
-    use ColumnType         ,  only : col
+    use ColumnType         ,  only : col_pp
     use PatchType          ,  only : pft
 
     implicit none
@@ -106,7 +106,7 @@ contains
     !------------------------------------------------------------------------------
 
     associate(& 
-         dz          => col%dz                            , & ! Input:  [real(r8) (:,:) ]  layer depth (m)
+         dz          => col_pp%dz                            , & ! Input:  [real(r8) (:,:) ]  layer depth (m)
 
          smpso       => ecophyscon%smpso                  , & ! Input:  [real(r8) (:)   ]  soil water potential at full stomatal opening (mm)
          smpsc       => ecophyscon%smpsc                  , & ! Input:  [real(r8) (:)   ]  soil water potential at full stomatal closure (mm)
