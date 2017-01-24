@@ -793,7 +793,7 @@ module advance_clubb_core_module
     !----------------------------------------------------------------
     ! Test input variables
     !----------------------------------------------------------------
-    if ( clubb_at_least_debug_level( 0 ) ) then
+    if ( clubb_at_least_debug_level( 2 ) ) then
       call parameterization_check & 
            ( thlm_forcing, rtm_forcing, um_forcing, vm_forcing, & ! intent(in)
              wm_zm, wm_zt, p_in_Pa, rho_zm, rho, exner,         & ! intent(in)
@@ -2032,7 +2032,7 @@ module advance_clubb_core_module
              wpsclrp, edsclrm, edsclrm_forcing                  )     ! intent(in)
 
 
-      if ( clubb_at_least_debug_level( 0 ) ) then
+      if ( clubb_at_least_debug_level( 2 ) ) then
         call parameterization_check & 
              ( thlm_forcing, rtm_forcing, um_forcing, vm_forcing, & ! intent(in)
                wm_zm, wm_zt, p_in_Pa, rho_zm, rho, exner,         & ! intent(in)
