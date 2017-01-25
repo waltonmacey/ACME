@@ -216,6 +216,7 @@ module lapack_wrap
 
     use clubb_precision, only: &
       core_rknd ! Variable(s)
+    use, intrinsic :: ieee_exceptions
 
     implicit none
 
@@ -266,8 +267,10 @@ module lapack_wrap
 !-----------------------------------------------------------------------
 
     if ( kind( diag(1) ) == dp ) then
-      call dgtsv( ndim, nrhs, subd(2:ndim), diag, supd(1:ndim-1),  & 
+      call ieee_set_halting_mode(IEEE_DIVIDE_BY_ZERO, .false.)
+      call dgtsv( ndim, nrhs, subd(2:ndim), diag, supd(1:ndim-1),  &   ! ndk line where we leave ACME and get divide-by-zero with intel on KNL
                   rhs, ndim, info )
+      call ieee_set_halting_mode(IEEE_DIVIDE_BY_ZERO, .true.)
 
     else if ( kind( diag(1) ) == sp ) then
       call sgtsv( ndim, nrhs, subd(2:ndim), diag, supd(1:ndim-1),  & 
