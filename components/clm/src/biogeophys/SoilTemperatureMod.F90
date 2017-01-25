@@ -549,7 +549,7 @@ contains
 
          else
 
-            if (1 == 0) then
+            if (thermal_model == default_thermal_model) then
             do j = snl(c)+1, 0
                t_soisno(c,j)       = tvector_nourbanc(c,j-1)        !snow layers
             end do
