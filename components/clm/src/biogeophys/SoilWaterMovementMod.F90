@@ -907,7 +907,7 @@ contains
     use PatchType                 , only : pft
     use ColumnType                , only : col_pp
     use clm_varcon                , only : watmin
-    use LandunitType              , only : lun
+    use LandunitType              , only : lun_pp
     use landunit_varcon           , only : istsoil, istcrop
     use clm_varctl                , only : iulog
     use shr_log_mod               , only : errMsg => shr_log_errMsg

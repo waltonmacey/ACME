@@ -18,7 +18,7 @@ module EDCLMLinkMod
   use EcophysConType        , only : ecophyscon
   use PatchType             , only : pft
   use ColumnType            , only : col_pp
-  use LandunitType          , only : lun
+  use LandunitType          , only : lun_pp
   use EDVecPatchtype        , only : EDpft
   use EDBioType             , only : EDbio_type
   use EDEcophysConType      , only : EDecophyscon
@@ -97,7 +97,7 @@ contains
       do c = bounds%begc,bounds%endc
          g = col_pp%gridcell(c)
          ! make sure we only get the first patch value for places which have soil. 
-         if( (lun%itype(col_pp%landunit(c)) == istsoil).and.(col_pp%itype(c) == istsoil))then 
+         if( (lun_pp%itype(col_pp%landunit(c)) == istsoil).and.(col_pp%itype(c) == istsoil))then 
             firstsoilpatch(g) = col_pp%pfti(c)
             sitecolumn(g) = c
          endif
@@ -522,7 +522,7 @@ contains
        landunit = col_pp%landunit(c)
        ! FIX(SPM,032414) check if istsoil is compatible with col_pp%itype !
        ! make sure we only get the first patch value for places which have soil. 
-       if(lun%itype(landunit) == istsoil.and.col_pp%itype(c) == istsoil)then  
+       if(lun_pp%itype(landunit) == istsoil.and.col_pp%itype(c) == istsoil)then  
           istheresoil(g) = 1
        endif
        currentSite%istheresoil = istheresoil(g)
