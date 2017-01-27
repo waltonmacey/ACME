@@ -135,7 +135,7 @@ contains
     ! !USES:
     use clm_varpar                  , only : nlevgrnd
     use ColumnType                  , only : col_pp
-    use LandunitType                , only : lun
+    use LandunitType                , only : lun_pp
     use landunit_varcon             , only : istcrop, istsoil
     use column_varcon               , only : icol_road_perv
     use ConnectionSetType           , only : ConnectionSetNew
@@ -190,8 +190,8 @@ contains
        l = col_pp%landunit(c)
 
        if (col_pp%active(c) .and. &
-            (lun%itype(l) == istsoil .or. col_pp%itype(c) == icol_road_perv .or. &
-            lun%itype(l) == istcrop)) then
+            (lun_pp%itype(l) == istsoil .or. col_pp%itype(c) == icol_road_perv .or. &
+            lun_pp%itype(l) == istcrop)) then
           if (first_active_hydro_col_id == -1) then
              first_active_hydro_col_id = c
              exit
@@ -219,9 +219,9 @@ contains
 
 
           if (col_pp%active(c) .and. &
-               (lun%itype(l) == istsoil        .or. &
+               (lun_pp%itype(l) == istsoil        .or. &
                 col_pp%itype(c) == icol_road_perv .or. &
-                lun%itype(l) == istcrop)) then
+                lun_pp%itype(l) == istcrop)) then
              col_id = c
              this%is_active(icell) = PETSC_TRUE
           else

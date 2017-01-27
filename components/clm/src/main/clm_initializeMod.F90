@@ -23,7 +23,7 @@ module clm_initializeMod
   !-----------------------------------------
   use GridcellType           , only : grc
   use TopounitType           , only : top_pp, top_es, top_ws
-  use LandunitType           , only : lun                
+  use LandunitType           , only : lun_pp                
   use ColumnType             , only : col_pp                
   use PatchType              , only : pft                
   use EDVecPatchType         , only : EDpft                   
@@ -212,7 +212,7 @@ contains
     call top_es%Init (bounds_proc%begg, bounds_proc%endg) ! energy state
     call top_ws%Init (bounds_proc%begg, bounds_proc%endg) ! water state
     ! --end ALM-v1 block
-    call lun%Init (bounds_proc%begl, bounds_proc%endl)
+    call lun_pp%Init (bounds_proc%begl, bounds_proc%endl)
     call col_pp%Init (bounds_proc%begc, bounds_proc%endc)
     call pft%Init (bounds_proc%begp, bounds_proc%endp)
     if ( use_ed ) then
@@ -259,7 +259,7 @@ contains
        l = col_pp%landunit(c)
        g = col_pp%gridcell(c)
 
-       if (lun%itype(l) == istice_mec) then
+       if (lun_pp%itype(l) == istice_mec) then
           ! For ice_mec landunits, initialize glc_topo based on surface dataset; this
           ! will get overwritten in the run loop by values sent from CISM
           icemec_class = col_itype_to_icemec_class(col_pp%itype(c))
