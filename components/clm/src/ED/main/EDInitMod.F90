@@ -13,7 +13,7 @@ module EDInitMod
   use CNNitrogenStateType   , only : nitrogenstate_type
   use CanopyStateType       , only : canopystate_type
   use WaterStateType        , only : waterstate_type
-  use GridcellType          , only : grc
+  use GridcellType          , only : grc_pp
   use EcophysConType        , only : ecophyscon
   use EDBioType             , only : EDbio_type
   use EDEcophysConType      , only : EDecophyscon
@@ -132,8 +132,8 @@ contains
        !create clm mapping to ED structure
        geds_local(g)%spnt => currentSite
        currentSite%clmgcell = g 
-       currentSite%lat = grc%latdeg(g)  
-       currentSite%lon = grc%londeg(g)
+       currentSite%lat = grc_pp%latdeg(g)  
+       currentSite%lon = grc_pp%londeg(g)
 
        ! Join sites together in linked list
        if(first_site_flag == 1) then !if first site do this, otherwise link it

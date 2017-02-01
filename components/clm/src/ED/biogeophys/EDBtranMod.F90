@@ -39,7 +39,7 @@ contains
     use WaterStateType     ,  only : waterstate_type
     use TemperatureType    ,  only : temperature_type
     use EnergyFluxType     ,  only : energyflux_type
-    use GridcellType       ,  only : grc
+    use GridcellType       ,  only : grc_pp
     use ColumnType         ,  only : col_pp
     use PatchType          ,  only : pft
 
