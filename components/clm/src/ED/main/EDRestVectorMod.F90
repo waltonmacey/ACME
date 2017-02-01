@@ -1222,7 +1222,7 @@ contains
       use EDInitMod          ,  only : zero_site
       use EDParamsMod        ,  only : ED_val_maxspread
       use EDPatchDynamicsMod ,  only : create_patch
-      use GridcellType       ,  only : grc
+      use GridcellType       ,  only : grc_pp
       use clm_varctl         ,  only : iulog
 
       implicit none
@@ -1271,8 +1271,8 @@ contains
          !
          currentSite%istheresoil = 1 ! if we are dealing with ED data there will
                                      ! always be soil
-         currentSite%lat         = grc%latdeg(g)
-         currentSite%lon         = grc%londeg(g)
+         currentSite%lat         = grc_pp%latdeg(g)
+         currentSite%lon         = grc_pp%londeg(g)
          currentSite%gdd         = 0_r8
          currentSite%ncd         = 0_r8
          ! then this site has soil and should be set here
