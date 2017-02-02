@@ -53,7 +53,7 @@ contains
     use clm_varctl        , only : iulog
     use EcophysconType    , only : ecophyscon
     use EDtypesMod        , only : patch, numpft_ed, nlevcan_ed, gridCellEdState
-    use PatchType         , only : pft  
+    use PatchType         , only : pft_pp  
     use EDVecPatchType    , only : EDpft
     use SurfaceAlbedoType , only : surfalb_type
     !
@@ -163,9 +163,9 @@ contains
 
       do fp = 1,num_vegsol
          p = filter_vegsol(fp)
-         c = pft%column(p)
+         c = pft_pp%column(p)
          if(ED_patch(p) == 1)then ! We have vegetation...
-            g = pft%gridcell(p)
+            g = pft_pp%gridcell(p)
             currentPatch => gridCellEdState(g)%spnt%oldest_patch
             do while(p /= currentPatch%clm_pno)
                currentPatch => currentPatch%younger

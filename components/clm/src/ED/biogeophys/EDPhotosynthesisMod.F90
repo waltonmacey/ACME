@@ -19,7 +19,7 @@ module EDPhotosynthesisMod
   use CanopyStateType    , only : canopystate_type
   use PhotosynthesisType , only : photosyns_type
   use TemperatureType    , only : temperature_type
-  use PatchType          , only : pft
+  use PatchType          , only : pft_pp
   use EDtypesMod         , only : patch, cohort, gridCellEdState, numpft_ed, dinc_ed
   use EDEcophysContype   , only : EDecophyscon
   use EDVecPatchType     , only : EDpft
@@ -337,7 +337,7 @@ contains
          GCcanopy(p) = 0._r8  
 
          if(ED_patch(p) == 1)then
-            g = pft%gridcell(p)
+            g = pft_pp%gridcell(p)
 
             currentPatch => gridCellEdState(g)%spnt%oldest_patch   
             do while(p /= currentPatch%clm_pno)
@@ -370,8 +370,8 @@ contains
             enddo !CL
 
 
-            g = pft%gridcell(p)
-            c = pft%column(p)
+            g = pft_pp%gridcell(p)
+            c = pft_pp%column(p)
             ! Soil water stress applied to Ball-Berry parameters
             do FT = 1,numpft_ed
                if (nint(c3psn(FT)) == 1)then
@@ -420,9 +420,9 @@ contains
 
       do f = 1,fn
          p = filterp(f)
-         c = pft%column(p)
+         c = pft_pp%column(p)
          if(ED_patch(p) == 1)then
-            g = pft%gridcell(p)
+            g = pft_pp%gridcell(p)
             currentPatch => gridCellEdState(g)%spnt%oldest_patch   
             do while(p /= currentPatch%clm_pno)
                currentPatch => currentPatch%younger

@@ -42,7 +42,7 @@ module PatchType
   save
   private
   !
-  type, public :: patch_type
+  type, public :: patch_physical_properties_type
      ! g/l/c/p hierarchy, local g/l/c/p cells only
      integer , pointer :: column   (:) ! index into column level quantities
      real(r8), pointer :: wtcol    (:) ! weight (relative to column) 
@@ -58,20 +58,20 @@ module PatchType
 
    contains
 
-     procedure, public :: Init
-     procedure, public :: Clean
+     procedure, public :: Init => patch_pp_init
+     procedure, public :: Clean => patch_pp_clean
      
-  end type patch_type
-  type(patch_type), public, target :: pft  ! patch type data structure !***TODO*** - change the data instance to patch from pft
+  end type patch_physical_properties_type
+  type(patch_physical_properties_type), public, target :: pft_pp  ! patch type data structure !***TODO*** - change the data instance to patch from pft
   !------------------------------------------------------------------------
 
 contains
   
   !------------------------------------------------------------------------
-  subroutine Init(this, begp, endp)
+  subroutine patch_pp_init(this, begp, endp)
     !
     ! !ARGUMENTS:
-    class(patch_type)   :: this
+    class(patch_physical_properties_type)   :: this
     integer, intent(in) :: begp,endp
     !
     ! LOCAL VARAIBLES:
@@ -88,13 +88,13 @@ contains
     allocate(this%mxy      (begp:endp)); this%mxy      (:) = ispval
     allocate(this%active   (begp:endp)); this%active   (:) = .false.
 
-  end subroutine Init
+  end subroutine patch_pp_init
 
   !------------------------------------------------------------------------
-  subroutine Clean(this)
+  subroutine patch_pp_clean(this)
     !
     ! !ARGUMENTS:
-    class(patch_type) :: this
+    class(patch_physical_properties_type) :: this
     !------------------------------------------------------------------------
 
     deallocate(this%gridcell)
@@ -107,6 +107,6 @@ contains
     deallocate(this%mxy     )
     deallocate(this%active  )
 
-  end subroutine Clean
+  end subroutine patch_pp_clean
 
 end module PatchType
