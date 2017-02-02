@@ -16,7 +16,7 @@ module EDCLMLinkMod
   use CanopyStateType       , only : canopystate_type
   use WaterStateType        , only : waterstate_type
   use EcophysConType        , only : ecophyscon
-  use PatchType             , only : pft
+  use PatchType             , only : pft_pp
   use ColumnType            , only : col_pp
   use LandunitType          , only : lun_pp
   use EDVecPatchtype        , only : EDpft
@@ -141,7 +141,7 @@ contains
                if(patchn <= numpft - numcft)then !don't expand into crop patches.   
                   currentPatch%clm_pno = firstsoilpatch(g) + patchn !the first 'soil' patch is unvegetated...      
                   p = currentPatch%clm_pno
-                  c = pft%column(p)
+                  c = pft_pp%column(p)
 
                   call root_fraction(currentPatch)
                   ED_patch(p) = 1 !this .is. a tile filled with vegetation... 
@@ -664,7 +664,7 @@ contains
                      maxh(iv) = (iv)*dh
                   endif
                enddo
-               c = pft%column(currentPatch%clm_pno)
+               c = pft_pp%column(currentPatch%clm_pno)
                currentCohort => currentPatch%shortest
                do while(associated(currentCohort))  
                   ft = currentCohort%pft
@@ -763,7 +763,7 @@ contains
                   if(currentCohort%NV > currentPatch%nrad(L,ft))then
                      write(iulog,*) 'CF: issue with NV',currentCohort%NV,currentCohort%pft,currentCohort%canopy_layer
                   endif
-                  c = pft%column(currentPatch%clm_pno)
+                  c = pft_pp%column(currentPatch%clm_pno)
 
                   !Whole layers.  Make a weighted average of the leaf area in each layer before dividing it by the total area. 
                   !fill up layer for whole layers.  FIX(RF,032414)- for debugging jan 2012
