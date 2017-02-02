@@ -633,8 +633,15 @@ os.system('./xmlchange -file env_mach_pes.xml -id NTASKS_CPL -val '+str(options.
 os.system('./xmlchange -file env_mach_pes.xml -id NTASKS_GLC -val '+str(options.np))
 os.system('./xmlchange -file env_mach_pes.xml -id NTASKS_ROF -val '+str(options.np))
 os.system('./xmlchange -file env_mach_pes.xml -id NTASKS_WAV -val '+str(options.np))
-os.system('./xmlchange -file env_mach_pes.xml -id NTHRDS_WAV -val '+str(options.np))
-os.system('./xmlchange -file env_mach_pes.xml -id MAX_TASKS_PER_NODE -val '+str(options.np))
+os.system('./xmlchange -file env_mach_pes.xml -id NTHRDS_ATM -val 1')
+os.system('./xmlchange -file env_mach_pes.xml -id NTHRDS_LND -val 1')
+os.system('./xmlchange -file env_mach_pes.xml -id NTHRDS_ICE -val 1')
+os.system('./xmlchange -file env_mach_pes.xml -id NTHRDS_OCN -val 1')
+os.system('./xmlchange -file env_mach_pes.xml -id NTHRDS_CPL -val 1')
+os.system('./xmlchange -file env_mach_pes.xml -id NTHRDS_GLC -val 1')
+os.system('./xmlchange -file env_mach_pes.xml -id NTHRDS_ROF -val 1')
+os.system('./xmlchange -file env_mach_pes.xml -id NTHRDS_WAV -val 1')
+#os.system('./xmlchange -file env_mach_pes.xml -id MAX_TASKS_PER_NODE -val '+str(options.np))
 
 if (int(options.ninst) > 1):
     os.system('./xmlchange -file env_mach_pes.xml -id ' \

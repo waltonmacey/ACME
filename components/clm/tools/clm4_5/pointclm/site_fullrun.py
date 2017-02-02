@@ -419,18 +419,16 @@ for row in AFdatareader:
 
         #Create a .PBS site fullrun script to launch the full job (all 3 cases)
         if (options.cpl_bypass):
-          input = open(csmdir+'/cime/scripts/'+basecase+"_I1850CLM45CB"+mybgc+ \
-                  '/'+basecase+"_I1850CLM45CB"+mybgc+'.run')
+          input = open(csmdir+'/cime/scripts/'+basecase+"_I1850CLM45CB"+mybgc+'/case.run')
         else:
-          input = open(csmdir+'/cime/scripts/'+basecase+"_I1850CLM45"+mybgc+ \
-                           '/'+basecase+"_I1850CLM45"+mybgc+'.run')
+          input = open(csmdir+'/cime/scripts/'+basecase+"_I1850CLM45"+mybgc+'/case.run')
         for s in input:
-            if ("perl" in s):
+            if ("perl" in s or "python" in s):
                 output.write("#!/bin/csh -f\n")
             elif ("#PBS" in s or "#!" in s):
                 output.write(s.replace('24:00','72:00'))
             elif ("#SBATCH" in s or "#!" in s):
-                output.write(s)
+                output.write(s.replace('1:30','12:00'))
         input.close()
         output.write("\n")
         
@@ -443,8 +441,8 @@ for row in AFdatareader:
         if (mycaseid != ''):
                 basecase = mycaseid+'_'+site
         if (options.noad == False):
-            output.write("cd "+os.path.abspath(csmdir+"/cime/scripts/"+basecase+"_I1850"+modelst+"_ad_spinup\n"))
-            output.write("./"+basecase+"_I1850"+modelst+"_ad_spinup.run\n")
+            output.write("cd "+runroot+'/'+ad_case+'/run\n')
+            output.write(ad_exeroot+"/acme.exe > acme.log\n")
             output.write("cd "+os.path.abspath(".")+'\n')
             if (options.bgc):
                 output.write("python adjust_restart.py --rundir "+os.path.abspath(runroot)+'/'+ad_case+ \
@@ -453,11 +451,11 @@ for row in AFdatareader:
             else:
                 output.write("python adjust_restart.py --rundir "+os.path.abspath(runroot)+'/'+ad_case+ \
                                  '/run/ --harvest --casename '+ad_case+' --restart_year '+str(int(ny_ad)+1)+'\n')
-        output.write("cd "+os.path.abspath(csmdir+"/cime/scripts/"+basecase+"_I1850"+modelst+"\n"))
-        output.write("./"+basecase+"_I1850"+modelst+".run\n")
+        output.write("cd "+runroot+'/'+basecase+"_I1850"+modelst+"/run\n")
+        output.write(ad_exeroot+"/acme.exe > acme.log\n")	
         if (options.notrans == False):
-            output.write("cd "+os.path.abspath(csmdir+"/cime/scripts/"+basecase+"_I20TR"+modelst+"\n"))
-            output.write("./"+basecase+"_I20TR"+modelst+".run\n")
+            output.write("cd "+runroot+'/'+basecase+"_I20TR"+modelst+"/run\n")
+            output.write(ad_exeroot+"/acme.exe > acme.log\n")
         output.close()
 
 
