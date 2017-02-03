@@ -1881,6 +1881,7 @@ contains
    integer, dimension(:), pointer :: landIceMask
 
    real (kind=RKIND), dimension(:), pointer :: seaIceEnergy, accumulatedFrazilIceMass, frazilSurfacePressure, &
+                                               filteredSSHGradientZonal, filteredSSHGradientMeridional, &
                                                CO2Flux, DMSFlux, surfaceUpwardCO2Flux, &
                                                avgOceanSurfaceDIC, &
                                                avgOceanSurfaceDON, &
@@ -1905,7 +1906,16 @@ contains
                        config_use_DMSTracers_sea_ice_coupling,  &
                        config_use_MacroMoleculesTracers_sea_ice_coupling
 
+   real(kind=RKIND), pointer :: &
+        config_ssh_grad_relax_timescale
+
+   real(kind=RKIND) :: &
+        timeFilterFactor
+
    logical :: keepFrazil
+
+   ! flag to check if this is the first export to allow setting of relaxed coupling variables.
+   logical :: firstExport = .true.
 
    errorcode = 0
 
@@ -1920,6 +1930,8 @@ contains
                                                 config_use_DMSTracers_sea_ice_coupling)
    call mpas_pool_get_config(domain % configs, 'config_use_MacroMoleculesTracers_sea_ice_coupling',  &
                                                 config_use_MacroMoleculesTracers_sea_ice_coupling)
+   call mpas_pool_get_config(domain % configs, 'config_ssh_grad_relax_timescale', &
+                                                config_ssh_grad_relax_timescale)
 
    n = 0
    block_ptr => domain % blocklist
@@ -1945,6 +1957,8 @@ contains
      call mpas_pool_get_array(forcingPool, 'avgTracersSurfaceValue', avgTracersSurfaceValue)
      call mpas_pool_get_array(forcingPool, 'avgSurfaceVelocity', avgSurfaceVelocity)
      call mpas_pool_get_array(forcingPool, 'avgSSHGradient', avgSSHGradient)
+     call mpas_pool_get_array(forcingPool, 'filteredSSHGradientZonal', filteredSSHGradientZonal)
+     call mpas_pool_get_array(forcingPool, 'filteredSSHGradientMeridional', filteredSSHGradientMeridional)
      if ( frazilIceActive ) then
         call mpas_pool_get_array(forcingPool, 'seaIceEnergy', seaIceEnergy)
         call mpas_pool_get_array(forcingPool, 'frazilSurfacePressure', frazilSurfacePressure)
@@ -1980,6 +1994,27 @@ contains
 !    call mpas_pool_get_array(forcingPool, 'DMSFlux', DMSFlux)
 !    call mpas_pool_get_array(forcingPool, 'surfaceUpwardCO2Flux', surfaceUpwardCO2Flux)
 
+     ! time filter ssh gradient
+     if (firstExport .and. trim(runtype) == "initial") then
+        filteredSSHGradientZonal     = avgSSHGradient(index_avgZonalSSHGradient,     :)
+        filteredSSHGradientMeridional = avgSSHGradient(index_avgMeridionalSSHGradient, :)
+        firstExport = .false.
+     else
+
+        if (config_ssh_grad_relax_timescale < real(ocn_cpl_dt,RKIND)) then
+           timeFilterFactor = 1.0_RKIND
+        else
+           timeFilterFactor = real(ocn_cpl_dt,RKIND) / config_ssh_grad_relax_timescale
+        endif
+
+        filteredSSHGradientZonal = filteredSSHGradientZonal * (1.0_RKIND - timeFilterFactor) + &
+             avgSSHGradient(index_avgZonalSSHGradient, :) * timeFilterFactor
+
+        filteredSSHGradientMeridional = filteredSSHGradientMeridional * (1.0_RKIND - timeFilterFactor) + &
+             avgSSHGradient(index_avgMeridionalSSHGradient, :) * timeFilterFactor
+
+     endif
+
      do i = 1, nCellsSolve
        n = n + 1
 
@@ -1988,8 +2023,8 @@ contains
        o2x_o % rAttr(index_o2x_So_u, n) = avgSurfaceVelocity(index_avgZonalSurfaceVelocity, i)
        o2x_o % rAttr(index_o2x_So_v, n) = avgSurfaceVelocity(index_avgMeridionalSurfaceVelocity, i)
 
-       o2x_o % rAttr(index_o2x_So_dhdx, n) = avgSSHGradient(index_avgZonalSSHGradient, i)
-       o2x_o % rAttr(index_o2x_So_dhdy, n) = avgSSHGradient(index_avgMeridionalSSHGradient, i)
+       o2x_o % rAttr(index_o2x_So_dhdx, n) = filteredSSHGradientZonal(i)
+       o2x_o % rAttr(index_o2x_So_dhdy, n) = filteredSSHGradientMeridional(i)
        if ( frazilIceActive ) then
           ! negative when frazil ice can be melted
           keepFrazil = .true.
