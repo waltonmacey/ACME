@@ -12,7 +12,7 @@ module CNCarbonStateType
   use CNStateType            , only : cnstate_type
   use pftvarcon              , only : npcropmin
   use CNDecompCascadeConType , only : decomp_cascade_con
-  use EcophysConType         , only : ecophyscon
+  use VegetationPropertiesType         , only : veg_pp
   use abortutils             , only : endrun
   use spmdMod                , only : masterproc 
   use subgridAveMod          , only : p2c
@@ -1078,7 +1078,7 @@ contains
              this%leafc_patch(p)         = 0._r8
              this%leafc_storage_patch(p) = 0._r8
           else
-             if (ecophyscon%evergreen(pft_pp%itype(p)) == 1._r8) then
+             if (veg_pp%evergreen(pft_pp%itype(p)) == 1._r8) then
                 this%leafc_patch(p)         = 1._r8 * ratio
                 this%leafc_storage_patch(p) = 0._r8
              else if (pft_pp%itype(p) >= npcropmin) then ! prognostic crop types
@@ -1099,7 +1099,7 @@ contains
           this%livestemc_storage_patch(p) = 0._r8 
           this%livestemc_xfer_patch(p)    = 0._r8 
 
-          if (ecophyscon%woody(pft_pp%itype(p)) == 1._r8) then
+          if (veg_pp%woody(pft_pp%itype(p)) == 1._r8) then
              this%deadstemc_patch(p) = 0.1_r8 * ratio
           else
              this%deadstemc_patch(p) = 0._r8 
@@ -1111,7 +1111,7 @@ contains
               ! ECA competition calculate root NP uptake as a function of fine root biomass
               ! better to initialize root CNP pools with a non-zero value
               if (pft_pp%itype(p) .ne. noveg) then
-                 if (ecophyscon%evergreen(pft_pp%itype(p)) == 1._r8) then
+                 if (veg_pp%evergreen(pft_pp%itype(p)) == 1._r8) then
                     this%leafc_patch(p) = 20._r8 * ratio
                     this%leafc_storage_patch(p) = 0._r8
                     this%frootc_patch(p) = 20._r8 * ratio
@@ -1508,7 +1508,7 @@ contains
           c4_r2 = c4_r1/(1._r8 + c4_r1)
 
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%grainc_patch(i)            = c12_carbonstate_vars%grainc_patch(i)         * c3_r2
                 this%grainc_storage_patch(i)    = c12_carbonstate_vars%grainc_storage_patch(i) * c3_r2
                 this%grainc_xfer_patch(i)       = c12_carbonstate_vars%grainc_xfer_patch(i)    * c3_r2
@@ -1538,7 +1538,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%leafc with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%leafc_patch(i) = c12_carbonstate_vars%leafc_patch(i) * c3_r2
              else
                 this%leafc_patch(i) = c12_carbonstate_vars%leafc_patch(i) * c4_r2
@@ -1554,7 +1554,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%leafc_storage with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%leafc_storage_patch(i) = c12_carbonstate_vars%leafc_storage_patch(i) * c3_r2
              else
                 this%leafc_storage_patch(i) = c12_carbonstate_vars%leafc_storage_patch(i) * c4_r2
@@ -1570,7 +1570,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%leafc_xfer with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%leafc_xfer_patch(i) = c12_carbonstate_vars%leafc_xfer_patch(i) * c3_r2
              else
                 this%leafc_xfer_patch(i) = c12_carbonstate_vars%leafc_xfer_patch(i) * c4_r2
@@ -1586,7 +1586,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%frootc with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%frootc_patch(i) = c12_carbonstate_vars%frootc_patch(i) * c3_r2
              else
                 this%frootc_patch(i) = c12_carbonstate_vars%frootc_patch(i) * c4_r2
@@ -1602,7 +1602,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%frootc_storage with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%frootc_storage_patch(i) = c12_carbonstate_vars%frootc_storage_patch(i) * c3_r2
              else
                 this%frootc_storage_patch(i) = c12_carbonstate_vars%frootc_storage_patch(i) * c4_r2
@@ -1618,7 +1618,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%frootc_xfer with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%frootc_xfer_patch(i) = c12_carbonstate_vars%frootc_xfer_patch(i) * c3_r2
              else
                 this%frootc_xfer_patch(i) = c12_carbonstate_vars%frootc_xfer_patch(i) * c4_r2
@@ -1634,7 +1634,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%livestemc with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%livestemc_patch(i) = c12_carbonstate_vars%livestemc_patch(i) * c3_r2
              else
                 this%livestemc_patch(i) = c12_carbonstate_vars%livestemc_patch(i) * c4_r2
@@ -1650,7 +1650,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%livestemc_storage with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%livestemc_storage_patch(i) = c12_carbonstate_vars%livestemc_storage_patch(i) * c3_r2
              else
                 this%livestemc_storage_patch(i) = c12_carbonstate_vars%livestemc_storage_patch(i) * c4_r2
@@ -1666,7 +1666,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%livestemc_xfer with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%livestemc_xfer_patch(i) = c12_carbonstate_vars%livestemc_xfer_patch(i) * c3_r2
              else
                 this%livestemc_xfer_patch(i) = c12_carbonstate_vars%livestemc_xfer_patch(i) * c4_r2
@@ -1682,7 +1682,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%deadstemc with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%deadstemc_patch(i) = c12_carbonstate_vars%deadstemc_patch(i) * c3_r2
              else
                 this%deadstemc_patch(i) = c12_carbonstate_vars%deadstemc_patch(i) * c4_r2
@@ -1698,7 +1698,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%deadstemc_storage with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%deadstemc_storage_patch(i) = c12_carbonstate_vars%deadstemc_storage_patch(i) * c3_r2
              else
                 this%deadstemc_storage_patch(i) = c12_carbonstate_vars%deadstemc_storage_patch(i) * c4_r2
@@ -1714,7 +1714,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%deadstemc_xfer with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%deadstemc_xfer_patch(i) = c12_carbonstate_vars%deadstemc_xfer_patch(i) * c3_r2
              else
                 this%deadstemc_xfer_patch(i) = c12_carbonstate_vars%deadstemc_xfer_patch(i) * c4_r2
@@ -1730,7 +1730,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%livecrootc with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%livecrootc_patch(i) = c12_carbonstate_vars%livecrootc_patch(i) * c3_r2
              else
                 this%livecrootc_patch(i) = c12_carbonstate_vars%livecrootc_patch(i) * c4_r2
@@ -1746,7 +1746,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%livecrootc_storage with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%livecrootc_storage_patch(i) = c12_carbonstate_vars%livecrootc_storage_patch(i) * c3_r2
              else
                 this%livecrootc_storage_patch(i) = c12_carbonstate_vars%livecrootc_storage_patch(i) * c4_r2
@@ -1762,7 +1762,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%livecrootc_xfer with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%livecrootc_xfer_patch(i) = c12_carbonstate_vars%livecrootc_xfer_patch(i) * c3_r2
              else
                 this%livecrootc_xfer_patch(i) = c12_carbonstate_vars%livecrootc_xfer_patch(i) * c4_r2
@@ -1778,7 +1778,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%deadcrootc with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%deadcrootc_patch(i) = c12_carbonstate_vars%deadcrootc_patch(i) * c3_r2
              else
                 this%deadcrootc_patch(i) = c12_carbonstate_vars%deadcrootc_patch(i) * c4_r2
@@ -1794,7 +1794,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%deadcrootc_storage with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%deadcrootc_storage_patch(i) = c12_carbonstate_vars%deadcrootc_storage_patch(i) * c3_r2
              else
                 this%deadcrootc_storage_patch(i) = c12_carbonstate_vars%deadcrootc_storage_patch(i) * c4_r2
@@ -1810,7 +1810,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%deadcrootc_xfer with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%deadcrootc_xfer_patch(i) = c12_carbonstate_vars%deadcrootc_xfer_patch(i) * c3_r2
              else
                 this%deadcrootc_xfer_patch(i) = c12_carbonstate_vars%deadcrootc_xfer_patch(i) * c4_r2
@@ -1826,7 +1826,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%gresp_storage with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%gresp_storage_patch(i) = c12_carbonstate_vars%gresp_storage_patch(i) * c3_r2
              else
                 this%gresp_storage_patch(i) = c12_carbonstate_vars%gresp_storage_patch(i) * c4_r2
@@ -1843,7 +1843,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%gresp_xfer with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%gresp_xfer_patch(i) = c12_carbonstate_vars%gresp_xfer_patch(i) * c3_r2
              else
                 this%gresp_xfer_patch(i) = c12_carbonstate_vars%gresp_xfer_patch(i) * c4_r2
@@ -1859,7 +1859,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%cpool with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%cpool_patch(i) = c12_carbonstate_vars%cpool_patch(i) * c3_r2
              else
                 this%cpool_patch(i) = c12_carbonstate_vars%cpool_patch(i) * c4_r2
@@ -1876,7 +1876,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%xsmrpool with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%xsmrpool_patch(i) = c12_carbonstate_vars%xsmrpool_patch(i) * c3_r2
              else
                 this%xsmrpool_patch(i) = c12_carbonstate_vars%xsmrpool_patch(i) * c4_r2
@@ -1892,7 +1892,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing this%ctrunc with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%ctrunc_patch(i) = c12_carbonstate_vars%ctrunc_patch(i) * c3_r2
              else
                 this%ctrunc_patch(i) = c12_carbonstate_vars%ctrunc_patch(i) * c4_r2
@@ -1909,7 +1909,7 @@ contains
        if (flag=='read' .and. .not. readvar) then
           write(iulog,*) 'initializing carbonstate_vars %totvegc with atmospheric c13 value'
           do i = bounds%begp,bounds%endp
-             if (ecophyscon%c3psn(pft_pp%itype(i)) == 1._r8) then
+             if (veg_pp%c3psn(pft_pp%itype(i)) == 1._r8) then
                 this%totvegc_patch(i) = c12_carbonstate_vars%totvegc_patch(i) * c3_r2
              else
                 this%totvegc_patch(i) = c12_carbonstate_vars%totvegc_patch(i) * c4_r2

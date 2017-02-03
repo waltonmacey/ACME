@@ -10,7 +10,7 @@ module EDBtranMod
   
   
   ! !USES:
-  use EcophysConType   , only : ecophyscon
+  use VegetationPropertiesType   , only : veg_pp
   use EDtypesMod       , only : patch, cohort, gridCellEdState,numpft_ed
   use EDEcophysContype , only : EDecophyscon
   use EDVecPatchType   , only : EDpft
@@ -108,8 +108,8 @@ contains
     associate(& 
          dz          => col_pp%dz                            , & ! Input:  [real(r8) (:,:) ]  layer depth (m)
 
-         smpso       => ecophyscon%smpso                  , & ! Input:  [real(r8) (:)   ]  soil water potential at full stomatal opening (mm)
-         smpsc       => ecophyscon%smpsc                  , & ! Input:  [real(r8) (:)   ]  soil water potential at full stomatal closure (mm)
+         smpso       => veg_pp%smpso                  , & ! Input:  [real(r8) (:)   ]  soil water potential at full stomatal opening (mm)
+         smpsc       => veg_pp%smpsc                  , & ! Input:  [real(r8) (:)   ]  soil water potential at full stomatal closure (mm)
 
          sucsat      => soilstate_vars%sucsat_col         , & ! Input:  [real(r8) (:,:) ]  minimum soil suction (mm) 
          watsat      => soilstate_vars%watsat_col         , & ! Input:  [real(r8) (:,:) ]  volumetric soil water at saturation (porosity)

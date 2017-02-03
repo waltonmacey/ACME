@@ -1,0 +1,367 @@
+     1	21:06	cd ACME/cime/scripts/
+     2	21:06	ls
+     3	21:06	cd data_arch/
+     4	21:06	ls
+     5	21:06	more CaseStatus
+     6	21:06	./case.submit
+     7	21:07	more README.case
+     8	21:07	pwd
+     9	21:08	git status
+    10	21:09	ls
+    11	21:09	more 3198554.OU
+    12	21:09	qstat -u wangd
+    13	21:13	./case.submit
+    14	21:13	more CaseStatus
+    15	21:14	git branch
+    16	21:14	pwd
+    17	21:15	ls
+    18	21:15	cd
+    19	21:15	ls
+    20	21:15	cd ACME/components/
+    21	21:15	ls
+    22	21:15	cd clm/src
+    23	21:15	ls
+    24	21:18	vi gitcommit_01_27.sh
+    25	21:24	sed -i 's/#//g' gitcommit_01_27.sh
+    26	21:24	more gitcommit_01_27.sh
+    27	21:24	vi gitcommit_01_27.sh
+    28	21:26	sed -i 's/modified: /git add /g' gitcommit_01_27.sh
+    29	21:26	more gitcommit_01_27.sh
+    30	21:26	git status
+    31	21:26	sh gitcommit_01_27.sh
+    32	21:27	git status
+    33	21:28	git rm main/LandunitType.F90
+    34	21:28	git status
+    35	21:28	git commit
+    36	21:32	git branch -m daliwang/lnd/data_archv2_lun
+    37	21:32	git branch
+    38	21:33	git checkout data_archv2
+    39	21:33	git log
+    40	21:35	git checkout daliwang/lnd/data_archv2_lun
+    41	21:35	git branch daliwang/lnd/data_archv2_grc
+    42	21:35	git branch
+    43	21:37	git log
+    44	21:39	git commit --amend
+    45	21:40	git log --oneline
+    46	16:39	ls
+    47	16:39	cd ACME
+    48	16:39	ls
+    49	16:39	git branch
+    50	16:41	git branch -m daliwang/lnd/data_archv2 daliwang/lnd/data_archv2_col
+    51	16:41	git branch
+    52	16:41	git log
+    53	16:42	git branch daliwang/lnd/data_archv2
+    54	16:42	git checkout daliwang/lnd/data_archv2
+    55	16:42	git branch
+    56	16:42	git log
+    57	16:44	git status
+    58	16:44	git log --oneline
+    59	16:45	git push origin daliwang/lnd/data_archv2
+    60	16:46	git checkout daliwang/lnd/data_archv2_grc
+    61	16:46	git log
+    62	16:46	cd components/
+    63	16:46	ls
+    64	16:46	cd clm/src
+    65	16:46	ls
+    66	16:46	mv main/GridcellType.F90 data_types/
+    67	16:47	vi data_types/GridcellType.F90
+    68	16:51	find . -type f | xargs grep 'grc%'
+    69	16:52	find . -type f | xargs grep 'grc%' > ../src_backup/replace_grc_all.log
+    70	16:52	find . -type f | xargs grep 'only : grc'
+    71	16:53	find . -type f | xargs grep 'only : grc' > ../src_backup/replace_grc_all.filename
+    72	16:53	find . -type f | xargs sed -i 's/only : grc/only : grc_pp/g'
+    73	16:54	find . -type f | xargs sed -i 's/grc%/grc_pp%/g'
+    74	16:54	git status
+    75	16:55	cd data_types/
+    76	16:57	cd acme_scratch/cli112
+    77	16:57	cd data_arch/
+    78	16:57	ls
+    79	16:57	cd bld/
+    80	16:57	ls
+    81	16:57	cd lnd
+    82	16:57	ls
+    83	16:57	cd obj
+    84	16:57	ls
+    85	16:58	ftn -c -I. -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/MCT/noesmf/c1a1l1i1o1r1g1w1e1/csm_share -I/opt/cray/netcdf-hdf5parallel/4.4.0/PGI/15.3/include -I/opt/cray/mpt/7.4.0/gni/mpich-pgi/15.3/include -I/opt/cray/parallel-netcdf/1.7.0/PGI/15.3/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/shr -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/shr_RandNum/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd/obj -I. -I/autofs/nccs-svm1_home1/wangd/ACME/cime/scripts/data_arch/SourceMods/src.clm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/data_types -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_math -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_core -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_century -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_sminn -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys/vsfm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/dyn_subgrid -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/fire -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/utils -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/cpl -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lib/include -i4 -gopt -time -Mstack_arrays -Mextend -byteswapio -Mflushz -Kieee -O2 -DCNL -DCPRPGI -DNDEBUG -DMCT_INTERFACE -DHAVE_MPI -DFORTRANUNDERSCORE -DNO_SHR_VMATH -DNO_R16 -DLINUX -DHAVE_SLASHPROC -Mfree -DUSE_CONTIGUOUS= /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/data_types/GridcellType.F90
+    86	16:58	cd
+    87	16:58	cd ACME/components/
+    88	16:58	ls
+    89	16:58	cd ../cime/scripts/data_arch/
+    90	16:58	ls
+    91	16:58	./case.build
+    92	16:59	./case.build --clean
+    93	16:59	./case.build
+    94	17:12	git branch
+    95	17:13	git status
+    96	21:13	./case.submit
+    97	17:13	git status
+    98	11:43	cd /ACME
+    99	11:43	cd ACME
+   100	11:43	ls
+   101	11:43	git branch
+   102	11:44	git status
+   103	11:45	git push origin daliwang/lnd/data_archv2_grc
+   104	16:00	cd ACME
+   105	16:00	git branch
+   106	16:00	git log
+   107	16:00	git status
+   108	16:01	ls
+   109	16:01	cd components/
+   110	16:01	ls
+   111	16:01	cd clm
+   112	16:01	ls
+   113	16:01	cd src
+   114	16:01	ls
+   115	16:06	more gitcommit_01_27.sh
+   116	16:07	ls
+   117	16:07	git status
+   118	16:08	vi gitcommit_02_01.sh
+   119	16:09	sed -i 's/#//g' gitcommit_02_01.sh
+   120	16:09	sed -i 's/modified: /git add/g' gitcommit_02_01.sh
+   121	16:09	vi gitcommit_02_01.sh
+   122	16:10	sh gitcommit_02_01.sh
+   123	16:11	git status
+   124	16:11	git commit
+   125	16:13	git branch -r
+   126	16:14	git push origin daliwang/lnd/data_archv2_grc
+   127	16:15	ls
+   128	16:15	cd main
+   129	16:15	ls
+   130	16:15	more PatchType.F90
+   131	16:15	mv PatchType.F90 ../data_types/
+   132	16:15	cd ../data_types/
+   133	16:15	vi PatchType.F90
+   134	16:19	cd
+   135	16:20	cd acme_scratch/
+   136	16:20	ls
+   137	16:20	cd cli112
+   138	16:20	s
+   139	16:20	ls
+   140	16:20	cd data_arch/
+   141	16:20	ls
+   142	16:20	cd bld
+   143	16:20	ls
+   144	16:20	cd lnd
+   145	16:20	ls
+   146	16:20	obj
+   147	16:20	cd obj
+   148	16:20	ftn -c -I. -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/MCT/noesmf/c1a1l1i1o1r1g1w1e1/csm_share -I/opt/cray/netcdf-hdf5parallel/4.4.0/PGI/15.3/include -I/opt/cray/mpt/7.4.0/gni/mpich-pgi/15.3/include -I/opt/cray/parallel-netcdf/1.7.0/PGI/15.3/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/shr -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/shr_RandNum/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd/obj -I. -I/autofs/nccs-svm1_home1/wangd/ACME/cime/scripts/data_arch/SourceMods/src.clm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/data_types -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_math -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_core -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_century -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_sminn -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys/vsfm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/dyn_subgrid -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/fire -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/utils -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/cpl -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lib/include -i4 -gopt -time -Mstack_arrays -Mextend -byteswapio -Mflushz -Kieee -O2 -DCNL -DCPRPGI -DNDEBUG -DMCT_INTERFACE -DHAVE_MPI -DFORTRANUNDERSCORE -DNO_SHR_VMATH -DNO_R16 -DLINUX -DHAVE_SLASHPROC -Mfree -DUSE_CONTIGUOUS= /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/data_types/PatchType.F90
+   149	16:21	vi /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/data_types/PatchType.F90
+   150	16:24	ftn -c -I. -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/MCT/noesmf/c1a1l1i1o1r1g1w1e1/csm_share -I/opt/cray/netcdf-hdf5parallel/4.4.0/PGI/15.3/include -I/opt/cray/mpt/7.4.0/gni/mpich-pgi/15.3/include -I/opt/cray/parallel-netcdf/1.7.0/PGI/15.3/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/shr -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/shr_RandNum/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd/obj -I. -I/autofs/nccs-svm1_home1/wangd/ACME/cime/scripts/data_arch/SourceMods/src.clm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/data_types -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_math -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_core -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_century -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_sminn -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys/vsfm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/dyn_subgrid -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/fire -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/utils -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/cpl -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lib/include -i4 -gopt -time -Mstack_arrays -Mextend -byteswapio -Mflushz -Kieee -O2 -DCNL -DCPRPGI -DNDEBUG -DMCT_INTERFACE -DHAVE_MPI -DFORTRANUNDERSCORE -DNO_SHR_VMATH -DNO_R16 -DLINUX -DHAVE_SLASHPROC -Mfree -DUSE_CONTIGUOUS= /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/data_types/PatchType.F90
+   151	16:25	cd
+   152	16:25	ls
+   153	16:26	cd ACME/components/src
+   154	16:26	ls
+   155	16:26	cd ACME/components/clm/src
+   156	16:26	ls
+   157	16:27	more ../src_backup/replace_grc_all.filename
+   158	16:30	find . -type f | xargs grep 'only : pft'
+   159	16:30	find . -type f | xargs grep 'only : pft' > ../src_backup/replace_pft_all.filename
+   160	16:31	find . -type f | xargs grep 'pft%' > ../src_backup/replace_pft_all.log
+   161	16:31	find . -type f | xargs grep 'pft%'
+   162	16:32	find . -type f | xargs sed -i 's/pft%/pft_pp%/g'
+   163	16:33	find . -type f | xargs sed -i 's/only : pft/only : pft_pp'
+   164	16:33	find . -type f | xargs sed -i 's/only : pft/only : pft_pp/g'
+   165	16:34	cd ..
+   166	16:34	cd acme_scratch/cli112/
+   167	16:34	ls
+   168	16:34	cd data_arch/
+   169	16:34	ls
+   170	16:34	cd bld/
+   171	16:34	ls
+   172	16:34	cd lnd/
+   173	16:34	ls
+   174	16:34	cd obj/
+   175	16:34	ls
+   176	16:34	\rm *
+   177	16:34	ls
+   178	16:34	cd ..
+   179	16:34	ls
+   180	16:35	cd ..
+   181	16:35	ls
+   182	16:35	cd ..
+   183	16:35	ls
+   184	16:35	cd ACME/scripts/
+   185	16:35	ls
+   186	16:35	cd ..
+   187	16:35	cd cime/scripts/
+   188	16:35	ls
+   189	16:35	cd data_arch/
+   190	16:35	./case.build
+   191	16:46	more /ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd.bldlog.170201-163533
+   192	16:49	vi /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/dyn_subgrid/dynEDMod.F90
+   193	16:49	./case.build
+   194	16:58	vi /ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd.bldlog.170201-164954
+   195	16:58	more /ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd.bldlog.170201-164954
+   196	17:00	vi /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/main/histFileMod.F90
+   197	17:01	./case.build
+   198	17:06	more /ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd.bldlog.170201-170159
+   199	17:09	vi /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeophys/EDAccumulateFluxesMod.F90
+   200	17:10	./case.build
+   201	17:13	vi /ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd.bldlog.170201-171014
+   202	17:14	more /ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd.bldlog.170201-171014
+   203	17:14	vi /ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd.bldlog.170201-171014
+   204	17:15	vi /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeophys/EDBtranMod.F90
+   205	17:16	./case.build
+   206	17:17	more /ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd.bldlog.170201-171622
+   207	17:18	find /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/ -type f | grep 'EDpft_pp%'
+   208	17:19	find /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/ -type f | xargs grep 'EDpft_pp%'
+   209	17:20	find /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/ -type f | xargs sed -i 's/EDpft_pp%/EDpft%/g'
+   210	17:20	./case.build
+   211	19:54	more /ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd.bldlog.170201-172035
+   212	19:59	vi /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDPatchDynamicsMod.F90
+   213	20:01	grep EDpft /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDPatchDynamicsMod.F90
+   214	20:02	grep pft /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDPatchDynamicsMod.F90
+   215	22:17	cd ACME/cime/scripts/
+   216	22:17	ls
+   217	22:17	cd data_arch/
+   218	22:17	./case.submit
+   219	22:18	git branch
+   220	22:18	git status
+   221	22:21	git branch data_archv2_patch
+   222	22:21	git branch
+   223	22:22	git branch -m data_archv2_patch daliwang/lnd/data_archv2_patch
+   224	22:22	git branch
+   225	22:22	git checkout daliwang/lnd/data_archv2_patch
+   226	22:22	git status
+   227	22:23	ls
+   228	22:23	git branch
+   229	22:23	cd ..
+   230	22:23	ls
+   231	22:23	cd ..
+   232	22:23	ls
+   233	22:23	cd ..
+   234	22:23	ls
+   235	22:23	cd components/
+   236	22:23	ls
+   237	22:24	cd clm/src
+   238	22:24	git status
+   239	22:24	ls
+   240	22:25	vi gitcommit_02_01_patch.sh
+   241	22:26	sed -i 's/#//g' gitcommit_02_01_patch.sh
+   242	22:26	sed -i 's/modified: /git add/g' gitcommit_02_01_patch.sh
+   243	22:27	git add data_types/PatchType.F90
+   244	22:27	sed -i 's/deleted: /git rm/g' gitcommit_02_01_patch.sh
+   245	22:27	sh gitcommit_02_01_patch.sh
+   246	22:28	git commit
+   247	22:30	git branch
+   248	22:30	git checkout daliwang/lnd/data_arch2
+   249	22:31	git checkout daliwang/lnd/data_archv2
+   250	22:31	git log
+   251	22:31	git checkout daliwang/lnd/data_archv2_grc
+   252	22:31	git log
+   253	22:32	git status
+   254	22:32	git log
+   255	22:32	git branch
+   256	22:38	git branch -r
+   257	22:42	git branch -rd origin/PR434
+   258	14:27	cd ACME/components/clm/src/data_types/
+   259	14:27	ls
+   260	14:27	more ColumnType.F90
+   261	14:31	more TopounitType.F90
+   262	14:32	more GridcellType.F90
+   263	14:32	more CNStateType.F90
+   264	15:00	cd
+   265	15:00	cd ACME/cime/scripts/data_arch/
+   266	15:00	./case.build
+   267	15:08	more /ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd.bldlog.170202-150024
+   268	15:09	vi /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDGrowthFunctionsMod.F90
+   269	15:11	ftn -c -I. -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/MCT/noesmf/c1a1l1i1o1r1g1w1e1/csm_share -I/opt/cray/netcdf-hdf5parallel/4.4.0/PGI/15.3/include -I/opt/cray/mpt/7.4.0/gni/mpich-pgi/15.3/include -I/opt/cray/parallel-netcdf/1.7.0/PGI/15.3/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/shr -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/shr_RandNum/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd/obj -I. -I/autofs/nccs-svm1_home1/wangd/ACME/cime/scripts/data_arch/SourceMods/src.clm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/data_types -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_math -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_core -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_century -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_sminn -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys/vsfm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/dyn_subgrid -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/fire -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/utils -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/cpl -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lib/include -i4 -gopt -time -Mstack_arrays -Mextend -byteswapio -Mflushz -Kieee -O2 -DCNL -DCPRPGI -DNDEBUG -DMCT_INTERFACE -DHAVE_MPI -DFORTRANUNDERSCORE -DNO_SHR_VMATH -DNO_R16 -DLINUX -DHAVE_SLASHPROC -Mfree -DUSE_CONTIGUOUS= /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDGrowthFunctionsMod.F90
+   270	15:16	grep veg_vp *
+   271	15:16	grep veg_pp *
+   272	15:16	ftn -c -I. -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/MCT/noesmf/c1a1l1i1o1r1g1w1e1/csm_share -I/opt/cray/netcdf-hdf5parallel/4.4.0/PGI/15.3/include -I/opt/cray/mpt/7.4.0/gni/mpich-pgi/15.3/include -I/opt/cray/parallel-netcdf/1.7.0/PGI/15.3/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/shr -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/shr_RandNum/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd/obj -I. -I/autofs/nccs-svm1_home1/wangd/ACME/cime/scripts/data_arch/SourceMods/src.clm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/data_types -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_math -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_core -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_century -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_sminn -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys/vsfm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/dyn_subgrid -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/fire -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/utils -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/cpl -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lib/include -i4 -gopt -time -Mstack_arrays -Mextend -byteswapio -Mflushz -Kieee -O2 -DCNL -DCPRPGI -DNDEBUG -DMCT_INTERFACE -DHAVE_MPI -DFORTRANUNDERSCORE -DNO_SHR_VMATH -DNO_R16 -DLINUX -DHAVE_SLASHPROC -Mfree -DUSE_CONTIGUOUS= /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDGrowthFunctionsMod.F90
+   273	15:17	vi /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDGrowthFunctionsMod.F90
+   274	15:18	grep veg_pp /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDGrowthFunctionsMod.F90
+   275	15:18	grep veg_vp /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDGrowthFunctionsMod.F90
+   276	15:19	sed -i 's/veg_vp/veg_pp/g' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDGrowthFunctionsMod.F90
+   277	15:19	ftn -c -I. -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/MCT/noesmf/c1a1l1i1o1r1g1w1e1/csm_share -I/opt/cray/netcdf-hdf5parallel/4.4.0/PGI/15.3/include -I/opt/cray/mpt/7.4.0/gni/mpich-pgi/15.3/include -I/opt/cray/parallel-netcdf/1.7.0/PGI/15.3/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/shr -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/shr_RandNum/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd/obj -I. -I/autofs/nccs-svm1_home1/wangd/ACME/cime/scripts/data_arch/SourceMods/src.clm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/data_types -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_math -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_core -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_century -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_sminn -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys/vsfm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/dyn_subgrid -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/fire -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/utils -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/cpl -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lib/include -i4 -gopt -time -Mstack_arrays -Mextend -byteswapio -Mflushz -Kieee -O2 -DCNL -DCPRPGI -DNDEBUG -DMCT_INTERFACE -DHAVE_MPI -DFORTRANUNDERSCORE -DNO_SHR_VMATH -DNO_R16 -DLINUX -DHAVE_SLASHPROC -Mfree -DUSE_CONTIGUOUS= /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDGrowthFunctionsMod.F90
+   278	15:19	./case.build
+   279	15:21	vi /ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd.bldlog.170202-151930
+   280	15:24	vi /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDCohortDynamicsMod.F90
+   281	15:26	grep 'use EcophysConType       , only : ecophyscon' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/
+   282	15:26	grep 'use EcophysConType       , only : ecophyscon' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/*
+   283	15:26	grep -r 'use EcophysConType       , only : ecophyscon' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/*
+   284	15:28	find /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ -type f | xargs sed -i 's/use EcophysConType       , only : ecophyscon/use VegetationPropertiesType     , only : veg_pp/g'
+   285	15:28	./case.build
+   286	15:30	more /ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd.bldlog.170202-152826
+   287	15:31	vi /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDCohortDynamicsMod.F90
+   288	15:33	ftn -c -I. -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/MCT/noesmf/c1a1l1i1o1r1g1w1e1/csm_share -I/opt/cray/netcdf-hdf5parallel/4.4.0/PGI/15.3/include -I/opt/cray/mpt/7.4.0/gni/mpich-pgi/15.3/include -I/opt/cray/parallel-netcdf/1.7.0/PGI/15.3/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/shr -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/shr_RandNum/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd/obj -I. -I/autofs/nccs-svm1_home1/wangd/ACME/cime/scripts/data_arch/SourceMods/src.clm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/data_types -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_math -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_core -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_century -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_sminn -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys/vsfm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/dyn_subgrid -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/fire -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/utils -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/cpl -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lib/include -i4 -gopt -time -Mstack_arrays -Mextend -byteswapio -Mflushz -Kieee -O2 -DCNL -DCPRPGI -DNDEBUG -DMCT_INTERFACE -DHAVE_MPI -DFORTRANUNDERSCORE -DNO_SHR_VMATH -DNO_R16 -DLINUX -DHAVE_SLASHPROC -Mfree -DUSE_CONTIGUOUS= /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDCohortDynamicsMod.F90
+   289	15:34	./case.build
+   290	15:35	more /ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd.bldlog.170202-153408
+   291	15:36	grep -r 'use EcophysConType' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/*
+   292	15:38	find /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ -type f | xargs sed -i 's/use EcophysConType/use VegetationPropertiesType/g'
+   293	15:39	find /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ -type f | xargs sed -i 's/only : ecophyscon/only : veg_pp/g'
+   294	15:39	./case.build
+   295	15:41	more /ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd.bldlog.170202-153930
+   296	15:42	vi /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDCanopyStructureMod.F90: 599
+   297	15:42	vi /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDCanopyStructureMod.F90
+   298	15:44	vi
+   299	15:44	vi /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDCanopyStructureMod.F90: 599
+   300	15:47	vi /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDPatchDynamicsMod.F90
+   301	15:47	ftn -c -I. -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/MCT/noesmf/c1a1l1i1o1r1g1w1e1/csm_share -I/opt/cray/netcdf-hdf5parallel/4.4.0/PGI/15.3/include -I/opt/cray/mpt/7.4.0/gni/mpich-pgi/15.3/include -I/opt/cray/parallel-netcdf/1.7.0/PGI/15.3/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/shr -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/shr_RandNum/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd/obj -I. -I/autofs/nccs-svm1_home1/wangd/ACME/cime/scripts/data_arch/SourceMods/src.clm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/data_types -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_math -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_core -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_century -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_sminn -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys/vsfm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/dyn_subgrid -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/fire -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/utils -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/cpl -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lib/include -i4 -gopt -time -Mstack_arrays -Mextend -byteswapio -Mflushz -Kieee -O2 -DCNL -DCPRPGI -DNDEBUG -DMCT_INTERFACE -DHAVE_MPI -DFORTRANUNDERSCORE -DNO_SHR_VMATH -DNO_R16 -DLINUX -DHAVE_SLASHPROC -Mfree -DUSE_CONTIGUOUS= /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDPatchDynamicsMod.F90
+   302	15:47	./case.build
+   303	15:49	more
+   304	15:49	more /ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd.bldlog.170202-154759
+   305	15:51	grep 'ecophyscon' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem/*
+   306	15:52	grep '(ecophyscon%' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem/*
+   307	15:53	sed -i 's/(ecophyscon%/(veg_pp%/g' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem/*
+   308	15:53	grep '(ecophyscon%' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem/*
+   309	15:53	./case.build
+   310	15:56	more /ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd.bldlog.170202-155321
+   311	15:56	vi /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeophys/EDSurfaceAlbedoMod.F90
+   312	15:58	ftn -c -I. -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/MCT/noesmf/c1a1l1i1o1r1g1w1e1/csm_share -I/opt/cray/netcdf-hdf5parallel/4.4.0/PGI/15.3/include -I/opt/cray/mpt/7.4.0/gni/mpich-pgi/15.3/include -I/opt/cray/parallel-netcdf/1.7.0/PGI/15.3/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/shr -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/shr_RandNum/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd/obj -I. -I/autofs/nccs-svm1_home1/wangd/ACME/cime/scripts/data_arch/SourceMods/src.clm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/data_types -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_math -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_core -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_century -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_sminn -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys/vsfm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/dyn_subgrid -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/fire -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/utils -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/cpl -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lib/include -i4 -gopt -time -Mstack_arrays -Mextend -byteswapio -Mflushz -Kieee -O2 -DCNL -DCPRPGI -DNDEBUG -DMCT_INTERFACE -DHAVE_MPI -DFORTRANUNDERSCORE -DNO_SHR_VMATH -DNO_R16 -DLINUX -DHAVE_SLASHPROC -Mfree -DUSE_CONTIGUOUS= /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeophys/EDSurfaceAlbedoMod.F90
+   313	15:58	./case.build
+   314	16:00	more /ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd.bldlog.170202-155833
+   315	16:00	vi /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/fire/SFMainMod.F90
+   316	16:01	grep -r '(ecophyscon%' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/*
+   317	16:02	sed -i 's/(ecophyscon%/(veg_pp%/g' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/*
+   318	16:02	sed -i 's/(ecophyscon%/(veg_pp%/g' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED
+   319	16:02	sed -i 's/(ecophyscon%/(veg_pp%/g' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/
+   320	16:02	sed -i 's/(ecophyscon%/(veg_pp%/g' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/*
+   321	16:03	sed -i 's/(ecophyscon%/(veg_pp%/g' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/
+   322	16:03	sed -i 's/(ecophyscon%/(veg_pp%/g' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/*
+   323	16:03	sed -i 's/(ecophyscon%/(veg_pp%/g' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/fire/*
+   324	16:03	sed -i 's/(ecophyscon%/(veg_pp%/g' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeophys/
+   325	16:03	sed -i 's/(ecophyscon%/(veg_pp%/g' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeophys/*
+   326	16:03	sed -ir 's/(ecophyscon%/(veg_pp%/g' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/
+   327	16:03	sed -ir 's/(ecophyscon%/(veg_pp%/g' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/main/*
+   328	16:04	./case.build
+   329	16:07	more /ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd.bldlog.170202-160402
+   330	16:08	vi /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDPhysiologyMod.F90
+   331	16:12	ftn -c -I. -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/MCT/noesmf/c1a1l1i1o1r1g1w1e1/csm_share -I/opt/cray/netcdf-hdf5parallel/4.4.0/PGI/15.3/include -I/opt/cray/mpt/7.4.0/gni/mpich-pgi/15.3/include -I/opt/cray/parallel-netcdf/1.7.0/PGI/15.3/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/shr -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/shr_RandNum/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd/obj -I. -I/autofs/nccs-svm1_home1/wangd/ACME/cime/scripts/data_arch/SourceMods/src.clm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/data_types -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_math -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_core -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_century -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_sminn -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys/vsfm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/dyn_subgrid -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/fire -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/utils -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/cpl -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lib/include -i4 -gopt -time -Mstack_arrays -Mextend -byteswapio -Mflushz -Kieee -O2 -DCNL -DCPRPGI -DNDEBUG -DMCT_INTERFACE -DHAVE_MPI -DFORTRANUNDERSCORE -DNO_SHR_VMATH -DNO_R16 -DLINUX -DHAVE_SLASHPROC -Mfree -DUSE_CONTIGUOUS= /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDPhysiologyMod.F90
+   332	16:12	vi /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDPhysiologyMod.F90
+   333	16:13	ftn -c -I. -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/MCT/noesmf/c1a1l1i1o1r1g1w1e1/csm_share -I/opt/cray/netcdf-hdf5parallel/4.4.0/PGI/15.3/include -I/opt/cray/mpt/7.4.0/gni/mpich-pgi/15.3/include -I/opt/cray/parallel-netcdf/1.7.0/PGI/15.3/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/shr -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/shr_RandNum/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd/obj -I. -I/autofs/nccs-svm1_home1/wangd/ACME/cime/scripts/data_arch/SourceMods/src.clm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/data_types -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_math -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_core -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_century -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_sminn -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys/vsfm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/dyn_subgrid -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/fire -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/utils -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/cpl -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lib/include -i4 -gopt -time -Mstack_arrays -Mextend -byteswapio -Mflushz -Kieee -O2 -DCNL -DCPRPGI -DNDEBUG -DMCT_INTERFACE -DHAVE_MPI -DFORTRANUNDERSCORE -DNO_SHR_VMATH -DNO_R16 -DLINUX -DHAVE_SLASHPROC -Mfree -DUSE_CONTIGUOUS= /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDPhysiologyMod.F90
+   334	16:14	grep -r ecophyscon% /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/*
+   335	16:18	grep -r '(ecophyscon%' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/*
+   336	16:19	grep -r '.ecophyscon%' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/*
+   337	16:19	./case.build
+   338	16:21	more /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem/EDPhysiologyMod.F90
+   339	16:22	more /ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd.bldlog.170202-161954
+   340	16:22	grep -r '.ecophyscon%' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/dyn_subgrid/
+   341	16:46	sed -i 's/(ecophyscon%/(veg_pp%/g' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/dyn_subgrid/
+   342	16:46	sed -i 's/(ecophyscon%/(veg_pp%/g' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/dyn_subgrid/*
+   343	16:47	sed -i 's/*ecophyscon%/*veg_pp%/g' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/dyn_subgrid/*
+   344	16:47	grep -r '.ecophyscon%' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/dyn_subgrid/
+   345	16:47	./case.build
+   346	16:48	more /ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd.bldlog.170202-164738
+   347	16:49	grep -r '.ecophyscon%' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem/
+   348	16:50	vi /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem/CNNStateUpdate1Mod.F90
+   349	16:51	ftn -c -I. -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/MCT/noesmf/c1a1l1i1o1r1g1w1e1/csm_share -I/opt/cray/netcdf-hdf5parallel/4.4.0/PGI/15.3/include -I/opt/cray/mpt/7.4.0/gni/mpich-pgi/15.3/include -I/opt/cray/parallel-netcdf/1.7.0/PGI/15.3/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/pgi/mpich/nodebug/nothreads/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/shr -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/csm_share/include -I/autofs/nccs-svm1_home1/wangd/ACME/cime/share/shr_RandNum/include -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd/obj -I. -I/autofs/nccs-svm1_home1/wangd/ACME/cime/scripts/data_arch/SourceMods/src.clm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/data_types -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_math -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/betr_core -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_century -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/betr/bgc_sminn -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeophys/vsfm -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/dyn_subgrid -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/main -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeophys -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/biogeochem -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/ED/fire -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/utils -I/autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/cpl -I/ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lib/include -i4 -gopt -time -Mstack_arrays -Mextend -byteswapio -Mflushz -Kieee -O2 -DCNL -DCPRPGI -DNDEBUG -DMCT_INTERFACE -DHAVE_MPI -DFORTRANUNDERSCORE -DNO_SHR_VMATH -DNO_R16 -DLINUX -DHAVE_SLASHPROC -Mfree -DUSE_CONTIGUOUS= /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem/CNNStateUpdate1Mod.F90
+   350	16:51	./case.build
+   351	16:52	more /ccs/home/wangd/acme_scratch/cli112/data_arch/bld/lnd.bldlog.170202-165116
+   352	16:53	grep -r 'EcoPhysCon%' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem/*
+   353	16:53	grep -r 'use Eco' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem/*
+   354	16:54	sed -i 's/use EcophysconType/use VegetationPropertiesType/g' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem/*
+   355	16:54	grep -r 'use Eco' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem/*
+   356	16:55	sed -i 's/use EcophysContype/use VegetationPropertiesType/g' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem/*
+   357	16:55	grep -r 'use Eco' /autofs/nccs-svm1_home1/wangd/ACME/components/clm/src/biogeochem/*
+   358	17:20	./case.build
+   359	19:32	cd ACME
+   360	19:32	ls
+   361	19:33	cd components/
+   362	19:33	git brnach
+   363	19:33	git brance
+   364	19:33	git branch
+   365	19:34	git status
+   366	19:34	history
+   367	19:35	history > command.his.02022017
