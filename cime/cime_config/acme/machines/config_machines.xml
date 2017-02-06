@@ -671,6 +671,7 @@
     <environment_variables>
       <env name="NETCDFROOT">$(dirname $(dirname $(which ncdump)))</env>
       <env name="PNETCDFROOT" mpilib="!mpi-serial">$(dirname $(dirname $(which pnetcdf_version)))</env>
+      <env name="MOAB_DIR">/sandbox/sarich/MOAB</env>
     </environment_variables>
 </machine>
 
