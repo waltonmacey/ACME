@@ -632,6 +632,13 @@ for mct, etc.
   <ADD_SLIBS>-L$(NETCDF_PATH)/lib -lnetcdff -lnetcdf</ADD_SLIBS>
 </compiler>
 
+<compiler COMPILER="gnu" MACH="anlworkstation">
+  <CXX_LIBS>-lstdc++</CXX_LIBS>
+  <ADD_SLIBS>-L$(MOAB_DIR)/lib -liMesh -lMOAB -lstdc++</ADD_SLIBS>
+  <ADD_CPPDEFS>-DHAVE_MOAB</ADD_CPPDEFS>
+  <ADD_FFLAGS>-I$(MOAB_DIR)/include </ADD_FFLAGS>
+</compiler>
+
 <compiler COMPILER="gnu" MACH="linux-generic">
   <NETCDF_PATH> $(NETCDF_PATH)</NETCDF_PATH>
   <PNETCDF_PATH> $(PNETCDF_PATH)</PNETCDF_PATH>
