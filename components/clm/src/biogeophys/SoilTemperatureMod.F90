@@ -215,8 +215,10 @@ contains
     integer  :: jbot(bounds%begc:bounds%endc)                               ! bottom level at each column
     integer  :: num_nolakec_and_nourbanc
     integer  :: num_nolakec_and_urbanc
+    integer  :: num_filter_lun
     integer, pointer :: filter_nolakec_and_nourbanc(:)
     integer, pointer :: filter_nolakec_and_urbanc(:)
+    integer, pointer :: filter_lun(:)
     logical  :: urban_column
     !-----------------------------------------------------------------------
 
@@ -331,9 +333,10 @@ contains
       end do
 
       !
-      ! Setup two new filters:
+      ! Setup new filters:
       ! - filter_nolakec_and_nourbanc: No Lakes + No Urban columns
       ! - filter_nolakec_and_urbanc  : No Lakes + Urban columns
+      ! - filter_lun                 : Landunit level filter
       !
       num_nolakec_and_nourbanc = 0
       num_nolakec_and_urbanc   = 0
@@ -363,6 +366,12 @@ contains
             filter_nolakec_and_nourbanc(num_nolakec_and_nourbanc) = c
          endif
       end do
+
+      num_filter_lun = bounds%endl - bounds%begl + 1
+      allocate(filter_lun(num_filter_lun))
+      do fc = 1, num_filter_lun
+         filter_lun(fc) = bounds%begl + fc - 1
+      enddo
 
       !------------------------------------------------------
       ! Compute ground surface and soil temperatures
@@ -481,6 +490,8 @@ contains
                  dt = get_step_size()*1.0_r8,                               &
                  num_nolakec_and_nourbanc = num_nolakec_and_nourbanc,       &
                  filter_nolakec_and_nourbanc = filter_nolakec_and_nourbanc, &
+                 num_filter_lun = num_filter_lun, &
+                 filter_lun = filter_lun, &
                  waterstate_vars = waterstate_vars,                         &
                  energyflux_vars = energyflux_vars,                         &
                  temperature_vars = temperature_vars)
@@ -701,6 +712,7 @@ contains
       ! Free up memory
       deallocate(filter_nolakec_and_nourbanc)
       deallocate(filter_nolakec_and_urbanc  )
+      deallocate(filter_lun                 )
 
     end associate
 
