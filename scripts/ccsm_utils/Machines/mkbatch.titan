@@ -25,7 +25,9 @@ set jobname = `echo ${CASE} | cut -c1-15`
 
 set walltime = "00:45:00"
 if ($CCSM_ESTCOST > 1) set walltime = "01:50:00"
-if ($CCSM_ESTCOST > 3 || $DEBUG == "TRUE") set walltime = "02:00:00"
+if ($CCSM_ESTCOST > 1) set walltime = "00:10:00"
+if ($CCSM_ESTCOST > 1) set walltime = "00:30:00"
+if ($CCSM_ESTCOST > 3 || $DEBUG == "TRUE") set walltime = "04:00:00"
 
 if ($?TESTMODE) then
  set file = $CASEROOT/${CASE}.test 

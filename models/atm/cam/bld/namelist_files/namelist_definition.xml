@@ -3534,6 +3534,17 @@ Default: set by build-namelist.
 In-cloud scav for cloud-borne aerosol tuning factor
 Default: set by build-namelist.
 </entry>
+
+<entry id="sol_factb_interstitial" type="real" category="cam_chem"
+       group="aerosol_nl" valid_values="" >
+Default: 0.1
+</entry>
+
+<entry id="sol_factic_interstitial" type="real" category="cam_chem"
+       group="aerosol_nl" valid_values="" >
+Default: 0.4
+</entry>
+
 <!-- Flags for implementing code modifications under polar project -->
 <entry id="sscav_tuning" type="logical"  category="cam_chem"
        group="aerosol_nl" valid_values="" >
