@@ -1374,6 +1374,79 @@
       <CCSM_CPRNC>$CIMEROOT/tools/cprnc/build/cprnc</CCSM_CPRNC>
       <SUPPORTED_BY>Fengming Yuan</SUPPORTED_BY>
       <GMAKE_J>4</GMAKE_J>
+      <BATCH_SYSTEM>pbs</BATCH_SYSTEM>
+      <MAX_TASKS_PER_NODE>32</MAX_TASKS_PER_NODE>
+      <PES_PER_NODE>32</PES_PER_NODE>
+      <!-- modules -->
+      <module_system type="module">
+        <init_path lang="sh">/usr/share/Modules/init/sh</init_path>
+        <init_path lang="csh">/usr/share/Modules/init/csh</init_path>
+        <init_path lang="perl">/usr/share/Modules/init/perl.pm</init_path>
+        <init_path lang="python">/usr/share/Modules/init/python.py</init_path>
+        <cmd_path lang="sh">module</cmd_path>
+        <cmd_path lang="csh">module</cmd_path>
+        <cmd_path lang="perl">/usr/bin/modulecmd perl</cmd_path>
+        <cmd_path lang="python">/usr/bin/modulecmd python</cmd_path>
+
+        <modules>
+          <command name="rm">PE-intel</command>
+          <command name="rm">PE-pgi</command>
+          <command name="rm">PE-gnu</command>
+          <command name="rm">hdf5</command>
+          <command name="rm">netcdf</command>
+          <command name="rm">hdf5-parallel</command>
+        </modules>
+        <modules compiler="intel">
+          <command name="load">PE-intel</command>
+        </modules>
+        <modules compiler="gnu">
+          <command name="load">PE-gnu</command>  
+        </modules>
+        <modules mpilib="mpi-serial">
+          <command name="load">hdf5/1.8.17</command>
+          <command name="load">netcdf/4.3.3.1</command>
+        </modules>
+        <modules mpilib="!mpi-serial">
+          <command name="load">hdf5-parallel/1.8.17</command>
+        </modules>
+        <modules>
+          <command name="load">mkl/2017</command>
+          <command name="load">cmake/3.6.1</command>
+        </modules>
+      </module_system>
+
+      <environment_variables>
+        <env name="GCC_ROOT" compiler="gnu">/software/dev_tools/swtree/cs400_centos7.2_pe2016-08/gcc/5.3.0/centos7.2_gcc4.8.5</env>
+        <env name="NETCDF_PATH" compiler="gnu" mpilib="!mpi-serial">/software/user_tools/current/cades-ccsi/netcdf4/4.4.0/openmpi-1.10-gcc-5.3</env>
+      </environment_variables>
+
+      <mpirun mpilib="openmpi" compiler="gnu">
+        <executable>mpirun</executable>
+        <arguments>
+          <arg name="num_tasks"> -np {{ num_tasks }}</arg>
+          <arg name="machine_file">--hostfile $ENV{PBS_NODEFILE}</arg>
+        </arguments>
+      </mpirun>
+      <mpirun mpilib = "mpi-serial">
+        <executable> </executable>
+      </mpirun>
+      <!-- <DESC> OR-CONDO, CADES-CCSI, os is Linux, 32 pes/nodes, batch system is PBS</DESC>
+      <NODENAME_REGEX>or-condo-*.ornl.gov</NODENAME_REGEX>
+      <TESTS>acme_developer</TESTS>
+      <OS>LINUX</OS>
+      <COMPILERS>gnu,intel</COMPILERS>
+      <MPILIBS>openmpi,mpi-serial</MPILIBS>
+      <RUNDIR>/lustre/pfs1/cades-ccsi/scratch/$USER/$CASE/run</RUNDIR>
+      <EXEROOT>/lustre/pfs1/cades-ccsi/scratch/$USER/$CASE/bld</EXEROOT>
+      <DIN_LOC_ROOT>/lustre/pfs1/cades-ccsi/proj-shared/project_acme/ACME_inputdata</DIN_LOC_ROOT>
+      <DIN_LOC_ROOT_CLMFORC>/lustre/pfs1/cades-ccsi/proj-shared/project_acme/ACME_inputdata/atm/datm7</DIN_LOC_ROOT_CLMFORC>
+      <DOUT_S_ROOT>/lustre/pfs1/cades-ccsi/proj-shared/project_acme/archives/$CASE</DOUT_S_ROOT>
+      <DOUT_L_MSROOT>csm/$CASE</DOUT_L_MSROOT>
+      <CESMSCRATCHROOT>/lustre/pfs1/cades-ccsi/scratch</CESMSCRATCHROOT>
+      <CCSM_BASELINE>/lustre/pfs1/cades-ccsi/proj-shared/project_acme/baselines</CCSM_BASELINE>
+      <CCSM_CPRNC>$CIMEROOT/tools/cprnc/build/cprnc</CCSM_CPRNC>
+      <SUPPORTED_BY>Fengming Yuan</SUPPORTED_BY>
+      <GMAKE_J>4</GMAKE_J>
       <MAX_TASKS_PER_NODE>32</MAX_TASKS_PER_NODE>
       <PES_PER_NODE>32</PES_PER_NODE>
       <BATCH_SYSTEM>pbs</BATCH_SYSTEM>
@@ -1403,7 +1476,7 @@
 	  <command name="load">linux-x86_64/netlib-blas@3.5.0%gcc@5.3.0+fpic-cxsdr3o</command>
 	  <command name="load">linux-x86_64/cmake@3.4.0%gcc@5.3.0+ncurses-sr4jjqc</command>
 	</modules>
-      </module_system>
+      </module_system> -->
 </machine>
 
 <machine MACH="titan">
