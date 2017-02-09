@@ -1,0 +1,30 @@
+&clm_inparm
+ albice = 0.80,0.55
+ co2_type = 'diagnostic'
+ create_crop_landunit = .false.
+ dtime = 1800
+ fatmlndfrc = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/share/domains/domain.lnd.ne30np4_gx1v6.110905.nc'
+ finidat = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/lnd/clm2/initdata/clmi.BCN.2000-01-01_ne30np4_gx1v6_simyr2000_c110328.nc'
+ fpftcon = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/lnd/clm2/pftdata/pft-physiology.clm40.c130424.nc'
+ fsnowaging = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/lnd/clm2/snicardata/snicar_drdt_bst_fit_60_c070416.nc'
+ fsnowoptics = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/lnd/clm2/snicardata/snicar_optics_5bnd_c090915.nc'
+ fsurdat = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/lnd/clm2/surfdata_map/surfdata_ne30np4_simyr2000_c110801.nc'
+ hist_mfilt = 1
+ hist_ndens = 1
+ hist_nhtfrq = 9
+ maxpatch_glcmec = 0
+ nsegspc = 20
+ urban_hac = 'ON_WASTEHEAT'
+ urban_traffic = .false.
+/
+&ndepdyn_nml
+/
+&pdepdyn_nml
+/
+!#--------------------------------------------------------------------------------------------------------------------------
+!# lnd_in:: Comment:
+!# This namelist was created using the following command-line:
+!#     /autofs/nccs-svm1_home1/wmacey/ACME/components/clm/bld/CLM build-namelist -infile /ccs/home/wmacey/acme_scratch/cli112/ERP_Ln9.ne30_ne30.FC5.titan_pgi.cam-outfrq9s.G.demotest1/Buildconf/clmconf/namelist -csmdata /lustre/atlas1/cli900/world-shared/cesm/inputdata -inputdata /ccs/home/wmacey/acme_scratch/cli112/ERP_Ln9.ne30_ne30.FC5.titan_pgi.cam-outfrq9s.G.demotest1/Buildconf/clm.input_data_list -ignore_ic_year -namelist  &clm_inparm  start_ymd=00010101
+!#   / -use_case 2000_control -res ne30np4 -clm_start_type default -envxml_dir /ccs/home/wmacey/acme_scratch/cli112/ERP_Ln9.ne30_ne30.FC5.titan_pgi.cam-outfrq9s.G.demotest1 -l_ncpl 48 -lnd_frac /lustre/atlas1/cli900/world-shared/cesm/inputdata/share/domains/domain.lnd.ne30np4_gx1v6.110905.nc -glc_nec 0 -co2_ppmv 367.0 -co2_type diagnostic -config /ccs/home/wmacey/acme_scratch/cli112/ERP_Ln9.ne30_ne30.FC5.titan_pgi.cam-outfrq9s.G.demotest1/Buildconf/clmconf/config_cache.xml -mask gx1v6
+!# For help on options use: /autofs/nccs-svm1_home1/wmacey/ACME/components/clm/bld/CLM build-namelist -help
+!#--------------------------------------------------------------------------------------------------------------------------

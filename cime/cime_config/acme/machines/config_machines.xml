@@ -1438,7 +1438,7 @@
     <GMAKE_J>8</GMAKE_J>
     <MAX_TASKS_PER_NODE>16</MAX_TASKS_PER_NODE>
     <PROJECT_REQUIRED>TRUE</PROJECT_REQUIRED>
-    <PROJECT>cli115</PROJECT>
+    <PROJECT>cli112</PROJECT>
     <PIO_CONFIG_OPTS> -D PIO_BUILD_TIMING:BOOL=ON </PIO_CONFIG_OPTS>
     <mpirun mpilib="default">
       <executable args="default">aprun</executable>

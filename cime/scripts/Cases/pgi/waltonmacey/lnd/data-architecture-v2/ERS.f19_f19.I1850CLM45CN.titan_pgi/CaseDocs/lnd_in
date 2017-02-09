@@ -1,0 +1,82 @@
+&clm_inparm
+ albice = 0.60,0.40
+ co2_ppmv = 284.7
+ co2_type = 'constant'
+ create_crop_landunit = .false.
+ dtime = 1800
+ fatmlndfrc = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/share/domains/domain.lnd.fv1.9x2.5_gx1v6.090206.nc'
+ finidat = ' '
+ fsnowaging = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/lnd/clm2/snicardata/snicar_drdt_bst_fit_60_c070416.nc'
+ fsnowoptics = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/lnd/clm2/snicardata/snicar_optics_5bnd_c090915.nc'
+ fsoilordercon = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/lnd/clm2/paramdata/CNP_parameters_c131108.nc'
+ fsurdat = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/lnd/clm2/surfdata_map/surfdata_1.9x2.5_simyr1850_c150626.nc'
+ glc_do_dynglacier = .false.
+ maxpatch_glcmec = 0
+ maxpatch_pft = 17
+ more_vertlayers = .false.
+ nsegspc = 20
+ paramfile = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/lnd/clm2/paramdata/clm_params_c160822.nc'
+ spinup_state = 0
+ urban_hac = 'ON'
+ urban_traffic = .false.
+ use_century_decomp = .false.
+ use_cn = .true.
+ use_crop = .false.
+ use_dynroot = .true.
+ use_lch4 = .false.
+ use_nitrif_denitrif = .false.
+ use_vertsoilc = .true.
+/
+&ndepdyn_nml
+ ndepmapalgo = 'bilinear'
+ stream_fldfilename_ndep = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/lnd/clm2/ndepdata/fndep_clm_hist_simyr1849-2006_1.9x2.5_c100428.nc'
+ stream_year_first_ndep = 1850
+ stream_year_last_ndep = 1850
+/
+&pdepdyn_nml
+ pdepmapalgo = 'bilinear'
+ stream_fldfilename_pdep = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/lnd/clm2/pdepdata/fpdep_clm_hist_simyr2000_1.9x2.5_c150929.nc'
+ stream_year_first_pdep = 2000
+ stream_year_last_pdep = 2000
+/
+&popd_streams
+ popdensmapalgo = 'bilinear'
+ stream_fldfilename_popdens = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/lnd/clm2/firedata/clmforc.Li_2012_hdm_0.5x0.5_AVHRR_simyr1850-2010_c130401.nc'
+ stream_year_first_popdens = 1850
+ stream_year_last_popdens = 1850
+/
+&light_streams
+ lightngmapalgo = 'bilinear'
+ stream_fldfilename_lightng = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/atm/datm7/NASA_LIS/clmforc.Li_2012_climo1995-2011.T62.lnfm_Total_c140423.nc'
+ stream_year_first_lightng = 0001
+ stream_year_last_lightng = 0001
+/
+&lai_streams
+/
+&clm_canopyhydrology_inparm
+/
+&clm_soilhydrology_inparm
+/
+&dynamic_subgrid
+/
+&finidat_consistency_checks
+/
+&dynpft_consistency_checks
+/
+&clmu_inparm
+/
+&clm_soilstate_inparm
+/
+&clm_pflotran_inparm
+/
+&betr_inparm
+/
+&clm_humanindex_inparm
+/
+!#--------------------------------------------------------------------------------------------------------------------------
+!# lnd_in:: Comment:
+!# This namelist was created using the following command-line:
+!#     /autofs/nccs-svm1_home1/wmacey/ACME/components/clm/bld/CLM build-namelist -infile /ccs/home/wmacey/acme_scratch/cli112/ERS.f19_f19.I1850CLM45CN.titan_pgi.G.demotest1/Buildconf/clmconf/namelist -csmdata /lustre/atlas1/cli900/world-shared/cesm/inputdata -inputdata /ccs/home/wmacey/acme_scratch/cli112/ERS.f19_f19.I1850CLM45CN.titan_pgi.G.demotest1/Buildconf/clm.input_data_list -ignore_ic_year -namelist  &clm_inparm  start_ymd=00010101
+!#   / -use_case 1850_control -res 1.9x2.5 -clm_start_type default -envxml_dir /ccs/home/wmacey/acme_scratch/cli112/ERS.f19_f19.I1850CLM45CN.titan_pgi.G.demotest1 -l_ncpl 48 -lnd_frac /lustre/atlas1/cli900/world-shared/cesm/inputdata/share/domains/domain.lnd.fv1.9x2.5_gx1v6.090206.nc -glc_nec 0 -co2_ppmv 284.7 -co2_type constant -config /ccs/home/wmacey/acme_scratch/cli112/ERS.f19_f19.I1850CLM45CN.titan_pgi.G.demotest1/Buildconf/clmconf/config_cache.xml -bgc cn -mask gx1v6
+!# For help on options use: /autofs/nccs-svm1_home1/wmacey/ACME/components/clm/bld/CLM build-namelist -help
+!#--------------------------------------------------------------------------------------------------------------------------

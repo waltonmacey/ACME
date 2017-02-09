@@ -1,0 +1,12 @@
+&modelio
+ diri = '/ccs/home/wmacey/acme_scratch/cli112/SMS.T62_oQU120_ais20.MPAS_LISIO_TEST.titan_pgi.G.demotest1/bld/ice'
+ diro = '/lustre/atlas/scratch/wmacey/cli112/SMS.T62_oQU120_ais20.MPAS_LISIO_TEST.titan_pgi.G.demotest1/run'
+ logfile = 'ice.log.'
+/
+&pio_inparm
+ pio_numiotasks = -99
+ pio_rearranger = -99
+ pio_root = -99
+ pio_stride = -99
+ pio_typename = 'nothing'
+/

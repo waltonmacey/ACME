@@ -1,0 +1,11 @@
+&shr_strdata_nml
+ datamode = 'DIATREN_ANN_RX1'
+ dtlimit = 1.5e0
+ fillalgo = 'nn'
+ fillmask = 'nomask'
+ mapalgo = 'bilinear'
+ mapmask = 'dstmask'
+ streams = "drof.streams.txt.rof.diatren_ann_rx1 1 1 1"
+ taxmode = 'cycle'
+ tintalgo = 'upper'
+/

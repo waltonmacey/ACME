@@ -1,0 +1,10 @@
+&datm_nml
+ atm_in = 'datm_atm_in'
+ decomp = '1d'
+ factorfn = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/atm/datm7/CORE2/COREv2.correction_factors.T62.121007.nc'
+ force_prognostic_true = .false.
+ iradsw = 1
+ presaero = .false.
+ restfilm = 'undefined'
+ restfils = 'undefined'
+/

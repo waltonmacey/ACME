@@ -1,0 +1,12 @@
+&modelio
+ diri = '/ccs/home/wmacey/acme_scratch/cli112/ERS.f19_f19.IM1850CLM45CN.titan_pgi.G.demotest1/bld/lnd'
+ diro = '/lustre/atlas/scratch/wmacey/cli112/ERS.f19_f19.IM1850CLM45CN.titan_pgi.G.demotest1/run'
+ logfile = 'lnd.log.'
+/
+&pio_inparm
+ pio_numiotasks = -99
+ pio_rearranger = 1
+ pio_root = -99
+ pio_stride = -99
+ pio_typename = 'nothing'
+/

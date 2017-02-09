@@ -1,0 +1,5 @@
+&drof_nml
+ decomp = '1d'
+ force_prognostic_true = .false.
+ rof_in = 'drof_rof_in'
+/

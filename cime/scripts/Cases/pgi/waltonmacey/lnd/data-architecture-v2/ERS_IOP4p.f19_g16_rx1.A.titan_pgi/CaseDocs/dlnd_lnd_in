@@ -1,0 +1,4 @@
+&shr_strdata_nml
+ datamode = 'NULL'
+ domainfile = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/share/domains/domain.lnd.fv1.9x2.5_gx1v6.090206.nc'
+/

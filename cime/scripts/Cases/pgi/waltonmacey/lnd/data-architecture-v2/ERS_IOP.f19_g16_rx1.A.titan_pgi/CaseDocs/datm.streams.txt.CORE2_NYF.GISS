@@ -1,0 +1,34 @@
+      <dataSource>
+         GENERIC
+      </dataSource>
+      <domainInfo>
+         <variableNames>
+            time    time
+            lon      lon
+            lat      lat
+            area    area
+            mask    mask
+         </variableNames>
+         <filePath>
+            /lustre/atlas1/cli900/world-shared/cesm/inputdata/atm/datm7/NYF
+         </filePath>
+         <fileNames>
+            nyf.giss.T62.051007.nc
+         </fileNames>
+      </domainInfo>
+      <fieldInfo>
+         <variableNames>
+            lwdn  lwdn
+            swdn  swdn
+            swup  swup
+         </variableNames>
+         <filePath>
+            /lustre/atlas1/cli900/world-shared/cesm/inputdata/atm/datm7/NYF
+         </filePath>
+         <fileNames>
+            nyf.giss.T62.051007.nc
+         </fileNames>
+         <offset>
+            0
+         </offset>
+      </fieldInfo>

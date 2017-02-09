@@ -1,0 +1,32 @@
+      <dataSource>
+         GENERIC
+      </dataSource>
+      <domainInfo>
+         <variableNames>
+            time   time
+            xc     lon
+            yc     lat
+            area   area
+            mask   mask
+         </variableNames>
+         <filePath>
+            /lustre/atlas1/cli900/world-shared/cesm/inputdata/lnd/dlnd7/RX1
+         </filePath>
+         <fileNames>
+            runoff.daitren.annual.090225.nc
+         </fileNames>
+      </domainInfo>
+      <fieldInfo>
+         <variableNames>
+            runoff rofl
+         </variableNames>
+         <filePath>
+            /lustre/atlas1/cli900/world-shared/cesm/inputdata/lnd/dlnd7/RX1
+         </filePath>
+         <fileNames>
+            runoff.daitren.annual.090225.nc
+         </fileNames>
+         <offset>
+            0
+         </offset>
+      </fieldInfo>

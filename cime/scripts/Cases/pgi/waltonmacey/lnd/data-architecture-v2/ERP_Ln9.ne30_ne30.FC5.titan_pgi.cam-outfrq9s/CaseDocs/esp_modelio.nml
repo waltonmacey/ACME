@@ -1,0 +1,7 @@
+&modelio
+ diri = '/ccs/home/wmacey/acme_scratch/cli112/ERP_Ln9.ne30_ne30.FC5.titan_pgi.cam-outfrq9s.G.demotest1/bld/esp'
+ diro = '/lustre/atlas/scratch/wmacey/cli112/ERP_Ln9.ne30_ne30.FC5.titan_pgi.cam-outfrq9s.G.demotest1/run'
+ logfile = 'esp.log.'
+/
+&pio_inparm
+/

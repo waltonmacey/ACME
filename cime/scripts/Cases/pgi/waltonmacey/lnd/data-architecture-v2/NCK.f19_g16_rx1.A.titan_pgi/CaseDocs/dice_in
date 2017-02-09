@@ -1,0 +1,6 @@
+&dice_nml
+ decomp = '1d'
+ flux_qacc = .true.
+ force_prognostic_true = .false.
+ ice_in = 'dice_ice_in'
+/

@@ -1,0 +1,13 @@
+&shr_strdata_nml
+ datamode = 'CORE2_NYF'
+ domainfile = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/share/domains/domain.lnd.fv1.9x2.5_gx1v6.090206.nc'
+ dtlimit = 1.5,1.5,1.5
+ fillalgo = 'nn','nn','nn'
+ fillmask = 'nomask','nomask','nomask'
+ mapalgo = 'bilinear','bilinear','bilinear'
+ mapmask = 'nomask','nomask','nomask'
+ streams = "datm.streams.txt.CORE2_NYF.GISS 1 1 1", "datm.streams.txt.CORE2_NYF.GXGXS 1 1 1", "datm.streams.txt.CORE2_NYF.NCEP 1 1 1"
+ taxmode = 'cycle','cycle','cycle'
+ tintalgo = 'linear','linear','linear'
+ vectors = 'u:v'
+/

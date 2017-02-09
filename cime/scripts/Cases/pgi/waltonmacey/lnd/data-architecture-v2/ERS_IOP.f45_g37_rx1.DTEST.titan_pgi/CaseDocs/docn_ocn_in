@@ -1,0 +1,11 @@
+&shr_strdata_nml
+ datamode = 'SOM'
+ domainfile = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/share/domains/domain.ocn.gx3v7.120323.nc'
+ fillalgo = 'nn'
+ fillmask = 'nomask'
+ mapalgo = 'bilinear'
+ mapmask = 'dstmask'
+ streams = "docn.streams.txt.som 1 1 1"
+ taxmode = 'cycle'
+ tintalgo = 'linear'
+/

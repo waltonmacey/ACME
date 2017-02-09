@@ -1,0 +1,15 @@
+&shr_strdata_nml
+ datamode = 'CLMNCEP'
+ domainfile = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/share/domains/domain.lnd.fv0.9x1.25_gx1v6.090309.nc'
+ dtlimit = 1.5,1.5,1.5,1.5,1.5
+ fillalgo = 'nn','nn','nn','nn','nn'
+ fillmask = 'nomask','nomask','nomask','nomask','nomask'
+ mapalgo = 'bilinear','bilinear','bilinear','bilinear','bilinear'
+ mapmask = 'nomask','nomask','nomask','nomask','nomask'
+ streams = "datm.streams.txt.CLM_QIAN.Solar 1 1972 2004  ", "datm.streams.txt.CLM_QIAN.Precip 1 1972 2004  ",
+         "datm.streams.txt.CLM_QIAN.TPQW 1 1972 2004  ", "datm.streams.txt.presaero.clim_2000 1 1 1",
+         "datm.streams.txt.topo.observed 1 1 1"
+ taxmode = 'cycle','cycle','cycle','cycle','cycle'
+ tintalgo = 'coszen','nearest','linear','linear','lower'
+ vectors = 'null'
+/

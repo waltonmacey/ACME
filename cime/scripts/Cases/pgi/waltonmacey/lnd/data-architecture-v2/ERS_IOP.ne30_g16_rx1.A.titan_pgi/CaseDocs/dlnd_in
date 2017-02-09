@@ -1,0 +1,5 @@
+&dlnd_nml
+ decomp = '1d'
+ force_prognostic_true = .false.
+ lnd_in = 'dlnd_lnd_in'
+/

@@ -1,0 +1,12 @@
+&modelio
+ diri = '/ccs/home/wmacey/acme_scratch/cli112/SMS_D_Ln5.ne16_ne16.FC5AV1C.titan_pgi.G.demotest1/bld/ocn'
+ diro = '/lustre/atlas/scratch/wmacey/cli112/SMS_D_Ln5.ne16_ne16.FC5AV1C.titan_pgi.G.demotest1/run'
+ logfile = 'ocn.log.'
+/
+&pio_inparm
+ pio_numiotasks = -99
+ pio_rearranger = -99
+ pio_root = 0
+ pio_stride = -99
+ pio_typename = 'nothing'
+/

@@ -1,0 +1,12 @@
+&modelio
+ diri = '/ccs/home/wmacey/acme_scratch/cli112/SMS_Ly3.1x1_smallvilleIA.ICLM45CNCROP.titan_pgi.force_netcdf_pio.G.demotest1/bld/lnd'
+ diro = '/lustre/atlas/scratch/wmacey/cli112/SMS_Ly3.1x1_smallvilleIA.ICLM45CNCROP.titan_pgi.force_netcdf_pio.G.demotest1/run'
+ logfile = 'lnd.log.'
+/
+&pio_inparm
+ pio_numiotasks = -99
+ pio_rearranger = 1
+ pio_root = -99
+ pio_stride = -99
+ pio_typename = 'nothing'
+/

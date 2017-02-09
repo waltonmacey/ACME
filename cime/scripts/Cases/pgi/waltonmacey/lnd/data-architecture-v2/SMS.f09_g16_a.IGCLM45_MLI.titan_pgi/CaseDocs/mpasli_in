@@ -1,0 +1,92 @@
+&velocity_solver
+ config_do_velocity_reconstruction_for_external_dycore = .false.
+ config_flowparama_calculation = 'constant'
+ config_sia_tangent_slope_calculation = 'from_vertex_barycentric'
+ config_simple_velocity_type = 'uniform'
+ config_velocity_solver = 'sia'
+/
+&advection
+ config_thickness_advection = 'fo'
+ config_tracer_advection = 'none'
+/
+&calving
+ config_calving = 'thickness_threshold'
+ config_calving_thickness = 300.0
+ config_calving_timescale = 0.0
+ config_calving_topography = -500.0
+ config_data_calving = .false.
+ config_restore_calving_front = .true.
+/
+&thermal_solver
+ config_basal_heat_flux_source = 'file'
+ config_basal_heat_flux_value = 0.0
+ config_basal_mass_bal_float = 'file'
+ config_surface_air_temperature_source = 'file'
+ config_surface_air_temperature_value = 273.15
+ config_temperature_init = 'file'
+ config_thermal_solver = 'none'
+ config_thermal_thickness = 1.0
+/
+&physical_parameters
+ config_default_flowparama = 3.1709792e-24
+ config_dynamic_thickness = 10.0
+ config_enhancementfactor = 1.0
+ config_flowlawexponent = 3.0
+ config_ice_density = 910.0
+ config_ocean_density = 1028.0
+ config_sea_level = 0.0
+/
+&time_integration
+ config_adaptive_timestep = .false.
+ config_adaptive_timestep_cfl_fraction = 0.25
+ config_adaptive_timestep_force_interval = '1000-00-00_00:00:00'
+ config_adaptive_timestep_include_dcfl = .false.
+ config_dt = '0000-00-01_00:00:00'
+ config_max_adaptive_timestep = 3.15e9
+ config_min_adaptive_timestep = 3600.0
+ config_time_integration = 'forward_euler'
+/
+&time_management
+ config_calendar_type = 'gregorian_noleap'
+ config_do_restart = .false.
+ config_restart_timestamp_name = 'rpointer.glc'
+ config_start_time = '0001-01-01_0'
+/
+&io
+ config_output_external_velocity_solver_data = .false.
+ config_pio_num_iotasks = 0
+ config_pio_stride = 1
+ config_stats_cell_id = 1
+ config_stats_interval = 0
+ config_write_output_on_startup = .true.
+ config_write_stats_on_startup = .false.
+ config_year_digits = 4
+/
+&decomposition
+ config_block_decomp_file_prefix = '/lustre/atlas1/cli900/world-shared/cesm/inputdata/glc/mpasli/mpas.ais20km/mpasli.graph.info.150910.part.'
+ config_explicit_proc_decomp = .false.
+ config_num_halos = 2
+ config_number_of_blocks = 0
+ config_proc_decomp_file_prefix = 'none'
+/
+&debug
+ config_always_compute_fem_grid = .false.
+ config_print_calving_info = .false.
+ config_print_thermal_info = .false.
+ config_print_thickness_advection_info = .false.
+ config_print_velocity_cleanup_details = .false.
+/
+&am_globalstats
+ config_am_globalstats_compute_interval = 'output_interval'
+ config_am_globalstats_compute_on_startup = .true.
+ config_am_globalstats_enable = .true.
+ config_am_globalstats_stream_name = 'globalStatsOutput'
+ config_am_globalstats_write_on_startup = .true.
+/
+&am_regionalstats
+ config_am_regionalstats_compute_interval = 'output_interval'
+ config_am_regionalstats_compute_on_startup = .true.
+ config_am_regionalstats_enable = .false.
+ config_am_regionalstats_stream_name = 'regionalStatsOutput'
+ config_am_regionalstats_write_on_startup = .true.
+/

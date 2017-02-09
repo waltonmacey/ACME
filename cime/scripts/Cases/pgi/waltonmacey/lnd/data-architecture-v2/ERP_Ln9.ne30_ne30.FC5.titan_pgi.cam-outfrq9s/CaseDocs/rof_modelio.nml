@@ -1,0 +1,12 @@
+&modelio
+ diri = '/ccs/home/wmacey/acme_scratch/cli112/ERP_Ln9.ne30_ne30.FC5.titan_pgi.cam-outfrq9s.G.demotest1/bld/rof'
+ diro = '/lustre/atlas/scratch/wmacey/cli112/ERP_Ln9.ne30_ne30.FC5.titan_pgi.cam-outfrq9s.G.demotest1/run'
+ logfile = 'rof.log.'
+/
+&pio_inparm
+ pio_numiotasks = -99
+ pio_rearranger = -99
+ pio_root = -99
+ pio_stride = -99
+ pio_typename = 'nothing'
+/
