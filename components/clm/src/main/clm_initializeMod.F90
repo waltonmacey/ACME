@@ -317,7 +317,7 @@ contains
     use CNDecompCascadeCNMod  , only : init_decompcascade_cn
     use CNDecompCascadeContype, only : init_decomp_cascade_constants
     use EDInitMod             , only : ed_init  
-    use VegetationPropertiesType        , only : veg_pp 
+    use VegetationPropertiesType        , only : veg_vp 
     use SoilorderConType      , only : soilorderconInit 
     use EDEcophysConType      , only : EDecophysconInit 
     use EDPftVarcon           , only : EDpftvarcon_inst

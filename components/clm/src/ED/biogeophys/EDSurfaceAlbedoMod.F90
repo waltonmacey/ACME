@@ -51,7 +51,7 @@ contains
     !
     ! !USES:
     use clm_varctl        , only : iulog
-    use VegetationPropertiesType    , only : veg_pp
+    use VegetationPropertiesType    , only : veg_vp
     use EDtypesMod        , only : patch, numpft_ed, nlevcan_ed, gridCellEdState
     use PatchType         , only : pft_pp  
     use EDVecPatchType    , only : EDpft
@@ -123,11 +123,11 @@ contains
     SHR_ASSERT_ALL((ubound(coszen) == (/bounds%endp/)),         errMsg(__FILE__, __LINE__))
 
     associate(                                                &
-         rhol         =>    veg_pp%rhol                 , & ! Input:  [real(r8) (:)   ] leaf reflectance: 1=vis, 2=nir
-         rhos         =>    veg_pp%rhos                 , & ! Input:  [real(r8) (:)   ] stem reflectance: 1=vis, 2=nir
-         taul         =>    veg_pp%taul                 , & ! Input:  [real(r8) (:)   ] leaf transmittance: 1=vis, 2=nir
-         taus         =>    veg_pp%taus                 , & ! Input:  [real(r8) (:)   ] stem transmittance: 1=vis, 2=nir
-         xl           =>    veg_pp%xl                   , & ! Input:  [real(r8) (:)   ] ecophys const - leaf/stem orientation index
+         rhol         =>    veg_vp%rhol                 , & ! Input:  [real(r8) (:)   ] leaf reflectance: 1=vis, 2=nir
+         rhos         =>    veg_vp%rhos                 , & ! Input:  [real(r8) (:)   ] stem reflectance: 1=vis, 2=nir
+         taul         =>    veg_vp%taul                 , & ! Input:  [real(r8) (:)   ] leaf transmittance: 1=vis, 2=nir
+         taus         =>    veg_vp%taus                 , & ! Input:  [real(r8) (:)   ] stem transmittance: 1=vis, 2=nir
+         xl           =>    veg_vp%xl                   , & ! Input:  [real(r8) (:)   ] ecophys const - leaf/stem orientation index
 
          albgrd       =>    surfalb_vars%albgrd_col         , & ! Input:  [real(r8) (:,:) ] ground albedo (direct) (column-level)
          albgri       =>    surfalb_vars%albgri_col         , & ! Input:  [real(r8) (:,:) ] ground albedo (diffuse)(column-level)

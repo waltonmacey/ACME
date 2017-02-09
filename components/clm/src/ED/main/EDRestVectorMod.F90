@@ -11,7 +11,7 @@ module EDRestVectorMod
    use CNNitrogenStateType , only : nitrogenstate_type
    use CanopyStateType     , only : canopystate_type
    use WaterStateType      , only : waterstate_type
-   use VegetationPropertiesType      , only : veg_pp
+   use VegetationPropertiesType      , only : veg_vp
    use EDBioType           , only : EDbio_type
    use EDtypesMod          , only : site, patch, cohort, ncwd, invalidValue, gridcell_edstate_type
    use EDtypesMod          , only : AREA, cohorts_per_gcell, numpft_ed, numWaterMem, nclmax, numCohortsPerPatch
@@ -1319,7 +1319,7 @@ contains
 
                cohortstatus = newp%siteptr%status
 
-               if(veg_pp%stress_decid(ft) == 1)then !drought decidous, override status. 
+               if(veg_vp%stress_decid(ft) == 1)then !drought decidous, override status. 
                   cohortstatus = newp%siteptr%dstatus
                endif
 

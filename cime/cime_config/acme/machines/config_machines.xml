@@ -1412,7 +1412,8 @@
     <TESTS>acme_developer</TESTS>
     <COMPILERS>pgi,pgiacc,intel,cray</COMPILERS>
     <MPILIBS>mpich,mpi-serial</MPILIBS>
-    <CESMSCRATCHROOT>$ENV{HOME}/acme_scratch/$PROJECT</CESMSCRATCHROOT>
+    <CESMSCRATCHROOT>/lustre/atlas1/cli112/proj-shared/wangd/scratch</CESMSCRATCHROOT>
+    <!-- CESMSCRATCHROOT>$ENV{HOME}/acme_scratch/$PROJECT</CESMSCRATCHROOT>  -->
     <RUNDIR>$ENV{MEMBERWORK}/$PROJECT/$CASE/run</RUNDIR>
     <EXEROOT>$CESMSCRATCHROOT/$CASE/bld</EXEROOT>
     <DIN_LOC_ROOT>/lustre/atlas1/cli900/world-shared/cesm/inputdata</DIN_LOC_ROOT>
@@ -1430,7 +1431,7 @@
     <GMAKE_J>8</GMAKE_J>
     <MAX_TASKS_PER_NODE>16</MAX_TASKS_PER_NODE>
     <PROJECT_REQUIRED>TRUE</PROJECT_REQUIRED>
-    <PROJECT>cli115</PROJECT>
+    <PROJECT>cli112</PROJECT>
     <PIO_CONFIG_OPTS> -D PIO_BUILD_TIMING:BOOL=ON </PIO_CONFIG_OPTS>
     <mpirun mpilib="default">
       <executable args="default">aprun</executable>

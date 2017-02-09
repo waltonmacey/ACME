@@ -7,8 +7,8 @@ module EDCohortDynamicsMod
   use shr_kind_mod         , only : r8 => shr_kind_r8;
   use clm_varctl           , only : iulog 
 
-  use VegetationPropertiesType , only : veg_pp
-  !use VegetationPropertiesType     , only : veg_pp
+  use VegetationPropertiesType , only : veg_vp
+  !use VegetationPropertiesType     , only : veg_vp
   use EDEcophysContype     , only : EDecophyscon
   use EDGrowthFunctionsMod , only : c_area, tree_lai
   use EDtypesMod           , only : site, patch, cohort, FUSETOL, GRIDCELLEDSTATE, NCLMAX
@@ -152,33 +152,33 @@ contains
 
     currentCohort       => cc_p
     ft = currentcohort%pft
-    leaf_frac = 1.0_r8/(1.0_r8 + EDecophyscon%sapwood_ratio(ft) * currentcohort%hite + veg_pp%froot_leaf(ft))     
+    leaf_frac = 1.0_r8/(1.0_r8 + EDecophyscon%sapwood_ratio(ft) * currentcohort%hite + veg_vp%froot_leaf(ft))     
 
     currentcohort%bl = currentcohort%balive*leaf_frac  
     ratio_balive = 1.0_r8
     !for deciduous trees, there are no leaves  
 
-    if(veg_pp%evergreen(ft) == 1)then
+    if(veg_vp%evergreen(ft) == 1)then
        currentcohort%laimemory = 0._r8
        currentcohort%status_coh    = 2      
     endif    
 
     !diagnore the root and stem biomass from the functional balance hypothesis. This is used when the leaves are 
     !fully on. 
-    currentcohort%br  = veg_pp%froot_leaf(ft) * (currentcohort%balive + currentcohort%laimemory) * leaf_frac
+    currentcohort%br  = veg_vp%froot_leaf(ft) * (currentcohort%balive + currentcohort%laimemory) * leaf_frac
     currentcohort%bsw = EDecophyscon%sapwood_ratio(ft) * currentcohort%hite *(currentcohort%balive + &
       currentcohort%laimemory)*leaf_frac 
 
-    if(currentcohort%status_coh == 1.and.veg_pp%evergreen(ft) /= 1)then !no leaves
+    if(currentcohort%status_coh == 1.and.veg_vp%evergreen(ft) /= 1)then !no leaves
     !the purpose of this section is to figure out the root and stem biomass when the leaves are off
     !at this point, we know the former leaf mass (laimemory) and the current alive mass
     !because balive may decline in the off-season, we need to adjust the root and stem biomass that are predicted
     !from the laimemory, for the fact that we now might not have enough live biomass to support the hypothesized root mass
     !thus, we use 'ratio_balive' to adjust br and bsw. Apologies that this is so complicated! RF
        currentcohort%bl       = 0.0_r8
-       ideal_balive            = currentcohort%laimemory * veg_pp%froot_leaf(ft) +  &
+       ideal_balive            = currentcohort%laimemory * veg_vp%froot_leaf(ft) +  &
        currentcohort%laimemory*  EDecophyscon%sapwood_ratio(ft) * currentcohort%hite
-       currentcohort%br  = veg_pp%froot_leaf(ft) * (ideal_balive + currentcohort%laimemory) * leaf_frac
+       currentcohort%br  = veg_vp%froot_leaf(ft) * (ideal_balive + currentcohort%laimemory) * leaf_frac
        currentcohort%bsw = EDecophyscon%sapwood_ratio(ft) * currentcohort%hite *(ideal_balive + &
        currentcohort%laimemory)*leaf_frac 
      
