@@ -1,0 +1,4 @@
+D	components/clm/src/biogeochem/CNStateType.F90
+D	components/clm/src/main/ColumnType.F90
+D	components/clm/src/main/LandunitType.F90
+D	components/clm/src/main/TopounitType.F90
