@@ -318,7 +318,8 @@ contains
     use CNDecompCascadeContype, only : init_decomp_cascade_constants
     use EDInitMod             , only : ed_init  
     use VegetationPropertiesType        , only : veg_pp 
-    use SoilorderConType      , only : soilorderconInit 
+    !DW moved into ColumeType 
+    !use SoilorderConType      , only : soilorderconInit 
     use EDEcophysConType      , only : EDecophysconInit 
     use EDPftVarcon           , only : EDpftvarcon_inst
     use LakeCon               , only : LakeConInit 
