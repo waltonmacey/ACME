@@ -118,10 +118,31 @@
     </directives>
   </batch_system>
 
+  <!-- for cab llnl -->
+   <batch_system type="lc_slurm" version="x.y">
+     <batch_query>squeue</batch_query>
+     <batch_submit>msub</batch_submit>
+     <batch_directive>#MSUB</batch_directive>
+     <jobid_pattern>(\d+)$</jobid_pattern>
+     <depend_string> -l depend=jobid</depend_string>
+    <walltime_format>%H:%M:%S</walltime_format>
+     <directives>
+       <directive>-V</directive>
+       <directive>-q {{ queue }}</directive>
+       <directive>-N {{ job_id }}</directive>
+       <directive>-l nodes={{ num_nodes }}:ppn={{ tasks_per_node }}</directive>
+       <directive>-l walltime={{ job_wallclock_time }}</directive>
+       <directive>-o {{ output_error_path }}.out</directive>
+       <directive>-e {{ output_error_path }}.err</directive>
+       <directive>-m be</directive>
+      <directive> -A {{ project }} </directive>
+     </directives>
+   </batch_system>
+
    <batch_system type="slurm" version="x.y">
      <batch_query args="-o '%i' -h -u $USER">squeue </batch_query>
-     <batch_submit>sbatch</batch_submit>
-     <batch_directive>#SBATCH</batch_directive>
+     <batch_submit>msub</batch_submit>
+     <batch_directive>#MSUB</batch_directive>
      <jobid_pattern>(\d+)$</jobid_pattern>
      <depend_string> --dependency=afterok:jobid</depend_string>
     <walltime_format>%H:%M:%S</walltime_format>
@@ -283,7 +304,7 @@
 	  <walltime ccsm_estcost="3">16:00:00</walltime>
 	</walltimes>
 	<queues>
-	   <queue walltimemax="16:00:00" default="true">moab</queue>
+	   <queue walltimemax="10:00:00" default="true">moab</queue>
 	</queues>
   </batch_system>
 

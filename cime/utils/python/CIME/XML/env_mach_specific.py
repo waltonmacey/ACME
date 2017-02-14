@@ -264,8 +264,26 @@ class EnvMachSpecific(EnvBase):
             else:
                 os.environ[key] = newenv[key]
 
-    def _load_dotkit_modules(self, _):
-        expect(False, "Not yet implemented")
+    #PMC+++ implemented this method 2/9/17
+    #explanation: init_path is the location of the dotkit init file.
+    #You need to source init_path before any "use" commands can be issued, 
+    #but this needs to happen in the same command as the use statements
+    #because each subprocess.popen (which is how run_cmd_no_fail actually executes
+    #commands) is a *subprocess* whose variables aren't shared with the next
+    #run_cmd_no_fail command. 
+    def _load_dotkit_modules(self, modules_to_load):
+        init_path = self.get_module_system_init_path("sh")
+        if init_path:
+            source_cmd = "source %s" % init_path
+
+        for mod in modules_to_load:
+            print 'mod = ',mod[1]
+            source_cmd += ' && use -q %s' % mod[1]
+            
+        print 'source_cmd = ',source_cmd
+        py_module_code = run_cmd_no_fail(source_cmd,verbose=True)
+        exec(py_module_code)
+    #---PMC
 
     def _load_none_modules(self, modules_to_load):
         """
