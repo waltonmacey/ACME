@@ -1409,18 +1409,13 @@ for mct, etc.
   </CPPDEFS>
   <FFLAGS>
     <append DEBUG="FALSE"> -O2 </append>
+    <append DEBUG="TRUE"> -g -traceback  -O0 -fpe0 -check  all -check noarg_temp_created -ftrapuv </append>
   </FFLAGS>
-  <NETCDF_PATH> <env>NETCDF</env></NETCDF_PATH>
+  <NETCDF_PATH> <env>NETCDF_HOME</env></NETCDF_PATH>
   <PIO_FILESYSTEM_HINTS>lustre</PIO_FILESYSTEM_HINTS>
+  <PNETCDF_PATH><env>PNETCDFROOT</env></PNETCDF_PATH>
   <SLIBS>
-    <base> -L<var>NETCDF_PATH</var>/lib -lnetcdf -lpmi </base>
-    <append MPILIB="mpich"> -mkl=cluster </append>
-    <append MPILIB="mpich2"> -mkl=cluster </append>
-    <append MPILIB="mpt"> -mkl=cluster </append>
-    <append MPILIB="openmpi"> -mkl=cluster </append>
-    <append MPILIB="mvapich"> -mkl=cluster </append>
-    <append MPILIB="impi"> -mkl=cluster </append>
-    <append MPILIB="mpi-serial"> -mkl </append>
+    <base> -L<var>NETCDF_PATH</var>/lib -lnetcdf -lnetcdff -lpmi -L<env>MKL_PATH</env> -lmkl_rt</base>
   </SLIBS>
 </compiler>
 
