@@ -119,8 +119,8 @@
   </batch_system>
 
   <!-- for cab llnl -->
-   <batch_system type="lc_slurm" version="x.y">
-     <batch_query>squeue</batch_query>
+   <batch_system type="slurm" version="x.y">
+<!--     <batch_query>squeue</batch_query> -->
      <batch_submit>msub</batch_submit>
      <batch_directive>#MSUB</batch_directive>
      <jobid_pattern>(\d+)$</jobid_pattern>
@@ -139,7 +139,7 @@
      </directives>
    </batch_system>
 
-   <batch_system type="slurm" version="x.y">
+   <batch_system type="def_slurm" version="x.y">
      <batch_query args="-o '%i' -h -u $USER">squeue </batch_query>
      <batch_submit>msub</batch_submit>
      <batch_directive>#MSUB</batch_directive>
