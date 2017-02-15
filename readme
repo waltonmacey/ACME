@@ -1,0 +1,28 @@
+WE27974:ACME_silhs_mg2_20170215_SCM m222044$ git status
+On branch kaizhangpnl/atm/clubb-slihs-mg2_scm
+Changes to be committed:
+  (use "git reset HEAD <file>..." to unstage)
+
+	new file:   components/cam/src/utils/vrtmap.F90
+
+Changes not staged for commit:
+  (use "git add/rm <file>..." to update what will be committed)
+  (use "git checkout -- <file>..." to discard changes in working directory)
+
+	typechange: cime/doc/modelnl/index.html
+	modified:   components/cam/cime_config/buildnml
+	modified:   components/cam/cime_config/config_compsets.xml
+	modified:   components/cam/src/control/vrtmap.F90
+	modified:   components/cam/src/dynamics/eul/dyn_comp.F90
+	modified:   components/cam/src/dynamics/eul/dyn_grid.F90
+	modified:   components/cam/src/dynamics/eul/inidat.F90
+	modified:   components/cam/src/dynamics/eul/interp_mod.F90
+	modified:   components/cam/src/dynamics/eul/restart_dynamics.F90
+	modified:   components/cam/src/dynamics/eul/scanslt.F90
+	modified:   components/cam/src/dynamics/eul/stepon.F90
+	modified:   components/cam/src/dynamics/eul/tfilt_massfix.F90
+	modified:   components/cam/src/utils/spmd_utils.F90
+	deleted:    components/homme/utils/cprnc
+	deleted:    components/homme/utils/pio
+	deleted:    components/homme/utils/timing
+
