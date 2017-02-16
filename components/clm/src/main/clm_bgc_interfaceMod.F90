@@ -63,7 +63,7 @@ module clm_bgc_interfaceMod
 
   ! most used constants in this module
   use clm_varpar            , only : nlevsoi, nlevsno,nlevgrnd, nlevdecomp, nlevdecomp_full
-  use clm_varpar            , only : ndecomp_pools
+  use clm_varpar            , only : ndecomp_pools, ndecomp_cascade_transitions
   use clm_varpar            , only : max_patch_per_col
   use clm_varcon            , only : denh2o, denice, tfrz, dzsoi_decomp
   use landunit_varcon       , only : istsoil, istcrop
@@ -229,6 +229,7 @@ contains
     associate( &
          ! Assign local pointer to derived subtypes components (column-level)
          z                  => col%z                                                , & !  [real(r8) (:,:)]  layer depth (m)
+         zi                 => col%zi                                               , & !
          dz                 => col%dz                                               , & !  [real(r8) (:,:)]  layer thickness depth (m)
 
          bd                 => soilstate_vars%bd_col                                , & !
@@ -268,6 +269,7 @@ contains
         c = filter_soilc(fc)
 !        do j = 1,nlevsoi
             clm_bgc_data%z(c,:)                 = z(c,:)
+            clm_bgc_data%zi(c,:)                = zi(c,:)
             clm_bgc_data%dz(c,:)                = dz(c,:)
             clm_bgc_data%bd_col(c,:)            = bd(c,:)
             clm_bgc_data%bsw_col(c,:)           = bsw(c,:)
@@ -591,6 +593,9 @@ contains
       nfixation_prof                   => cnstate_vars%nfixation_prof_col                       , &
       ndep_prof                        => cnstate_vars%ndep_prof_col                            , &
 
+      rf_decomp_cascade                => cnstate_vars%rf_decomp_cascade_col                    , &
+      pathfrac_decomp_cascade          => cnstate_vars%pathfrac_decomp_cascade_col              , &
+
       no3_net_transport_vr             => nitrogenflux_vars%no3_net_transport_vr_col            , &
       col_plant_ndemand_vr             => nitrogenflux_vars%plant_ndemand_vr_col                , &
 
@@ -625,6 +630,12 @@ contains
                 clm_bgc_data%externalc_to_decomp_cpools_col(c,:,k)  = externalc_to_decomp_cpools_vr(c,:,k)
                 clm_bgc_data%externaln_to_decomp_npools_col(c,:,k)  = externaln_to_decomp_npools_vr(c,:,k)
                 clm_bgc_data%externalp_to_decomp_ppools_col(c,:,k)  = externalp_to_decomp_ppools_vr(c,:,k)
+            end do
+
+            do k = 1, ndecomp_cascade_transitions
+                clm_bgc_data%rf_decomp_cascade_col(c,:,k)           = rf_decomp_cascade(c,:,k)
+                clm_bgc_data%pathfrac_decomp_cascade_col(c,:,k)     = pathfrac_decomp_cascade(c,:,k)
+
             end do
 
             clm_bgc_data%externaln_to_nh4_col(c,:)          =   fnh4_dep*ndep_to_sminn(c) * ndep_prof(c,:) +  &

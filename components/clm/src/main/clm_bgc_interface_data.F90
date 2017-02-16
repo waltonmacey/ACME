@@ -35,6 +35,7 @@ module clm_bgc_interface_data
 
      ! col:
      real(r8), pointer :: z                                         (:,:)   ! layer depth (m) (-nlevsno+1:nlevgrnd)
+     real(r8), pointer :: zi                                        (:,:)   ! layer depth (m) (-nlevsno+1:nlevgrnd)
      real(r8), pointer :: dz                                        (:,:)   ! layer thickness (m)  (-nlevsno+1:nlevgrnd)
 
      ! soilstate_vars:
@@ -42,7 +43,9 @@ module clm_bgc_interface_data
      real(r8), pointer :: hksat_col                                 (:,:)   ! col hydraulic conductivity at saturation (mm H2O /s)
      real(r8), pointer :: bsw_col                                   (:,:)   ! col Clapp and Hornberger "b" (nlevgrnd)
      real(r8), pointer :: watsat_col                                (:,:)   ! col volumetric soil water at saturation (porosity)
-     real(r8), pointer :: sucsat_col                                (:,:)   ! col minimum soil suction (mm) (nlevgrnd)
+     real(r8), pointer :: watmin_col                                (:,:) ! col minimum volumetric soil water (nlevsoi)
+     real(r8), pointer :: sucsat_col                                (:,:) ! col minimum soil suction (mm) (nlevgrnd)
+     real(r8), pointer :: sucmin_col                                (:,:) ! col minimum allowable soil liquid suction pressure (mm) [Note: sucmin_col is a negative value, while sucsat_col is a positive quantity]
      real(r8), pointer :: watfc_col                                 (:,:)   ! col volumetric soil water at field capacity (nlevsoi)
      real(r8), pointer :: porosity_col                              (:,:)   ! col soil porisity (1-bulk_density/soil_density) (VIC)
      real(r8), pointer :: eff_porosity_col                          (:,:)   ! col effective porosity = porosity - vol_ice (nlevgrnd)
@@ -72,6 +75,10 @@ module clm_bgc_interface_data
      real(r8), pointer  :: conc_o2_unsat_col                        (:,:)   ! col O2 conc in each soil layer (mol/m3) (nlevsoi)
      real(r8), pointer  :: o2_decomp_depth_sat_col                  (:,:)   ! col O2 consumption during decomposition in each soil layer (nlevsoi) (mol/m3/s)
      real(r8), pointer  :: o2_decomp_depth_unsat_col                (:,:)   ! col O2 consumption during decomposition in each soil layer (nlevsoi) (mol/m3/s)
+
+     ! cnstate_vars:
+     real(r8) , pointer :: rf_decomp_cascade_col                    (:,:,:) ! col respired fraction in decomposition step (frac)
+     real(r8) , pointer :: pathfrac_decomp_cascade_col              (:,:,:) ! col what fraction of C leaving a given pool passes through a given 
 
      ! carbonstate_vars:
      real(r8), pointer :: decomp_cpools_vr_col                      (:,:,:) ! col (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
@@ -111,6 +118,10 @@ module clm_bgc_interface_data
      real(r8), pointer :: decomp_cascade_sminp_flux_vr_col          (:,:,:) ! col vert-res mineral P flux for transition along decomposition cascade (gP/m3/s)
      real(r8), pointer :: sminn_to_denit_decomp_cascade_vr_col      (:,:,:) ! col vertically-resolved denitrification along decomp cascade (gN/m3/s)
      real(r8), pointer :: decomp_cascade_hr_vr_col                  (:,:,:) ! vertically-resolved het. resp. from decomposing C pools (gC/m3/s)
+
+     real(r8), pointer :: o_scalar_col                              (:,:)   ! fraction by which decomposition is limited by anoxia
+     real(r8), pointer :: w_scalar_col                              (:,:)   ! fraction by which decomposition is limited by moisture availability
+     real(r8), pointer :: t_scalar_col                              (:,:)   ! fraction by which decomposition is limited by temperature
 
      ! mineralization / immobilization / uptake flux
      real(r8), pointer :: gross_nmin_vr_col                         (:,:)   ! col vertically-resolved gross rate of N mineralization (gN/m3/s)
@@ -279,13 +290,16 @@ contains
 
     ! col:
     allocate(this%z                     (begc:endc,-nlevsno+1:nlevgrnd))    ; this%z                    (:,:) = nan
+    allocate(this%zi                    (begc:endc,-nlevsno+1:nlevgrnd))    ; this%zi                   (:,:) = nan
     allocate(this%dz                    (begc:endc,-nlevsno+1:nlevgrnd))    ; this%dz                   (:,:) = nan
     ! soilstate_vars:
     allocate(this%bd_col                (begc:endc,nlevgrnd))               ; this%bd_col               (:,:) = nan
     allocate(this%hksat_col             (begc:endc,nlevgrnd))               ; this%hksat_col            (:,:) = spval
     allocate(this%bsw_col               (begc:endc,nlevgrnd))               ; this%bsw_col              (:,:) = nan
     allocate(this%watsat_col            (begc:endc,nlevgrnd))               ; this%watsat_col           (:,:) = nan
+    allocate(this%watmin_col            (begc:endc,nlevgrnd))               ; this%watmin_col           (:,:) = nan
     allocate(this%sucsat_col            (begc:endc,nlevgrnd))               ; this%sucsat_col           (:,:) = spval
+    allocate(this%sucmin_col            (begc:endc,nlevgrnd))               ; this%sucmin_col           (:,:) = spval
     allocate(this%watfc_col             (begc:endc,nlevgrnd))               ; this%watfc_col            (:,:) = nan
     allocate(this%porosity_col          (begc:endc,nlevgrnd))               ; this%porosity_col         (:,:) = spval
     allocate(this%eff_porosity_col      (begc:endc,nlevgrnd))               ; this%eff_porosity_col     (:,:) = spval
@@ -315,6 +329,13 @@ contains
     allocate(this%conc_o2_unsat_col             (begc:endc,1:nlevgrnd))     ; this%conc_o2_unsat_col            (:,:) = nan
     allocate(this%o2_decomp_depth_sat_col       (begc:endc,1:nlevgrnd))     ; this%o2_decomp_depth_sat_col      (:,:) = nan
     allocate(this%o2_decomp_depth_unsat_col     (begc:endc,1:nlevgrnd))     ; this%o2_decomp_depth_unsat_col    (:,:) = nan
+
+    ! cnstate_vars:
+    allocate(this%rf_decomp_cascade_col(begc:endc,1:nlevdecomp_full,1:ndecomp_cascade_transitions)); 
+    this%rf_decomp_cascade_col(:,:,:) = nan
+
+    allocate(this%pathfrac_decomp_cascade_col(begc:endc,1:nlevdecomp_full,1:ndecomp_cascade_transitions));     
+    this%pathfrac_decomp_cascade_col(:,:,:) = nan
 
     ! carbonstate_vars:
     allocate(this%decomp_cpools_vr_col  (begc:endc,1:nlevdecomp_full,1:ndecomp_pools));  this%decomp_cpools_vr_col(:,:,:)= ival
@@ -355,6 +376,11 @@ contains
     allocate(this%sminn_to_denit_decomp_cascade_vr_col (begc:endc,1:nlevdecomp_full,1:ndecomp_cascade_transitions )); this%sminn_to_denit_decomp_cascade_vr_col (:,:,:) = ival
 
     allocate(this%decomp_cascade_hr_vr_col          (begc:endc,1:nlevdecomp_full,1:ndecomp_cascade_transitions)); this%decomp_cascade_hr_vr_col         (:,:,:) = ival
+
+    allocate(this%t_scalar_col                      (begc:endc,1:nlevdecomp_full)); this%t_scalar_col (:,:)=spval
+    allocate(this%w_scalar_col                      (begc:endc,1:nlevdecomp_full)); this%w_scalar_col (:,:)=spval
+    allocate(this%o_scalar_col                      (begc:endc,1:nlevdecomp_full)); this%o_scalar_col (:,:)=spval
+
 
     ! mineralization / immobilization / uptake fluxes
     allocate(this%gross_nmin_vr_col         (begc:endc,1:nlevdecomp_full))  ; this%gross_nmin_vr_col            (:,:) = ival

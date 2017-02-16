@@ -822,8 +822,8 @@ contains
                     !! STEP-2: (2) run pflotran
                     !! STEP-2: (3) update clm_bgc_data from pflotran
                     ! -------------------------------------------------------------------------
-                    call clm_pf_run(clm_bgc_data,bounds_clump,                  &
-                           filter(nc)%num_soilc, filter(nc)%soilc)
+                    call clm_pf_run(clm_bgc_data,bounds_clump, filter, nc)                
+!                            filter(nc)%num_soilc, filter(nc)%soilc)
 
                     !! STEP-3: update CLM from clm_bgc_data
                     call update_bgc_data_pf2clm(clm_bgc_data,bounds_clump,      &
