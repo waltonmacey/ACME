@@ -220,7 +220,8 @@ ifeq ($(strip $(USE_PETSC)), TRUE)
   endif
 
   # Get the "PETSC_LIB" list an env var
-  include $(PETSC_PATH)/conf/variables
+  # include $(PETSC_PATH)/conf/variables
+  include $(PETSC_PATH)/lib/petsc/conf/variables 
 endif
 
 # Set Trilinos info if it is being used

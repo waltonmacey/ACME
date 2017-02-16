@@ -73,6 +73,7 @@ module clm_pflotran_interfaceMod
 
   ! PFLOTRAN thc module switchs for coupling with CLM45-CN
   use clm_varctl          , only : use_pflotran, pf_tmode, pf_hmode, pf_cmode
+  use clm_varctl          , only : pf_clmnstep0
 !   use clm_varctl          , only : pf_surfaceflow, pf_frzmode
 !   use clm_varctl          , only : initth_pf2clm
 
@@ -93,7 +94,7 @@ module clm_pflotran_interfaceMod
 #ifdef CLM_PFLOTRAN
   use clm_pflotran_interface_data
   use pflotran_clm_main_module
-!   use pflotran_clm_setmapping_module
+  use pflotran_clm_setmapping_module
 #endif
 
   ! !PUBLIC TYPES:
@@ -521,9 +522,10 @@ contains
 
     !------------------------------------------------------------------------
     !!wgs:beg---------------------------------------------
-    lon0 = 0.
-    lat0 = 0.
-    nv = 4   !! ldomain%nv missing in ACME
+    !! wgs: ACME2: add lon0/lat0 to ldomain
+    lon0 = ldomain%lon0
+    lat0 = ldomain%lat0
+    write(*,*)">>>DEBUG |  lon0/lat0/nv =", lon0, lat0, ldomain%nv
     !!wgs:end---------------------------------------------
     ! (0) determines Total grids/columns to be mapped between CLM and PFLOTRAN
 
@@ -691,7 +693,7 @@ contains
     endif
 
 
-!     pf_clmnstep0 = get_nstep()
+    pf_clmnstep0 = get_nstep()
 
     !----------------------------------------------------------------------------------------
     ! (1) Initialize PETSc vector for data transfer between CLM and PFLOTRAN
@@ -823,10 +825,9 @@ contains
 #else
     ! if given vertices,
     ! then have enough information to configure out spatial connections of CLM grids
-    ! ldomain%nv missing in ACME
+    ! ldomain%nv missing in ACME1
     
-!     if (ldomain%nv == 4) then
-    if(nv == 4) then  !!wgs: ldomain%nv missing in ACME
+    if (ldomain%nv == 4) then
 
       if(.not.associated(clm_pf_idata%dxclm_global)) &
       allocate(clm_pf_idata%dxclm_global(1:clm_pf_idata%nxclm_mapped))
@@ -1119,10 +1120,10 @@ contains
 
     ! Currently always set soil hydraulic/BGC properties from CLM to PF
 !     call get_clm_soil_properties(clm_bgc_data, bounds, filters)
-    !! wgs:end-----------------------------------------------------------
-
+    
     ! Get top surface area of 3-D pflotran subsurface domain
-    call pflotranModelGetTopFaceArea(pflotran_m)
+!     call pflotranModelGetTopFaceArea(pflotran_m)
+    !! wgs:end-----------------------------------------------------------
 
     ! Initialize PFLOTRAN states
     call pflotranModelStepperRunInit(pflotran_m)
@@ -1150,9 +1151,9 @@ contains
 
 !    use clm_pflotran_interface_data
 !     use PFLOTRAN_Constants_module
-
+!     use pflotran_clm_setmapping_module
     use clm_time_manager  , only : get_step_size, get_nstep, nsstep, nestep,       &
-                                   is_first_step, is_first_restart_step
+                                   is_first_step, is_first_restart_step, calc_nestep
 
     use clm_varctl        , only : pf_tmode, pf_hmode, pf_cmode, initth_pf2clm, &
                                    pf_frzmode  !!, pf_clmnstep0
@@ -1186,7 +1187,7 @@ contains
 
   !-----------------------------------------------------------------------
 
-    nstep = get_nstep() - nsstep
+    nstep = get_nstep() - pf_clmnstep0 !!nsstep
     dtime = get_step_size()
 
     if (is_first_step() .or. is_first_restart_step()) then
@@ -1198,17 +1199,24 @@ contains
 
     ! (0)
     if (isinitpf) then
-       total_clmstep = nestep - nsstep
+      call calc_nestep()  !! nestep
+       total_clmstep = nestep - pf_clmnstep0!!nestep - nsstep
        ispfprint = .true.               ! turn-on or shut-off PF's *.h5 output
+       write(*,'(A40,I10)')">>>DEBUG | Initial Time Step"
+       write(*,'(A40,10I10)')">>>DEBUG | nstep/nsstep/nestep/pf_clmnstep0/total_clmstep=",nstep,nsstep,nestep,pf_clmnstep0,total_clmstep
+       write(*,*)'>>>DEBUG | initth_pf2clm = ',initth_pf2clm
        call pflotranModelUpdateFinalWaypoint(pflotran_m, total_clmstep*dtime, dtime, ispfprint)
 
        !! wgs:beg------------------------------------------------
-       !! wgs: move from 'init'
+       !! wgs: move from 'interface_init'
        ! force CLM soil domain into PFLOTRAN subsurface grids
        call get_clm_soil_dimension(clm_bgc_data, bounds)
 
        ! Currently always set soil hydraulic/BGC properties from CLM to PF
        call get_clm_soil_properties(clm_bgc_data, bounds, filters)
+
+       ! Get top surface area of 3-D pflotran subsurface domain
+       call pflotranModelGetTopFaceArea(pflotran_m)
        !! wgs:end------------------------------------------------
 
        ! always initializing soil 'TH' states from CLM to pflotran
@@ -1424,7 +1432,6 @@ contains
 
     PetscErrorCode :: ierr
 
-    integer :: nv  !!wgs: ldomain%nv missing in ACME
 
     ! for calling functions in 'geodesic.for'
     double precision a, f, dummy1, dummy2
@@ -1432,15 +1439,13 @@ contains
     a = 6378137.0d0           ! major-axis length of Earth Ellipsoid in metres in WGS-84
     f = 1.d0/298.257223563d0  ! flatening of Earth Ellipsoid in WGS-84
     
-    nv = 4 !!wgs: ldomain%nv missing in ACME
-
     associate( &
          ! Assign local pointers to derived subtypes components (gridcell-level)
          latc       =>  ldomain%latc   , & !  [real(r8) (:)]
          lonc       =>  ldomain%lonc   , & !  [real(r8) (:)]
-         !! latv/lonv missing in ACME
-!          latv       =>  ldomain%latv   , & !  [real(r8) (:,:)]
-!          lonv       =>  ldomain%lonv   , & !  [real(r8) (:,:)]
+         !! latv/lonv missing in ACME1
+         latv       =>  ldomain%latv   , & !  [real(r8) (:,:)]
+         lonv       =>  ldomain%lonv   , & !  [real(r8) (:,:)]
 
          lelev      =>  ldomain%topo   , & !  [real(r8) (:)]
          larea      =>  ldomain%area   , & !  [real(r8) (:)]
@@ -1483,15 +1488,12 @@ contains
       gcount = g - bounds%begg                               ! 0-based
       ! re-calculating 2-D grid area if vertices are known from input file
       ! NOTE: this will over-write the grid area read-in from either 'ldomain' file or 'surfdata' file
-!       if (ldomain%nv==4 .or. ldomain%nv==3) then
-      if(nv==4 .or. nv==3) then  !!wgs: ldomain%nv missing in ACME
-!          if (ldomain%nv==4) then
-         if (nv == 4) then !!wgs: ldomain%nv missing in ACME
+      if (ldomain%nv==4 .or. ldomain%nv==3) then
+         if (ldomain%nv==4) then
            lats = latv(g,1:4)
            lons = lonv(g,1:4)
            call area(a, f, lats, lons, 4, dummy1, dummy2)
-!          else if (ldomain%nv==3) then
-         else if (nv==3) then   !!wgs: ldomain%nv missing in ACME
+         else if (ldomain%nv==3) then
            lats(1:3) = latv(g,1:3)
            lons(1:3) = lonv(g,1:3)
            call area(a, f, lats(1:3), lons(1:3), 3, dummy1, dummy2)
@@ -1513,7 +1515,7 @@ contains
             p2 = 0._r8
             n1 = 0
             n2 = 0
-            do v = 1, nv  !!wgs: ldomain%nv missing in ACME
+            do v = 1, ldomain%nv  !!wgs: ldomain%nv missing in ACME1
                if (lonv(g,v)<lonc(g)) then
                   p1 = p1 + lonv(g,v)
                   n1 = n1 + 1
@@ -1530,7 +1532,7 @@ contains
             p2 = 0._r8
             n1 = 0
             n2 = 0
-            do v = 1, nv !!wgs: ldomain%nv missing in ACME
+            do v = 1, ldomain%nv !!wgs: ldomain%nv missing in ACME1
                if (latv(g,v)<latc(g)) then
                   p1 = p1 + latv(g,v)
                   n1 = n1 + 1
@@ -1611,8 +1613,8 @@ contains
 
                ! after knowing 'toparea', we may get a pseudo 'dx' and 'dy' so that PF will not crash
                ! (note: PF needs these information otherwise throw-out error message, even with 'vertical_only' option)
-!                if (ldomain%nv==4) then
-               if (nv == 4) then   !!wgs: ldomain%nv missing in ACME
+
+               if (ldomain%nv == 4) then   !!wgs: ldomain%nv missing in ACME1
                   ! having 4 vertices
                   lats = latv(g,1:4)
                   lons = lonv(g,1:4)
@@ -1663,6 +1665,19 @@ contains
 
       endif
     enddo
+
+write(*,'(A,50(1h-))')">>>DEBUG | get_clm_soil_dimension"
+write(*,'(A40,10E14.6)')">>>DEBUG | cellid=",(cellid_clm_loc(1:10))
+write(*,'(A40,10E14.6)')">>>DEBUG | zisoil=",(zisoil_clm_loc(1:10))
+write(*,'(A40,10E14.6)')">>>DEBUG | dxsoil=",(dxsoil_clm_loc(1:10))
+write(*,'(A40,10E14.6)')">>>DEBUG | dysoil=",(dysoil_clm_loc(1:10))
+write(*,'(A40,10E14.6)')">>>DEBUG | dzsoil=",(dzsoil_clm_loc(1:10))
+write(*,'(A40,10E14.6)')">>>DEBUG | toparea=",(toparea_clm_loc(1:10))
+write(*,'(A40,10E14.6)')">>>DEBUG | xsoil=",(xsoil_clm_loc(1:10))
+write(*,'(A40,10E14.6)')">>>DEBUG | ysoil=",(ysoil_clm_loc(1:10))
+write(*,'(A40,10E14.6)')">>>DEBUG | zsoil=",(zsoil_clm_loc(1:10))
+
+
 
     call VecRestoreArrayF90(clm_pf_idata%cellid_clmp,  cellid_clm_loc,  ierr)
     CHKERRQ(ierr)
@@ -1765,48 +1780,54 @@ contains
 
     associate( &
          ! Assign local pointer to derived subtypes components (column-level)
-         ltype      =>  lun%itype      , & !  [integer (:)]  landunit type index
+         ltype                    =>  lun%itype                               , & !  [integer (:)]  landunit type index
          ! Assign local pointer to derived subtypes components (column-level)
-         clandunit  =>  col%landunit   , & !  [integer (:)]  landunit index of column
-         cgridcell  =>  col%gridcell   , & !  [integer (:)]  gridcell index of column
-         cwtgcell   =>  col%wtgcell    , & !  [real(r8) (:)]  weight (relative to gridcell
+         clandunit                =>  col%landunit                            , & !  [integer (:)]  landunit index of column
+         cgridcell                =>  col%gridcell                            , & !  [integer (:)]  gridcell index of column
+         cwtgcell                 =>  col%wtgcell                             , & !  [real(r8) (:)]  weight (relative to gridcell
 
-         z          =>  clm_bgc_data%z          , & !  [real(r8) (:,:)]  layer depth (m)
-         dz         =>  clm_bgc_data%dz         , & !  [real(r8) (:,:)]  layer thickness depth (m)
+         z                        =>  clm_bgc_data%z                          , & !  [real(r8) (:,:)]  layer depth (m)
+         dz                       =>  clm_bgc_data%dz                         , & !  [real(r8) (:,:)]  layer thickness depth (m)
 !          zi         =>  clm_bgc_data%zi         , & !  [real(r8) (:,:)]  interface level below a "z" level (m)
          !
-         bd         =>  clm_bgc_data%bd_col         , & !
-         bsw        =>  clm_bgc_data%bsw_col        , & !  [real(r8) (:,:)]  Clapp and Hornberger "b" (nlevgrnd)
-         hksat      =>  clm_bgc_data%hksat_col      , & !  [real(r8) (:,:)]  hydraulic conductivity at saturation (mm H2O /s) (nlevgrnd)
-         sucsat     =>  clm_bgc_data%sucsat_col     , & !  [real(r8) (:,:)]  minimum soil suction (mm) (nlevgrnd)
-         watsat     =>  clm_bgc_data%watsat_col     , & !  [real(r8) (:,:)]  volumetric soil water at saturation (porosity) (nlevgrnd)
-         watfc      =>  clm_bgc_data%watfc_col      , & !  [real(r8) (:,:)]  volumetric soil water at saturation (porosity) (nlevgrnd)
+         bd                       =>  clm_bgc_data%bd_col                     , & !
+         bsw                      =>  clm_bgc_data%bsw_col                    , & !  [real(r8) (:,:)]  Clapp and Hornberger "b" (nlevgrnd)
+         hksat                    =>  clm_bgc_data%hksat_col                  , & !  [real(r8) (:,:)]  hydraulic conductivity at saturation (mm H2O /s) (nlevgrnd)
+         sucsat                   =>  clm_bgc_data%sucsat_col                 , & !  [real(r8) (:,:)]  minimum soil suction (mm) (nlevgrnd)
+         watsat                   =>  clm_bgc_data%watsat_col                 , & !  [real(r8) (:,:)]  volumetric soil water at saturation (porosity) (nlevgrnd)
+         watfc                    =>  clm_bgc_data%watfc_col                  , & !  [real(r8) (:,:)]  volumetric soil water at saturation (porosity) (nlevgrnd)
+         
          rf_decomp_cascade        => clm_bgc_data%rf_decomp_cascade_col       , &
-         pathfrac_decomp_cascade  => clm_bgc_data%pathfrac_decomp_cascade_col   &
+         pathfrac_decomp_cascade  => clm_bgc_data%pathfrac_decomp_cascade_col , &
+         initial_cn_ratio         => clm_bgc_data%initial_cn_ratio            , &
+         kd_decomp_pools          => clm_bgc_data%decomp_k_pools_col            &
          )
 
 !-------------------------------------------------------------------------------------
     if(pflotran_m%option%ntrandof > 0) then
 
       ! the following assumes 'nclumps' in current process greater than 0 (at least 1)
-      if (use_century_decomp) then
-        call decomp_rate_constants_bgc(bounds, filters(1)%num_soilc, filters(1)%soilc)  !!wgs: mismatch variables
-!         subroutine decomp_rate_constants_bgc(bounds, num_soilc, filter_soilc, &
-!        canopystate_vars, soilstate_vars, temperature_vars, ch4_vars, carbonflux_vars)
-      else 
-        call decomp_rate_constants_cn(bounds, filters(1)%num_soilc, filters(1)%soilc)   !!wgs: mismatch variables
-!         subroutine decomp_rate_constants_cn(bounds, &
-!         num_soilc, filter_soilc, &
-!         canopystate_vars, soilstate_vars, temperature_vars, ch4_vars, carbonflux_vars, cnstate_vars)
-      end if
+      !! wgs:beg---------------------------------------------------------------------------
+      !! wgs: unnecessary in ACME, decomp_rate_constants have been calculated before pflotran-run
+!       if (use_century_decomp) then
+!         call decomp_rate_constants_bgc(bounds, filters(1)%num_soilc, filters(1)%soilc)  !!wgs: mismatch variables
+! !         subroutine decomp_rate_constants_bgc(bounds, num_soilc, filter_soilc, &
+! !        canopystate_vars, soilstate_vars, temperature_vars, ch4_vars, carbonflux_vars)
+!       else 
+!         call decomp_rate_constants_cn(bounds, filters(1)%num_soilc, filters(1)%soilc)   !!wgs: mismatch variables
+! !         subroutine decomp_rate_constants_cn(bounds, &
+! !         num_soilc, filter_soilc, &
+! !         canopystate_vars, soilstate_vars, temperature_vars, ch4_vars, carbonflux_vars, cnstate_vars)
+!       end if
+      !! wgs:beg---------------------------------------------------------------------------
 
       CN_ratio_mass_to_mol = clm_pf_idata%N_molecular_weight/clm_pf_idata%C_molecular_weight
       clm_pf_idata%decomp_element_ratios(:,1) = 1.0_r8
-      clm_pf_idata%decomp_element_ratios(:,2) = 1.0_r8/decomp_cascade_con%initial_cn_ratio(1:ndecomp_pools) &
+      clm_pf_idata%decomp_element_ratios(:,2) = 1.0_r8/initial_cn_ratio(1:ndecomp_pools) &
                                                 /CN_ratio_mass_to_mol                       ! ratio in moles
 
       ! note: the following 'kd' already corrected by ad-factors for each pool
-      clm_pf_idata%ck_decomp_c = decomp_cascade_con%kd_decomp_pools(1:ndecomp_pools)
+      clm_pf_idata%ck_decomp_c = kd_decomp_pools(1:ndecomp_pools)
 
       ! find the first active SOIL Column to pick up the decomposition constants
       ! NOTE: this only is good for CLM-CN reaction-network;
@@ -1949,13 +1970,15 @@ contains
 
     enddo ! do c = bounds%begc, bounds%endc
 
-!write(*,'(A40,10E14.6)')">>>DEBUG | hksat_x=",(hksat_x_clm_loc(1:10))
-!write(*,'(A40,10E14.6)')">>>DEBUG | hksat_y=",(hksat_y_clm_loc(1:10))
-!write(*,'(A40,10E14.6)')">>>DEBUG | hksat_z=",(hksat_z_clm_loc(1:10))
-!write(*,'(A40,10E14.6)')">>>DEBUG | sucsat=",(sucsat_clm_loc(1:10))
-!write(*,'(A40,10E14.6)')">>>DEBUG | watsat=",(watsat_clm_loc(1:10))
-!write(*,'(A40,10E14.6)')">>>DEBUG | watfc=",(watfc_clm_loc(1:10))
-!write(*,'(A40,10E14.6)')">>>DEBUG | bulkdensity=",(bulkdensity_dry_clm_loc(1:10))
+write(*,'(A,50(1h-))')">>>DEBUG | get_clm_soil_properties"
+write(*,'(A40,10E14.6)')">>>DEBUG | hksat_x=",(hksat_x_clm_loc(1:10))
+write(*,'(A40,10E14.6)')">>>DEBUG | hksat_y=",(hksat_y_clm_loc(1:10))
+write(*,'(A40,10E14.6)')">>>DEBUG | hksat_z=",(hksat_z_clm_loc(1:10))
+write(*,'(A40,10E14.6)')">>>DEBUG | sucsat=",(sucsat_clm_loc(1:10))
+write(*,'(A40,10E14.6)')">>>DEBUG | watsat=",(watsat_clm_loc(1:10))
+write(*,'(A40,10E14.6)')">>>DEBUG | bsw=",(bsw_clm_loc(1:10))
+write(*,'(A40,10E14.6)')">>>DEBUG | watfc=",(watfc_clm_loc(1:10))
+write(*,'(A40,10E14.6)')">>>DEBUG | bulkdensity=",(bulkdensity_dry_clm_loc(1:10))
 
     call VecRestoreArrayF90(clm_pf_idata%hksat_x_clmp, hksat_x_clm_loc, ierr)
     CHKERRQ(ierr)
@@ -2179,6 +2202,20 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
       enddo  !!do j = 1, clm_pf_idata%nzclm_mapped
     enddo !!do fc = 1,filters(ifilter)%num_soilc
 
+!-----------------------------------------------------------------------------
+write(*,'(A,50(1h-))')">>>DEBUG | get_clm_soil_th"
+write(*,'(A30,12E14.6)')">>>DEBUG | soilpress=", soilpress_clmp_loc(1:10)
+write(*,'(A30,12E14.6)')">>>DEBUG | gsoilpsi[Pa]=", soilpsi_clmp_loc(1:10)
+write(*,'(A30,12E14.6)')">>>DEBUG | soillsat=", soillsat_clmp_loc(1:10)
+write(*,'(A30,12E14.6)')">>>DEBUG | soilisat=", soilisat_clmp_loc(1:10)
+write(*,'(A30,12E14.6)')">>>DEBUG | soilt[oC]=", soilt_clmp_loc(1:10)
+write(*,'(A30,12E14.6)')">>>DEBUG | soilvwc=", soilvwc_clmp_loc(1:10)
+write(*,'(A30,12E14.6)')">>>DEBUG | t_scalar=", t_scalar_clmp_loc(1:10)
+write(*,'(A30,12E14.6)')">>>DEBUG | w_scalar=", w_scalar_clmp_loc(1:10)
+write(*,'(A30,12E14.6)')">>>DEBUG | o_scalar=", o_scalar_clmp_loc(1:10)
+
+!-----------------------------------------------------------------------------
+
     call VecRestoreArrayF90(clm_pf_idata%press_clmp, soilpress_clmp_loc, ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%soilpsi_clmp, soilpsi_clmp_loc, ierr)
@@ -2200,11 +2237,6 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
 
    end associate
 
-!-----------------------------------------------------------------------------
-!write(*,'(A30,12E14.6)')">>>DEBUG | soillsat=", soillsat_clmp_loc(1:10)
-!write(*,'(A30,12E14.6)')">>>DEBUG | gsoilpsi[Pa]=", soilpsi_clmp_loc(1:10)
-!write(*,'(A30,12E14.6)')">>>DEBUG | soilt[oC]=", soilt_clmp_loc(1:10)
-!-----------------------------------------------------------------------------
 
   end subroutine get_clm_soil_th
 
@@ -2303,6 +2335,9 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
 
            end do
         end do
+write(*,'(A,50(1h-))')">>>DEBUG | get_clm_iceadj_porosity"
+write(*,'(A30,12E14.6)')">>>DEBUG | adjporosity=", adjporosity_clmp_loc(1:10)
+write(*,'(A30,12E14.6)')">>>DEBUG | soilisat=", soilisat_clmp_loc(1:10)
 
         call VecRestoreArrayF90(clm_pf_idata%effporosity_clmp,  adjporosity_clmp_loc,  ierr)
         CHKERRQ(ierr)
@@ -2479,10 +2514,10 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
 
 
 !-----------------------------------------------------------------------------
-!write(*,'(A,50(1h-))')">>>DEBUG | get_clm_bgc_conc,lev=1 for C & N"
-!write(*,'(12A14)')"lit1","lit2","lit3","cwd","som1","som2","som3","som4","no3","nh4","nh4sorb"
-!write(*,'(12E14.6)')decomp_cpools_vr(1,1,1:8)
-!write(*,'(12E14.6)')decomp_npools_vr(1,1,1:8),smin_no3_vr(1,1),smin_nh4_vr(1,1),smin_nh4sorb_vr(1,1)
+write(*,'(A,50(1h-))')">>>DEBUG | get_clm_bgc_conc,lev=1 for C & N"
+write(*,'(12A14)')"lit1","lit2","lit3","cwd","som1","som2","som3","som4","no3","nh4","nh4sorb"
+write(*,'(12E14.6)')decomp_cpools_vr(1,1,1:8)
+write(*,'(12E14.6)')decomp_npools_vr(1,1,1:8),smin_no3_vr(1,1),smin_nh4_vr(1,1),smin_nh4sorb_vr(1,1)
 !-----------------------------------------------------------------------------
 
   end associate
@@ -2555,10 +2590,10 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
     !---------------------------------------------------------------------------
     !
     associate ( &
-      decomp_cpools_vr=> clm_bgc_data%decomp_cpools_vr_col     , &      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-      decomp_npools_vr=> clm_bgc_data%decomp_npools_vr_col     , &      ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
-      smin_no3_vr     => clm_bgc_data%smin_no3_vr_col          , &      ! (gN/m3) vertically-resolved soil mineral NO3
-      smin_nh4_vr     => clm_bgc_data%smin_nh4_vr_col          , &      ! (gN/m3) vertically-resolved soil mineral NH4
+      decomp_cpools_vr                  => clm_bgc_data%decomp_cpools_vr_col            , &      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+      decomp_npools_vr                  => clm_bgc_data%decomp_npools_vr_col            , &      ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+      smin_no3_vr                       => clm_bgc_data%smin_no3_vr_col                 , &      ! (gN/m3) vertically-resolved soil mineral NO3
+      smin_nh4_vr                       => clm_bgc_data%smin_nh4_vr_col                 , &      ! (gN/m3) vertically-resolved soil mineral NH4
 !       smin_nh4sorb_vr => clm_bgc_data%smin_nh4sorb_vr_col      , &       ! (gN/m3) vertically-resolved soil mineral NH4 absorbed
       ! plant litering and removal + SOM/LIT vertical transport
       col_net_to_decomp_cpools_vr       => clm_bgc_data%externalc_to_decomp_cpools_col  , &
@@ -2744,7 +2779,17 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
 
     enddo ! do fc=1,numsoic
 
-! #ifdef FLEXIBLE_POOLS
+!-----------------------------------------------------------------------------
+write(*,'(A,50(1h-))')">>>DEBUG | get_clm_bgc_rate,lev=1 for C & N"
+write(*,*)">>>clm_pf_idata%floating_cn_ratio=",clm_pf_idata%floating_cn_ratio
+write(*,'(12A14)')"lit1","lit2","lit3","cwd","som1","som2","som3","som4","no3","nh4","plantNdemand"
+write(*,'(12E14.6)')col_net_to_decomp_cpools_vr(1,1,1:ndecomp_pools)
+write(*,'(12E14.6)')col_net_to_decomp_npools_vr(1,1,1:ndecomp_pools),&
+               (rate_smin_no3_clm_loc(1))*clm_pf_idata%N_molecular_weight, &
+               (rate_smin_nh4_clm_loc(1))*clm_pf_idata%N_molecular_weight, &
+               (rate_plantndemand_clm_loc(1))*clm_pf_idata%N_molecular_weight
+!-----------------------------------------------------------------------------
+
     call VecRestoreArrayF90(clm_pf_idata%rate_decomp_c_clmp, rate_decomp_c_clm_loc, ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%rate_decomp_n_clmp, rate_decomp_n_clm_loc, ierr)
@@ -2757,16 +2802,6 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%rate_smin_nh4_clmp, rate_smin_nh4_clm_loc, ierr)
     CHKERRQ(ierr)
-
-    !-----------------------------------------------------------------------------
-!write(*,'(A,50(1h-))')">>>DEBUG | get_clm_bgc_rate,lev=1 for C & N"
-!write(*,'(12A14)')"lit1","lit2","lit3","cwd","som1","som2","som3","som4","no3","nh4","plantNdemand"
-!write(*,'(12E14.6)')col_net_to_decomp_cpools_vr(1,1,1:ndecomp_pools)
-!write(*,'(12E14.6)')col_net_to_decomp_npools_vr(1,1,1:ndecomp_pools),&
-!                (rate_smin_no3_clm_loc(1))*clm_pf_idata%N_molecular_weight, &
-!                (rate_smin_nh4_clm_loc(1))*clm_pf_idata%N_molecular_weight, &
-!                (rate_plantndemand_clm_loc(1))*clm_pf_idata%N_molecular_weight
-!-----------------------------------------------------------------------------
 
     end associate
   end subroutine get_clm_bgc_rate
@@ -3107,9 +3142,9 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
 
      enddo ! do fc = 1, filters(ifilter)%num_soilc
 !-----------------------------------------------------------------------------
-!write(*,'(A30,12E14.6)')"DEBUG | pf UPDATE no3=",smin_no3_vr(1,1:nlevdecomp)
-!write(*,'(A30,12E14.6)')"DEBUG | pf UPDATE nh4=",smin_nh4_vr(1,1:nlevdecomp)
-!write(*,'(A30,12E14.6)')"DEBUG | pf UPDATE nh4sorb=",smin_nh4sorb_vr(1,1:nlevdecomp)
+write(*,'(A30,12E14.6)')"DEBUG | pf UPDATE no3=",smin_no3_vr(1,1:nlevdecomp)
+write(*,'(A30,12E14.6)')"DEBUG | pf UPDATE nh4=",smin_nh4_vr(1,1:nlevdecomp)
+write(*,'(A30,12E14.6)')"DEBUG | pf UPDATE nh4sorb=",smin_nh4sorb_vr(1,1:nlevdecomp)
 !-----------------------------------------------------------------------------
 
 
@@ -3363,7 +3398,7 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
               lair_barrier(c) = j
           endif
        enddo
-    enddo
+    
 
     ! gas exchanges btw atm. and non-barrierred soil layer
     ! only operating on soil column one by one, which then back to CLM-CN
@@ -3464,8 +3499,8 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
               f_ngas_denit_vr(c,j)       = 0._r8
 
           endif
-       enddo
-     enddo ! do c = begc, endc
+       enddo !! do j = 1, nlevdecomp
+     enddo !! do fc = 1,filters(ifilter)%num_soilc
 
      call VecRestoreArrayReadF90(clm_pf_idata%gco2_vr_clms, gco2_vr_clms_loc, ierr)
      CHKERRQ(ierr)

@@ -673,7 +673,8 @@ contains
           t_scalar       => carbonflux_vars%t_scalar_col  , & ! Output: [real(r8) (:,:)   ]  soil temperature scalar for decomp                     
           w_scalar       => carbonflux_vars%w_scalar_col  , & ! Output: [real(r8) (:,:)   ]  soil water scalar for decomp                           
           o_scalar       => carbonflux_vars%o_scalar_col  , & ! Output: [real(r8) (:,:)   ]  fraction by which decomposition is limited by anoxia   
-          decomp_k       => carbonflux_vars%decomp_k_col    & ! Output: [real(r8) (:,:,:) ]  rate constant for decomposition (1./sec)             
+          decomp_k       => carbonflux_vars%decomp_k_col  , & ! Output: [real(r8) (:,:,:) ]  rate constant for decomposition (1./sec) 
+          decomp_k_pools => carbonflux_vars%decomp_k_pools_col  & !(1: ndecomp_pools)              
           )
 
        mino2lim = CNParamsShareInst%mino2lim
@@ -744,6 +745,17 @@ contains
        i_soil2 = 6
        i_soil3 = 7
        i_soil4 = 8
+
+       !! pflotran:beg---saving k for passing to pflotran bgc decomposition sandboxes
+       decomp_k_pools(i_litr1) = k_l1 / dt
+       decomp_k_pools(i_litr2) = k_l2 / dt
+       decomp_k_pools(i_litr3) = k_l3 / dt
+       decomp_k_pools(i_cwd)   = k_frag / dt
+       decomp_k_pools(i_soil1) = k_s1 / dt
+       decomp_k_pools(i_soil2) = k_s2 / dt
+       decomp_k_pools(i_soil3) = k_s3 / dt
+       decomp_k_pools(i_soil4) = k_s4 / dt
+       !! pflotran:end
 
 
        !--- time dependent coefficients-----!

@@ -13,6 +13,14 @@
                        queue submission.
      depend_pattern:
     -->
+<!-- wgs:beg -->
+  <batch_system MACH="mymac" type="none">
+      <walltimes>
+        <walltime default="true">48:00:00</walltime>
+      </walltimes>
+  </batch_system>
+<!-- wgs:end -->
+
   <batch_system type="template" version="x.y">
     <batch_query args=""></batch_query>
     <batch_submit></batch_submit>

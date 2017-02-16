@@ -583,6 +583,7 @@ contains
       externalc_to_decomp_cpools_vr    => carbonflux_vars%externalc_to_decomp_cpools_col        , &
       externaln_to_decomp_npools_vr    => nitrogenflux_vars%externaln_to_decomp_npools_col      , &
       externalp_to_decomp_ppools_vr    => phosphorusflux_vars%externalp_to_decomp_ppools_col    , &
+      decomp_k_pools                   => carbonflux_vars%decomp_k_pools_col                    , & 
       ! inorg. nitrogen source
       ndep_to_sminn                    => nitrogenflux_vars%ndep_to_sminn_col                   , &
       nfix_to_sminn                    => nitrogenflux_vars%nfix_to_sminn_col                   , &
@@ -616,6 +617,8 @@ contains
 !
     r_nh4_no3_dep(:)  = 1.0_r8      ! temporarily assuming half of N dep is in NH4 and another half in NO3
     r_nh4_no3_fert(:) = 1.0_r8      ! temporarily assiming half of N fertilization is in NH4 and another half in NO3
+
+    clm_bgc_data%decomp_k_pools_col = decomp_k_pools 
 !
     do fc = 1,num_soilc
         c = filter_soilc(fc)

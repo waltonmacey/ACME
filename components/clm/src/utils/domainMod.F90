@@ -38,6 +38,15 @@ module domainMod
                                     ! (glcmask is just a guess at the appropriate mask, known at initialization - in contrast to icemask, which is the true mask obtained from glc)
      character*16     :: set        ! flag to check if domain is set
      logical          :: decomped   ! decomposed locally or global copy
+
+     !! pflotran:beg-----------------------------------------------------
+     integer          :: nv           ! number of vertices
+     real(r8),pointer :: latv(:,:)    ! latitude of grid cell's vertices (deg)
+     real(r8),pointer :: lonv(:,:)    ! longitude of grid cell's vertices (deg)
+     real(r8)         :: lon0         ! the origin lon/lat (Most western/southern corner, if not globally covered grids; OR -180W(360E)/-90N)
+     real(r8)         :: lat0         ! the origin lon/lat (Most western/southern corner, if not globally covered grids; OR -180W(360E)/-90N)
+
+     !! pflotran:end-----------------------------------------------------
   end type domain_type
 
   type(domain_type)    , public :: ldomain
@@ -139,6 +148,16 @@ contains
     domain%pftm     = -9999
     domain%glcmask  = 0  
 
+    !! pflotran:beg-----------------------------------------------------
+    !! nv, lonv, latv: read in 'surfrdMod.F90'
+    ! 'nv' is user-defined, so it must be initialized prior to call this subroutine
+    if (domain%nv > 0 .and. domain%nv /= huge(1) .and. domain%set == set) then
+       allocate(domain%lonv(nb:ne, 1:domain%nv))
+       allocate(domain%latv(nb:ne, 1:domain%nv))
+       domain%lonv     = nan
+       domain%latv     = nan
+    end if
+    !! pflotran:end-----------------------------------------------------
 end subroutine domain_init
 !------------------------------------------------------------------------------
 !BOP

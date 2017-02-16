@@ -54,6 +54,59 @@
 
 -->
 
+<!-- wgs-beg -->
+<machine MACH="mymac">
+  <!-- customize these fields as appropriate for your system (max tasks) and
+       desired layout (change '${HOME}/projects' to your
+       prefered location). -->
+  <DESC>userdefined Mac OS system and environmental settings</DESC>
+  <OS>Darwin</OS>
+  <COMPILERS>gnu</COMPILERS>
+  <MPILIBS>mpich,mpi-serial</MPILIBS>
+  <RUNDIR></RUNDIR>
+  <EXEROOT></EXEROOT>
+  <DIN_LOC_ROOT>/Users/wg4/projects/cesm/clm45inputdata0</DIN_LOC_ROOT>
+  <DIN_LOC_ROOT_CLMFORC>/Users/wg4/projects/cesm/clm45inputdata0/atm/datm7</DIN_LOC_ROOT_CLMFORC>
+  <DOUT_S_ROOT>/Users/f9y/PROJ_ACME/archives/$CASE</DOUT_S_ROOT>
+  <DOUT_L_MSROOT></DOUT_L_MSROOT>
+  <CESMSCRATCHROOT>/Users/f9y/PROJ_ACME/acme_simulations</CESMSCRATCHROOT>
+  <CCSM_BASELINE>/Users/f9y/PROJ_ACME/acme_simulations/baselines</CCSM_BASELINE>
+  <CCSM_CPRNC>$CIMEROOT/tools/cprnc/build/cprnc</CCSM_CPRNC>
+  <BATCHQUERY></BATCHQUERY>
+  <BATCHSUBMIT></BATCHSUBMIT>
+  <BATCHREDIRECT></BATCHREDIRECT>
+  <SUPPORTED_BY>Gangsheng Wang</SUPPORTED_BY>
+  <GMAKE_J>1</GMAKE_J>
+  <MAX_TASKS_PER_NODE>1</MAX_TASKS_PER_NODE>
+  <PES_PER_NODE>1</PES_PER_NODE>
+  <BATCH_SYSTEM>none</BATCH_SYSTEM>
+  <module_system type="none"></module_system>
+
+  <mpirun mpilib="mpich">
+    <executable>/usr/local/mpich-3.2-gcc54/bin/mpirun</executable>
+    <arguments><arg name="num_tasks"> -np {{ num_tasks }}</arg></arguments>
+  </mpirun>
+
+  <environment_variables>
+    <env name="PATH">/usr/local/bin/:$PATH</env>                      <!--This is for gmake -->
+    <env name="PATH">/Applications/CMake.app/Contents/bin/:$PATH</env>   <!--This is for Cmake, needed by PIO -->
+    <env name="GCC_ROOT"    compiler="gnu">/usr/local/gcc-5.4.0</env>
+    <env name="MPI_ROOT"    compiler="gnu">/usr/local/mpich-3.2-gcc54</env>
+    <env name="HDF5_ROOT"   compiler="gnu">/usr/local/hdf5-1.8.17-mpich32-gcc54</env>
+    <env name="NETCDF_ROOT" compiler="gnu">/usr/local/netcdf-4.4-mpich32-gcc54</env>
+    <env name="PETSC_PATH"   compiler="gnu">/usr/local/petsc-mpich32-gcc54</env>  
+    <env name="PETSC_LIB"   compiler="gnu">$PETSC_PATH/lib</env>
+    <env name="PETSC_ARCH"  compiler="gnu">arch-darwin-gcc54-debug</env> 
+    
+    <!-- <env name="USE_PETSC">FALSE</env> -->
+    <env name="PFLOTRAN_COUPLED_MODEL">none</env>
+    <env name="PFLOTRAN">FALSE</env>
+    <env name="COLUMN_MODE">FALSE</env>
+    <env name="EXTENDED_PFT">FALSE</env>
+  </environment_variables>
+</machine>
+<!-- wgs-end -->
+
 <machine MACH="edison">
   <DESC>NERSC XC30, os is CNL, 24 pes/node, batch system is SLURM</DESC>
   <NODENAME_REGEX>edison</NODENAME_REGEX>

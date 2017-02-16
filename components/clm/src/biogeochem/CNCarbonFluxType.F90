@@ -400,6 +400,7 @@ module CNCarbonFluxType
      real(r8), pointer :: externalc_to_decomp_delta_col             (:)     ! col (gC/m2) summarized net change of whole column C i/o to decomposing pool bwtn time-step
      real(r8), pointer :: f_co2_soil_vr_col                         (:,:)   ! total vertically-resolved soil-atm. CO2 exchange (gC/m3/s)
      real(r8), pointer :: f_co2_soil_col                            (:)     ! total soil-atm. CO2 exchange (gC/m2/s)
+     real(r8), pointer :: decomp_k_pools_col                        (:)     ! rate constant for each decomposition pool (1./sec)
     !------------------------------------------------------------------------
 
    contains
@@ -787,6 +788,7 @@ contains
      allocate(this%externalc_to_decomp_delta_col (begc:endc));                                   this%externalc_to_decomp_delta_col (:)     = spval
      allocate(this%f_co2_soil_vr_col             (begc:endc,1:nlevdecomp_full));                 this%f_co2_soil_vr_col             (:,:)   = nan
      allocate(this%f_co2_soil_col                (begc:endc))                  ;                 this%f_co2_soil_col                (:)     = nan
+     allocate(this%decomp_k_pools_col            (1:ndecomp_pools))                            ; this%decomp_k_pools_col            (:)     = spval 
      !------------------------------------------------------------------------
    end subroutine InitAllocate; 
 
@@ -3875,6 +3877,9 @@ contains
              this%externalc_to_decomp_cpools_col(:,:,k) = 0._r8
           end if
        end do
+
+
+
     end if
     !------------------------------------------------------------------------
 
