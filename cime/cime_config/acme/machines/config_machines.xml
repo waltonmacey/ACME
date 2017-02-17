@@ -1110,6 +1110,9 @@
          <MAX_TASKS_PER_NODE>16</MAX_TASKS_PER_NODE>
 	 <PES_PER_NODE>16</PES_PER_NODE>
 	 <BATCH_SYSTEM>slurm</BATCH_SYSTEM>
+         <mpirun mpilib="default">
+           <executable>srun</executable>
+         </mpirun>
 	 <module_system type="soft">
 	   <cmd_path lang="sh">use</cmd_path>
 	   <cmd_path lang="csh">use</cmd_path>
