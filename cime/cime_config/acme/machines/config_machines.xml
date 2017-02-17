@@ -1110,7 +1110,9 @@
          <MAX_TASKS_PER_NODE>16</MAX_TASKS_PER_NODE>
 	 <PES_PER_NODE>16</PES_PER_NODE>
 	 <BATCH_SYSTEM>slurm</BATCH_SYSTEM>
-	 <module_system type="dotkit">
+	 <module_system type="soft">
+	   <cmd_path lang="sh">use</cmd_path>
+	   <cmd_path lang="csh">use</cmd_path>
            <init_path lang="csh">/usr/global/tools/dotkit/init.csh</init_path>
            <init_path lang="sh">/usr/global/tools/dotkit/init.sh</init_path>
 <!--	   <modules compiler="pgi">
@@ -1119,9 +1121,9 @@
 	     <command>netcdf-pgi-4.1.3</command>
 	   </modules> -->
 	   <modules compiler="intel">
-	     <command>ic-14.0.211</command>
-	     <command>mvapich2-intel-2.1</command>
-	     <command>netcdf-intel-4.1.3</command>
+	     <command name="-q">ic-14.0.211</command>
+	     <command name="-q">mvapich2-intel-2.1</command>
+	     <command name="-q">netcdf-intel-4.1.3</command>
 	   </modules>
 	 </module_system>
 <!--	 <environment_variables compiler="pgi">
