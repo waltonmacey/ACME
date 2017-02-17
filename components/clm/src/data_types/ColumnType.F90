@@ -61,6 +61,18 @@ module ColumnType
      real(r8), pointer :: z_lake               (:,:) ! layer depth for lake (m)
      real(r8), pointer :: lakedepth            (:)   ! variable lake depth (m)                             
 
+     !DW variables from SoilorderconType.F90
+     real(r8), allocatable :: smax(:)
+     real(r8), allocatable :: ks_sorption(:)
+     real(r8), allocatable :: r_weather(:)
+     real(r8), allocatable :: r_adsorp(:)
+     real(r8), allocatable :: r_desorp(:)
+     real(r8), allocatable :: r_occlude(:)
+     real(r8), allocatable :: k_s1_biochem(:)
+     real(r8), allocatable :: k_s2_biochem(:)
+     real(r8), allocatable :: k_s3_biochem(:)
+     real(r8), allocatable :: k_s4_biochem(:)
+
    contains
 
      procedure, public :: Init => col_pp_init
@@ -77,8 +89,23 @@ contains
   subroutine col_pp_init(this, begc, endc)
     !
     ! !ARGUMENTS:
+    !class(column_physical_properties_type)  :: this
+   
+    !DW  Follow 5 lines from SoilorderConType.F90 !USES:
+    use clm_varpar, only : nsoilorder
+    use soilorder_varcon, only : smax
+    use soilorder_varcon, only : ks_sorption
+    use soilorder_varcon, only : r_weather,r_adsorp,r_desorp,r_occlude
+    use soilorder_varcon, only : k_s1_biochem,k_s2_biochem,k_s3_biochem,k_s4_biochem
+
+
+    ! !ARGUMENTS:
     class(column_physical_properties_type)  :: this
+
     integer, intent(in) :: begc,endc
+
+    !  !LOCAL VARIABLES
+    integer :: m
     !------------------------------------------------------------------------
 
     ! The following is set in initGridCellsMod
@@ -107,6 +134,36 @@ contains
     allocate(this%n_melt      (begc:endc))                     ; this%n_melt      (:)   = nan 
     allocate(this%topo_slope  (begc:endc))                     ; this%topo_slope  (:)   = nan
     allocate(this%topo_std    (begc:endc))                     ; this%topo_std    (:)   = nan
+
+
+    !DW  following section from SoilorderConType.F90
+    allocate(this%smax           (0:nsoilorder))        ; this%smax(:)        =nan
+    allocate(this%ks_sorption    (0:nsoilorder))        ; this%ks_sorption(:) =nan
+    allocate(this%r_weather      (0:nsoilorder))        ; this%r_weather(:)   =nan
+    allocate(this%r_adsorp       (0:nsoilorder))        ; this%r_adsorp(:)    =nan
+    allocate(this%r_desorp       (0:nsoilorder))        ; this%r_desorp(:)    =nan
+    allocate(this%r_occlude      (0:nsoilorder))        ; this%r_occlude(:)    =nan
+
+    allocate(this%k_s1_biochem      (0:nsoilorder))        ; this%k_s1_biochem(:)    =nan
+    allocate(this%k_s2_biochem      (0:nsoilorder))        ; this%k_s2_biochem(:)    =nan
+    allocate(this%k_s3_biochem      (0:nsoilorder))        ; this%k_s3_biochem(:)    =nan
+    allocate(this%k_s4_biochem      (0:nsoilorder))        ; this%k_s4_biochem(:)    =nan
+
+    do m = 0,nsoilorder
+
+       this%smax(m)         = smax(m)
+       this%ks_sorption(m)         = ks_sorption(m)
+       this%r_weather(m)         = r_weather(m)
+       this%r_adsorp(m)         = r_adsorp(m)
+       this%r_desorp(m)         = r_desorp(m)
+       this%r_occlude(m)         = r_occlude(m)
+       this%k_s1_biochem(m)         = k_s1_biochem(m)
+       this%k_s2_biochem(m)         = k_s2_biochem(m)
+       this%k_s3_biochem(m)         = k_s3_biochem(m)
+       this%k_s4_biochem(m)         = k_s4_biochem(m)
+
+    end do
+    !DW   above section from SoilorderConType.F90
 
   end subroutine col_pp_init
 
@@ -139,6 +196,18 @@ contains
     deallocate(this%n_melt     )
     deallocate(this%topo_slope )
     deallocate(this%topo_std   )
+
+    !DW Moved from SoilorderConType.F90
+    deallocate(this%smax)
+    deallocate(this%ks_sorption)
+    deallocate(this%r_weather)
+    deallocate(this%r_adsorp)
+    deallocate(this%r_desorp)
+    deallocate(this%r_occlude)
+    deallocate(this%k_s1_biochem)
+    deallocate(this%k_s2_biochem)
+    deallocate(this%k_s3_biochem)
+    deallocate(this%k_s4_biochem)
 
   end subroutine col_pp_clean
 

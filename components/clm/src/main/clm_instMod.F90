@@ -49,7 +49,8 @@ module clm_instMod
   use UrbanParamsType            , only : urbanparams_type   ! Constants
   use VegetationPropertiesType   , only : veg_vp             ! Ecophysical Constants
   ! use VegetationPropertiesType             , only : veg_vp         ! Constants
-  use SoilorderConType           , only : soilordercon         ! Constants
+  !DW moved to ColumnType
+  ! use SoilorderConType           , only : soilordercon         ! Constants
 
   use LandunitType               , only : lun_pp
   use ColumnType                 , only : col_pp
@@ -231,7 +232,7 @@ contains
     !use VegetationPropertiesType                    , only : veg_vpInit
     use VegetationPropertiesType          , only : veg_vp
     use EDEcophysConType                  , only : EDecophysconInit
-    use SoilorderConType                  , only : soilorderconInit
+    !use SoilorderConType                  , only : soilorderconInit
     use LakeCon                           , only : LakeConInit
     use initVerticalMod                   , only : initVertical
     ! !ARGUMENTS
@@ -293,8 +294,10 @@ contains
     end if
 
     ! Initialize soil order related constants
+    ! DW already initialized at col_pp within clm_inializeMod->initialize1()
+    ! DW call soilorderconInit()
 
-    call soilorderconInit()
+    ! call soilorderconInit()
 
     ! Initialize lake constants
 

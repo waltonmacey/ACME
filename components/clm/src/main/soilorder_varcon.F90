@@ -8,7 +8,8 @@ module soilorder_varcon
   ! !USES:
   use shr_kind_mod, only : r8 => shr_kind_r8
   use shr_log_mod , only : errMsg => shr_log_errMsg
-  use abortutils  , only : endrun
+  !DW  (replace with shr_sys_abort)  use abortutils  , only : endrun
+  use shr_sys_mod, only : shr_sys_abort 
   use clm_varpar  , only : nsoilorder
   use clm_varctl  , only : iulog, use_cndv, use_vertsoilc
   !
@@ -135,27 +136,27 @@ contains
     call ncd_inqdlen(ncid,dimid,nsoil)
 
     call ncd_io('soilordername',soilordername, 'read', ncid, readvar=readv,posNOTonfile=.true.)
-    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call shr_sys_abort(' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
     call ncd_io('r_weather',r_weather, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call shr_sys_abort(' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
     call ncd_io('r_adsorp',r_adsorp, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call shr_sys_abort(' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
     call ncd_io('r_desorp',r_desorp, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call shr_sys_abort(' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
     call ncd_io('r_occlude',r_occlude, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call shr_sys_abort(' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
     call ncd_io('k_s1_biochem',k_s1_biochem, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call shr_sys_abort(' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
     call ncd_io('k_s2_biochem',k_s2_biochem, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call shr_sys_abort(' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
     call ncd_io('k_s3_biochem',k_s3_biochem, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call shr_sys_abort(' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
     call ncd_io('k_s4_biochem',k_s4_biochem, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call shr_sys_abort(' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
     call ncd_io('smax',smax, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call shr_sys_abort(' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
     call ncd_io('ks_sorption',ks_sorption, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
+    if ( .not. readv ) call shr_sys_abort(' ERROR: error in reading in soil order parameter'//errMsg(__FILE__, __LINE__))
 
     call ncd_pio_closefile(ncid)
 
@@ -166,7 +167,7 @@ contains
        if ( trim(adjustl(soilordername(i))) /= trim(expected_soilnames(i)) )then
           write(iulog,*)'soilorder_conrd: soil order name is NOT what is expected, name = ', &
                         trim(soilordername(i)), ', expected name = ',trim(expected_soilnames(i))
-          call endrun( 'soilorder_conrd: bad name for soil order onfsoilordercon dataset' )
+          call shr_sys_abort( 'ERROR: soilorder_conrd: bad name for soil order onfsoilordercon dataset' )
        end if
 
     enddo
