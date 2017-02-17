@@ -432,13 +432,14 @@ contains
 
 !!-------------------------------------------------------------------------------------------------
 !! 'decomp_rate_constants' is moved to CNDecompAlloc
-!       if (use_century_decomp) then
-!          call decomp_rate_constants_bgc(bounds, num_soilc, filter_soilc, &
-!               canopystate_vars, soilstate_vars, temperature_vars, ch4_vars, carbonflux_vars)
-!       else
-!          call decomp_rate_constants_cn(bounds, num_soilc, filter_soilc, &
-!               canopystate_vars, soilstate_vars, temperature_vars, ch4_vars, carbonflux_vars)
-!       end if
+       if (use_century_decomp) then
+          call decomp_rate_constants_bgc(bounds, num_soilc, filter_soilc, &
+               canopystate_vars, soilstate_vars, temperature_vars, ch4_vars, carbonflux_vars)
+       else
+          call decomp_rate_constants_cn(bounds, num_soilc, filter_soilc, &
+               canopystate_vars, soilstate_vars, temperature_vars, ch4_vars, carbonflux_vars, cnstate_vars)
+       end if
+        write(*,'(A40,10E14.6)')">>>DEBUG1.5 | decomp_k_pools=",carbonflux_vars%decomp_k_pools_col
 
 !!-------------------------------------------------------------------------------------------------
 !! 'decomp_vertprofiles' (calc nfixation_prof) is moved from CNDecompAlloc:

@@ -1971,6 +1971,10 @@ write(*,'(A40,10E14.6)')">>>DEBUG | zsoil=",(zsoil_clm_loc(1:10))
     enddo ! do c = bounds%begc, bounds%endc
 
 write(*,'(A,50(1h-))')">>>DEBUG | get_clm_soil_properties"
+write(*,'(A40,10E14.6)')">>>DEBUG | decomp_k_pools=",kd_decomp_pools
+write(*,'(A40,10E14.6)')">>>DEBUG | pathfrac_decomp_cascade=",pathfrac_decomp_cascade(1,1,:)
+write(*,'(A40,10E14.6)')">>>DEBUG | rf_decomp_cascade=",rf_decomp_cascade(1,1,:)
+
 write(*,'(A40,10E14.6)')">>>DEBUG | hksat_x=",(hksat_x_clm_loc(1:10))
 write(*,'(A40,10E14.6)')">>>DEBUG | hksat_y=",(hksat_y_clm_loc(1:10))
 write(*,'(A40,10E14.6)')">>>DEBUG | hksat_z=",(hksat_z_clm_loc(1:10))
@@ -1979,6 +1983,7 @@ write(*,'(A40,10E14.6)')">>>DEBUG | watsat=",(watsat_clm_loc(1:10))
 write(*,'(A40,10E14.6)')">>>DEBUG | bsw=",(bsw_clm_loc(1:10))
 write(*,'(A40,10E14.6)')">>>DEBUG | watfc=",(watfc_clm_loc(1:10))
 write(*,'(A40,10E14.6)')">>>DEBUG | bulkdensity=",(bulkdensity_dry_clm_loc(1:10))
+
 
     call VecRestoreArrayF90(clm_pf_idata%hksat_x_clmp, hksat_x_clm_loc, ierr)
     CHKERRQ(ierr)

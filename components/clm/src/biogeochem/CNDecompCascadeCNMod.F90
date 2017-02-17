@@ -755,6 +755,7 @@ contains
        decomp_k_pools(i_soil2) = k_s2 / dt
        decomp_k_pools(i_soil3) = k_s3 / dt
        decomp_k_pools(i_soil4) = k_s4 / dt
+       write(*,'(A40,10E14.6)')">>>DEBUG1 | decomp_k_pools=",decomp_k_pools
        !! pflotran:end
 
 
