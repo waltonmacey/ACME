@@ -128,7 +128,7 @@
     <walltime_format>%H:%M:%S</walltime_format>
      <directives>
        <directive>-V</directive>
-       <directive>-q {{ queue }}</directive>
+       <directive>-q {{ job_queue }}</directive>
        <directive>-N {{ job_id }}</directive>
        <directive>-l nodes={{ num_nodes }}:ppn={{ tasks_per_node }}</directive>
        <directive>-l walltime={{ job_wallclock_time }}</directive>
