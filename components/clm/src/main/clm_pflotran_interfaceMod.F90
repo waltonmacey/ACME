@@ -10,7 +10,7 @@ module clm_pflotran_interfaceMod
 !          2.Lawrence Berkley National Laboratory
 !
 ! date: 2012 - 2015
-! modified (based on clm_bgc_interface): 8/28/2015, 2/22017, wgs
+! modified (based on clm_bgc_interface): 8/28/2015, 2/2/2017, wgs
 !----------------------------------------------------------------------------------------------
 
 #include "shr_assert.h"
@@ -407,13 +407,12 @@ contains
     use decompMod       , only : get_proc_global, get_proc_clumps, ldecomp
 !     use spmdMod         , only : mpicom, masterproc
     use domainMod       , only : ldomain, lon1d, lat1d  !!lon0,lat0
-!     use map_mod         , type(sMatrix)%nv_a
 
     use clm_time_manager, only : get_nstep !!nsstep, nestep
     use clm_varcon      , only : dzsoi, zisoi
     use clm_varpar      , only : nlevsoi, nlevgrnd, nlevdecomp
     use clm_varctl      , only : pf_hmode, pf_tmode, pf_cmode, pf_frzmode,  &
-                                 initth_pf2clm,                             &   !!pf_clmnstep0,                   
+                                 initth_pf2clm, pf_clmnstep0,               &
                                  pf_surfaceflow  !! = pflotran_surfaceflow
     use filterMod       , only : allocFilters
 
@@ -1166,10 +1165,6 @@ contains
     type(bounds_type) , intent(in)    :: bounds
     type(clumpfilter) , intent(inout) :: filters(:)     ! filters on current process
     integer           , intent(in)    :: ifilter                  ! which filter to be operate
-!     integer, intent(in) :: num_soilc                  ! number of soil columns in filter
-!     integer, intent(in) :: filter_soilc(:)            ! filter for soil columns
-!    integer, intent(in) :: num_soilp                  ! number of soil pfts in filter
-!    integer, intent(in) :: filter_soilp(:)            ! filter for soil pfts
 
     type(clm_bgc_interface_data_type), intent(inout) :: clm_bgc_data
 
@@ -1808,7 +1803,7 @@ write(*,'(A40,10E14.6)')">>>DEBUG | zsoil=",(zsoil_clm_loc(1:10))
 
       ! the following assumes 'nclumps' in current process greater than 0 (at least 1)
       !! wgs:beg---------------------------------------------------------------------------
-      !! wgs: unnecessary in ACME, decomp_rate_constants have been calculated before pflotran-run
+      !! wgs: unnecessary in ACME, decomp_rate_constants have been call in 'CNEcosystemDynNoLeaching1' before pflotran-run
 !       if (use_century_decomp) then
 !         call decomp_rate_constants_bgc(bounds, filters(1)%num_soilc, filters(1)%soilc)  !!wgs: mismatch variables
 ! !         subroutine decomp_rate_constants_bgc(bounds, num_soilc, filter_soilc, &
