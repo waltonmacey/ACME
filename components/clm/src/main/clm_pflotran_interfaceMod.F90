@@ -1966,6 +1966,8 @@ write(*,'(A40,10E14.6)')">>>DEBUG | zsoil=",(zsoil_clm_loc(1:10))
     enddo ! do c = bounds%begc, bounds%endc
 
 write(*,'(A,50(1h-))')">>>DEBUG | get_clm_soil_properties"
+write(*,'(A30,12E14.6)')">>>DEBUG | initial_cn_ratio = ",initial_cn_ratio(1:ndecomp_pools)
+write(*,'(A30,12E14.6)')">>>DEBUG | pf_initial_cn_ratio = ",clm_pf_idata%decomp_element_ratios(:,2)
 write(*,'(A40,10E14.6)')">>>DEBUG | decomp_k_pools=",kd_decomp_pools
 write(*,'(A40,10E14.6)')">>>DEBUG | pathfrac_decomp_cascade=",pathfrac_decomp_cascade(1,1,:)
 write(*,'(A40,10E14.6)')">>>DEBUG | rf_decomp_cascade=",rf_decomp_cascade(1,1,:)
@@ -2518,6 +2520,7 @@ write(*,'(A,50(1h-))')">>>DEBUG | get_clm_bgc_conc,lev=1 for C & N"
 write(*,'(12A14)')"lit1","lit2","lit3","cwd","som1","som2","som3","som4","no3","nh4","nh4sorb"
 write(*,'(12E14.6)')decomp_cpools_vr(1,1,1:8)
 write(*,'(12E14.6)')decomp_npools_vr(1,1,1:8),smin_no3_vr(1,1),smin_nh4_vr(1,1),smin_nh4sorb_vr(1,1)
+
 !-----------------------------------------------------------------------------
 
   end associate
@@ -2626,7 +2629,7 @@ write(*,'(12E14.6)')decomp_npools_vr(1,1,1:8),smin_no3_vr(1,1),smin_nh4_vr(1,1),
 
     dtime = get_step_size()
 
-! #ifdef FLEXIBLE_POOLS
+
     call VecGetArrayF90(clm_pf_idata%rate_decomp_c_clmp, rate_decomp_c_clm_loc, ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%rate_decomp_n_clmp, rate_decomp_n_clm_loc, ierr)
@@ -2781,7 +2784,7 @@ write(*,'(12E14.6)')decomp_npools_vr(1,1,1:8),smin_no3_vr(1,1),smin_nh4_vr(1,1),
 
 !-----------------------------------------------------------------------------
 write(*,'(A,50(1h-))')">>>DEBUG | get_clm_bgc_rate,lev=1 for C & N"
-write(*,*)">>>clm_pf_idata%floating_cn_ratio=",clm_pf_idata%floating_cn_ratio
+! write(*,*)">>>clm_pf_idata%floating_cn_ratio=",clm_pf_idata%floating_cn_ratio
 write(*,'(12A14)')"lit1","lit2","lit3","cwd","som1","som2","som3","som4","no3","nh4","plantNdemand"
 write(*,'(12E14.6)')col_net_to_decomp_cpools_vr(1,1,1:ndecomp_pools)
 write(*,'(12E14.6)')col_net_to_decomp_npools_vr(1,1,1:ndecomp_pools),&

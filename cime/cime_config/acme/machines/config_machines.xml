@@ -94,15 +94,14 @@
     <env name="MPI_ROOT"    compiler="gnu">/usr/local/mpich-3.2-gcc54</env>
     <env name="HDF5_ROOT"   compiler="gnu">/usr/local/hdf5-1.8.17-mpich32-gcc54</env>
     <env name="NETCDF_ROOT" compiler="gnu">/usr/local/netcdf-4.4-mpich32-gcc54</env>
-    <env name="PETSC_PATH"   compiler="gnu">/usr/local/petsc-mpich32-gcc54</env>  
+   <!--  <env name="PETSC_PATH"   compiler="gnu">/usr/local/petsc-mpich32-gcc54</env>  
     <env name="PETSC_LIB"   compiler="gnu">$PETSC_PATH/lib</env>
-    <env name="PETSC_ARCH"  compiler="gnu">arch-darwin-gcc54-debug</env> 
-    
-    <!-- <env name="USE_PETSC">FALSE</env> -->
-    <env name="PFLOTRAN_COUPLED_MODEL">none</env>
+    <env name="PETSC_ARCH"  compiler="gnu">arch-darwin-gcc54-debug</env>  -->
+  
+  <!--   <env name="PFLOTRAN_COUPLED_MODEL">none</env>
     <env name="PFLOTRAN">FALSE</env>
     <env name="COLUMN_MODE">FALSE</env>
-    <env name="EXTENDED_PFT">FALSE</env>
+    <env name="EXTENDED_PFT">FALSE</env> -->
   </environment_variables>
 </machine>
 <!-- wgs-end -->
