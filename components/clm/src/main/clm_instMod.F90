@@ -53,7 +53,7 @@ module clm_instMod
 
   use LandunitType               , only : lun_pp
   use ColumnType                 , only : col_pp
-  use PatchType                  , only : pft_pp
+  use VegetationType                  , only : veg_pp
   use EDEcophysConType           , only : EDecophyscon       ! ED Constants
 
   use EDBioType                  , only : EDbio_type         ! ED type used to interact with CLM variables

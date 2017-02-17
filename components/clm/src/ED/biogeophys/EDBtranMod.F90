@@ -41,7 +41,7 @@ contains
     use EnergyFluxType     ,  only : energyflux_type
     use GridcellType       ,  only : grc_pp
     use ColumnType         ,  only : col_pp
-    use PatchType          ,  only : pft_pp
+    use VegetationType          , only : veg_pp
 
     implicit none
 
@@ -136,13 +136,13 @@ contains
    
       if(ED_patch(p)==1)then
 
-         g = pft_pp%gridcell(p)
+         g = veg_pp%gridcell(p)
          currentPatch => gridCellEdState(g)%spnt%oldest_patch   
          do while(p /= currentPatch%clm_pno)
             currentPatch => currentPatch%younger
          enddo
 
-         c = pft_pp%column(p)
+         c = veg_pp%column(p)
          do FT = 1,numpft_ed
             currentPatch%btran_ft(FT) = 0.0_r8
             do j = 1,nlevgrnd

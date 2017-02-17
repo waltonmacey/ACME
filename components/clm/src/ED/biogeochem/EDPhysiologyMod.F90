@@ -126,7 +126,7 @@ contains
   ! ============================================================================
   subroutine root_fraction( currentPatch )
 
-    use PatchType   , only : pft_pp
+    use VegetationType   , only : veg_pp
     use ColumnType  , only : col_pp
     use clm_varpar  , only : nlevsoi, nlevgrnd
     use pftvarcon   , only : roota_par, rootb_par      
@@ -139,7 +139,7 @@ contains
     integer, pointer :: pcolumn(:)
     real(r8), pointer :: zi(:,:)
 
-    pcolumn  => pft_pp%column  
+    pcolumn  => veg_pp%column  
     zi       => col_pp%zi      
 
     p = currentPatch%clm_pno

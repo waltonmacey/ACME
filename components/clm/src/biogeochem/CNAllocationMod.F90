@@ -28,7 +28,7 @@ module CNAllocationMod
   use VegetationPropertiesType      , only : veg_vp
   use LandunitType        , only : lun_pp                
   use ColumnType          , only : col_pp                
-  use PatchType           , only : pft_pp
+  use VegetationType           , only : veg_pp
   ! bgc interface & pflotran module switches
   use clm_varctl          , only: use_bgc_interface,use_clm_bgc, use_pflotran, pf_cmode
   use clm_varctl          , only : nu_com
@@ -412,7 +412,7 @@ contains
     !-----------------------------------------------------------------------
 
     associate(                                                                                   &
-         ivt                          => pft_pp%itype                                             , & ! Input:  [integer  (:) ]  pft vegetation type                                
+         ivt                          => veg_pp%itype                                             , & ! Input:  [integer  (:) ]  pft vegetation type                                
          
          woody                        => veg_vp%woody                                      , & ! Input:  [real(r8) (:)   ]  binary flag for woody lifeform (1=woody, 0=not woody)
          froot_leaf                   => veg_vp%froot_leaf                                 , & ! Input:  [real(r8) (:)   ]  allocation parameter: new fine root C per new leaf C (gC/gC)
@@ -1164,7 +1164,7 @@ contains
     !-----------------------------------------------------------------------
 
     associate(                                                                                 &
-         ivt                          => pft_pp%itype                                             , & ! Input:  [integer  (:) ]  pft vegetation type                                
+         ivt                          => veg_pp%itype                                             , & ! Input:  [integer  (:) ]  pft vegetation type                                
          !! new variables due to partition of CNAllocation to 3 subroutines: BEG
          plant_ndemand_col            => nitrogenflux_vars%plant_ndemand_col                 , & ! Output:  [real(r8) (:,:) ]
          plant_pdemand_col            => phosphorusflux_vars%plant_pdemand_col               , & ! Output:  [real(r8) (:,:) ]
@@ -1406,14 +1406,14 @@ contains
                   e_km_n = 0._r8
                   decompmicc(c,j) = 0.0_r8
                   do p = col_pp%pfti(c), col_pp%pftf(c)
-                     if (pft_pp%active(p).and. (pft_pp%itype(p) .ne. noveg)) then
-                        e_km_n = e_km_n + e_plant_scalar*frootc(p)*froot_prof(p,j)*pft_pp%wtcol(p)/km_plant_nh4(ivt(p))
-                        decompmicc(c,j) = decompmicc(c,j) + decompmicc_patch_vr(ivt(p),j)*pft_pp%wtcol(p)
+                     if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
+                        e_km_n = e_km_n + e_plant_scalar*frootc(p)*froot_prof(p,j)*veg_pp%wtcol(p)/km_plant_nh4(ivt(p))
+                        decompmicc(c,j) = decompmicc(c,j) + decompmicc_patch_vr(ivt(p),j)*veg_pp%wtcol(p)
                      end if
                   end do
                   e_km_n = e_km_n + e_decomp_scalar*decompmicc(c,j)*(1._r8/km_decomp_nh4 )
                   do p = col_pp%pfti(c), col_pp%pftf(c)
-                     if (pft_pp%active(p).and. (pft_pp%itype(p) .ne. noveg)) then
+                     if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
                         compet_plant_n(p) = solution_nh4conc(c,j) / ( km_plant_nh4(ivt(p)) * (1 + &
                              solution_nh4conc(c,j)/km_plant_nh4(ivt(p)) + e_km_n))
                      else
@@ -1426,7 +1426,7 @@ contains
                   ! nu_com with ECA or MIC: root nutrient uptake profile is based on fine root density profile
                   col_plant_ndemand_vr(c,j) = 0._r8
                   do p = col_pp%pfti(c), col_pp%pftf(c)
-                     if (pft_pp%active(p).and. (pft_pp%itype(p) .ne. noveg)) then
+                     if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
                         ! scaling factor based on  CN ratio flexibility
                         cn_scalar(p) = min(max(((leafc(p) + leafc_storage(p) + leafc_xfer(p))/max(leafn(p) + leafn_storage(p) + leafn_xfer(p), 1e-20_r8) - leafcn(ivt(p))*(1- cn_stoich_var)) / &
                             (leafcn(ivt(p)) - leafcn(ivt(p))*(1- cn_stoich_var)),0.0_r8),1.0_r8)
@@ -1435,7 +1435,7 @@ contains
                              froot_prof(p,j) * cn_scalar(p) * t_scalar(c,j) *  compet_plant_n(p) 
 
                         plant_ndemand_vr_patch(p,j) = max(plant_ndemand_vr_patch(p,j), 0.0_r8)
-                        col_plant_ndemand_vr(c,j) = col_plant_ndemand_vr(c,j) + plant_ndemand_vr_patch(p,j)*pft_pp%wtcol(p)
+                        col_plant_ndemand_vr(c,j) = col_plant_ndemand_vr(c,j) + plant_ndemand_vr_patch(p,j)*veg_pp%wtcol(p)
                      else
                         cn_scalar(p) = 1.0_r8
                         plant_ndemand_vr_patch(p,j) = 0.0_r8
@@ -1576,15 +1576,15 @@ contains
                   e_km_p = 0._r8
                   decompmicc(c,j) = 0.0_r8
                   do p = col_pp%pfti(c), col_pp%pftf(c)
-                     if (pft_pp%active(p).and. (pft_pp%itype(p) .ne. noveg)) then
-                        e_km_p = e_km_p + e_plant_scalar*frootc(p)*froot_prof(p,j)*pft_pp%wtcol(p)/km_plant_p(ivt(p))
-                        decompmicc(c,j) = decompmicc(c,j) + decompmicc_patch_vr(ivt(p),j)*pft_pp%wtcol(p)
+                     if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
+                        e_km_p = e_km_p + e_plant_scalar*frootc(p)*froot_prof(p,j)*veg_pp%wtcol(p)/km_plant_p(ivt(p))
+                        decompmicc(c,j) = decompmicc(c,j) + decompmicc_patch_vr(ivt(p),j)*veg_pp%wtcol(p)
                      end if
                   end do
                   e_km_p = e_km_p + e_decomp_scalar*decompmicc(c,j)/km_decomp_p + &
                        max(0._r8,vmax_minsurf_p_vr(isoilorder(c),j)-labilep_vr(c,j))/km_minsurf_p_vr(isoilorder(c),j)
                   do p = col_pp%pfti(c), col_pp%pftf(c)
-                     if (pft_pp%active(p).and. (pft_pp%itype(p) .ne. noveg)) then
+                     if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
                         compet_plant_p(p) = solution_pconc(c,j) / ( km_plant_p(ivt(p)) * (1 + &
                              solution_pconc(c,j)/km_plant_p(ivt(p)) + e_km_p))
                      else
@@ -1599,7 +1599,7 @@ contains
                   ! nu_com with ECA or MIC: root nutrient uptake profile is based on fine root density profile
                   col_plant_pdemand_vr(c,j) = 0._r8
                   do p = col_pp%pfti(c), col_pp%pftf(c)
-                     if (pft_pp%active(p).and. (pft_pp%itype(p) .ne. noveg)) then
+                     if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
                         ! scaling factor based on  CP ratio flexibility
                         cp_scalar(p) = min(max(((leafc(p) + leafc_storage(p) + leafc_xfer(p))/max(leafp(p) + leafp_storage(p) + leafp_xfer(p), 1e-20_r8) - leafcp(ivt(p))*(1- cp_stoich_var)) / &
                             (leafcp(ivt(p)) - leafcp(ivt(p))*(1- cp_stoich_var)),0.0_r8),1.0_r8)
@@ -1607,7 +1607,7 @@ contains
                         plant_pdemand_vr_patch(p,j) = vmax_plant_p(ivt(p)) * frootc(p) * froot_prof(p,j) * &
                              cp_scalar(p) * t_scalar(c,j) * compet_plant_p(p)
                         plant_pdemand_vr_patch(p,j) = max(plant_pdemand_vr_patch(p,j),0.0_r8)
-                        col_plant_pdemand_vr(c,j) = col_plant_pdemand_vr(c,j) + plant_pdemand_vr_patch(p,j)*pft_pp%wtcol(p)
+                        col_plant_pdemand_vr(c,j) = col_plant_pdemand_vr(c,j) + plant_pdemand_vr_patch(p,j)*veg_pp%wtcol(p)
                      else
                         cp_scalar(p) = 1.0
                         plant_pdemand_vr_patch(p,j) = 0.0_r8
@@ -1805,7 +1805,7 @@ contains
                      fpg_p_vr(c,j) = 1.0_r8
                   end if
                   do p = col_pp%pfti(c), col_pp%pftf(c)
-                     if (pft_pp%active(p).and. (pft_pp%itype(p) .ne. noveg)) then
+                     if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
                         sminn_to_plant_patch(p) = sminn_to_plant_patch(p) + plant_ndemand_vr_patch(p,j) * &
                              fpg_vr(c,j) *dzsoi_decomp(j)
                         sminp_to_plant_patch(p) = sminp_to_plant_patch(p) + plant_pdemand_vr_patch(p,j) * &
@@ -1958,7 +1958,7 @@ contains
                c = filter_soilc(fc)
                do p = col_pp%pfti(c), col_pp%pftf(c)
                   pnup_pfrootc(p) =  0.0_r8
-                  if (pft_pp%active(p).and. (pft_pp%itype(p) .ne. noveg)) then
+                  if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
                         do j = 1, nlevdecomp
                            ! derivative of linear function
                            pnup_pfrootc(p) =  pnup_pfrootc(p) + plant_ndemand_vr_patch(p,j) * fpg_vr(c,j) / max(frootc(p), 1e-20_r8)
@@ -2094,15 +2094,15 @@ contains
                   e_km_no3 = 0._r8
                   decompmicc(c,j) = 0.0_r8
                   do p = col_pp%pfti(c), col_pp%pftf(c)
-                     if (pft_pp%active(p).and. (pft_pp%itype(p) .ne. noveg)) then
-                        e_km_nh4 = e_km_nh4 + e_plant_scalar*frootc(p)*froot_prof(p,j)*pft_pp%wtcol(p)/km_plant_nh4(ivt(p))
-                        e_km_no3 = e_km_no3 + e_plant_scalar*frootc(p)*froot_prof(p,j)*pft_pp%wtcol(p)/km_plant_no3(ivt(p))
+                     if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
+                        e_km_nh4 = e_km_nh4 + e_plant_scalar*frootc(p)*froot_prof(p,j)*veg_pp%wtcol(p)/km_plant_nh4(ivt(p))
+                        e_km_no3 = e_km_no3 + e_plant_scalar*frootc(p)*froot_prof(p,j)*veg_pp%wtcol(p)/km_plant_no3(ivt(p))
                      end if
                   end do
                   e_km_nh4 = e_km_nh4 + e_decomp_scalar*decompmicc(c,j)*(1._r8/km_decomp_nh4 + 1._r8/km_nit)
                   e_km_no3 = e_km_no3 + e_decomp_scalar*decompmicc(c,j)*(1._r8/km_decomp_no3 + 1._r8/km_den)
                   do p = col_pp%pfti(c), col_pp%pftf(c)
-                     if (pft_pp%active(p).and. (pft_pp%itype(p) .ne. noveg)) then
+                     if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
                         compet_plant_nh4(p) = solution_nh4conc(c,j) / ( km_plant_nh4(ivt(p)) * (1 + &
                              solution_nh4conc(c,j)/km_plant_nh4(ivt(p)) + e_km_nh4))
                         compet_plant_no3(p) = solution_no3conc(c,j) / ( km_plant_no3(ivt(p)) * (1 + &
@@ -2122,7 +2122,7 @@ contains
                   col_plant_nh4demand_vr(c,j) = 0._r8
                   col_plant_no3demand_vr(c,j) = 0._r8
                   do p = col_pp%pfti(c), col_pp%pftf(c)
-                     if (pft_pp%active(p).and. (pft_pp%itype(p) .ne. noveg)) then
+                     if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
                         ! scaling factor based on  CN ratio flexibility
                         cn_scalar(p) = min(max(((leafc(p) + leafc_storage(p) + leafc_xfer(p))/max(leafn(p) + leafn_storage(p) + leafn_xfer(p), 1e-20_r8) - leafcn(ivt(p))*(1- cn_stoich_var)) / &
                             (leafcn(ivt(p)) - leafcn(ivt(p))*(1- cn_stoich_var)),0.0_r8),1.0_r8)
@@ -2133,8 +2133,8 @@ contains
                              cn_scalar(p) * t_scalar(c,j) * compet_plant_no3(p)
                         plant_nh4demand_vr_patch(p,j) = max(plant_nh4demand_vr_patch(p,j),0.0_r8)
                         plant_no3demand_vr_patch(p,j) = max(plant_no3demand_vr_patch(p,j),0.0_r8)
-                        col_plant_nh4demand_vr(c,j) = col_plant_nh4demand_vr(c,j) + plant_nh4demand_vr_patch(p,j)*pft_pp%wtcol(p) 
-                        col_plant_no3demand_vr(c,j) = col_plant_no3demand_vr(c,j) +  plant_no3demand_vr_patch(p,j)*pft_pp%wtcol(p) 
+                        col_plant_nh4demand_vr(c,j) = col_plant_nh4demand_vr(c,j) + plant_nh4demand_vr_patch(p,j)*veg_pp%wtcol(p) 
+                        col_plant_no3demand_vr(c,j) = col_plant_no3demand_vr(c,j) +  plant_no3demand_vr_patch(p,j)*veg_pp%wtcol(p) 
                      else
                         cn_scalar(p) = 1.0_r8
                         plant_nh4demand_vr_patch(p,j) = 0.0_r8
@@ -2391,15 +2391,15 @@ contains
                   e_km_p = 0._r8
                   decompmicc(c,j) = 0.0_r8
                   do p = col_pp%pfti(c), col_pp%pftf(c)
-                     if (pft_pp%active(p).and. (pft_pp%itype(p) .ne. noveg)) then
-                        e_km_p = e_km_p + e_plant_scalar*frootc(p)*froot_prof(p,j)*pft_pp%wtcol(p)/km_plant_p(ivt(p))
-                        decompmicc(c,j) = decompmicc(c,j) + decompmicc_patch_vr(ivt(p),j)*pft_pp%wtcol(p)
+                     if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
+                        e_km_p = e_km_p + e_plant_scalar*frootc(p)*froot_prof(p,j)*veg_pp%wtcol(p)/km_plant_p(ivt(p))
+                        decompmicc(c,j) = decompmicc(c,j) + decompmicc_patch_vr(ivt(p),j)*veg_pp%wtcol(p)
                      end if
                   end do
                   e_km_p = e_km_p + e_decomp_scalar*decompmicc(c,j)/km_decomp_p + &
                        max(0._r8,vmax_minsurf_p_vr(isoilorder(c),j)-labilep_vr(c,j))/km_minsurf_p_vr(isoilorder(c),j)
                   do p = col_pp%pfti(c), col_pp%pftf(c)
-                     if (pft_pp%active(p).and. (pft_pp%itype(p) .ne. noveg)) then
+                     if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
                         compet_plant_p(p) = solution_pconc(c,j) / ( km_plant_p(ivt(p)) * (1 + &
                              solution_pconc(c,j)/km_plant_p(ivt(p)) + e_km_p))
                      else
@@ -2414,7 +2414,7 @@ contains
                   ! nu_com with ECA or MIC: root nutrient uptake profile is based on fine root density profile
                   col_plant_pdemand_vr(c,j) = 0._r8
                   do p = col_pp%pfti(c), col_pp%pftf(c)
-                     if (pft_pp%active(p).and. (pft_pp%itype(p) .ne. noveg)) then
+                     if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
                         ! scaling factor based on  CP ratio flexibility
                         cp_scalar(p) = min(max(((leafc(p) + leafc_storage(p) + leafc_xfer(p))/max(leafp(p) + leafp_storage(p) + leafp_xfer(p), 1e-20_r8) - leafcp(ivt(p))*(1- cp_stoich_var)) / &
                             (leafcp(ivt(p)) - leafcp(ivt(p))*(1- cp_stoich_var)),0.0_r8),1.0_r8)
@@ -2422,7 +2422,7 @@ contains
                         plant_pdemand_vr_patch(p,j) = vmax_plant_p(ivt(p)) * frootc(p) * froot_prof(p,j) * &
                              cp_scalar(p) * t_scalar(c,j) * compet_plant_p(p)
                         plant_pdemand_vr_patch(p,j) = max(plant_pdemand_vr_patch(p,j),0.0_r8)
-                        col_plant_pdemand_vr(c,j) = col_plant_pdemand_vr(c,j) + plant_pdemand_vr_patch(p,j)*pft_pp%wtcol(p)
+                        col_plant_pdemand_vr(c,j) = col_plant_pdemand_vr(c,j) + plant_pdemand_vr_patch(p,j)*veg_pp%wtcol(p)
                      else
                         cp_scalar(p) = 1.0_r8
                         plant_pdemand_vr_patch(p,j) = 0.0_r8
@@ -2662,7 +2662,7 @@ contains
                      fpg_p_vr(c,j) = 1.0_r8
                   end if
                   do p = col_pp%pfti(c), col_pp%pftf(c)
-                     if (pft_pp%active(p).and. (pft_pp%itype(p) .ne. noveg)) then
+                     if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
                         smin_nh4_to_plant_patch(p) = smin_nh4_to_plant_patch(p) + plant_nh4demand_vr_patch(p,j) * fpg_nh4_vr(c,j) *dzsoi_decomp(j)
                         smin_no3_to_plant_patch(p) = smin_no3_to_plant_patch(p) + plant_no3demand_vr_patch(p,j) * fpg_no3_vr(c,j) *dzsoi_decomp(j)
                         sminp_to_plant_patch(p) = sminp_to_plant_patch(p) + plant_pdemand_vr_patch(p,j) * fpg_p_vr(c,j) *dzsoi_decomp(j)
@@ -2878,7 +2878,7 @@ contains
                c = filter_soilc(fc)
                do p = col_pp%pfti(c), col_pp%pftf(c)
                   pnup_pfrootc(p) =  0.0_r8
-                  if (pft_pp%active(p).and. (pft_pp%itype(p) .ne. noveg)) then
+                  if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
                         do j = 1, nlevdecomp
                            ! derivative of linear function
                            pnup_pfrootc(p) =  pnup_pfrootc(p) + plant_nh4demand_vr_patch(p,j) * fpg_nh4_vr(c,j)  / max(frootc(p),1e-20_r8)
@@ -2974,7 +2974,7 @@ contains
     !-----------------------------------------------------------------------
 
     associate(                                                                                 &
-         ivt                          => pft_pp%itype                                           , & ! Input:  [integer  (:) ]  pft vegetation type
+         ivt                          => veg_pp%itype                                           , & ! Input:  [integer  (:) ]  pft vegetation type
 !
          woody                        => veg_vp%woody                                    , & ! Input:  [real(r8) (:)   ]  binary flag for woody lifeform (1=woody, 0=not woody)
          froot_leaf                   => veg_vp%froot_leaf                               , & ! Input:  [real(r8) (:)   ]  allocation parameter: new fine root C per new leaf C (gC/gC)
@@ -3152,9 +3152,9 @@ contains
          do fc=1,num_soilc
             c = filter_soilc(fc)
             do p = col_pp%pfti(c), col_pp%pftf(c)
-               if (pft_pp%active(p) .and. (pft_pp%itype(p) .ne. noveg)) then
-                  plant_n_uptake_flux(c) = plant_n_uptake_flux(c) + plant_ndemand(p) * fpg(c)*pft_pp%wtcol(p)
-                  plant_p_uptake_flux(c) = plant_p_uptake_flux(c) + plant_pdemand(p) * fpg_p(c)*pft_pp%wtcol(p)
+               if (veg_pp%active(p) .and. (veg_pp%itype(p) .ne. noveg)) then
+                  plant_n_uptake_flux(c) = plant_n_uptake_flux(c) + plant_ndemand(p) * fpg(c)*veg_pp%wtcol(p)
+                  plant_p_uptake_flux(c) = plant_p_uptake_flux(c) + plant_pdemand(p) * fpg_p(c)*veg_pp%wtcol(p)
                end if
             end do
          end do
@@ -3162,9 +3162,9 @@ contains
          do fc=1,num_soilc
             c = filter_soilc(fc)
             do p = col_pp%pfti(c), col_pp%pftf(c)
-               if (pft_pp%active(p) .and. (pft_pp%itype(p) .ne. noveg)) then
-                  plant_n_uptake_flux(c) = plant_n_uptake_flux(c) + (smin_nh4_to_plant_patch(p)+smin_no3_to_plant_patch(p))*pft_pp%wtcol(p)
-                  plant_p_uptake_flux(c) = plant_p_uptake_flux(c) + sminp_to_plant_patch(p)*pft_pp%wtcol(p)
+               if (veg_pp%active(p) .and. (veg_pp%itype(p) .ne. noveg)) then
+                  plant_n_uptake_flux(c) = plant_n_uptake_flux(c) + (smin_nh4_to_plant_patch(p)+smin_no3_to_plant_patch(p))*veg_pp%wtcol(p)
+                  plant_p_uptake_flux(c) = plant_p_uptake_flux(c) + sminp_to_plant_patch(p)*veg_pp%wtcol(p)
                end if
             end do
          end do
@@ -3176,7 +3176,7 @@ contains
 
       do fp=1,num_soilp
          p = filter_soilp(fp)
-         c = pft_pp%column(p)
+         c = veg_pp%column(p)
 
          if ( nu_com .eq. 'RD') then
              ! set some local allocation variables
@@ -3233,8 +3233,8 @@ contains
              sminn_to_npool(p) = plant_ndemand(p) * fpg(c)
              sminp_to_ppool(p) = plant_pdemand(p) * fpg_p(c)
 
-             if (veg_vp%nstor(pft_pp%itype(p)) > 1e-6_r8) then 
-               rc = veg_vp%nstor(pft_pp%itype(p)) * max(annsum_npp(p) * n_allometry(p) / c_allometry(p), 0.01_r8)
+             if (veg_vp%nstor(veg_pp%itype(p)) > 1e-6_r8) then 
+               rc = veg_vp%nstor(veg_pp%itype(p)) * max(annsum_npp(p) * n_allometry(p) / c_allometry(p), 0.01_r8)
                r  = max(1._r8,rc/max(npool(p), 1e-9_r8))
                plant_nalloc(p) = (plant_ndemand(p) + retransn_to_npool(p)) / r
              else
@@ -4239,7 +4239,7 @@ contains
     integer :: p,fp                                            !indices
     
     associate(                                                                          &
-        ivt                          => pft_pp%itype                                     , & ! Input:  [integer  (:) ]  pft vegetation type                                
+        ivt                          => veg_pp%itype                                     , & ! Input:  [integer  (:) ]  pft vegetation type                                
         woody                        => veg_vp%woody                              , & ! Input:  [real(r8) (:)   ]  binary flag for woody lifeform (1=woody, 0=not woody)  
 
         leafc                        => carbonstate_vars%leafc_patch                  , &
@@ -4324,7 +4324,7 @@ contains
     ! loop over patches
     do fp=1,num_soilp
         p = filter_soilp(fp)
-        if (pft_pp%active(p) .and. (pft_pp%itype(p) .ne. noveg)) then
+        if (veg_pp%active(p) .and. (veg_pp%itype(p) .ne. noveg)) then
             actual_leafcn(p) = (leafc(p) + leafc_storage(p) + leafc_xfer(p)) / max((leafn(p) + leafn_storage(p) + leafn_xfer(p)),1e-20_r8)
             actual_frootcn(p) = (frootc(p) + frootc_storage(p) + frootc_xfer(p)) / max((frootn(p) + frootn_storage(p) + frootn_xfer(p)),1e-20_r8)
             actual_leafcp(p) = (leafc(p) + leafc_storage(p) + leafc_xfer(p)) / max((leafp(p) + leafp_storage(p) + leafp_xfer(p)),1e-20_r8)
