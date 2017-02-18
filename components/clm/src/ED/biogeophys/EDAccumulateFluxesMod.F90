@@ -12,7 +12,7 @@
   ! !USES:
   use EDtypesMod         , only : patch, cohort, gridCellEdState
   use PhotosynthesisType , only : photosyns_type
-  use PatchType          , only : pft
+  use VegetationType          , only : veg_pp
 
   implicit none
   private
@@ -48,7 +48,7 @@ contains
     
      fpsn(p) = psncanopy(p)
      if(ED_patch(p) == 1)then
-        g = pft%gridcell(p)
+        g = veg_pp%gridcell(p)
         currentPatch => gridCellEdState(g)%spnt%oldest_patch   
         do while(p /= currentPatch%clm_pno)
            currentPatch => currentPatch%younger

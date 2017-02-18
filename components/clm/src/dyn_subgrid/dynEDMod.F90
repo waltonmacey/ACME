@@ -5,8 +5,8 @@ module dynEDMod
   use shr_kind_mod   , only : r8 => shr_kind_r8
   use decompMod      , only : bounds_type
   use landunit_varcon, only : istsoil
-  use PatchType      , only : pft
-  use ColumnType     , only : col
+  use VegetationType      , only : veg_pp
+  use ColumnType     , only : col_pp
   use EDVecPatchType , only : EDpft
   !
   ! !PUBLIC MEMBER FUNCTIONS:
@@ -30,12 +30,12 @@ contains
     !------------------------------------------------------------------------
     
     do p = bounds%begp,bounds%endp
-       c = pft%column(p)
-       if (col%itype(c) == istsoil) then 
+       c = veg_pp%column(p)
+       if (col_pp%itype(c) == istsoil) then 
           if ((EDpft%ED_patch(p) == 1 ) .or. (EDpft%ED_bareground(p) == 1)) then
-             pft%wtcol(p) = EDpft%wtED(p)
+             veg_pp%wtcol(p) = EDpft%wtED(p)
           else
-             pft%wtcol(p)  = 0.0_r8 
+             veg_pp%wtcol(p)  = 0.0_r8 
           end if
        end if
     end do

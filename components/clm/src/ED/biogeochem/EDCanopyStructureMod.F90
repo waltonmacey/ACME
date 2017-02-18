@@ -9,7 +9,7 @@ module EDCanopyStructureMod
   use shr_kind_mod          , only : r8 => shr_kind_r8;
   use clm_varpar            , only : nclmax
   use clm_varctl            , only : iulog
-  use EcophysConType        , only : ecophyscon
+   use VegetationPropertiesType        , only : veg_vp
 
   use EDGrowthFunctionsMod  , only : c_area
   use EDCohortDynamicsMod   , only : copy_cohort, terminate_cohorts, fuse_cohorts
@@ -596,7 +596,7 @@ contains
        currentCohort => currentPatch%tallest
        do while (associated(currentCohort))
           currentCohort%c_area = c_area(currentCohort) 
-          if(ecophyscon%woody(currentCohort%pft) == 1)then
+          if(veg_vp%woody(currentCohort%pft) == 1)then
              arealayer(currentCohort%canopy_layer) = arealayer(currentCohort%canopy_layer) + currentCohort%c_area
           endif
           currentCohort => currentCohort%shorter

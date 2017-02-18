@@ -10,7 +10,7 @@ module EDPhysiologyMod
   use SoilStateType       , only : soilstate_type
   use WaterstateType      , only : waterstate_type
 
-  use EcophysConType      , only : ecophyscon
+  use VegetationPropertiesType      , only : veg_vp
   use EDEcophysContype    , only : EDecophyscon
   use EDCohortDynamicsMod , only : allocate_live_biomass, zero_cohort, create_cohort, fuse_cohorts, sort_cohorts
   use EDtypesMod          , only : site, patch, cohort, DG_SF, DINC_ED, EXTERNAL_RECRUITMENT, GRIDCELLEDSTATE
@@ -126,8 +126,8 @@ contains
   ! ============================================================================
   subroutine root_fraction( currentPatch )
 
-    use PatchType   , only : pft
-    use ColumnType  , only : col
+    use VegetationType   , only : veg_pp
+    use ColumnType  , only : col_pp
     use clm_varpar  , only : nlevsoi, nlevgrnd
     use pftvarcon   , only : roota_par, rootb_par      
 
@@ -139,8 +139,8 @@ contains
     integer, pointer :: pcolumn(:)
     real(r8), pointer :: zi(:,:)
 
-    pcolumn  => pft%column  
-    zi       => col%zi      
+    pcolumn  => veg_pp%column  
+    zi       => col_pp%zi      
 
     p = currentPatch%clm_pno
     c = pcolumn(p) 
@@ -204,16 +204,16 @@ contains
              if(currentCohort%year_net_uptake(z) /= 999._r8)then !there was activity this year in this leaf layer. 
                 !Leaf Cost kgC/m2/year-1
                 !decidous costs. 
-                if(ecophyscon%season_decid(currentCohort%pft) == 1.or.ecophyscon%stress_decid(currentCohort%pft) == 1)then 
-                   currentCohort%leaf_cost =  1._r8/(ecophyscon%slatop(currentCohort%pft)*1000_r8)
-                   currentCohort%leaf_cost = currentCohort%leaf_cost + 1.0_r8/(ecophyscon%slatop(currentCohort%pft)*1000_r8) * &
-                        ecophyscon%froot_leaf(currentCohort%pft) / EDecophyscon%root_long(currentCohort%pft)
+                if(veg_vp%season_decid(currentCohort%pft) == 1.or.veg_vp%stress_decid(currentCohort%pft) == 1)then 
+                   currentCohort%leaf_cost =  1._r8/(veg_vp%slatop(currentCohort%pft)*1000_r8)
+                   currentCohort%leaf_cost = currentCohort%leaf_cost + 1.0_r8/(veg_vp%slatop(currentCohort%pft)*1000_r8) * &
+                        veg_vp%froot_leaf(currentCohort%pft) / EDecophyscon%root_long(currentCohort%pft)
                    currentCohort%leaf_cost = currentCohort%leaf_cost * (ED_val_grperc+1._r8)
                 else !evergreen costs
-                   currentCohort%leaf_cost = 1.0_r8/(ecophyscon%slatop(currentCohort%pft)* &
-                        ecophyscon%leaf_long(currentCohort%pft)*1000_r8) !convert from sla in m2g-1 to m2kg-1 
-                   currentCohort%leaf_cost = currentCohort%leaf_cost + 1.0_r8/(ecophyscon%slatop(currentCohort%pft)*1000_r8) * &
-                        ecophyscon%froot_leaf(currentCohort%pft) / EDecophyscon%root_long(currentCohort%pft)
+                   currentCohort%leaf_cost = 1.0_r8/(veg_vp%slatop(currentCohort%pft)* &
+                        veg_vp%leaf_long(currentCohort%pft)*1000_r8) !convert from sla in m2g-1 to m2kg-1 
+                   currentCohort%leaf_cost = currentCohort%leaf_cost + 1.0_r8/(veg_vp%slatop(currentCohort%pft)*1000_r8) * &
+                        veg_vp%froot_leaf(currentCohort%pft) / EDecophyscon%root_long(currentCohort%pft)
                    currentCohort%leaf_cost = currentCohort%leaf_cost * (ED_val_grperc+1._r8)
                 endif
                 if(currentCohort%year_net_uptake(z) < currentCohort%leaf_cost)then
@@ -221,7 +221,7 @@ contains
                       ! keep trimming until none of the canopy is in negative carbon balance.              
                       if(currentCohort%hite > EDecophyscon%hgt_min(currentCohort%pft))then
                          currentCohort%canopy_trim = currentCohort%canopy_trim - inc    
-                         if(ecophyscon%evergreen(currentCohort%pft) /= 1)then
+                         if(veg_vp%evergreen(currentCohort%pft) /= 1)then
                             currentCohort%laimemory = currentCohort%laimemory*(1.0_r8 - inc) 
                          endif
                          trimmed = 1
@@ -332,7 +332,7 @@ contains
 
     !LEAF ON: COLD DECIDUOUS 
     if(GDD0(currentSite%oldest_patch%clm_pno) > gdd_threshold.and.currentSite%status == 1)then
-       if(timesinceleafoff > 0.9*(365-365/(1.0_r8/ecophyscon%leaf_long(7))))then  
+       if(timesinceleafoff > 0.9*(365-365/(1.0_r8/veg_vp%leaf_long(7))))then  
           !is it long enough since the last leaves came off? This is to prevent evergreen behavior. 0.8 is for flexibility. 
           currentSite%status = 2     !alter status of site to 'leaves on'
           currentSite%leafondate = t  !record leaf on date   
@@ -354,7 +354,7 @@ contains
     endif
 
     !LEAF OFF: COLD LIFESPAN THRESHOLD
-    if(timesinceleafon > 365/(1.0_r8/ecophyscon%leaf_long(7)))then !!fudge - this  shouldn't be hard  wired. 
+    if(timesinceleafon > 365/(1.0_r8/veg_vp%leaf_long(7)))then !!fudge - this  shouldn't be hard  wired. 
        if(currentSite%status == 2)then
           currentSite%status = 1        !alter status of site to 'leaves on'
           currentSite%leafoffdate = t   !record leaf off date   
@@ -439,7 +439,7 @@ contains
     !LEAF OFF: DROUGHT DECIDUOUS LIFESPAN - if the leaf gets to the end of its useful life. A*, E*
     if(currentSite%dstatus == 2.and.t >= 10)then  !D*
        !Are the leaves at the end of their lives? !FIX(RF,0401014)- this is hardwiring....
-       if(timesincedleafon > 365.0*ecophyscon%leaf_long(7))then 
+       if(timesincedleafon > 365.0*veg_vp%leaf_long(7))then 
           currentSite%dstatus = 1         !alter status of site to 'leaves on'
           currentSite%dleafoffdate = t    !record leaf on date          
        endif
@@ -483,7 +483,7 @@ contains
        do while(associated(currentCohort))        
           currentCohort%leaf_litter = 0.0_r8                  
           !COLD LEAF ON
-          if(ecophyscon%season_decid(currentCohort%pft) == 1)then
+          if(veg_vp%season_decid(currentCohort%pft) == 1)then
              if(currentSite%status == 2)then !we have just moved to leaves being on . 
                 if(currentCohort%status_coh == 1)then !Are the leaves currently off?        
                    currentCohort%status_coh = 2       !Leaves are on, so change status to stop flow of carbon out of bstore. 
@@ -514,7 +514,7 @@ contains
           endif  !currentSite%status = 2. 
 
           !DROUGHT LEAF ON
-          if(ecophyscon%stress_decid(currentCohort%pft) == 1)then
+          if(veg_vp%stress_decid(currentCohort%pft) == 1)then
              if(currentSite%dstatus == 2)then !we have just moved to leaves being on . 
                 if(currentCohort%status_coh == 1)then !is it the leaf-on day? Are the leaves currently off?       
                    currentCohort%status_coh = 2    !Leaves are on, so change status to stop flow of carbon out of bstore. 
@@ -678,11 +678,11 @@ contains
     call allocate_live_biomass(currentCohort)
 
    ! calculate target size of living biomass compartment for a given dbh.   
-    target_balive = Bleaf(currentCohort) * (1.0_r8 + ecophyscon%froot_leaf(currentCohort%pft) + &
+    target_balive = Bleaf(currentCohort) * (1.0_r8 + veg_vp%froot_leaf(currentCohort%pft) + &
          EDecophyscon%sapwood_ratio(currentCohort%pft)*h)
     !target balive without leaves. 
     if(currentCohort%status_coh == 1)then 
-       target_balive = Bleaf(currentCohort) * (ecophyscon%froot_leaf(currentCohort%pft) + &
+       target_balive = Bleaf(currentCohort) * (veg_vp%froot_leaf(currentCohort%pft) + &
             EDecophyscon%sapwood_ratio(currentCohort%pft) * h)
     endif
 
@@ -694,8 +694,8 @@ contains
     currentSite%flux_in = currentSite%flux_in + currentCohort%npp_acc * currentCohort%n
 
     ! Maintenance demands     
-    if(ecophyscon%evergreen(currentCohort%pft) == 1)then !grass and EBT
-       currentCohort%leaf_md = currentCohort%bl / ecophyscon%leaf_long(currentCohort%pft)
+    if(veg_vp%evergreen(currentCohort%pft) == 1)then !grass and EBT
+       currentCohort%leaf_md = currentCohort%bl / veg_vp%leaf_long(currentCohort%pft)
        currentCohort%root_md = currentCohort%br / EDecophyscon%root_long(currentCohort%pft)
        currentCohort%md      = currentCohort%root_md + currentCohort%leaf_md
     endif
@@ -704,22 +704,22 @@ contains
     !with which I am not especially comfortable, particularly as the concept of sapwood turnover is unclear for trees that 
     !are still in an expansion phase. 
 
-    if(ecophyscon%season_decid(currentCohort%pft) == 1)then 
+    if(veg_vp%season_decid(currentCohort%pft) == 1)then 
        currentCohort%root_md = currentCohort%br /EDecophyscon%root_long(currentCohort%pft)
        currentCohort%leaf_md = 0._r8
        currentCohort%md = currentCohort%root_md + currentCohort%leaf_md
     endif
 
-    if(ecophyscon%stress_decid(currentCohort%pft) == 1)then 
+    if(veg_vp%stress_decid(currentCohort%pft) == 1)then 
        currentCohort%root_md = currentCohort%br /EDecophyscon%root_long(currentCohort%pft)
        currentCohort%leaf_md = 0._r8
        currentCohort%md = currentCohort%root_md + currentCohort%leaf_md
     endif
 
-    if(ecophyscon%stress_decid(currentCohort%pft) /= 1.and.ecophyscon%season_decid(currentCohort%pft) /= 1.and. &
-         ecophyscon%evergreen(currentCohort%pft) /= 1)then
-       write(iulog,*) 'problem with phenology definitions',currentCohort%pft,ecophyscon%stress_decid(currentCohort%pft), &
-            ecophyscon%season_decid(currentCohort%pft),ecophyscon%evergreen(currentCohort%pft)
+    if(veg_vp%stress_decid(currentCohort%pft) /= 1.and.veg_vp%season_decid(currentCohort%pft) /= 1.and. &
+         veg_vp%evergreen(currentCohort%pft) /= 1)then
+       write(iulog,*) 'problem with phenology definitions',currentCohort%pft,veg_vp%stress_decid(currentCohort%pft), &
+            veg_vp%season_decid(currentCohort%pft),veg_vp%evergreen(currentCohort%pft)
     endif
 
     ! FIX(RF,032414) -turned off for now as it makes balive go negative....FIX(RF,032414) jan2012 0.01_r8 * currentCohort%bdead  
@@ -776,7 +776,7 @@ contains
        ! fraction of carbon going into active vs structural carbon        
        if(currentCohort%dbh <= EDecophyscon%max_dbh(currentCohort%pft))then ! cap on leaf biomass
           dbldbd = dDbhdBd(currentCohort)/dDbhdBl(currentCohort) 
-          dbrdbd = ecophyscon%froot_leaf(currentCohort%pft) * dbldbd
+          dbrdbd = veg_vp%froot_leaf(currentCohort%pft) * dbldbd
           dhdbd_fn = dhdbd(currentCohort)
           dbswdbd = EDecophyscon%sapwood_ratio(currentCohort%pft) * (h*dbldbd + currentCohort%bl*dhdbd_fn)
           u  = 1.0_r8 / (dbldbd + dbrdbd + dbswdbd)     
@@ -859,8 +859,8 @@ contains
        dc%hite        = EDecophyscon%hgt_min(ft)
        dc%dbh         = Dbh(dc)
        dc%bdead       = Bdead(dc)
-       dc%balive      = Bleaf(dc)*(1.0_r8 + ecophyscon%froot_leaf(ft) + EDecophyscon%sapwood_ratio(ft)*dc%hite)
-       dc%bstore      = EDecophyscon%cushion(ft)*(dc%balive/ (1.0_r8 + ecophyscon%froot_leaf(ft) &
+       dc%balive      = Bleaf(dc)*(1.0_r8 + veg_vp%froot_leaf(ft) + EDecophyscon%sapwood_ratio(ft)*dc%hite)
+       dc%bstore      = EDecophyscon%cushion(ft)*(dc%balive/ (1.0_r8 + veg_vp%froot_leaf(ft) &
                       + EDecophyscon%sapwood_ratio(ft)*dc%hite))
        dc%n           = currentPatch%area * currentPatch%seed_germination(ft)*udata%deltat/(dc%bdead+dc%balive+dc%bstore)
  
@@ -871,11 +871,11 @@ contains
           write(iulog,*) 'cohort n',ft,dc%n
        endif
 
-       dc%laimemory = (1.0_r8/(1.0_r8 + ecophyscon%froot_leaf(ft) + &
+       dc%laimemory = (1.0_r8/(1.0_r8 + veg_vp%froot_leaf(ft) + &
             EDecophyscon%sapwood_ratio(ft)*dc%hite))*dc%balive
 
        cohortstatus = currentPatch%siteptr%status
-       if(ecophyscon%stress_decid(ft) == 1)then !drought decidous, override status. 
+       if(veg_vp%stress_decid(ft) == 1)then !drought decidous, override status. 
           cohortstatus = currentPatch%siteptr%dstatus
        endif
 

@@ -401,8 +401,8 @@ contains
     use ConditionType                 , only : condition_type
     use ConnectionSetType             , only : connection_set_type
     use clm_varpar                    , only : nlevgrnd
-    use ColumnType                    , only : col
-    use LandunitType                  , only : lun
+    use ColumnType                    , only : col_pp
+    use LandunitType                  , only : lun_pp
     use landunit_varcon               , only : istcrop, istsoil
     use column_varcon                 , only : icol_road_perv
     use clm_varcon                    , only : grav, denh2o
@@ -473,11 +473,11 @@ contains
     ! Find the first hydrologically active soil column id
     first_active_hydro_col_id = -1
     do c = begc, endc
-       l = col%landunit(c)
+       l = col_pp%landunit(c)
 
-       if (col%active(c) .and. &
-           (lun%itype(l) == istsoil .or. col%itype(c) == icol_road_perv .or. &
-            lun%itype(l) == istcrop)) then
+       if (col_pp%active(c) .and. &
+           (lun_pp%itype(l) == istsoil .or. col_pp%itype(c) == icol_road_perv .or. &
+            lun_pp%itype(l) == istcrop)) then
           if (first_active_hydro_col_id == -1) then
              first_active_hydro_col_id = c
              exit
@@ -506,12 +506,12 @@ contains
 
              !icell = icell + 1
              icell = (c - begc)*nlevgrnd + j
-             g = col%gridcell(c)
-             l = col%landunit(c)
+             g = col_pp%gridcell(c)
+             l = col_pp%landunit(c)
 
-             if (col%active(c) .and. &
-                 (lun%itype(l) == istsoil .or. col%itype(c) == icol_road_perv .or. &
-                  lun%itype(l) == istcrop)) then
+             if (col_pp%active(c) .and. &
+                 (lun_pp%itype(l) == istsoil .or. col_pp%itype(c) == icol_road_perv .or. &
+                  lun_pp%itype(l) == istcrop)) then
                 ! Columns on which hydrology is performed
                 col_id = c
              else
@@ -633,8 +633,8 @@ contains
     use GoverningEquationBaseType        , only : goveqn_base_type
     use GoveqnRichardsODEPressureType    , only : goveqn_richards_ode_pressure_type
     use clm_varpar                       , only : nlevgrnd, nlevsoi
-    use ColumnType                       , only : col
-    use LandunitType                     , only : lun
+    use ColumnType                       , only : col_pp
+    use LandunitType                     , only : lun_pp
     use column_varcon                    , only : icol_road_perv, icol_road_imperv
     use landunit_varcon                  , only : istice, istwet, istice_mec, istcrop, istsoil
     use clm_varcon                       , only : grav, denh2o
@@ -701,11 +701,11 @@ contains
 
     first_active_hydro_col_id = -1
     do c = begc, endc
-       l = col%landunit(c)
+       l = col_pp%landunit(c)
 
-       if (col%active(c) .and. &
-           (lun%itype(l) == istsoil .or. col%itype(c) == icol_road_perv .or. &
-            lun%itype(l) == istcrop)) then
+       if (col_pp%active(c) .and. &
+           (lun_pp%itype(l) == istsoil .or. col_pp%itype(c) == icol_road_perv .or. &
+            lun_pp%itype(l) == istcrop)) then
           if (first_active_hydro_col_id == -1) then
              first_active_hydro_col_id = c
              exit
@@ -723,12 +723,12 @@ contains
        do j = 1, nlevgrnd
 
           icell = (c - begc)*nlevgrnd + j
-          g = col%gridcell(c)
-          l = col%landunit(c)
+          g = col_pp%gridcell(c)
+          l = col_pp%landunit(c)
 
-          if (col%active(c) .and. &
-              (lun%itype(l) == istsoil .or. col%itype(c) == icol_road_perv .or. &
-                lun%itype(l) == istcrop)) then
+          if (col_pp%active(c) .and. &
+              (lun_pp%itype(l) == istsoil .or. col_pp%itype(c) == icol_road_perv .or. &
+                lun_pp%itype(l) == istcrop)) then
              ! Columns on which hydrology is performed
              col_id = c
           else

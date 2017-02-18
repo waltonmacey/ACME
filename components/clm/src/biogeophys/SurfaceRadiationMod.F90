@@ -15,10 +15,10 @@ module SurfaceRadiationMod
   use CanopyStateType   , only : canopystate_type
   use SurfaceAlbedoType , only : surfalb_type
   use SolarAbsorbedType , only : solarabs_type
-  use GridcellType      , only : grc                
-  use LandunitType      , only : lun                
-  use ColumnType        , only : col                
-  use PatchType         , only : pft                
+  use GridcellType      , only : grc_pp                
+  use LandunitType      , only : lun_pp                
+  use ColumnType        , only : col_pp                
+  use VegetationType         , only : veg_pp                
   use EDVecPatchtype    , only : EDpft
   use EDtypesMod
 
@@ -389,7 +389,7 @@ contains
      !------------------------------------------------------------------------------
 
      associate(                                                     & 
-          snl             =>    col%snl                           , & ! Input:  [integer  (:)   ] negative number of snow layers [nbr]     
+          snl             =>    col_pp%snl                           , & ! Input:  [integer  (:)   ] negative number of snow layers [nbr]     
 
           forc_solad      =>    atm2lnd_vars%forc_solad_grc       , & ! Input:  [real(r8) (:,:) ] direct beam radiation (W/m**2)        
           forc_solai      =>    atm2lnd_vars%forc_solai_grc       , & ! Input:  [real(r8) (:,:) ] diffuse radiation (W/m**2)            
@@ -498,15 +498,15 @@ contains
 
        do fp = 1,num_nourbanp
           p = filter_nourbanp(fp)
-          l = pft%landunit(p)
-          g = pft%gridcell(p)
+          l = veg_pp%landunit(p)
+          g = veg_pp%gridcell(p)
 
           sabg_soil(p)  = 0._r8
           sabg_snow(p)  = 0._r8
           sabg(p)       = 0._r8
           sabv(p)       = 0._r8
           fsa(p)        = 0._r8
-          if (lun%itype(l)==istsoil .or. lun%itype(l)==istcrop) then
+          if (lun_pp%itype(l)==istsoil .or. lun_pp%itype(l)==istcrop) then
              fsa_r(p) = 0._r8
           end if
           sabg_lyr(p,:) = 0._r8
@@ -551,7 +551,7 @@ contains
 
        do fp = 1,num_nourbanp
           p = filter_nourbanp(fp)
-          g = pft%gridcell(p)
+          g = veg_pp%gridcell(p)
 
           if( use_ed )then
 
@@ -627,9 +627,9 @@ contains
        do ib = 1, nband
           do fp = 1,num_nourbanp
              p = filter_nourbanp(fp)
-             c = pft%column(p)
-             l = pft%landunit(p)
-             g = pft%gridcell(p)
+             c = veg_pp%column(p)
+             l = veg_pp%landunit(p)
+             g = veg_pp%gridcell(p)
 
              ! Absorbed by canopy
 
@@ -640,7 +640,7 @@ contains
              if (ib == 1) then
                 parveg(p) = cad(p,ib) + cai(p,ib)
              end if
-             if (lun%itype(l)==istsoil .or. lun%itype(l)==istcrop) then
+             if (lun_pp%itype(l)==istsoil .or. lun_pp%itype(l)==istcrop) then
                 fsa_r(p)  = fsa_r(p)  + cad(p,ib) + cai(p,ib)
              end if
 
@@ -694,7 +694,7 @@ contains
              absrad  = trd(p,ib)*(1._r8-albgrd(c,ib)) + tri(p,ib)*(1._r8-albgri(c,ib))
              sabg(p) = sabg(p) + absrad
              fsa(p)  = fsa(p)  + absrad
-             if (lun%itype(l)==istsoil .or. lun%itype(l)==istcrop) then
+             if (lun_pp%itype(l)==istsoil .or. lun_pp%itype(l)==istcrop) then
                 fsa_r(p)  = fsa_r(p)  + absrad
              end if
              if (snl(c) == 0) then
@@ -733,8 +733,8 @@ contains
 
        do fp = 1,num_nourbanp
           p = filter_nourbanp(fp)
-          c = pft%column(p)
-          l = pft%landunit(p)
+          c = veg_pp%column(p)
+          l = veg_pp%landunit(p)
           sabg_snl_sum = 0._r8
 
           sub_surf_abs_SW(c) = 0._r8
@@ -833,7 +833,7 @@ contains
           endif
 
           ! Diagnostic: shortwave penetrating ground (e.g. top layer)
-          if (lun%itype(l) == istsoil .or. lun%itype(l) == istcrop) then
+          if (lun_pp%itype(l) == istsoil .or. lun_pp%itype(l) == istcrop) then
              sabg_pen(p) = sabg(p) - sabg_lyr(p, snl(c)+1)
           end if
 
@@ -874,7 +874,7 @@ contains
        
        do fp = 1,num_nourbanp
           p = filter_nourbanp(fp)
-          g = pft%gridcell(p)
+          g = veg_pp%gridcell(p)
 
           ! NDVI and reflected solar radiation
 
@@ -891,7 +891,7 @@ contains
           fsr_vis_i(p)  = albi(p,1)*forc_solai(g,1)
           fsr_nir_i(p)  = albi(p,2)*forc_solai(g,2)
 
-          local_secp1 = secs + nint((grc%londeg(g)/degpsec)/dtime)*dtime
+          local_secp1 = secs + nint((grc_pp%londeg(g)/degpsec)/dtime)*dtime
           local_secp1 = mod(local_secp1,isecspday)
           if (local_secp1 == isecspday/2) then
              fsds_vis_d_ln(p) = forc_solad(g,1)
@@ -911,7 +911,7 @@ contains
 
           ! diagnostic variables (downwelling and absorbed radiation partitioning) for history files
           ! (OPTIONAL)
-          c = pft%column(p)
+          c = veg_pp%column(p)
           if (snl(c) < 0) then
              fsds_sno_vd(p) = forc_solad(g,1)
              fsds_sno_nd(p) = forc_solad(g,2)
@@ -937,9 +937,9 @@ contains
 
        do fp = 1,num_urbanp
           p = filter_urbanp(fp)
-          g = pft%gridcell(p)
+          g = veg_pp%gridcell(p)
 
-          local_secp1 = secs + nint((grc%londeg(g)/degpsec)/dtime)*dtime
+          local_secp1 = secs + nint((grc_pp%londeg(g)/degpsec)/dtime)*dtime
           local_secp1 = mod(local_secp1,isecspday)
 
         if(elai(p)==0.0_r8.and.fabd(p,1)>0._r8)then
@@ -988,11 +988,11 @@ contains
 
        do fp = 1,num_nourbanp
           p = filter_nourbanp(fp)
-          g = pft%gridcell(p)
+          g = veg_pp%gridcell(p)
           if (use_ed) then
              errsol(p) = (fsa(p) + fsr(p)  - (forc_solad(g,1) + forc_solad(g,2) + forc_solai(g,1) + forc_solai(g,2)))
              if(abs(errsol(p)) > 0.1_r8)then
-                g = pft%gridcell(p)
+                g = veg_pp%gridcell(p)
                 write(iulog,*) 'sol error in surf rad',p,g, errsol(p),EDpft%ed_patch(p)
              endif
           end if

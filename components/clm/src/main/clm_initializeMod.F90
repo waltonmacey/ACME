@@ -21,11 +21,11 @@ module clm_initializeMod
   !-----------------------------------------
   ! Definition of component types
   !-----------------------------------------
-  use GridcellType           , only : grc
+  use GridcellType           , only : grc_pp
   use TopounitType           , only : top_pp, top_es, top_ws
-  use LandunitType           , only : lun                
-  use ColumnType             , only : col                
-  use PatchType              , only : pft                
+  use LandunitType           , only : lun_pp                
+  use ColumnType             , only : col_pp                
+  use VegetationType              , only : veg_pp                
   use EDVecPatchType         , only : EDpft                   
   use EDVecCohortType        , only : coh                ! unique to ED, used for domain decomp
   use clm_instMod
@@ -205,16 +205,16 @@ contains
     ! Note that the assumption is made that none of the subgrid initialization
     ! can depend on other elements of the subgrid in the calls below
 
-    call grc%Init (bounds_proc%begg, bounds_proc%endg)
+    call grc_pp%Init (bounds_proc%begg, bounds_proc%endg)
     ! --ALM-v1: add initialization for topographic unit data types. 
     ! For preliminary testing, use the same dimensions as gridcell (one topounit per gridcell)
     call top_pp%Init (bounds_proc%begg, bounds_proc%endg) ! topology and physical properties
     call top_es%Init (bounds_proc%begg, bounds_proc%endg) ! energy state
     call top_ws%Init (bounds_proc%begg, bounds_proc%endg) ! water state
     ! --end ALM-v1 block
-    call lun%Init (bounds_proc%begl, bounds_proc%endl)
-    call col%Init (bounds_proc%begc, bounds_proc%endc)
-    call pft%Init (bounds_proc%begp, bounds_proc%endp)
+    call lun_pp%Init (bounds_proc%begl, bounds_proc%endl)
+    call col_pp%Init (bounds_proc%begc, bounds_proc%endc)
+    call veg_pp%Init (bounds_proc%begp, bounds_proc%endp)
     if ( use_ed ) then
        call EDpft%Init(bounds_proc)
        call coh%Init(bounds_proc)
@@ -256,19 +256,19 @@ contains
     ! initialize glc_topo
     ! TODO - does this belong here?
     do c = bounds_proc%begc, bounds_proc%endc
-       l = col%landunit(c)
-       g = col%gridcell(c)
+       l = col_pp%landunit(c)
+       g = col_pp%gridcell(c)
 
-       if (lun%itype(l) == istice_mec) then
+       if (lun_pp%itype(l) == istice_mec) then
           ! For ice_mec landunits, initialize glc_topo based on surface dataset; this
           ! will get overwritten in the run loop by values sent from CISM
-          icemec_class = col_itype_to_icemec_class(col%itype(c))
-          col%glc_topo(c) = topo_glc_mec(g, icemec_class)
+          icemec_class = col_itype_to_icemec_class(col_pp%itype(c))
+          col_pp%glc_topo(c) = topo_glc_mec(g, icemec_class)
        else
           ! For other landunits, arbitrarily initialize glc_topo to 0 m; for landunits
           ! where this matters, this will get overwritten in the run loop by values sent
           ! from CISM
-          col%glc_topo(c) = 0._r8
+          col_pp%glc_topo(c) = 0._r8
        end if
     end do
 
@@ -317,8 +317,9 @@ contains
     use CNDecompCascadeCNMod  , only : init_decompcascade_cn
     use CNDecompCascadeContype, only : init_decomp_cascade_constants
     use EDInitMod             , only : ed_init  
-    use EcophysConType        , only : ecophysconInit 
-    use SoilorderConType      , only : soilorderconInit 
+    use VegetationPropertiesType        , only : veg_vp 
+    !DW moved to ColumnType
+    !use SoilorderConType      , only : soilorderconInit 
     use EDEcophysConType      , only : EDecophysconInit 
     use EDPftVarcon           , only : EDpftvarcon_inst
     use LakeCon               , only : LakeConInit 
@@ -424,8 +425,8 @@ contains
 
     do g = bounds_proc%begg,bounds_proc%endg
        max_decl = 0.409571
-       if (grc%lat(g) < 0._r8) max_decl = -max_decl
-       grc%max_dayl(g) = daylength(grc%lat(g), max_decl)
+       if (grc_pp%lat(g) < 0._r8) max_decl = -max_decl
+       grc_pp%max_dayl(g) = daylength(grc_pp%lat(g), max_decl)
     end do
 
     ! History file variables
@@ -433,11 +434,11 @@ contains
     if (use_cn) then
        call hist_addfld1d (fname='DAYL',  units='s', &
             avgflag='A', long_name='daylength', &
-            ptr_gcell=grc%dayl, default='inactive')
+            ptr_gcell=grc_pp%dayl, default='inactive')
 
        call hist_addfld1d (fname='PREV_DAYL', units='s', &
             avgflag='A', long_name='daylength from previous timestep', &
-            ptr_gcell=grc%prev_dayl, default='inactive')
+            ptr_gcell=grc_pp%prev_dayl, default='inactive')
     end if
 
     ! ------------------------------------------------------------------------
@@ -450,16 +451,16 @@ contains
     ! First put in history calls for subgrid data structures - these cannot appear in the
     ! module for the subgrid data definition due to circular dependencies that are introduced
     
-    data2dptr => col%dz(:,-nlevsno+1:0)
-    col%dz(bounds_proc%begc:bounds_proc%endc,:) = spval
+    data2dptr => col_pp%dz(:,-nlevsno+1:0)
+    col_pp%dz(bounds_proc%begc:bounds_proc%endc,:) = spval
     call hist_addfld2d (fname='SNO_Z', units='m', type2d='levsno',  &
          avgflag='A', long_name='Snow layer thicknesses', &
          ptr_col=data2dptr, no_snow_behavior=no_snow_normal, default='inactive')
 
-    col%zii(bounds_proc%begc:bounds_proc%endc) = spval
+    col_pp%zii(bounds_proc%begc:bounds_proc%endc) = spval
     call hist_addfld1d (fname='ZII', units='m', &
          avgflag='A', long_name='convective boundary height', &
-         ptr_col=col%zii, default='inactive')
+         ptr_col=col_pp%zii, default='inactive')
 
     call clm_inst_biogeophys(bounds_proc)
 
@@ -909,7 +910,7 @@ contains
     character(len=32)     :: subname = 'initialize3'
     !----------------------------------------------------------------------
 
-    zi                   =>    col%zi                             ! Input:  [real(r8) (:,:) ]  interface level below a "z" level (m)
+    zi                   =>    col_pp%zi                             ! Input:  [real(r8) (:,:) ]  interface level below a "z" level (m)
 
     h2osoi_liq           =>    waterstate_vars%h2osoi_liq_col     ! Output: [real(r8) (:,:) ]  liquid water (kg/m2)
     h2osoi_ice           =>    waterstate_vars%h2osoi_ice_col     ! Output: [real(r8) (:,:) ]  ice water (kg/m2)

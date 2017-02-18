@@ -8,8 +8,8 @@ module EDGrowthFunctionsMod
 
   use shr_kind_mod     , only : r8 => shr_kind_r8
   use clm_varctl       , only : iulog 
-
-  use EcophysConType   , only : ecophyscon
+  use VegetationPropertiesType   , only : veg_vp
+  !use VegetationPropertiesType   , only : veg_vp
   use EDEcophysContype , only : EDecophyscon
   use EDtypesMod       , only : cohort, nlevcan_ed, dinc_ed
 
@@ -161,7 +161,7 @@ contains
     endif
 
     if( cohort_in%status_coh  ==  2 ) then ! are the leaves on? 
-       slat = 1000.0_r8 * ecophyscon%slatop(cohort_in%pft) ! m2/g to m2/kg
+       slat = 1000.0_r8 * veg_vp%slatop(cohort_in%pft) ! m2/g to m2/kg
        cohort_in%c_area = c_area(cohort_in) ! call the tree area 
        leafc_per_unitarea = cohort_in%bl/(cohort_in%c_area/cohort_in%n) !KgC/m2
        if(leafc_per_unitarea > 0.0_r8)then
@@ -251,7 +251,7 @@ contains
     if (DEBUG_growth) then
        write(iulog,*) 'z_area 1',cohort_in%dbh,cohort_in%pft
        write(iulog,*) 'z_area 2',EDecophyscon%max_dbh
-       write(iulog,*) 'z_area 3',ecophyscon%woody
+       write(iulog,*) 'z_area 3',veg_vp%woody
        write(iulog,*) 'z_area 4',cohort_in%n
        write(iulog,*) 'z_area 5',cohort_in%patchptr%spread
        write(iulog,*) 'z_area 6',cohort_in%canopy_layer
@@ -259,7 +259,7 @@ contains
     end if
 
     dbh = min(cohort_in%dbh,EDecophyscon%max_dbh(cohort_in%pft))
-    if(ecophyscon%woody(cohort_in%pft) == 1)then 
+    if(veg_vp%woody(cohort_in%pft) == 1)then 
        c_area = 3.142_r8 * cohort_in%n * &
             (cohort_in%patchptr%spread(cohort_in%canopy_layer)*dbh)**1.56_r8
     else

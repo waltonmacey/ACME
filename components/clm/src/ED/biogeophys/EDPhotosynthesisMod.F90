@@ -14,12 +14,12 @@ module EDPhotosynthesisMod
   use clm_varctl         , only : iulog
   use clm_varcon         , only : namep 
   use decompMod          , only : bounds_type
-  use EcophysConType     , only : ecophyscon
+  use VegetationPropertiesType     , only : veg_vp
   use atm2lndType        , only : atm2lnd_type
   use CanopyStateType    , only : canopystate_type
   use PhotosynthesisType , only : photosyns_type
   use TemperatureType    , only : temperature_type
-  use PatchType          , only : pft
+  use VegetationType          , only : veg_pp
   use EDtypesMod         , only : patch, cohort, gridCellEdState, numpft_ed, dinc_ed
   use EDEcophysContype   , only : EDecophyscon
   use EDVecPatchType     , only : EDpft
@@ -230,12 +230,12 @@ contains
     associate(                                                &
          ED_patch  => EDpft%ED_patch                        , & ! Input:  does this 'p' have any vegetation associated with it?
 
-         c3psn     => ecophyscon%c3psn                      , & ! photosynthetic pathway: 0. = c4, 1. = c3
-         slatop    => ecophyscon%slatop                     , & ! specific leaf area at top of canopy, projected area basis [m^2/gC]
-         flnr      => ecophyscon%flnr                       , & ! fraction of leaf N in the Rubisco enzyme (gN Rubisco / gN leaf)
-         woody     => ecophyscon%woody                      , & ! Is vegetation woody or not? 
-         fnitr     => ecophyscon%fnitr                      , & ! foliage nitrogen limitation factor (-)
-         leafcn    => ecophyscon%leafcn                     , & ! leaf C:N (gC/gN)
+         c3psn     => veg_vp%c3psn                      , & ! photosynthetic pathway: 0. = c4, 1. = c3
+         slatop    => veg_vp%slatop                     , & ! specific leaf area at top of canopy, projected area basis [m^2/gC]
+         flnr      => veg_vp%flnr                       , & ! fraction of leaf N in the Rubisco enzyme (gN Rubisco / gN leaf)
+         woody     => veg_vp%woody                      , & ! Is vegetation woody or not? 
+         fnitr     => veg_vp%fnitr                      , & ! foliage nitrogen limitation factor (-)
+         leafcn    => veg_vp%leafcn                     , & ! leaf C:N (gC/gN)
 
          bb_slope  => EDEcophyscon%BB_slope                 , & ! slope of BB relationship
 
@@ -337,7 +337,7 @@ contains
          GCcanopy(p) = 0._r8  
 
          if(ED_patch(p) == 1)then
-            g = pft%gridcell(p)
+            g = veg_pp%gridcell(p)
 
             currentPatch => gridCellEdState(g)%spnt%oldest_patch   
             do while(p /= currentPatch%clm_pno)
@@ -370,8 +370,8 @@ contains
             enddo !CL
 
 
-            g = pft%gridcell(p)
-            c = pft%column(p)
+            g = veg_pp%gridcell(p)
+            c = veg_pp%column(p)
             ! Soil water stress applied to Ball-Berry parameters
             do FT = 1,numpft_ed
                if (nint(c3psn(FT)) == 1)then
@@ -420,9 +420,9 @@ contains
 
       do f = 1,fn
          p = filterp(f)
-         c = pft%column(p)
+         c = veg_pp%column(p)
          if(ED_patch(p) == 1)then
-            g = pft%gridcell(p)
+            g = veg_pp%gridcell(p)
             currentPatch => gridCellEdState(g)%spnt%oldest_patch   
             do while(p /= currentPatch%clm_pno)
                currentPatch => currentPatch%younger
@@ -883,10 +883,10 @@ contains
                      br = 2.525e-6_r8
 
                      leaf_frac = 1.0_r8/(currentCohort%canopy_trim + EDecophyscon%sapwood_ratio(currentCohort%pft) * &
-                          currentCohort%hite + ecophyscon%froot_leaf(currentCohort%pft))
+                          currentCohort%hite + veg_vp%froot_leaf(currentCohort%pft))
                      currentCohort%bsw = EDecophyscon%sapwood_ratio(currentCohort%pft) * currentCohort%hite * &
                           (currentCohort%balive + currentCohort%laimemory)*leaf_frac
-                     currentCohort%livestemn  = currentCohort%bsw  / ecophyscon%leafcn(currentCohort%pft)
+                     currentCohort%livestemn  = currentCohort%bsw  / veg_vp%leafcn(currentCohort%pft)
 
                      currentCohort%livestem_mr  = 0._r8
                      currentCohort%livecroot_mr = 0._r8
@@ -904,7 +904,7 @@ contains
                         currentCohort%livecroot_mr = 0._r8    
                      end if
 
-                     if (ecophyscon%woody(currentCohort%pft) == 1) then
+                     if (veg_vp%woody(currentCohort%pft) == 1) then
                         coarse_wood_frac = 0.5_r8
                      else
                         coarse_wood_frac = 0.0_r8

@@ -10,7 +10,7 @@ module EDBtranMod
   
   
   ! !USES:
-  use EcophysConType   , only : ecophyscon
+  use VegetationPropertiesType   , only : veg_vp
   use EDtypesMod       , only : patch, cohort, gridCellEdState,numpft_ed
   use EDEcophysContype , only : EDecophyscon
   use EDVecPatchType   , only : EDpft
@@ -39,9 +39,9 @@ contains
     use WaterStateType     ,  only : waterstate_type
     use TemperatureType    ,  only : temperature_type
     use EnergyFluxType     ,  only : energyflux_type
-    use GridcellType       ,  only : grc
-    use ColumnType         ,  only : col
-    use PatchType          ,  only : pft
+    use GridcellType       ,  only : grc_pp
+    use ColumnType         ,  only : col_pp
+    use VegetationType          , only : veg_pp
 
     implicit none
 
@@ -106,10 +106,10 @@ contains
     !------------------------------------------------------------------------------
 
     associate(& 
-         dz          => col%dz                            , & ! Input:  [real(r8) (:,:) ]  layer depth (m)
+         dz          => col_pp%dz                            , & ! Input:  [real(r8) (:,:) ]  layer depth (m)
 
-         smpso       => ecophyscon%smpso                  , & ! Input:  [real(r8) (:)   ]  soil water potential at full stomatal opening (mm)
-         smpsc       => ecophyscon%smpsc                  , & ! Input:  [real(r8) (:)   ]  soil water potential at full stomatal closure (mm)
+         smpso       => veg_vp%smpso                  , & ! Input:  [real(r8) (:)   ]  soil water potential at full stomatal opening (mm)
+         smpsc       => veg_vp%smpsc                  , & ! Input:  [real(r8) (:)   ]  soil water potential at full stomatal closure (mm)
 
          sucsat      => soilstate_vars%sucsat_col         , & ! Input:  [real(r8) (:,:) ]  minimum soil suction (mm) 
          watsat      => soilstate_vars%watsat_col         , & ! Input:  [real(r8) (:,:) ]  volumetric soil water at saturation (porosity)
@@ -136,13 +136,13 @@ contains
    
       if(ED_patch(p)==1)then
 
-         g = pft%gridcell(p)
+         g = veg_pp%gridcell(p)
          currentPatch => gridCellEdState(g)%spnt%oldest_patch   
          do while(p /= currentPatch%clm_pno)
             currentPatch => currentPatch%younger
          enddo
 
-         c = pft%column(p)
+         c = veg_pp%column(p)
          do FT = 1,numpft_ed
             currentPatch%btran_ft(FT) = 0.0_r8
             do j = 1,nlevgrnd

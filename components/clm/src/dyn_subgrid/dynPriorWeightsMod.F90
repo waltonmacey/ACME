@@ -11,8 +11,8 @@ module dynPriorWeightsMod
   use shr_kind_mod   , only : r8 => shr_kind_r8
   use shr_log_mod    , only : errMsg => shr_log_errMsg
   use decompMod      , only : bounds_type, BOUNDS_LEVEL_PROC
-  use ColumnType     , only : col
-  use PatchType      , only : pft                
+  use ColumnType     , only : col_pp
+  use VegetationType      , only : veg_pp                
   !
   implicit none
   save
@@ -80,11 +80,11 @@ contains
     ! ----------------------------------------------------------------------
     
     do p = bounds%begp, bounds%endp
-       this%pwtcol(p) = pft%wtcol(p)
+       this%pwtcol(p) = veg_pp%wtcol(p)
     end do
 
     do c = bounds%begc, bounds%endc
-       this%cactive(c) = col%active(c)
+       this%cactive(c) = col_pp%active(c)
     end do
   end subroutine set_prior_weights
 
