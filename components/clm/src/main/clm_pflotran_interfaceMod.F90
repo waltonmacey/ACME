@@ -453,26 +453,6 @@ contains
     type(bounds_type), intent(in) :: bounds     ! bounds
     type(clumpfilter), intent(in) :: filters(:) ! filters
 
-!     integer  :: numg             ! total number of gridcells across all processors
-!     integer  :: numl             ! total number of landunits across all processors
-!     integer  :: numc             ! total number of columns across all processors
-!     integer  :: nump             ! total number of pfts across all processors
-!     integer  :: g,l,c,j          ! indices
-!     integer  :: gcount, cellcount
-
-!     integer, pointer :: clm_cell_ids_nindex(:)
-!     integer, pointer :: clm_2dtop_cell_ids_nindex(:)
-!     integer, pointer :: clm_2dbot_cell_ids_nindex(:)
-!     integer :: clm_cell_npts
-!     integer :: clm_2dtop_npts
-!     integer :: clm_2dbot_npts
-
-!     !type(pflotran_model_type), pointer:: pflotran_m
-!     class(realization_type), pointer  :: realization
-!     type(option_type), pointer :: option
-!     PetscErrorCode :: ierr
-
-!     character(len= 32) :: subname = 'interface_init' ! subroutine name
     integer  :: global_numg             ! total number of gridcells across all processors (active)
     integer  :: global_numc             ! total number of columns across all processors (active)
     integer  :: global_nump             ! total number of pfts across all processors (active)
@@ -1126,6 +1106,10 @@ contains
 
     ! Initialize PFLOTRAN states
     call pflotranModelStepperRunInit(pflotran_m)
+
+write(*,'(A,50(1h-))')">>>DEBUG | interface_init"
+write(*,'(A30,12A14)')">>>DEBUG | decomp_pool_name = ",clm_pf_idata%decomp_pool_name(1:ndecomp_pools)
+write(*,*)">>>DEBUG | floating_cn_ratio = ",clm_pf_idata%floating_cn_ratio(1:ndecomp_pools)
 
     end associate
   end subroutine interface_init

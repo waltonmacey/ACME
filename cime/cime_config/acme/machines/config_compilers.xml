@@ -846,6 +846,11 @@ for mct, etc.
       <ADD_SLIBS>$(shell $(NETCDF_PATH)/bin/nf-config --flibs)</ADD_SLIBS>
       <!-- the following is supposed to have MKL module loaded -->
       <ADD_LDFLAGS> -llapack -lblas</ADD_LDFLAGS>
+      <!-- mach/compiler generated 'Macros' for using PETSC with pflotran -->
+      <ADD_FFLAGS PFLOTRAN="TRUE" MODEL="clm"> -I$(PETSC_PATH)/include -I$(PETSC_PATH)/$(PETSC_ARCH)/include -I$(PFLOTRAN_COUPLED_MODEL)/src/clm-pflotran </ADD_FFLAGS>
+      <ADD_CPPDEFS PFLOTRAN="TRUE" MODEL="clm"> -DCLM_PFLOTRAN </ADD_CPPDEFS>
+      <ADD_CPPDEFS PFLOTRAN="TRUE" MODEL="clm" COLUMN_MODE="TRUE"> -DCOLUMN_MODE </ADD_CPPDEFS>
+      <ADD_LDFLAGS PFLOTRAN="TRUE" MODEL="driver"> -L$(PFLOTRAN_COUPLED_MODEL)/src/clm-pflotran -lpflotran</ADD_LDFLAGS>
 </compiler>
 
 <compiler COMPILER="intel" MACH="titan">
