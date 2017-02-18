@@ -385,7 +385,7 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! ftype=0 and ftype<0 (debugging options):  just return tendencies to dynamics
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      if (ftype<=0) then
+      if (ftype==0.or.ftype==3) then
 
          do ic=1,pcnst
             ! Q  =  data used for forcing, at timelevel nm1   t
@@ -510,6 +510,7 @@ subroutine stepon_run3(dtime, cam_out, phys_state, dyn_in, dyn_out)
    use dyn_comp,        only: TimeLevel
    use time_mod,        only: TimeLevel_Qdp
    use hycoef,          only: hyai, hybi, ps0
+   use cam_logfile,     only: iulog
    ! note: ncnst is module-level variable.
    !---PMC & ASD
    real(r8), intent(in) :: dtime   ! Time-step
@@ -588,10 +589,10 @@ subroutine stepon_run3(dtime, cam_out, phys_state, dyn_in, dyn_out)
                             ( hybi(k+1) - hybi(k))*dyn_out%elem(ie)%state%ps_v(i,j,tl_f)
                      dyn_out%elem(ie)%state%Q(i,j,k,ic)= &
                             dyn_out%elem(ie)%state%Qdp(i,j,k,ic,tl_fQdp)/dp_tmp
-                  end do
-               end do
-            end do
-         end do
+                  end do ! i
+               end do ! j
+            end do ! ic
+         end do ! k
       end do ! ie
    end if ! ftype==3
 !========================================================================================
