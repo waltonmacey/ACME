@@ -21,6 +21,8 @@ module bndry_mod_base
      module procedure bndry_exchangeV_threaded
      module procedure bndry_exchangeV_nonthreaded
      module procedure long_bndry_exchangeV_nonth
+
+     module procedure bndry_exchangeV_threaded_t
   end interface
 
   interface bndry_exchangeS
@@ -237,6 +239,8 @@ contains
 #ifdef _MPI
     use parallel_mod, only : status, srequest, rrequest, &
          mpireal_t, mpiinteger_t, mpi_success
+
+    use perf_mod, only: t_startf, t_stopf
 #endif
     type (parallel_t)              :: par
     integer                        :: ithr
@@ -257,6 +261,8 @@ contains
 
     pSchedule => Schedule(1)
     nlyr = buffer%nlyr
+
+    call t_startf('beScorestart')
 
     !$OMP MASTER
     nSendCycles = pSchedule%nSendCycles
@@ -304,6 +310,8 @@ contains
     end do    ! icycle
     !$OMP END MASTER
     
+    call t_stopf('beScorestart')
+
   end subroutine bndry_exchangeS_core_start
 
   subroutine bndry_exchangeS_core_finish(par,ithr,buffer)
@@ -313,6 +321,8 @@ contains
     use parallel_mod, only : status, srequest, rrequest, &
          mpireal_t, mpiinteger_t, mpi_success
 #endif
+    use perf_mod, only: t_startf, t_stopf
+
     type (parallel_t)              :: par
     integer                        :: ithr
     type (EdgeBuffer_t)            :: buffer
@@ -333,6 +343,8 @@ contains
     pSchedule => Schedule(1)
     nlyr = buffer%nlyr
 
+    call t_startf('beScorefinish')
+    
     !$OMP MASTER
     nSendCycles = pSchedule%nSendCycles
     nRecvCycles = pSchedule%nRecvCycles
@@ -348,6 +360,9 @@ contains
 !JMD    ithr = omp_get_thread_num()+1
     ! Copy data that doesn't get messaged from the send buffer to the receive
     ! buffer
+
+    call t_stopf('beScorefinish')
+
     iptr   = buffer%moveptr(ithr+1)
     length = buffer%moveLength(ithr+1)
     if(length>0) then 
@@ -469,7 +484,9 @@ contains
 #if (defined HORIZ_OPENMP)
     !$OMP BARRIER
 #endif
+    call t_startf('beVcore')
     call bndry_exchangeV_core(hybrid%par,hybrid%ithr,buffer)
+    call t_stopf('beVcore')
 #if (defined HORIZ_OPENMP)
     !$OMP BARRIER
 #endif
@@ -477,6 +494,37 @@ contains
 !pw call t_adj_detailf(-2)
 
   end subroutine bndry_exchangeV_threaded
+
+
+ subroutine bndry_exchangeV_threaded_t(hybrid,buffer,s1,s2,s3)
+    use hybrid_mod, only : hybrid_t
+    use perf_mod, only: t_startf, t_stopf, t_adj_detailf
+    implicit none
+
+    type (hybrid_t)                   :: hybrid
+    type (EdgeBuffer_t)               :: buffer
+    character(len=5) :: s1,s2,s3
+
+!pw call t_adj_detailf(+2)
+!pw call t_startf('bndry_exchangeV')
+#if (defined HORIZ_OPENMP)
+    !$OMP BARRIER
+#endif
+
+    call t_stopf(s1)
+    call t_startf(s2)
+    call bndry_exchangeV_core(hybrid%par,hybrid%ithr,buffer)
+    call t_stopf(s2)
+    call t_startf(s3)
+#if (defined HORIZ_OPENMP)
+    !$OMP BARRIER
+#endif
+!pw call t_stopf('bndry_exchangeV')
+!pw call t_adj_detailf(-2)
+
+  end subroutine bndry_exchangeV_threaded_t
+
+
 
   subroutine bndry_exchangeV_nonthreaded(par,buffer)
     use perf_mod, only: t_startf, t_stopf, t_adj_detailf
@@ -514,7 +562,9 @@ contains
 #if (defined HORIZ_OPENMP)
     !$OMP BARRIER
 #endif
+    call t_startf('beScore')
     call bndry_exchangeS_core(hybrid%par,hybrid%ithr,buffer)
+    call t_stopf('beScore')
 #if (defined HORIZ_OPENMP)
     !$OMP BARRIER
 #endif

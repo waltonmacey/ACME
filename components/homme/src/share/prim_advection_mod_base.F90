@@ -184,20 +184,20 @@ contains
     !rhs_multiplier is for obtaining dp_tracers at each stage:
     !dp_tracers(stage) = dp - rhs_multiplier*dt*divdp_proj
 
-    call t_startf('euler_step_0')
+!    call t_startf('euler_step_0')
     rhs_multiplier = 0
     call euler_step( np1_qdp , n0_qdp  , dt/2 , elem , hvcoord , hybrid , deriv , nets , nete , DSSdiv_vdp_ave , rhs_multiplier )
-    call t_stopf('euler_step_0')
+!    call t_stopf('euler_step_0')
 
-    call t_startf('euler_step_1')
+!    call t_startf('euler_step_1')
     rhs_multiplier = 1
     call euler_step( np1_qdp , np1_qdp , dt/2 , elem , hvcoord , hybrid , deriv , nets , nete , DSSeta         , rhs_multiplier )
-    call t_stopf('euler_step_1')
+!    call t_stopf('euler_step_1')
 
-    call t_startf('euler_step_2')
+!    call t_startf('euler_step_2')
     rhs_multiplier = 2
     call euler_step( np1_qdp , np1_qdp , dt/2 , elem , hvcoord , hybrid , deriv , nets , nete , DSSomega       , rhs_multiplier )
-    call t_stopf('euler_step_2')
+!    call t_stopf('euler_step_2')
 
     !to finish the 2D advection step, we need to average the t and t+2 results to get a second order estimate for t+1.
     call t_startf('qdp_tavg')
@@ -307,6 +307,9 @@ contains
   integer :: rhs_viss
 
 !  call t_barrierf('sync_euler_step', hybrid%par%comm)
+
+  call t_startf('estep')
+
 OMP_SIMD
   do k = 1 , nlev
     dp0(k) = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + &
@@ -320,7 +323,7 @@ OMP_SIMD
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   rhs_viss = 0
   if ( limiter_option == 8  ) then
-    call t_startf('bihmix_qminmax')
+!    call t_startf('bihmix_qminmax')
     ! when running lim8, we also need to limit the biharmonic, so that term needs
     ! to be included in each euler step.  three possible algorithms here:
     ! 1) most expensive:
@@ -373,18 +376,18 @@ OMP_SIMD
           endif
         enddo
       enddo
-    enddo
+    enddo !ie loop
+
 
     ! compute element qmin/qmax
     if ( rhs_multiplier == 0 ) then
       ! update qmin/qmax based on neighbor data for lim8
-      call t_startf('eus_neighbor_minmax1')
       call neighbor_minmax(hybrid,edgeAdvQminmax,nets,nete,qmin(:,:,nets:nete),qmax(:,:,nets:nete))
-      call t_stopf('eus_neighbor_minmax1')
     endif
 
     ! get niew min/max values, and also compute biharmonic mixing term
     if ( rhs_multiplier == 2 ) then
+
       rhs_viss = 3
       ! two scalings depending on nu_p:
       ! nu_p=0:    qtens_biharmonic *= dp0                   (apply viscsoity only to q)
@@ -412,7 +415,11 @@ OMP_SIMD
 ! 
 !      call biharmonic_wk_scalar_minmax( elem , qtens_biharmonic , deriv , edgeAdvQ3 , hybrid , &
 !           nets , nete , qmin(:,:,nets:nete) , qmax(:,:,nets:nete) )
+
+
+
       call neighbor_minmax_start(hybrid,edgeAdvQminmax,nets,nete,qmin(:,:,nets:nete),qmax(:,:,nets:nete))
+
       call biharmonic_wk_scalar(elem,qtens_biharmonic,deriv,edgeAdv,hybrid,nets,nete) 
       do ie = nets , nete
 #if (defined COLUMN_OPENMP_notB4B)
@@ -428,14 +435,12 @@ OMP_SIMD
       enddo
       call neighbor_minmax_finish(hybrid,edgeAdvQminmax,nets,nete,qmin(:,:,nets:nete),qmax(:,:,nets:nete))
     endif
-    call t_stopf('bihmix_qminmax')
   endif  ! compute biharmonic mixing term and qmin/qmax
   ! end of limiter_option == 8 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   2D Advection step
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  call t_startf('eus_2d_advec')
   do ie = nets , nete
     ! note: eta_dot_dpdn is actually dimension nlev+1, but nlev+1 data is
     ! all zero so we only have to DSS 1:nlev
@@ -516,9 +521,10 @@ OMP_SIMD
     enddo
   enddo ! ie loop
 
-  call t_startf('eus_bexchV')
+!  call t_startf('eus_bexchV')
   call bndry_exchangeV( hybrid , edgeAdvp1 )
-  call t_stopf('eus_bexchV')
+!  call t_stopf('eus_bexchV')
+
 
   do ie = nets , nete
     if ( DSSopt == DSSeta         ) DSSvar => elem(ie)%derived%eta_dot_dpdn(:,:,:)
@@ -546,7 +552,7 @@ OMP_SIMD
 !$OMP BARRIER
 #endif
 #endif
-  call t_stopf('eus_2d_advec')
+  call t_stopf('estep')
 !pw call t_stopf('euler_step')
   end subroutine euler_step
 !-----------------------------------------------------------------------------

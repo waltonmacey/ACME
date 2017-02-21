@@ -930,9 +930,9 @@ contains
            call edgeVpack(edge3,elem(ie)%state%dp3d(:,:,:,nt),nlev,kptr,ie)
         enddo
 
-        call t_startf('ahdp_bexchV2')
+!        call t_startf('ahdp_bexchV2')
         call bndry_exchangeV(hybrid,edge3)
-        call t_stopf('ahdp_bexchV2')
+!        call t_stopf('ahdp_bexchV2')
 
         do ie=nets,nete
 
@@ -1103,7 +1103,7 @@ contains
 !JMD  call t_barrierf('sync_compute_and_apply_rhs', hybrid%par%comm)
 
 !pw call t_adj_detailf(+1)
-  call t_startf('compute_and_apply_rhs')
+  call t_startf('caar1')
   do ie=nets,nete
      !ps => elem(ie)%state%ps_v(:,:,n0)
      phi => elem(ie)%derived%phi(:,:,:)
@@ -1523,10 +1523,10 @@ contains
   ! sync is required
   ! =============================================================
 
-  call t_startf('caar_bexchV')
-  call bndry_exchangeV(hybrid,edge3p1)
-  call t_stopf('caar_bexchV')
-
+!  call t_startf('caar_bexchV')
+!  call bndry_exchangeV(hybrid,edge3p1)
+!  call t_stopf('caar_bexchV')
+call bndry_exchangeV(hybrid,edge3p1,'caar1','c-dss','caar2')
   do ie=nets,nete
      ! ===========================================================
      ! Unpack the edges for vgrad_T and v tendencies...
@@ -1564,7 +1564,7 @@ contains
 !$OMP BARRIER
 #endif
 #endif
-  call t_stopf('compute_and_apply_rhs')
+  call t_stopf('caar2')
 !pw  call t_adj_detailf(-1)
 
   end subroutine compute_and_apply_rhs
