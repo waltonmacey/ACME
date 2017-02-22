@@ -256,6 +256,7 @@ contains
          cs%xsmrpool_patch(p) = cs%xsmrpool_patch(p) + cf%cpool_to_xsmrpool_patch(p)*dt
          cs%xsmrpool_patch(p) = cs%xsmrpool_patch(p) - cf%leaf_xsmr_patch(p)*dt
          cs%xsmrpool_patch(p) = cs%xsmrpool_patch(p) - cf%froot_xsmr_patch(p)*dt
+         cs%xsmrpool_patch(p) = cs%xsmrpool_patch(p) - cf%xsmrpool_turnover_patch(p)*dt
          if (woody(ivt(p)) == 1._r8) then
             cs%xsmrpool_patch(p) = cs%xsmrpool_patch(p) - cf%livestem_xsmr_patch(p)*dt
             cs%xsmrpool_patch(p) = cs%xsmrpool_patch(p) - cf%livecroot_xsmr_patch(p)*dt
