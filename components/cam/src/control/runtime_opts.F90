@@ -171,7 +171,6 @@ logical  :: scm_relaxation
 logical  :: scm_diurnal_avg
 logical  :: scm_crm_mode
 logical  :: scm_observed_aero
-logical  :: scm_pseudo_observed_aero
 
 contains
 
@@ -325,7 +324,7 @@ contains
   ! scam
   namelist /cam_inparm/ iopfile,scm_iop_srf_prop,scm_relaxation, &
                         scm_diurnal_avg,scm_crm_mode, scm_clubb_iop_name, &
-			scm_observed_aero, scm_pseudo_observed_aero
+			scm_observed_aero
 
 ! 
 !-----------------------------------------------------------------------
@@ -373,7 +372,6 @@ contains
         scm_diurnal_avg_out=scm_diurnal_avg, &
         scm_crm_mode_out=scm_crm_mode, &
 	scm_observed_aero_out=scm_observed_aero, &
-	scm_pseudo_observed_aero_out=scm_pseudo_observed_aero, &
         scm_clubb_iop_name_out=scm_clubb_iop_name)
    end if
 
@@ -455,7 +453,6 @@ contains
                             scm_diurnal_avg_in=scm_diurnal_avg, &
                             scm_crm_mode_in=scm_crm_mode, &
 			    scm_observed_aero_in=scm_observed_aero, &
-			    scm_pseudo_observed_aero_in=scm_pseudo_observed_aero, &
                             scm_clubb_iop_name_in=scm_clubb_iop_name)
       end if
    endif

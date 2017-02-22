@@ -35,6 +35,7 @@ module iop
   real(r8), allocatable, target :: divq3dsav(:,:,:,:)
   real(r8), allocatable, target :: divt3dsav(:,:,:)       
   real(r8), allocatable, target :: betasav(:)
+  real(r8), allocatable, target :: scm_dgnum( : ),scm_std( : ),scm_num( :), scm_div(:,:)
   integer :: closelatidx,closelonidx,latid,lonid,levid,timeid
 
   real(r8):: closelat,closelon
@@ -47,7 +48,8 @@ module iop
 !  public :: scam_use_iop_srf
 ! !PUBLIC DATA:
   public betasav, &
-         dqfx3sav, divq3dsav, divt3dsav,t2sav
+         dqfx3sav, divq3dsav, divt3dsav,t2sav, &
+	 scm_dgnum,scm_std,scm_num,scm_div
 
 !
 ! !REVISION HISTORY:
@@ -125,10 +127,10 @@ subroutine readiopdata( )
 !------------------------------Locals-----------------------------------
 !     
    integer NCID, status
-   integer time_dimID, lev_dimID,  lev_varID
+   integer time_dimID, lev_dimID,  lev_varID,mod_dimID,mod_varID,sps_varID,sps_dimID
    integer tsec_varID, bdate_varID,varid
    integer i,j
-   integer nlev
+   integer nlev, nmod, nsps
    integer total_levs
 
    integer bdate, ntime
@@ -140,7 +142,8 @@ subroutine readiopdata( )
    logical have_srf              ! value at surface is available
    logical fill_ends             ! 
    logical have_cnst(pcnst)
-   real(r8), allocatable :: dplevs( : )
+   real(r8), allocatable :: dplevs( : ), aitken( :)
+   integer, allocatable :: dmods( : ), dsps( : )
    real(r8) dummy
    real(r8) lat,xlat
    real(r8) srf(1)                  ! value at surface

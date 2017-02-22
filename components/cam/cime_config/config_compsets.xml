@@ -484,6 +484,10 @@
     <lname>AR97_CAM5%SCAM_CLM40%SP_CICE%PRES_DOCN%DOM_RTM_SGLC_SWAV</lname>
   </compset>
 
+  <compset>
+    <alias>FSCM5DF02</alias>
+    <lname>DF02_CAM5%SCAM_CLM40%SP_CICE%PRES_DOCN%DOM_RTM_SGLC_SWAV</lname>
+  </compset>
 
   <compset>
     <alias>FC4AQUAP</alias>
@@ -531,6 +535,11 @@
     <alias>F_ARM97_SCAM5</alias>
     <lname>AR97_CAM5%SCAM_CLM40%SP_CICE%PRES_DOCN%DOM_RTM_SGLC_SWAV</lname>
   </compset>  
+  
+  <compset>
+    <alias>F_DCRF02_SCAM5</alias>
+    <lname>DF02_CAM5%SCAM_CLM40%SP_CICE%PRES_DOCN%DOM_RTM_SGLC_SWAV</lname>
+  </compset>  
 
   <entries>
 
@@ -557,6 +566,7 @@
 	<value  compset="C2R4_CAM">2004-01-01</value>
 	<value  compset="AR95_CAM">1995-07-18</value>
 	<value  compset="AR97_CAM">1997-06-19</value>
+	<value  compset="DF02_CAM">1999-07-11</value>
       </values>
     </entry>
 
@@ -570,6 +580,7 @@
       <values>
 	<value  compset="AR95_CAM">19800</value>
 	<value  compset="AR97_CAM">84585</value>
+	<value  compset="DF02_CAM">0</value>
       </values>
     </entry>
 
@@ -601,19 +612,22 @@
       <values>
 	<value compset="AR95_CAM">ndays</value>
 	<value compset="AR97_CAM">ndays</value>
+	<value compset="DF02_CAM">nhours</value>
       </values>
     </entry>
 
     <entry id="STOP_N"> 
       <values>
 	<value compset="AR95_CAM">2</value>
-	<value compset="AR97_CAM">29</value>
+	<value compset="AR97_CAM">26</value>
+	<value compset="DF02_CAM">12</value>
       </values>
     </entry>
   
     <entry id="MASK_GRID"> 
       <values>
 	<value compset="AR97_CAM">USGS</value>
+	<value compset="DF02_CAM">USGS</value>
       </values>
     </entry>    
 
