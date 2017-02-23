@@ -1227,6 +1227,7 @@
          <DOUT_L_MSROOT>UNSET</DOUT_L_MSROOT>
          <CCSM_BASELINE>/dtemp/sing201/acme/acme_baselines</CCSM_BASELINE>
          <CCSM_CPRNC>/dtemp/sing201/acme/acme_baselines/cprnc/cprnc</CCSM_CPRNC>
+	 <SAVE_TIMING_DIR>/dtemp/sing201/acme/timing_acme</SAVE_TIMING_DIR>
          <BATCH_SYSTEM>moab</BATCH_SYSTEM>
          <SUPPORTED_BY>balwinder.singh -at- pnnl.gov</SUPPORTED_BY>
          <GMAKE_J>8</GMAKE_J>
