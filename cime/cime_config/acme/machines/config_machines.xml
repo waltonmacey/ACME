@@ -1397,11 +1397,9 @@
 	<cmd_path lang="perl">/usr/bin/modulecmd perl</cmd_path>
 	<cmd_path lang="python">/usr/bin/modulecmd python</cmd_path>
 	<modules compiler="gnu">
-	  <command name="load">linux-x86_64/gcc@5.3.0%gcc@4.8.5+gold-5hy3c4b</command>
-	  <command name="load">linux-x86_64/openmpi@1.10.2%gcc@5.3.0~psm~tm~verbs-w26llp2</command>
-	  <command name="load">linux-x86_64/netlib-lapack@3.5.0%gcc@5.3.0+shared-ktb3cld</command>
-	  <command name="load">linux-x86_64/netlib-blas@3.5.0%gcc@5.3.0+fpic-cxsdr3o</command>
-	  <command name="load">linux-x86_64/cmake@3.4.0%gcc@5.3.0+ncurses-sr4jjqc</command>
+          <command name="load">openmpi/1.10.3</command>
+          <command name="load">gcc/5.3.0</command>
+          <command name="load">cmake/3.6.1</command>
 	</modules>
       </module_system>
 </machine>
@@ -1412,8 +1410,7 @@
     <TESTS>acme_developer</TESTS>
     <COMPILERS>pgi,pgiacc,intel,cray</COMPILERS>
     <MPILIBS>mpich,mpi-serial</MPILIBS>
-    <CESMSCRATCHROOT>/lustre/atlas1/cli112/proj-shared/wangd/scratch</CESMSCRATCHROOT>
-    <!-- CESMSCRATCHROOT>$ENV{HOME}/acme_scratch/$PROJECT</CESMSCRATCHROOT>  -->
+    <CESMSCRATCHROOT>$ENV{HOME}/acme_scratch/$PROJECT</CESMSCRATCHROOT>
     <RUNDIR>$ENV{MEMBERWORK}/$PROJECT/$CASE/run</RUNDIR>
     <EXEROOT>$CESMSCRATCHROOT/$CASE/bld</EXEROOT>
     <DIN_LOC_ROOT>/lustre/atlas1/cli900/world-shared/cesm/inputdata</DIN_LOC_ROOT>
@@ -1431,7 +1428,7 @@
     <GMAKE_J>8</GMAKE_J>
     <MAX_TASKS_PER_NODE>16</MAX_TASKS_PER_NODE>
     <PROJECT_REQUIRED>TRUE</PROJECT_REQUIRED>
-    <PROJECT>cli112</PROJECT>
+    <PROJECT>cli115</PROJECT>
     <PIO_CONFIG_OPTS> -D PIO_BUILD_TIMING:BOOL=ON </PIO_CONFIG_OPTS>
     <mpirun mpilib="default">
       <executable args="default">aprun</executable>
