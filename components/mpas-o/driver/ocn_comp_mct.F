@@ -35,6 +35,7 @@ module ocn_comp_mct
    use mpas_bootstrapping
    use mpas_dmpar
    use mpas_constants
+   use mpas_log
 
    use iso_c_binding, only : c_char, c_loc, c_ptr, c_int
    use mpas_c_interfacing, only : mpas_f_to_c_string, mpas_c_to_f_string
@@ -187,6 +188,7 @@ contains
     character(len=StrKIND) :: iotype
     logical :: streamsExists
     integer :: mesh_iotype
+    integer :: possibleErrUnit ! unit number to reserve for if a err log needs to be opened
 
     logical, pointer :: tempLogicalConfig
     character(len=StrKIND), pointer :: tempCharConfig
@@ -329,6 +331,27 @@ contains
     ! Setup function pointers for MPAS-O core and domain types
     call ocn_setup_core(corelist)
     call ocn_setup_domain(domain_ptr)
+
+
+    ! ===========
+    ! Initialize log manager
+    possibleErrUnit = shr_file_getUnit()
+    call mpas_log_init(domain_ptr % logInfo, domain_ptr, unitNumbers=(/ocnStdOutUnit, possibleErrUnit/), err=ierr)
+    if ( ierr /= 0 ) then
+       call mpas_dmpar_global_abort('ERROR: log init failed for core ' // trim(domain % core % coreName))
+    end if
+
+    ! Set core specific options here
+    ! (At present, there are not any.  There could eventually be choices about the file naming conventions
+    !  or other settings controlling behavior.)
+
+    ! After core has had a chance to modify log defaults, open the output log
+    call mpas_log_open(err=ierr)
+    if ( ierr /= 0 ) then
+       call mpas_dmpar_global_abort('ERROR: log open failed for core ' // trim(domain % core % coreName))
+    end if
+    ! ===========
+
 
     ! Override the names of the stream and namelist files
     domain_ptr % namelist_filename = 'mpas-o_in'
@@ -771,6 +794,11 @@ contains
       iam = domain % dminfo % my_proc_id
       call mpas_io_units_set_stdout(ocnStdOutUnit)
       call mpas_io_units_set_stderr(ocnStdErrUnit)
+
+      mpas_log_info => domain % logInfo
+
+      call mpas_log_write("=== Beginning ocn_run_mct ===")
+      call mpas_log_write("(test of mpas log module in ocn)", MPAS_LOG_ERR)  ! TEST: make this an err to see if it gets opened
 
       domain_ptr => domain
 
