@@ -523,6 +523,7 @@ contains
 !        end do
     end do
 
+!-----------------------------------------------------------------------------
 
   end associate
   end subroutine get_clm_bgc_state
@@ -584,6 +585,9 @@ contains
       externaln_to_decomp_npools_vr    => nitrogenflux_vars%externaln_to_decomp_npools_col      , &
       externalp_to_decomp_ppools_vr    => phosphorusflux_vars%externalp_to_decomp_ppools_col    , &
       decomp_k_pools                   => carbonflux_vars%decomp_k_pools_col                    , & 
+      t_scalar                         => carbonflux_vars%t_scalar_col                          , & ! Output: [real(r8) (:,:)   ]  soil temperature scalar for decomp
+      w_scalar                         => carbonflux_vars%w_scalar_col                          , & ! Output: [real(r8) (:,:)   ]  soil water scalar for decomp
+      o_scalar                         => carbonflux_vars%o_scalar_col                          , & ! Output: [real(r8) (:,:)   ]  fraction by which decomposition is limited by anoxia
       ! inorg. nitrogen source
       ndep_to_sminn                    => nitrogenflux_vars%ndep_to_sminn_col                   , &
       nfix_to_sminn                    => nitrogenflux_vars%nfix_to_sminn_col                   , &
@@ -619,6 +623,9 @@ contains
     r_nh4_no3_fert(:) = 1.0_r8      ! temporarily assiming half of N fertilization is in NH4 and another half in NO3
 
     clm_bgc_data%decomp_k_pools_col = decomp_k_pools 
+    clm_bgc_data%t_scalar_col = t_scalar
+    clm_bgc_data%w_scalar_col = w_scalar
+    clm_bgc_data%o_scalar_col = o_scalar
 !
     do fc = 1,num_soilc
         c = filter_soilc(fc)
@@ -1208,6 +1215,7 @@ contains
               f_ngas_decomp_vr(c,:)      = clm_bgc_data%f_ngas_decomp_vr_col(c,:)
               f_ngas_nitri_vr(c,:)       = clm_bgc_data%f_ngas_nitri_vr_col(c,:)
               f_ngas_denit_vr(c,:)       = clm_bgc_data%f_ngas_denit_vr_col(c,:)
+
 !       enddo
      enddo ! do c = begc, endc
 !

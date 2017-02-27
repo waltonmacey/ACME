@@ -60,6 +60,7 @@ contains
       dt = real( get_step_size(), r8 )
 
       if (.not. is_active_betr_bgc) then
+        if (.not.(use_pflotran .and. pf_cmode)) then
          do j = 1, nlevdecomp
             ! column loop
             do fc = 1,num_soilc
@@ -86,6 +87,7 @@ contains
                ns%decomp_npools_vr_col(c,j,i_lig_lit) = ns%decomp_npools_vr_col(c,j,i_lig_lit) + nf%m_n_to_litr_lig_fire_col(c,j)* dt
             end do ! end of column loop
          end do
+         end if !! (.not.(use_pflotran .and. pf_cmode))
          
          ! litter and CWD losses to fire
          do l = 1, ndecomp_pools

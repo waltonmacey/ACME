@@ -850,7 +850,7 @@ for mct, etc.
       <ADD_FFLAGS PFLOTRAN="TRUE" MODEL="clm"> -I$(PETSC_PATH)/include -I$(PETSC_PATH)/$(PETSC_ARCH)/include -I$(PFLOTRAN_COUPLED_MODEL)/src/clm-pflotran </ADD_FFLAGS>
       <ADD_CPPDEFS PFLOTRAN="TRUE" MODEL="clm"> -DCLM_PFLOTRAN </ADD_CPPDEFS>
       <ADD_CPPDEFS PFLOTRAN="TRUE" MODEL="clm" COLUMN_MODE="TRUE"> -DCOLUMN_MODE </ADD_CPPDEFS>
-      <ADD_LDFLAGS PFLOTRAN="TRUE" MODEL="driver"> -L$(PFLOTRAN_COUPLED_MODEL)/src/clm-pflotran -lpflotran</ADD_LDFLAGS>
+      <ADD_LDFLAGS PFLOTRAN="TRUE" MODEL="driver"> -L$(PFLOTRAN_COUPLED_MODEL)/src/clm-pflotran -lpflotran $(PETSC_LIB)</ADD_LDFLAGS>
 </compiler>
 
 <compiler COMPILER="intel" MACH="titan">

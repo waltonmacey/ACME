@@ -802,7 +802,6 @@ contains
 
              !!--------------------------------------------------------------------------------
              if (use_bgc_interface) then
-             write(*,'(A40,10E14.6)')">>>DEBUG2 | decomp_k_pools=",carbonflux_vars%decomp_k_pools_col
                  !! STEP-1: pass data from CLM to clm_bgc_data (INTERFACE DATA TYPE)
                  call get_clm_bgc_data(clm_bgc_data,bounds_clump,                       &
                            filter(nc)%num_soilc, filter(nc)%soilc,                      &
@@ -814,10 +813,6 @@ contains
                            nitrogenflux_vars, nitrogenstate_vars,                       &
                            phosphorusflux_vars, phosphorusstate_vars,                   &
                            canopystate_vars, ch4_vars)
-
-write(*,'(A40,10E14.6)')">>>DEBUG | decomp_k_pools=",clm_bgc_data%decomp_k_pools_col
-write(*,'(A40,10E14.6)')">>>DEBUG | pathfrac_decomp_cascade=",clm_bgc_data%pathfrac_decomp_cascade_col(1,1,:)
-write(*,'(A40,10E14.6)')">>>DEBUG | rf_decomp_cascade=",clm_bgc_data%rf_decomp_cascade_col(1,1,:)
 
                  if (use_pflotran .and. pf_cmode) then
                     call t_startf('pflotran')

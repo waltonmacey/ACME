@@ -4837,9 +4837,10 @@ contains
     end do
 
     ! for vertically-resolved soil biogeochemistry, calculate some diagnostics of carbon pools to a given depth
-
-    if ( (.not. is_active_betr_bgc)           .and. &
-         (.not.(use_pflotran .and. pf_cmode)) ) then
+!! wgs:2017: pflotran also requires the following code
+!    if ( (.not. is_active_betr_bgc)           .and. &
+!         (.not.(use_pflotran .and. pf_cmode)) ) then
+    if  (.not. is_active_betr_bgc) then
 
     ! _col(cWDC_HR) - coarse woody debris heterotrophic respiration
     do fc = 1,num_soilc
@@ -4870,11 +4871,14 @@ contains
        end if
     end do
 
+    if (.not.(use_pflotran .and. pf_cmode)) then
     ! (LITTERC_LOSS) - litter C loss      
     do fc = 1,num_soilc
        c = filter_soilc(fc)
        this%litterc_loss_col(c) = this%lithr_col(c)  
     end do
+    end if !!(.not.(use_pflotran .and. pf_cmode))
+
     do l = 1, ndecomp_pools
        if ( is_litter(l) ) then
           do fc = 1,num_soilc
@@ -4899,6 +4903,7 @@ contains
       end do
 
    else if ((use_pflotran .and. pf_cmode)) then
+   !!wgs:2017:todo: following may be applied to both ALM & Pflotran???
 
       ! add up all vertical transport tendency terms and calculate total som leaching loss as the sum of these
       do l = 1, ndecomp_pools
@@ -4964,6 +4969,7 @@ subroutine CSummary_interface(this, bounds, num_soilc, filter_soilc)
    use clm_varpar , only: nlevdecomp,ndecomp_pools,ndecomp_cascade_transitions
    use clm_varpar , only: i_met_lit, i_cel_lit, i_lig_lit, i_cwd
    use clm_time_manager    , only : get_step_size
+
 !
 ! !ARGUMENTS:
    implicit none
@@ -4994,12 +5000,12 @@ subroutine CSummary_interface(this, bounds, num_soilc, filter_soilc)
     if (use_pflotran.and.pf_cmode) then
      ! total heterotrophic respiration (HR)
        this%hr_col(:) = 0._r8
-       do j = 1,nlevdecomp
-          do fc = 1,num_soilc
-             c = filter_soilc(fc)
-             this%hr_col(c) = this%hr_col(c) + &
-                this%hr_vr_col(c,j) * dzsoi_decomp(j)
-          end do
+
+       do fc = 1,num_soilc
+            c = filter_soilc(fc)
+            do j = 1,nlevdecomp
+                this%hr_col(c) = this%hr_col(c) + this%hr_vr_col(c,j) * dzsoi_decomp(j)
+            end do
        end do
 
        ! new variable to account for co2 exchange (not all HR goes to atm at current time-step)
@@ -5054,27 +5060,31 @@ subroutine CSummary_interface(this, bounds, num_soilc, filter_soilc)
     ! (note: this can be for general purpose, although here added an 'if...endif' block for PF-bgc)
     ! first, need to save the total plant C adding/removing to decomposing pools at previous time-step
     ! for calculating the net changes, which are used to do balance check
-    this%externalc_to_decomp_delta_col(:) = 0._r8
-    do l = 1, ndecomp_pools
-       do j = 1, nlevdecomp
-          do fc = 1, num_soilc
-             c = filter_soilc(fc)
-             this%externalc_to_decomp_delta_col(c) = this%externalc_to_decomp_delta_col(c) + &
+
+    do fc = 1, num_soilc
+        c = filter_soilc(fc)
+        this%externalc_to_decomp_delta_col(c) = 0._r8
+        do l = 1, ndecomp_pools
+            do j = 1, nlevdecomp
+                this%externalc_to_decomp_delta_col(c) = this%externalc_to_decomp_delta_col(c) + &
                                 this%externalc_to_decomp_cpools_col(c,j,l)*dzsoi_decomp(j)
-          end do
-       end do
+            end do
+        end do
     end do
-!write(*,'(A40,E14.6)')">>>DEBUG | externC[t-1]=",this%externalc_to_decomp_delta_col(1)*dtime
-    !
+
+
     ! do the initialization for the following variable here.
     ! DON'T do so in the beginning of CLM-CN time-step (otherwise the above saved will not work)
     this%externalc_to_decomp_cpools_col(:,:,:) = 0._r8
 
-    do l = 1, ndecomp_pools
-       do j = 1, nlevdecomp
-          do fc = 1,num_soilc
-             c = filter_soilc(fc)
+!!wgs:2017: NGEE-pflotran includes the item 'decomp_cpools_transport_tendency_col';
+!!In order to keep externalc_to_decomp_cpools_col(c,j,l) >=0, I suggest to exclude this item, as this variable could be >0 or <0.
+!!if decomp_cpools_transport_tendency_col(c,j,l)<0, it may result in externalc_to_decomp_cpools_col(c,j,l) < 0
 
+    do fc = 1,num_soilc
+        c = filter_soilc(fc)
+        do j = 1, nlevdecomp
+            do l = 1, ndecomp_pools
              ! for litter C pools
              if (l==i_met_lit) then
                 this%externalc_to_decomp_cpools_col(c,j,l) =                 &
@@ -5082,9 +5092,9 @@ subroutine CSummary_interface(this, bounds, num_soilc, filter_soilc)
                         + this%phenology_c_to_litr_met_c_col(c,j)            &
                         + this%dwt_frootc_to_litr_met_c_col(c,j)             &
                         + this%gap_mortality_c_to_litr_met_c_col(c,j)        &
-                        + this%harvest_c_to_litr_met_c_col(c,j)              !!&
-!                        + this%m_c_to_litr_met_fire_col(c,j)                 &
-!                        + this%decomp_cpools_transport_tendency_col(c,j,l)   &
+                        + this%harvest_c_to_litr_met_c_col(c,j)              &
+                        + this%m_c_to_litr_met_fire_col(c,j)                 !!&
+!                        + this%decomp_cpools_transport_tendency_col(c,j,l)   !!&
 !                        - this%m_decomp_cpools_to_fire_vr_col(c,j,l)
 
              elseif (l==i_cel_lit) then
@@ -5093,9 +5103,9 @@ subroutine CSummary_interface(this, bounds, num_soilc, filter_soilc)
                         + this%phenology_c_to_litr_cel_c_col(c,j)            &
                         + this%dwt_frootc_to_litr_cel_c_col(c,j)             &
                         + this%gap_mortality_c_to_litr_cel_c_col(c,j)        &
-                        + this%harvest_c_to_litr_cel_c_col(c,j)              !!&
-!                        + this%m_c_to_litr_cel_fire_col(c,j)                 &
-!                        + this%decomp_cpools_transport_tendency_col(c,j,l)   &
+                        + this%harvest_c_to_litr_cel_c_col(c,j)              &
+                        + this%m_c_to_litr_cel_fire_col(c,j)                 !!&
+!                        + this%decomp_cpools_transport_tendency_col(c,j,l)   !!&
 !                        - this%m_decomp_cpools_to_fire_vr_col(c,j,l)
 
              elseif (l==i_lig_lit) then
@@ -5104,9 +5114,9 @@ subroutine CSummary_interface(this, bounds, num_soilc, filter_soilc)
                         + this%phenology_c_to_litr_lig_c_col(c,j)            &
                         + this%dwt_frootc_to_litr_lig_c_col(c,j)             &
                         + this%gap_mortality_c_to_litr_lig_c_col(c,j)        &
-                        + this%harvest_c_to_litr_lig_c_col(c,j)              !!&
-!                        + this%m_c_to_litr_lig_fire_col(c,j)                 &
-!                        + this%decomp_cpools_transport_tendency_col(c,j,l)   &
+                        + this%harvest_c_to_litr_lig_c_col(c,j)              &
+                        + this%m_c_to_litr_lig_fire_col(c,j)                 !!&
+!                        + this%decomp_cpools_transport_tendency_col(c,j,l)   !!&
 !                        - this%m_decomp_cpools_to_fire_vr_col(c,j,l)
 
              ! for cwd
@@ -5116,17 +5126,18 @@ subroutine CSummary_interface(this, bounds, num_soilc, filter_soilc)
                         + this%dwt_livecrootc_to_cwdc_col(c,j)               &
                         + this%dwt_deadcrootc_to_cwdc_col(c,j)               &
                         + this%gap_mortality_c_to_cwdc_col(c,j)              &
-                        + this%harvest_c_to_cwdc_col(c,j)                    !!&
-!                        + this%fire_mortality_c_to_cwdc_col(c,j)             &
-!                        + this%decomp_cpools_transport_tendency_col(c,j,l)   &
+                        + this%harvest_c_to_cwdc_col(c,j)                    &
+                        + this%fire_mortality_c_to_cwdc_col(c,j)             !!& !!wgs:2017
+!                        + this%decomp_cpools_transport_tendency_col(c,j,l)   !!& !!wgs:2017
 !                        - this%m_decomp_cpools_to_fire_vr_col(c,j,l)
 
              ! for som
              ! no external input to som
+             !! wgs:2017
 !             else
 !                this%externalc_to_decomp_cpools_col(c,j,l) =                 &
 !                    this%externalc_to_decomp_cpools_col(c,j,l)               &
-!                        + this%decomp_cpools_transport_tendency_col(c,j,l)   &
+!                        + this%decomp_cpools_transport_tendency_col(c,j,l)   !!&
 !                        - this%m_decomp_cpools_to_fire_vr_col(c,j,l)
 
              end if
@@ -5142,9 +5153,9 @@ subroutine CSummary_interface(this, bounds, num_soilc, filter_soilc)
                  this%externalc_to_decomp_cpools_col(c,j,l) = 0._r8
              end if
 
-          end do
-       end do
-    end do
+          end do !!l = 1, ndecomp_pools
+       end do !!j = 1, nlevdecomp
+    end do !!fc = 1,num_soilc
 
     ! change the sign so that it is the increments from the previous time-step (unit: from g/m2/s)
     do fc = 1, num_soilc
@@ -5259,7 +5270,11 @@ end subroutine CSummary_interface
        this%somhr_col(c)              = 0._r8
        this%lithr_col(c)              = 0._r8
        this%decomp_cascade_hr_col(c,1:ndecomp_cascade_transitions)= 0._r8
-       this%hr_vr_col(c,1:nlevdecomp) = 0._r8
+       if (.not. (use_pflotran .and. pf_cmode)) then
+       !! pflotran has returned 'hr_vr_col(begc:endc,1:nlevdecomp)' to ALM before this subroutine is called in CNEcosystemDynNoLeaching2
+       !! thus 'hr_vr_col' should NOT be set to 0
+            this%hr_vr_col(c,1:nlevdecomp) = 0._r8
+       end if
     enddo
 
     if ( (.not. is_active_betr_bgc           ) .and. &

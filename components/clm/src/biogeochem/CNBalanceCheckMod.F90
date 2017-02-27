@@ -253,6 +253,11 @@ contains
             write(iulog,*)'begcb       = ',col_begcb(c)
             write(iulog,*)'endcb       = ',col_endcb(c),carbonstate_vars%totsomc_col(c)
             write(iulog,*)'delta store = ',col_endcb(c)-col_begcb(c)
+
+            if (use_pflotran .and. pf_cmode) then
+                write(iulog,*)'delta_input_bw_timesteps =',col_decompc_delta(c)*dt
+            end if
+
             call endrun(msg=errMsg(__FILE__, __LINE__))
          end if
       end if !use_ed
@@ -393,6 +398,11 @@ contains
          write(iulog,*)'fire                  = ',col_fire_nloss(c)*dt
          write(iulog,*)'dwt                   = ',dwt_nloss(c)*dt 
          write(iulog,*)'prod                  = ',product_nloss(c)*dt
+
+         if (use_pflotran .and. pf_cmode) then
+                write(iulog,*)'delta_input_bw_timesteps =',col_decompn_delta(c)*dt
+         end if
+
          call endrun(msg=errMsg(__FILE__, __LINE__))
       end if
 

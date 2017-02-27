@@ -5,16 +5,16 @@ module clm_bgc_interface_data
 ! Created by wgs @ ORNL
 !
 ! date: 8/25/2015
-! update: 9/16/2016
+! update: 9/16/2016, 2/2/2017
 !!=================================================================================================
   !! USES:
   use shr_log_mod           , only : errMsg => shr_log_errMsg
   use shr_kind_mod          , only : r8 => shr_kind_r8
   use shr_infnan_mod        , only : nan => shr_infnan_nan, assignment(=)
-  use clm_varpar            , only : nlevsno, nlevgrnd
-  use clm_varpar            , only : nlevdecomp_full, ndecomp_pools,  ndecomp_cascade_transitions
-  use clm_varcon            , only : spval
-  use decompMod             , only : bounds_type
+!  use clm_varpar            , only : nlevsno, nlevgrnd
+!  use clm_varpar            , only : nlevdecomp_full, ndecomp_pools,  ndecomp_cascade_transitions
+!  use clm_varcon            , only : spval
+!  use decompMod             , only : bounds_type
 
   implicit none
 !  save
@@ -255,6 +255,7 @@ contains
 
 !!-------------------------------------------------------------------------------------------------
   subroutine Init(this, bounds)
+     use decompMod               , only : bounds_type
      class(clm_bgc_interface_data_type) :: this
      type(bounds_type), intent(in)      :: bounds
 
@@ -266,12 +267,15 @@ contains
 
   subroutine InitAllocate(this, bounds)
     !! USES
-
+    use clm_varpar            , only : nlevsno, nlevgrnd
+    use clm_varpar            , only : nlevdecomp_full, ndecomp_pools,  ndecomp_cascade_transitions
+    use clm_varcon            , only : spval
+    use decompMod             , only : bounds_type
 
     !! ARGUMENTS:
     real(r8) :: ival  = 0.0_r8  ! initial value
-    class(clm_bgc_interface_data_type) :: this
-    type(bounds_type), intent(in) :: bounds
+    class(clm_bgc_interface_data_type)  :: this
+    type(bounds_type), intent(in)       :: bounds
 
     !! LOCAL VARIABLES:
     integer  :: begg, endg

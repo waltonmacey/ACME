@@ -3204,10 +3204,10 @@ subroutine NSummary_interface(this,bounds,num_soilc, filter_soilc)
        this%no3_net_transport_vr_col(:,:) = 0._r8
 
        ! add up all vertically-resolved addition/removal rates (gC/m3/s) of decomp_pools
-       do l = 1, ndecomp_pools
-          do j = 1, nlevdecomp
-             do fc = 1,num_soilc
-                c = filter_soilc(fc)
+       do fc = 1,num_soilc
+            c = filter_soilc(fc)
+            do j = 1, nlevdecomp
+                do l = 1, ndecomp_pools
 
                 ! for litter C pools
                 if (l==i_met_lit) then
@@ -3216,8 +3216,8 @@ subroutine NSummary_interface(this,bounds,num_soilc, filter_soilc)
                         + this%phenology_n_to_litr_met_n_col(c,j)            &
                         + this%dwt_frootn_to_litr_met_n_col(c,j)             &
                         + this%gap_mortality_n_to_litr_met_n_col(c,j)        &
-                        + this%harvest_n_to_litr_met_n_col(c,j)              !!&
-!                        + this%m_n_to_litr_met_fire_col(c,j)                 &
+                        + this%harvest_n_to_litr_met_n_col(c,j)              &
+                        + this%m_n_to_litr_met_fire_col(c,j)                 !!&
 !                        - this%m_decomp_npools_to_fire_vr_col(c,j,l)
 
                 elseif (l==i_cel_lit) then
@@ -3226,8 +3226,8 @@ subroutine NSummary_interface(this,bounds,num_soilc, filter_soilc)
                         + this%phenology_n_to_litr_cel_n_col(c,j)            &
                         + this%dwt_frootn_to_litr_cel_n_col(c,j)             &
                         + this%gap_mortality_n_to_litr_cel_n_col(c,j)        &
-                        + this%harvest_n_to_litr_cel_n_col(c,j)              !!&
-!                        + this%m_n_to_litr_cel_fire_col(c,j)                 &
+                        + this%harvest_n_to_litr_cel_n_col(c,j)              &
+                        + this%m_n_to_litr_cel_fire_col(c,j)                  !!&
 !                        - this%m_decomp_npools_to_fire_vr_col(c,j,l)
 
                 elseif (l==i_lig_lit) then
@@ -3236,8 +3236,8 @@ subroutine NSummary_interface(this,bounds,num_soilc, filter_soilc)
                         + this%phenology_n_to_litr_lig_n_col(c,j)            &
                         + this%dwt_frootn_to_litr_lig_n_col(c,j)             &
                         + this%gap_mortality_n_to_litr_lig_n_col(c,j)        &
-                        + this%harvest_n_to_litr_lig_n_col(c,j)              !!&
-!                        + this%m_n_to_litr_lig_fire_col(c,j)                 &
+                        + this%harvest_n_to_litr_lig_n_col(c,j)              &
+                        + this%m_n_to_litr_lig_fire_col(c,j)                 !!&
 !                        - this%m_decomp_npools_to_fire_vr_col(c,j,l)
 
                 ! for cwd
@@ -3247,8 +3247,8 @@ subroutine NSummary_interface(this,bounds,num_soilc, filter_soilc)
                         + this%dwt_livecrootn_to_cwdn_col(c,j)               &
                         + this%dwt_deadcrootn_to_cwdn_col(c,j)               &
                         + this%gap_mortality_n_to_cwdn_col(c,j)              &
-                        + this%harvest_n_to_cwdn_col(c,j)                    !!&
-!                        + this%fire_mortality_n_to_cwdn_col(c,j)
+                        + this%harvest_n_to_cwdn_col(c,j)                    &
+                        + this%fire_mortality_n_to_cwdn_col(c,j)
 
              ! for som n
 !                else
@@ -3270,9 +3270,9 @@ subroutine NSummary_interface(this,bounds,num_soilc, filter_soilc)
                     this%externaln_to_decomp_npools_col(c,j,l) = 0._r8
                 end if
 
-             end do
-          end do
-       end do
+             end do !!l = 1, ndecomp_pools
+          end do !!j = 1, nlevdecomp
+       end do !!fc = 1,num_soilc
 
        ! if pflotran hydrology NOT coupled, need to do adjusting for NO3 leaching for balance error checking
        if (.not. pf_hmode) then

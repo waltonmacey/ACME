@@ -89,7 +89,9 @@ def build_stub_lib(argv, compclass):
         # Write directory list
         compname = "s" + compclass
         with open('Filepath', 'w') as out:
-            out.write(os.path.join(caseroot, "SourceMods", "src.%s", compname) + "\n")
+            ## wgs:2/26/2017: corrected dir names, e.g., should be src.sglc, src.sice, src.socn, src.swav
+            ## out.write(os.path.join(caseroot, "SourceMods", "src.%s", compname) + "\n")
+            out.write(os.path.join(caseroot, "SourceMods", "src.%s"%compname) + "\n") 
             out.write(os.path.join(cimeroot, "components", "stub_comps", "xshare") + "\n")
             out.write(os.path.join(cimeroot, "components", "stub_comps",compname, "cpl") + "\n")
 
