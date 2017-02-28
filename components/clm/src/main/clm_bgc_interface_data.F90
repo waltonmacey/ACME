@@ -43,9 +43,9 @@ module clm_bgc_interface_data
      real(r8), pointer :: hksat_col                                 (:,:)   ! col hydraulic conductivity at saturation (mm H2O /s)
      real(r8), pointer :: bsw_col                                   (:,:)   ! col Clapp and Hornberger "b" (nlevgrnd)
      real(r8), pointer :: watsat_col                                (:,:)   ! col volumetric soil water at saturation (porosity)
-     real(r8), pointer :: watmin_col                                (:,:) ! col minimum volumetric soil water (nlevsoi)
-     real(r8), pointer :: sucsat_col                                (:,:) ! col minimum soil suction (mm) (nlevgrnd)
-     real(r8), pointer :: sucmin_col                                (:,:) ! col minimum allowable soil liquid suction pressure (mm) [Note: sucmin_col is a negative value, while sucsat_col is a positive quantity]
+     real(r8), pointer :: watmin_col                                (:,:)   ! col minimum volumetric soil water (nlevsoi)
+     real(r8), pointer :: sucsat_col                                (:,:)   ! col minimum soil suction (mm) (nlevgrnd)
+     real(r8), pointer :: sucmin_col                                (:,:)   ! col minimum allowable soil liquid suction pressure (mm) [Note: sucmin_col is a negative value, while sucsat_col is a positive quantity]
      real(r8), pointer :: watfc_col                                 (:,:)   ! col volumetric soil water at field capacity (nlevsoi)
      real(r8), pointer :: porosity_col                              (:,:)   ! col soil porisity (1-bulk_density/soil_density) (VIC)
      real(r8), pointer :: eff_porosity_col                          (:,:)   ! col effective porosity = porosity - vol_ice (nlevgrnd)

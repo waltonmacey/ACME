@@ -1930,8 +1930,8 @@ contains
       sucsat          => clm_bgc_data%sucsat_col    , & ! minimum soil suction (mm) (nlevgrnd)
       bsw             => clm_bgc_data%bsw_col       , & ! Clapp and Hornberger "b"
       watsat          => clm_bgc_data%watsat_col    , & ! volumetric soil water at saturation (porosity) (nlevgrnd)
-      watmin          => clm_bgc_data%watmin_col    , & ! restriction for min of volumetric soil water, or, residual vwc (-) (nlevgrnd)
-      sucmin          => clm_bgc_data%sucmin_col    , & ! restriction for min of soil potential (mm) (nlevgrnd)
+      watmin          => clm_bgc_data%watmin_col    , & ! col minimum volumetric soil water (nlevsoi)
+      sucmin          => clm_bgc_data%sucmin_col    , & ! col minimum allowable soil liquid suction pressure (mm) [Note: sucmin_col is a negative value, while sucsat_col is a positive quantity]
       soilpsi         => clm_bgc_data%soilpsi_col   , & ! soil water matric potential in each soil layer (MPa)
     !
       h2osoi_liq      => clm_bgc_data%h2osoi_liq_col, & ! liquid water (kg/m2)
@@ -1970,10 +1970,15 @@ contains
 
 !     watmin(:,:) = 0.01_r8
 !     sucmin(:,:) = 1.e8_r8
+!>>>DEBUG | get_clm_soil_th--------------------------------------------------
+!>>>DEBUG | watmin=  0.328991E-01  0.351745E-01  0.402160E-01  0.568353E-01  0.984890E-01  0.164315E+00  0.165404E+00  0.414067E-01  0.339666E-01  0.328906E-01  0.328906E-01  0.328906E-01  0.328906E-01  0.328906E-01  0.328906E-01
+!>>>DEBUG | sucmin= -0.101325E+08 -0.101325E+08 -0.101325E+08 -0.101325E+08 -0.101325E+08 -0.101325E+08 -0.101325E+08 -0.101325E+08 -0.101325E+08 -0.101325E+08 -0.101325E+08 -0.101325E+08 -0.101325E+08 -0.101325E+08 -0.101325E+08
 
     do fc = 1,filters(ifilter)%num_soilc
       c = filters(ifilter)%soilc(fc)
       g = cgridcell(c)
+      watmin(c,:) = 0.01_r8
+      sucmin(c,:) = 1.e8_r8
 
 #ifdef COLUMN_MODE
       gcount = c - bounds%begc                 ! 0-based
@@ -1995,7 +2000,8 @@ contains
              ! this adjusting should be done first, if PF-freezing-mode off,
              ! so that the following calculation can be done correctly
              itheta = h2osoi_ice(c,j) / (dz(c,j) * denice)
-             itheta = min(itheta, watsat(c,j)-watmin(c,j)/(dz(c,j)*denh2o))
+!             itheta = min(itheta, watsat(c,j)-watmin(c,j)/(dz(c,j)*denh2o))
+             itheta = min(itheta, watsat(c,j)-watmin(c,j))
              soilisat_clmp_loc(cellcount) = itheta/watsat(c,j)
 
              if(.not.pf_frzmode) then
@@ -2160,7 +2166,7 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
                itheta = h2osoi_ice(c,j) / (dz(c,j) * denice)
                itheta = min(itheta, 0.99_r8*watsat(c,j))
                adjporosity_clmp_loc(cellcount ) = watsat(c,j) - itheta
-               soilisat_clmp_loc(cellcount ) = itheta
+               soilisat_clmp_loc(cellcount ) = itheta/watsat(c,j)
              else
                call endrun(trim(subname) // ": ERROR: CLM-PF mapped soil layer number is greater than " // &
                  " 'clm_varpar%nlevgrnd'. Please check")

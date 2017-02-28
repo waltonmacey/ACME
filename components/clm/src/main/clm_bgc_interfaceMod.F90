@@ -342,6 +342,8 @@ contains
 
       soilpsi               => soilstate_vars%soilpsi_col               , & ! soil water matric potential in each soil layer (MPa)
       rootfr                => soilstate_vars%rootfr_col                , & ! pft-level effective fraction of roots in each soil layer
+      watmin                => soilstate_vars%watmin_col                , & ! col minimum volumetric soil water (nlevsoi)
+      sucmin                => soilstate_vars%sucmin_col                , & ! col minimum allowable soil liquid suction pressure (mm) [Note: sucmin_col is a negative value, while sucsat_col is a positive quantity]
 
       h2osoi_vol            => waterstate_vars%h2osoi_vol_col           , & ! Input:  [real(r8) (:,:)  ]  volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3]  (nlevgrnd)
       h2osoi_liq            => waterstate_vars%h2osoi_liq_col           , & ! liquid water (kg/m2)
@@ -412,6 +414,9 @@ contains
 !        do j = 1, nlevsoi
             clm_bgc_data%soilpsi_col(c,:)           = soilpsi(c,:)
             clm_bgc_data%rootfr_col(c,:)            = rootfr(c,:)
+
+            clm_bgc_data%watmin_col(c,:)            = watmin(c,:)
+            clm_bgc_data%sucmin_col(c,:)            = sucmin(c,:)
 
             clm_bgc_data%h2osoi_vol_col(c,:)        = h2osoi_vol(c,:)
             clm_bgc_data%h2osoi_liq_col(c,:)        = h2osoi_liq(c,:)
