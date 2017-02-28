@@ -3106,6 +3106,8 @@ subroutine NSummary_interface(this,bounds,num_soilc, filter_soilc)
 
     if (use_pflotran .and. pf_cmode) then
 ! nitrification-denitrification rates (not yet passing out from PF, but will)
+!! wgs:beg------------------------------------------------
+!! NOT used currently
       do fc = 1,num_soilc
          c = filter_soilc(fc)
          this%f_nit_col(c)   = 0._r8
@@ -3123,6 +3125,7 @@ subroutine NSummary_interface(this,bounds,num_soilc, filter_soilc)
          this%denit_col(c)      = this%f_denit_col(c)
 
        end do
+!! wgs:end------------------------------------------------
 
        ! the following are from pflotran bgc
        do fc = 1,num_soilc
@@ -3162,7 +3165,7 @@ subroutine NSummary_interface(this,bounds,num_soilc, filter_soilc)
             this%sminn_leached_vr_col(c,j) = this%smin_no3_leached_vr_col(c,j) + &
                                                this%smin_no3_runoff_vr_col(c,j)
 
-          end do
+          end do !!j = 1, nlevdecomp
 
           ! for balance-checking
           this%denit_col(c)     = this%f_ngas_denit_col(c)
@@ -3170,8 +3173,9 @@ subroutine NSummary_interface(this,bounds,num_soilc, filter_soilc)
 
           ! assign all no3-N leaching/runoff to all mineral-N
           this%sminn_leached_col(c) = this%smin_no3_leached_col(c) + this%smin_no3_runoff_col(c)
-
-      end do
+!write(*,'(A40,I5,10E14.6)')"DEBUG | column/denit/f_n2o_nit=",c,this%denit_col(c)*dtime,this%f_n2o_nit_col(c)*dtime
+!write(*,'(A40,I5,10E14.6)')"DEBUG | column/no3_leach/no3_runoff=",c,this%smin_no3_leached_col(c)*dtime, this%smin_no3_runoff_col(c)*dtime
+      end do !!fc = 1,num_soilc
     end if !! if (use_pflotran .and. pf_cmode)
 
 
@@ -3280,9 +3284,9 @@ subroutine NSummary_interface(this,bounds,num_soilc, filter_soilc)
              do fc = 1,num_soilc
                 c = filter_soilc(fc)
                 !! wgs: EXCLUDE leaching from external input
-                this%no3_net_transport_vr_col(c,j) = 0._r8
-!                this%no3_net_transport_vr_col(c,j) = this%smin_no3_runoff_vr_col(c,j) + &
-!                                               this%smin_no3_leached_vr_col(c,j)
+!                this%no3_net_transport_vr_col(c,j) = 0._r8
+                this%no3_net_transport_vr_col(c,j) = this%smin_no3_runoff_vr_col(c,j) + &
+                                               this%smin_no3_leached_vr_col(c,j)
                 this%no3_net_transport_delta_col(c) = &
                             this%no3_net_transport_delta_col(c) - &
                             this%no3_net_transport_vr_col(c,j)*dzsoi_decomp(j)

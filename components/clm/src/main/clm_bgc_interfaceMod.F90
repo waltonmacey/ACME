@@ -658,6 +658,8 @@ contains
                                                                 (1._r8-fnh4_fert)*fert_to_sminn(c) * ndep_prof(c, :) + &
                                                                 (1._r8-fnh4_fert)*supplement_to_sminn_vr(c,:)
 
+
+
             clm_bgc_data%externalp_to_primp_col(c,:)        =   pdep_to_sminp(c)*ndep_prof(c, :)
             clm_bgc_data%externalp_to_labilep_col(c,:)      =   fert_p_to_sminp(c)*ndep_prof(c, :)
             clm_bgc_data%externalp_to_solutionp_col(c,:)    =   supplement_to_sminp_vr(c,:)
@@ -669,8 +671,21 @@ contains
             clm_bgc_data%plant_ndemand_vr_col(c,:)          = col_plant_ndemand_vr(c,:)
             clm_bgc_data%plant_pdemand_vr_col(c,:)          = col_plant_pdemand_vr(c,:)
 
+!            if(.not.pf_hmode) then
+!                clm_bgc_data%externaln_to_no3_col(c,:) = clm_bgc_data%externaln_to_no3_col(c,:) &
+!                                                       - clm_bgc_data%no3_net_transport_vr_col(c,:)
+!            end if
+
 !        end do
-    end do
+!        do j = 1, nlevdecomp
+!            if (clm_bgc_data%externaln_to_no3_col(c,j)<0._r8) then
+!                     clm_bgc_data%externaln_to_no3_col(c,j) = max(     &
+!                       clm_bgc_data%externaln_to_no3_col(c,j),         &
+!                       -max(clm_bgc_data%smin_no3_vr_col(c,j)/dtime, 0._r8))
+!            endif
+!        end do
+
+    end do !! fc = 1,num_soilc
 
     end associate
   end subroutine get_clm_bgc_flux
