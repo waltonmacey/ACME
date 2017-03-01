@@ -1879,7 +1879,7 @@ contains
     use clm_time_manager    , only : get_nstep, is_first_step, is_first_restart_step
     use shr_const_mod       , only : SHR_CONST_G
     use ColumnType          , only : col
-
+    use clm_varctl          , only : iulog
     use clm_varcon          , only : denh2o, denice, tfrz
     use clm_varpar          , only : nlevgrnd
     use shr_infnan_mod      , only : shr_infnan_isnan
@@ -1915,7 +1915,7 @@ contains
     PetscScalar, pointer :: o_scalar_clmp_loc(:)  !
     PetscErrorCode :: ierr
     integer :: j
-    real(r8):: sattmp, psitmp, itheta
+    real(r8):: sattmp, psitmp, itheta, sucmin_pa, psitmp0
 
     character(len= 32) :: subname = 'get_clm_soil_th' ! subroutine name
 
@@ -1977,8 +1977,8 @@ contains
     do fc = 1,filters(ifilter)%num_soilc
       c = filters(ifilter)%soilc(fc)
       g = cgridcell(c)
-      watmin(c,:) = 0.01_r8
-      sucmin(c,:) = 1.e8_r8
+!      watmin(c,:) = 0.01_r8
+!      sucmin(c,:) = 1.e8_r8
 
 #ifdef COLUMN_MODE
       gcount = c - bounds%begc                 ! 0-based
@@ -2013,17 +2013,27 @@ contains
                 ! soil matric potential re-done by Clapp-Hornburger method (this is the default used by CLM)
                 ! this value IS different from what CLM used (not ice-content adjusted)
                 ! So that in PF, if not ice-adjusted, the PSI is very small (negative) which implies possible water movement
-                psitmp = sucsat(c,j) * (-SHR_CONST_G) * (sattmp**(-bsw(c,j)))  ! -Pa
-                psitmp = min(max(psitmp,-sucmin(c,j)/SHR_CONST_G),0._r8)
+
+                !! sucsat > 0, sucmin < 0, sucsat & sucmin have units of mm
+                !! psitmp = psitmp0, as denh2o*1.e-3_r8 = 1.0
+                psitmp0 = sucsat(c,j) * (-SHR_CONST_G) * (sattmp**(-bsw(c,j)))  ! -Pa
+!                psitmp = min(max(psitmp,-sucmin(c,j)/SHR_CONST_G),0._r8)
+
+                psitmp = denh2o*(-SHR_CONST_G)*(sucsat(c,j)*1.e-3_r8)*(sattmp**(-bsw(c,j))) ! -Pa
+                sucmin_pa = denh2o*SHR_CONST_G*sucmin(c,j)*1.e-3_r8                         ! -Pa
+                psitmp = min(max(psitmp,sucmin_pa),0._r8) !!Pa
 
              else
                 sattmp = h2osoi_liq(c,j) / (watsat(c,j)*dz(c,j)*denh2o)
                 sattmp = min(max(0.01d0, sattmp/watsat(c,j)),1._r8)
 
-                psitmp = soilpsi(c,j)*1.e6_r8
+                psitmp = soilpsi(c,j)*1.e6_r8  ! MPa -> Pa
                 if (shr_infnan_isnan(soilpsi(c,j)) .or. nstep<=0) then ! only for initialization, in which NOT assigned a value
-                    psitmp = sucsat(c,j) * (-SHR_CONST_G) * ((sattmp+itheta)**(-bsw(c,j)))  ! -Pa: included both ice and liq. water as CLM does
-                    psitmp = min(max(psitmp,-sucmin(c,j)/SHR_CONST_G),0._r8)
+                    psitmp0 = sucsat(c,j) * (-SHR_CONST_G) * ((sattmp+itheta)**(-bsw(c,j)))  ! -Pa: included both ice and liq. water as CLM does
+!                    psitmp = min(max(psitmp,-sucmin(c,j)/SHR_CONST_G),0._r8)
+                    psitmp = denh2o*(-SHR_CONST_G)*(sucsat(c,j)*1.e-3_r8) * ((sattmp+itheta)**(-bsw(c,j)))
+                    sucmin_pa = denh2o*SHR_CONST_G*sucmin(c,j)*1.e-3_r8
+                    psitmp = min(max(psitmp,sucmin_pa),0._r8)
                 endif
 
              endif !!if(.not.pf_frzmode) 
@@ -2056,6 +2066,17 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
 
       enddo  !!do j = 1, clm_pf_idata%nzclm_mapped
     enddo !!do fc = 1,filters(ifilter)%num_soilc
+
+!write(iulog,'(A,50(1h-))')">>>DEBUG | get_clm_soil_th"
+!write(iulog,'(A30,12E14.6)')">>>DEBUG | soilpress=", soilpress_clmp_loc(1:10)
+!write(iulog,'(A30,12E14.6)')">>>DEBUG | soilpsi[Pa]=", soilpsi_clmp_loc(1:10)
+!write(iulog,'(A30,12E14.6)')">>>DEBUG | soillsat=", soillsat_clmp_loc(1:10)
+!write(iulog,'(A30,12E14.6)')">>>DEBUG | soilisat=", soilisat_clmp_loc(1:10)
+!write(iulog,'(A30,12E14.6)')">>>DEBUG | soilt[oC]=", soilt_clmp_loc(1:10)
+!write(iulog,'(A30,12E14.6)')">>>DEBUG | soilvwc=", soilvwc_clmp_loc(1:10)
+!write(iulog,'(A30,12E14.6)')">>>DEBUG | t_scalar=", t_scalar_clmp_loc(1:10)
+!write(iulog,'(A30,12E14.6)')">>>DEBUG | w_scalar=", w_scalar_clmp_loc(1:10)
+!write(iulog,'(A30,12E14.6)')">>>DEBUG | o_scalar=", o_scalar_clmp_loc(1:10)
 
     call VecRestoreArrayF90(clm_pf_idata%press_clmp, soilpress_clmp_loc, ierr)
     CHKERRQ(ierr)
@@ -2095,6 +2116,7 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
   !
   ! !USES:
     use ColumnType          , only : col
+    use clm_varctl          , only : iulog
     use clm_varcon          , only : denice
     use clm_varpar          , only : nlevgrnd
 
@@ -2176,6 +2198,10 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
            end do
         end do
 
+!write(iulog,'(A,50(1h-))')">>>DEBUG | get_clm_iceadj_porosity"
+!write(iulog,'(A30,12E14.6)')">>>DEBUG | adjporosity=", adjporosity_clmp_loc(1:10)
+!write(iulog,'(A30,12E14.6)')">>>DEBUG | soilisat=", soilisat_clmp_loc(1:10)
+
         call VecRestoreArrayF90(clm_pf_idata%effporosity_clmp,  adjporosity_clmp_loc,  ierr)
         CHKERRQ(ierr)
         call VecRestoreArrayF90(clm_pf_idata%soilisat_clmp, soilisat_clmp_loc,  ierr)
@@ -2201,6 +2227,7 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
 !     use clm_varpar, only : i_met_lit, i_cel_lit, i_lig_lit, i_cwd
 ! #endif
     use ColumnType          , only : col
+    use clm_varctl          , only : iulog
     use clm_varpar          , only : ndecomp_pools, nlevdecomp
 
     implicit none
@@ -2330,7 +2357,12 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
        enddo ! do j = 1, clm_pf_idata%nzclm_mapped
 
     enddo ! do fc = 1, num_soilc
-
+!-----------------------------------------------------------------------------
+!write(iulog,'(A,50(1h-))')">>>DEBUG | get_clm_bgc_conc,lev=1 for C & N"
+!write(iulog,'(12A14)')"lit1","lit2","lit3","cwd","som1","som2","som3","som4","no3","nh4","nh4sorb"
+!write(iulog,'(12E14.6)')decomp_cpools_vr(1,1,1:8)
+!write(iulog,'(12E14.6)')decomp_npools_vr(1,1,1:8),smin_no3_vr(1,1),smin_nh4_vr(1,1),smin_nh4sorb_vr(1,1)
+!-----------------------------------------------------------------------------
     call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_clmp, decomp_cpools_vr_clm_loc, ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_clmp, decomp_npools_vr_clm_loc, ierr)
@@ -2361,7 +2393,7 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
     use ColumnType          , only : col
     use clm_time_manager    , only : get_step_size, get_nstep,  is_first_step, is_first_restart_step
     use clm_varpar          , only : ndecomp_pools, nlevdecomp
-    use clm_varctl          , only : pf_hmode
+    use clm_varctl          , only : iulog, pf_hmode
 
   ! !ARGUMENTS:
     implicit none
@@ -2555,7 +2587,7 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
               ! PF hydrological mode is OFF, then NO3 transport NOT to calculate in PF
               ! then it's done in CLM, so need to pass those to PF as source/sink term (RT mass transfer)
               rate_smin_no3_clm_loc(cellcount) = externaln_to_no3_vr(c,j)/ clm_pf_idata%N_molecular_weight 
-!! wgs:2/27/2017: comment out:beg
+!! wgs:2/27/2017: comment out:beg: EXCLUDE leaching from NO3 net-input.
 !              if(.not.pf_hmode) then
 !                rate_smin_no3_clm_loc(cellcount) =              &
 !                          rate_smin_no3_clm_loc(cellcount) -    &
@@ -2565,11 +2597,11 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
               ! something unknown NOT right for NO3 leaching correction here as 'rt_mass_transfer' when 'use_century_decomp' is on
 
 
-!              if (rate_smin_no3_clm_loc(cellcount)<0._r8) then
-!                 rate_smin_no3_clm_loc(cellcount) = max(     &
-!                   rate_smin_no3_clm_loc(cellcount),         &
-!                   -max(smin_no3_vr(c,j)/clm_pf_idata%N_molecular_weight/dtime, 0._r8))
-!              endif
+              if (rate_smin_no3_clm_loc(cellcount)<0._r8) then
+                 rate_smin_no3_clm_loc(cellcount) = max(     &
+                   rate_smin_no3_clm_loc(cellcount),         &
+                   -max(smin_no3_vr(c,j)/clm_pf_idata%N_molecular_weight/dtime, 0._r8))
+              endif
 
 !              if (rate_smin_no3_clm_loc(vec_offset+cellcount)<0._r8) then
 !                 rate_smin_no3_clm_loc(vec_offset+cellcount) = max(     &
@@ -2595,6 +2627,15 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
 
     enddo ! do fc=1,numsoic
 
+!write(iulog,'(A,50(1h-))')">>>DEBUG | get_clm_bgc_rate,lev=1 for C & N"
+!write(iulog,'(12A14)')"lit1","lit2","lit3","cwd","som1","som2","som3","som4","no3","nh4","plantNdemand"
+!write(iulog,'(12E14.6)')col_net_to_decomp_cpools_vr(1,1,1:ndecomp_pools)
+!write(iulog,'(12E14.6)')col_net_to_decomp_npools_vr(1,1,1:ndecomp_pools),&
+!               (rate_smin_no3_clm_loc(1))*clm_pf_idata%N_molecular_weight, &
+!               (rate_smin_nh4_clm_loc(1))*clm_pf_idata%N_molecular_weight, &
+!               (rate_plantndemand_clm_loc(1))*clm_pf_idata%N_molecular_weight
+!write(iulog,'(A20,20E14.6)')"plantNdemand=",rate_plantndemand_clm_loc(1:10)*clm_pf_idata%N_molecular_weight
+!-----------------------------------------------------------------------------
     call VecRestoreArrayF90(clm_pf_idata%rate_decomp_c_clmp, rate_decomp_c_clm_loc, ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%rate_decomp_n_clmp, rate_decomp_n_clm_loc, ierr)
@@ -2634,7 +2675,7 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
     use CNDecompCascadeConType  , only : decomp_cascade_con
     use clm_varpar              , only : ndecomp_pools, nlevdecomp, nlevdecomp_full
     use clm_varctl              , only : pf_hmode
-    use clm_time_manager        , only : get_step_size
+    use clm_time_manager        , only : get_step_size,get_nstep
 
     use clm_varcon              , only : dzsoi_decomp
 
@@ -2661,8 +2702,9 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
     logical  :: err_found      ! error flag
     real(r8) :: pf_cinputs, pf_coutputs, pf_cdelta,pf_errcb, pf_cbeg, pf_cend
     real(r8) :: pf_ninputs, pf_noutputs, pf_ndelta,pf_errnb
-    real(r8) :: pf_ninputs_org, pf_ninputs_inorg, pf_ndelta_org,pf_ndelta_inorg          !! org:organic; inorg:inorganic
-    real(r8) :: pf_nbeg, pf_nbeg_org, pf_nbeg_inorg,pf_nend, pf_nend_org, pf_nend_inorg
+    real(r8) :: pf_noutputs_gas, pf_noutputs_veg                                     !! _gas:nitrogen gases; _veg:plant uptake of NO3/NH4
+    real(r8) :: pf_ninputs_org, pf_ninputs_min, pf_ndelta_org,pf_ndelta_min          !! _org:organic; _min:mineral nitrogen
+    real(r8) :: pf_nbeg, pf_nbeg_org, pf_nbeg_min,pf_nend, pf_nend_org, pf_nend_min
     real(r8) :: pf_externaln_to_no3_col(bounds%begc:bounds%endc, 1:nlevdecomp_full)
     real(r8) :: pf_nbeg_nh4sorb,pf_nend_nh4sorb
 
@@ -2729,22 +2771,23 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
 
         pf_cbeg = 0._r8
         pf_nbeg_org = 0._r8
-        pf_nbeg_inorg = 0._r8
+        pf_nbeg_min = 0._r8
         pf_nbeg = 0._r8
         pf_nbeg_nh4sorb = 0._r8
 
         do j = 1, nlevdecomp
-            pf_nbeg_inorg = pf_nbeg_inorg + sminn_vr(c,j)*dzsoi_decomp(j)
+            pf_nbeg_min = pf_nbeg_min + sminn_vr(c,j)*dzsoi_decomp(j)
             pf_nbeg_nh4sorb = pf_nbeg_nh4sorb + smin_nh4sorb_vr(c,j)*dzsoi_decomp(j)
             do l = 1, ndecomp_pools
                 pf_nbeg_org = pf_nbeg_org + decomp_npools_vr(c,j,l)*dzsoi_decomp(j)
-                pf_cbeg = pf_cbeg + decomp_cpools_vr(c,j,l)*dzsoi_decomp(j)
+                pf_cbeg     = pf_cbeg     + decomp_cpools_vr(c,j,l)*dzsoi_decomp(j)
             end do
         end do
 
-        pf_nbeg = pf_nbeg_org + pf_nbeg_inorg
+        pf_nbeg = pf_nbeg_org + pf_nbeg_min
     end do
 
+!! do NOT consider NO3 leaching/runoff
     do fc = 1,filters(ifilter)%num_soilc
         c = filters(ifilter)%soilc(fc)
         do j = 1, nlevdecomp
@@ -3047,12 +3090,14 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
             pf_coutputs = pf_coutputs + clm_bgc_data%hr_vr_col(c,j)*dzsoi_decomp(j)
             do l = 1, ndecomp_pools
                 pf_cinputs = pf_cinputs + clm_bgc_data%externalc_to_decomp_cpools_col(c,j,l)*dzsoi_decomp(j)
-                pf_cdelta = pf_cdelta + decomp_cpools_delta_vr(c,j,l)*dzsoi_decomp(j)
+                pf_cdelta  = pf_cdelta  + decomp_cpools_delta_vr(c,j,l)*dzsoi_decomp(j)
             end do
         end do
 
         pf_cend = pf_cbeg + pf_cdelta
         pf_errcb = (pf_cinputs - pf_coutputs)*dtime - pf_cdelta
+
+        write(iulog,*)'pflotran cbalance error = ', pf_errcb, c, get_nstep()
         ! check for significant errors
         if (abs(pf_errcb) > 1e-8_r8) then
             err_found = .true.
@@ -3077,40 +3122,47 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
     do fc = 1,filters(ifilter)%num_soilc
         c = filters(ifilter)%soilc(fc)
 
-        pf_nend_org = 0._r8
-        pf_nend_inorg = 0._r8
-        pf_nend = 0._r8
-        pf_nend_nh4sorb = 0._r8
+        pf_nend_org         = 0._r8
+        pf_nend_min         = 0._r8
+        pf_nend             = 0._r8
+        pf_nend_nh4sorb     = 0._r8
 
-        pf_ninputs_org = 0._r8
-        pf_ninputs_inorg = 0._r8
-        pf_ninputs = 0._r8
-        pf_noutputs = 0._r8
-        pf_ndelta_org = 0._r8
-        pf_ndelta_inorg = 0._r8
-        pf_ndelta = 0._r8
+        pf_ninputs_org      = 0._r8
+        pf_ninputs_min      = 0._r8
+        pf_ninputs          = 0._r8
+
+        pf_noutputs_gas     = 0._r8
+        pf_noutputs_veg     = 0._r8
+        pf_noutputs         = 0._r8
+
+        pf_ndelta_org       = 0._r8
+        pf_ndelta_min       = 0._r8
+        pf_ndelta           = 0._r8
 
         do j = 1, nlevdecomp
-            pf_nend_inorg = pf_nend_inorg + sminn_vr(c,j)*dzsoi_decomp(j)
+            pf_nend_min     = pf_nend_min + sminn_vr(c,j)*dzsoi_decomp(j)
             pf_nend_nh4sorb = pf_nend_nh4sorb + smin_nh4sorb_vr(c,j)*dzsoi_decomp(j)
-            pf_ninputs_inorg = pf_ninputs_inorg + clm_bgc_data%externaln_to_nh4_col(c,j)*dzsoi_decomp(j) &
-                             + pf_externaln_to_no3_col(c,j)*dzsoi_decomp(j)
+            pf_ninputs_min  = pf_ninputs_min  + clm_bgc_data%externaln_to_nh4_col(c,j)*dzsoi_decomp(j) &
+                                              + pf_externaln_to_no3_col(c,j)*dzsoi_decomp(j)
 
-            pf_noutputs = pf_noutputs + clm_bgc_data%f_ngas_decomp_vr_col(c,j)*dzsoi_decomp(j) &
-                                      + clm_bgc_data%f_ngas_nitri_vr_col(c,j)*dzsoi_decomp(j)  &
-                                      + clm_bgc_data%f_ngas_denit_vr_col(c,j)*dzsoi_decomp(j)
+            pf_noutputs_gas = pf_noutputs_gas + clm_bgc_data%f_ngas_decomp_vr_col(c,j)*dzsoi_decomp(j) &
+                                              + clm_bgc_data%f_ngas_nitri_vr_col(c,j)*dzsoi_decomp(j)  &
+                                              + clm_bgc_data%f_ngas_denit_vr_col(c,j)*dzsoi_decomp(j)
+            pf_noutputs_veg = pf_noutputs_veg + sminn_to_plant_vr(c,j)*dzsoi_decomp(j)
             do l = 1, ndecomp_pools
-                pf_ndelta_org = pf_ndelta_org + decomp_npools_delta_vr(c,j,l)*dzsoi_decomp(j)
+                pf_ndelta_org  = pf_ndelta_org  + decomp_npools_delta_vr(c,j,l)*dzsoi_decomp(j)
                 pf_ninputs_org = pf_ninputs_org + clm_bgc_data%externaln_to_decomp_npools_col(c,j,l)*dzsoi_decomp(j)
             end do
         end do
-        pf_nend_org = pf_nbeg_org + pf_ndelta_org
-        pf_nend = pf_nend_org + pf_nend_inorg
-        pf_ninputs = pf_ninputs_org + pf_ninputs_inorg
-        pf_ndelta_inorg = pf_nend_inorg - pf_nbeg_inorg
-        pf_ndelta = pf_ndelta_org + pf_ndelta_inorg
-        pf_errnb = (pf_ninputs - pf_noutputs)*dtime - pf_ndelta
 
+        pf_nend_org     = pf_nbeg_org       + pf_ndelta_org   !!pf_ndelta_org has been calculated
+        pf_nend         = pf_nend_org       + pf_nend_min
+        pf_ndelta_min   = pf_nend_min       - pf_nbeg_min
+        pf_ndelta       = pf_ndelta_org     + pf_ndelta_min
+        pf_ninputs      = pf_ninputs_org    + pf_ninputs_min
+        pf_noutputs     = pf_noutputs_gas   + pf_noutputs_veg
+        pf_errnb        = (pf_ninputs - pf_noutputs)*dtime - pf_ndelta
+        write(iulog,*)'pflotran nbalance error = ', pf_errnb, c, get_nstep()
         ! check for significant errors
         if (abs(pf_errnb) > 1e-8_r8) then
             err_found = .true.
@@ -3122,18 +3174,23 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
          if (err_found) then
             write(iulog,'(A,100(1h-))')">>>--------PFLOTRAN Mass Balance Check:beg"
             write(iulog,'(A30,I5)')"N Balance Error in Column = ",err_index
-            write(iulog,'(16A15)')"errnb", "N_in-out", "Ndelta",                            &
-                              "Ninputs","Noutputs", "Nbeg","Nend"
-            write(iulog,'(16E15.6)')pf_errnb, (pf_ninputs - pf_noutputs)*dtime, pf_ndelta,  &
-                                pf_ninputs*dtime,pf_noutputs*dtime,pf_nbeg,pf_nend
-            write(iulog,'(20A15)')"Ninputs_org","Ninputs_inorg",                            &
-                              "Ndelta_org","Nbeg_org","Nend_org",                           &
-                              "Ndelta_inorg","Nbeg_inorg","Nend_inorg",                     &
-                              "Ndelta_nh4sorb","Nbeg_nh4sorb","Nend_nh4sorb"
-            write(iulog,'(20E15.6)')pf_ninputs_org*dtime,pf_ninputs_inorg*dtime,            &
-                                pf_ndelta_org,pf_nbeg_org,pf_nend_org,                      &
-                                pf_ndelta_inorg,pf_nbeg_inorg,pf_nend_inorg,                &
-                                pf_nend_nh4sorb-pf_nbeg_nh4sorb,pf_nbeg_nh4sorb,pf_nend_nh4sorb
+            write(iulog,'(20A15)')  "errnb", "N_in-out", "Ndelta",                            &
+                                    "Ninputs","Noutputs", "Nbeg","Nend"
+            write(iulog,'(20E15.6)')pf_errnb, (pf_ninputs - pf_noutputs)*dtime, pf_ndelta,  &
+                                    pf_ninputs*dtime,pf_noutputs*dtime,pf_nbeg,pf_nend
+
+            write(iulog,'(20A15)')  "Ninputs_org","Ninputs_min",                          &
+                                    "Noutputs_gas","Noutputs_veg",                          &
+                                    "Ndelta_nh4sorb","Nbeg_nh4sorb","Nend_nh4sorb"
+            write(iulog,'(20E15.6)')pf_ninputs_org*dtime,pf_ninputs_min*dtime,            &
+                                    pf_noutputs_gas*dtime,pf_noutputs_veg*dtime,           &
+                                    pf_nend_nh4sorb-pf_nbeg_nh4sorb,pf_nbeg_nh4sorb,pf_nend_nh4sorb
+
+            write(iulog,'(20A15)')  "Ndelta_org","Nbeg_org","Nend_org",                     &
+                                    "Ndelta_min","Nbeg_min","Nend_min"
+            write(iulog,'(20E15.6)')pf_ndelta_org,pf_nbeg_org,pf_nend_org,                  &
+                                    pf_ndelta_min,pf_nbeg_min,pf_nend_min
+
             write(iulog,'(A,100(1h-))')">>>--------PFLOTRAN Mass Balance Check:end"
 !            call endrun(msg=errMsg(__FILE__, __LINE__))
         end if

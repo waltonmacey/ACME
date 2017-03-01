@@ -676,20 +676,6 @@ contains
             clm_bgc_data%plant_ndemand_vr_col(c,:)          = col_plant_ndemand_vr(c,:)
             clm_bgc_data%plant_pdemand_vr_col(c,:)          = col_plant_pdemand_vr(c,:)
 
-!            if(.not.pf_hmode) then
-!                clm_bgc_data%externaln_to_no3_col(c,:) = clm_bgc_data%externaln_to_no3_col(c,:) &
-!                                                       - clm_bgc_data%no3_net_transport_vr_col(c,:)
-!            end if
-
-!        end do
-!        do j = 1, nlevdecomp
-!            if (clm_bgc_data%externaln_to_no3_col(c,j)<0._r8) then
-!                     clm_bgc_data%externaln_to_no3_col(c,j) = max(     &
-!                       clm_bgc_data%externaln_to_no3_col(c,j),         &
-!                       -max(clm_bgc_data%smin_no3_vr_col(c,j)/dtime, 0._r8))
-!            endif
-!        end do
-
     end do !! fc = 1,num_soilc
 
     end associate
