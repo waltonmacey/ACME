@@ -2675,7 +2675,7 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
     use CNDecompCascadeConType  , only : decomp_cascade_con
     use clm_varpar              , only : ndecomp_pools, nlevdecomp, nlevdecomp_full
     use clm_varctl              , only : pf_hmode
-    use clm_time_manager        , only : get_step_size,get_nstep
+    use clm_time_manager        , only : get_step_size,get_nstep, is_first_step, is_first_restart_step
 
     use clm_varcon              , only : dzsoi_decomp
 
@@ -2703,10 +2703,12 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
     real(r8) :: pf_cinputs, pf_coutputs, pf_cdelta,pf_errcb, pf_cbeg, pf_cend
     real(r8) :: pf_ninputs, pf_noutputs, pf_ndelta,pf_errnb
     real(r8) :: pf_noutputs_gas, pf_noutputs_veg                                     !! _gas:nitrogen gases; _veg:plant uptake of NO3/NH4
+    real(r8) :: pf_noutputs_nit, pf_noutputs_denit                                   !! _gas = _nit + _denit
     real(r8) :: pf_ninputs_org, pf_ninputs_min, pf_ndelta_org,pf_ndelta_min          !! _org:organic; _min:mineral nitrogen
     real(r8) :: pf_nbeg, pf_nbeg_org, pf_nbeg_min,pf_nend, pf_nend_org, pf_nend_min
     real(r8) :: pf_externaln_to_no3_col(bounds%begc:bounds%endc, 1:nlevdecomp_full)
     real(r8) :: pf_nbeg_nh4sorb,pf_nend_nh4sorb
+    real(r8) :: pf_nbeg_no3,pf_nbeg_nh4
 
 
     integer  :: vec_offset
@@ -2769,21 +2771,27 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
     do fc = 1,filters(ifilter)%num_soilc
         c = filters(ifilter)%soilc(fc)
 
-        pf_cbeg = 0._r8
-        pf_nbeg_org = 0._r8
-        pf_nbeg_min = 0._r8
-        pf_nbeg = 0._r8
+        pf_cbeg         = 0._r8
+        pf_nbeg_org     = 0._r8
+        pf_nbeg_min     = 0._r8
+        pf_nbeg         = 0._r8
         pf_nbeg_nh4sorb = 0._r8
+        pf_nbeg_no3     = 0._r8
+        pf_nbeg_nh4     = 0._r8
 
         do j = 1, nlevdecomp
-            pf_nbeg_min = pf_nbeg_min + sminn_vr(c,j)*dzsoi_decomp(j)
+            pf_nbeg_no3 = pf_nbeg_no3 + smin_no3_vr(c,j)*dzsoi_decomp(j)
+            pf_nbeg_nh4 = pf_nbeg_nh4 + smin_nh4_vr(c,j)*dzsoi_decomp(j)
             pf_nbeg_nh4sorb = pf_nbeg_nh4sorb + smin_nh4sorb_vr(c,j)*dzsoi_decomp(j)
+!!do NOT use sminn_vr(c,j), it does NOT always equal to the sum of no3+nh4+nh4sorb due to unknown reason
+!!            pf_nbeg_min = pf_nbeg_min + sminn_vr(c,j)*dzsoi_decomp(j)
             do l = 1, ndecomp_pools
                 pf_nbeg_org = pf_nbeg_org + decomp_npools_vr(c,j,l)*dzsoi_decomp(j)
                 pf_cbeg     = pf_cbeg     + decomp_cpools_vr(c,j,l)*dzsoi_decomp(j)
             end do
         end do
 
+        pf_nbeg_min = pf_nbeg_no3 + pf_nbeg_nh4 + pf_nbeg_nh4sorb
         pf_nbeg = pf_nbeg_org + pf_nbeg_min
     end do
 
@@ -2810,7 +2818,7 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
      decomp_npools_delta_vr  = 0._r8-decomp_npools_vr
 
      ! clm-pf interface data updated
-! #ifdef FLEXIBLE_POOLS
+! FLEXIBLE_POOLS
      call VecGetArrayReadF90(clm_pf_idata%decomp_cpools_vr_clms, decomp_cpools_vr_clm_loc, ierr)
      CHKERRQ(ierr)
      call VecGetArrayReadF90(clm_pf_idata%decomp_npools_vr_clms, decomp_npools_vr_clm_loc, ierr)
@@ -3072,7 +3080,7 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
         CHKERRQ(ierr)
      endif
 
-     ! update bgc gas losses
+     ! update bgc gas losses-------------------------------------------------
      call update_bgc_gaslosses_pf2clm(clm_bgc_data, bounds, filters, ifilter)
 
 !!wgs:beg-----------------------------------------------------------------
@@ -3097,7 +3105,6 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
         pf_cend = pf_cbeg + pf_cdelta
         pf_errcb = (pf_cinputs - pf_coutputs)*dtime - pf_cdelta
 
-        write(iulog,*)'pflotran cbalance error = ', pf_errcb, c, get_nstep()
         ! check for significant errors
         if (abs(pf_errcb) > 1e-8_r8) then
             err_found = .true.
@@ -3113,7 +3120,9 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
             write(iulog,'(16E15.6)')pf_errcb, (pf_cinputs - pf_coutputs)*dtime, pf_cdelta, &
                                     pf_cinputs*dtime,pf_coutputs*dtime,pf_cbeg,pf_cend
             write(iulog,'(A,100(1h-))')">>>--------PFLOTRAN Mass Balance Check:end"
-!            call endrun(msg=errMsg(__FILE__, __LINE__))
+!            if((.not.is_first_step()) .and. (.not.is_first_restart_step())) then
+!                call endrun(msg=errMsg(__FILE__, __LINE__))
+!            end if
          end if
     end if !!(.not. use_ed)
 
@@ -3131,6 +3140,8 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
         pf_ninputs_min      = 0._r8
         pf_ninputs          = 0._r8
 
+        pf_noutputs_nit     = 0._r8
+        pf_noutputs_denit   = 0._r8
         pf_noutputs_gas     = 0._r8
         pf_noutputs_veg     = 0._r8
         pf_noutputs         = 0._r8
@@ -3140,14 +3151,14 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
         pf_ndelta           = 0._r8
 
         do j = 1, nlevdecomp
-            pf_nend_min     = pf_nend_min + sminn_vr(c,j)*dzsoi_decomp(j)
+            pf_nend_min     = pf_nend_min     + sminn_vr(c,j)*dzsoi_decomp(j)
             pf_nend_nh4sorb = pf_nend_nh4sorb + smin_nh4sorb_vr(c,j)*dzsoi_decomp(j)
             pf_ninputs_min  = pf_ninputs_min  + clm_bgc_data%externaln_to_nh4_col(c,j)*dzsoi_decomp(j) &
                                               + pf_externaln_to_no3_col(c,j)*dzsoi_decomp(j)
 
-            pf_noutputs_gas = pf_noutputs_gas + clm_bgc_data%f_ngas_decomp_vr_col(c,j)*dzsoi_decomp(j) &
-                                              + clm_bgc_data%f_ngas_nitri_vr_col(c,j)*dzsoi_decomp(j)  &
-                                              + clm_bgc_data%f_ngas_denit_vr_col(c,j)*dzsoi_decomp(j)
+            pf_noutputs_nit = pf_noutputs_nit + clm_bgc_data%f_ngas_decomp_vr_col(c,j)*dzsoi_decomp(j) &
+                                              + clm_bgc_data%f_ngas_nitri_vr_col(c,j)*dzsoi_decomp(j)
+            pf_noutputs_denit = pf_noutputs_denit + clm_bgc_data%f_ngas_denit_vr_col(c,j)*dzsoi_decomp(j)
             pf_noutputs_veg = pf_noutputs_veg + sminn_to_plant_vr(c,j)*dzsoi_decomp(j)
             do l = 1, ndecomp_pools
                 pf_ndelta_org  = pf_ndelta_org  + decomp_npools_delta_vr(c,j,l)*dzsoi_decomp(j)
@@ -3160,9 +3171,10 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
         pf_ndelta_min   = pf_nend_min       - pf_nbeg_min
         pf_ndelta       = pf_ndelta_org     + pf_ndelta_min
         pf_ninputs      = pf_ninputs_org    + pf_ninputs_min
+        pf_noutputs_gas = pf_noutputs_nit   + pf_noutputs_denit
         pf_noutputs     = pf_noutputs_gas   + pf_noutputs_veg
         pf_errnb        = (pf_ninputs - pf_noutputs)*dtime - pf_ndelta
-        write(iulog,*)'pflotran nbalance error = ', pf_errnb, c, get_nstep()
+        write(iulog,*)'>>>DEBUG | pflotran nbalance error = ', pf_errnb, c, get_nstep()
         ! check for significant errors
         if (abs(pf_errnb) > 1e-8_r8) then
             err_found = .true.
@@ -3174,25 +3186,30 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
          if (err_found) then
             write(iulog,'(A,100(1h-))')">>>--------PFLOTRAN Mass Balance Check:beg"
             write(iulog,'(A30,I5)')"N Balance Error in Column = ",err_index
-            write(iulog,'(20A15)')  "errnb", "N_in-out", "Ndelta",                            &
+            write(iulog,'(20A15)')  "errnb", "N_in-out", "Ndelta",                          &
                                     "Ninputs","Noutputs", "Nbeg","Nend"
             write(iulog,'(20E15.6)')pf_errnb, (pf_ninputs - pf_noutputs)*dtime, pf_ndelta,  &
                                     pf_ninputs*dtime,pf_noutputs*dtime,pf_nbeg,pf_nend
 
-            write(iulog,'(20A15)')  "Ninputs_org","Ninputs_min",                          &
-                                    "Noutputs_gas","Noutputs_veg",                          &
-                                    "Ndelta_nh4sorb","Nbeg_nh4sorb","Nend_nh4sorb"
-            write(iulog,'(20E15.6)')pf_ninputs_org*dtime,pf_ninputs_min*dtime,            &
-                                    pf_noutputs_gas*dtime,pf_noutputs_veg*dtime,           &
-                                    pf_nend_nh4sorb-pf_nbeg_nh4sorb,pf_nbeg_nh4sorb,pf_nend_nh4sorb
+            write(iulog,'(20A15)')  "Ninputs_org","Ninputs_min",                            &
+                                    "Noutputs_nit","Noutputs_denit",                        &
+                                    "Noutputs_gas","Noutputs_veg"
+
+            write(iulog,'(20E15.6)')pf_ninputs_org*dtime,pf_ninputs_min*dtime,              &
+                                    pf_noutputs_nit*dtime,pf_noutputs_denit*dtime,          &
+                                    pf_noutputs_gas*dtime,pf_noutputs_veg*dtime
 
             write(iulog,'(20A15)')  "Ndelta_org","Nbeg_org","Nend_org",                     &
-                                    "Ndelta_min","Nbeg_min","Nend_min"
+                                    "Ndelta_min","Nbeg_min","Nend_min",                     &
+                                    "Ndelta_nh4sorb","Nbeg_nh4sorb","Nend_nh4sorb"
             write(iulog,'(20E15.6)')pf_ndelta_org,pf_nbeg_org,pf_nend_org,                  &
-                                    pf_ndelta_min,pf_nbeg_min,pf_nend_min
+                                    pf_ndelta_min,pf_nbeg_min,pf_nend_min,                  &
+                                    pf_nend_nh4sorb-pf_nbeg_nh4sorb,pf_nbeg_nh4sorb,pf_nend_nh4sorb
 
             write(iulog,'(A,100(1h-))')">>>--------PFLOTRAN Mass Balance Check:end"
-!            call endrun(msg=errMsg(__FILE__, __LINE__))
+!            if((.not.is_first_step()) .and. (.not.is_first_restart_step())) then
+!                call endrun(msg=errMsg(__FILE__, __LINE__))
+!            end if
         end if
     end if !!(.not. use_ed)
 !!wgs:end-----------------------------------------------------------------

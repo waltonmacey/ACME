@@ -74,9 +74,10 @@ contains
                   ns%smin_no3_vr_col(c,j) = max( ns%smin_no3_vr_col(c,j) - &
                        ( nf%smin_no3_leached_vr_col(c,j) + nf%smin_no3_runoff_vr_col(c,j) ) * dt, 0._r8)
                   
-                  ns%sminn_vr_col(c,j) = ns%smin_no3_vr_col(c,j) + ns%smin_nh4_vr_col(c,j)
-                  if (use_pflotran .and. pf_cmode) then !!wgs:2017
-                        ns%sminn_vr_col(c,j) = ns%sminn_vr_col(c,j) + ns%smin_nh4sorb_vr_col(c,j)
+                  if (.not.(use_pflotran .and. pf_cmode)) then
+                        ns%sminn_vr_col(c,j) = ns%smin_no3_vr_col(c,j) + ns%smin_nh4_vr_col(c,j)
+                  else
+                        ns%sminn_vr_col(c,j) = ns%smin_no3_vr_col(c,j) + ns%smin_nh4_vr_col(c,j) + ns%smin_nh4sorb_vr_col(c,j)
                   end if
                end if
                

@@ -229,7 +229,7 @@ contains
             col_errcb(c) = col_errcb(c) - col_decompc_delta(c)*dt
             ! here is '-' adjustment. It says that the adding to PF decomp c pools was less.
          end if
-         write(iulog,*)'column cbalance error = ', col_errcb(c), c, get_nstep()
+!         write(iulog,*)'column cbalance error = ', col_errcb(c), c, get_nstep()
          ! check for significant errors
          if (abs(col_errcb(c)) > 1e-8_r8) then
             err_found = .true.
@@ -367,7 +367,7 @@ contains
 !            if (.not.pf_hmode) col_errnb(c) = col_errnb(c) + col_no3_delta(c)*dt
             ! here is '+' adjustment. It says that the taking to PF no3 pools was more.
          end if
-         write(iulog,*)'column nbalance error = ', col_errnb(c), c, get_nstep()
+         write(iulog,*)'>>>DEBUG | acme-col nbalance error = ', col_errnb(c), c, get_nstep()
          if (abs(col_errnb(c)) > 1e-8_r8) then
             err_found = .true.
             err_index = c
@@ -402,12 +402,12 @@ contains
          if (use_pflotran .and. pf_cmode) then
                 write(iulog,'(A30,E14.6)')'som_n_leached =',som_n_leached(c)*dt
                 write(iulog,'(A30,E14.6)')'delta_SONinput_bw_timesteps =',col_decompn_delta(c)*dt
-                write(iulog,'(A30,E14.6)')'delta_NO3leach_bw_timesteps =',col_no3_delta(c)*dt
+!                write(iulog,'(A30,E14.6)')'delta_NO3leach_bw_timesteps =',col_no3_delta(c)*dt
 
             if (abs(col_errnb(c)) > 1e-7_r8) then
-            !! for unknown reason, loosen this error-checking criteria will remarkably speed up CLM-PFLOTRAN simulation
-            !! the 'col_errnb' is about 2.67e-8 at timestep=75653, i.e., 0005-04-27_02:30:00, which resulted in the crash of ALM but PF converged well.
-            !! if 1e-8_r8 < abs(col_errnb(c)) <= 1e-7_r8, continue model run, but print 'err_found'
+!            !! for unknown reason, loosen this error-checking criteria will remarkably speed up CLM-PFLOTRAN simulation
+!            !! the 'col_errnb' is about 2.67e-8 at timestep=75653, i.e., 0005-04-27_02:30:00, which resulted in the crash of ALM but PF converged well.
+!            !! if 1e-8_r8 < abs(col_errnb(c)) <= 1e-7_r8, continue model run, but print 'err_found'
                 call endrun(msg=errMsg(__FILE__, __LINE__))
             end if
          else
