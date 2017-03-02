@@ -138,18 +138,18 @@ module clm_driver
 
   !!----------------------------------------------------------------------------
   !! bgc interface & pflotran:
-  use clm_varctl             , only : use_bgc_interface
-  use clm_instMod            , only : clm_bgc_data
-  use clm_bgc_interfaceMod   , only : get_clm_bgc_data
+  use clm_varctl                  , only : use_bgc_interface
+  use clm_instMod                 , only : clm_bgc_data
+  use clm_bgc_interfaceMod        , only : get_clm_bgc_data
   !! (1) clm_bgc through interface
-  use clm_varctl             , only : use_clm_bgc
-  use clm_bgc_interfaceMod   , only : clm_bgc_run, update_bgc_data_clm2clm
+  use clm_varctl                  , only : use_clm_bgc
+  use clm_bgc_interfaceMod        , only : clm_bgc_run, update_bgc_data_clm2clm
   !! (2) pflotran
   use clm_time_manager            , only : nsstep, nestep
   use clm_varctl                  , only : use_pflotran, pf_cmode, pf_hmode, pf_tmode
   use clm_bgc_interfaceMod        , only : update_bgc_data_pf2clm
   use clm_pflotran_interfaceMod   , only : clm_pf_run, clm_pf_write_restart
-!  use clm_pflotran_interfaceMod   , only : clm_pf_finalize
+  use clm_pflotran_interfaceMod   , only : clm_pf_finalize
   !!----------------------------------------------------------------------------
 
   !
@@ -1355,6 +1355,13 @@ contains
        call t_stopf('clm_drv_io')
 
     end if
+
+  ! ============================================================================
+  ! Finalizing PFLOTRAN runs and clean-up
+  ! ============================================================================
+  !if (use_pflotran .and. nlend) then  ! (TODO: needs checking here - it causes error on Titan)
+  !   call clm_pf_finalize()
+  !endif
 
   end subroutine clm_drv
 
