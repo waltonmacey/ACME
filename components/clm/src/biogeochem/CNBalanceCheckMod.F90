@@ -367,11 +367,11 @@ contains
 !            if (.not.pf_hmode) col_errnb(c) = col_errnb(c) + col_no3_delta(c)*dt
             ! here is '+' adjustment. It says that the taking to PF no3 pools was more.
          end if
-         write(iulog,*)'>>>DEBUG | acme-col nbalance error = ', col_errnb(c), c, get_nstep()
-         if (abs(col_errnb(c)) > 1e-8_r8) then
+!write(iulog,*)'>>>DEBUG | acme-col nbalance error = ', col_errnb(c), c, get_nstep()
+!         if (abs(col_errnb(c)) > 1e-8_r8) then
             err_found = .true.
             err_index = c
-         end if
+!         end if
       end do ! end of columns loop
 
       if (err_found) then

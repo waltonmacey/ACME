@@ -2712,7 +2712,7 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
     PetscScalar, pointer :: accextrno3_vr_clm_loc(:)         ! (moleN/m3/timestep) vertically-resolved soil mineral N root-extraction (accumulated)
 
     ! 'acchr_vr' - accumulative CO2 proudction from decompositon (for tracking HR, not involving mass-balance)
-!     PetscScalar, pointer :: acchr_vr_clm_loc(:)               ! (moleC/m3/timestep) vertically-resolved soil CO2 production (accumulated)
+     PetscScalar, pointer :: acchr_vr_clm_loc(:)               ! (moleC/m3/timestep) vertically-resolved soil CO2 production (accumulated)
 
     ! 'accnmin_vr' - accumulative gross N mineralization within a CLM timestep
     PetscScalar, pointer :: accnmin_vr_clm_loc(:)               ! (moleN/m3/timestep) vertically-resolved soil N mineralization (accumulated)
@@ -2735,13 +2735,13 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
      smin_nh4sorb_vr              => clm_bgc_data%smin_nh4sorb_vr_col          , &
 
      decomp_cpools_delta_vr       => clm_bgc_data%decomp_cpools_sourcesink_col , &
-     decomp_npools_delta_vr       => clm_bgc_data%decomp_npools_sourcesink_col  , &
+     decomp_npools_delta_vr       => clm_bgc_data%decomp_npools_sourcesink_col , &
+     hr_vr                        => clm_bgc_data%hr_vr_col                    , &
 
 !      sminn_delta_vr               => cnf%sminn_delta_vr                    , &
 !      smin_no3_delta_vr            => cnf%smin_no3_delta_vr                 , &
 !      smin_nh4_delta_vr            => cnf%smin_nh4_delta_vr                 , &
-!      smin_nh4sorb_delta_vr        => cnf%smin_nh4sorb_delta_vr             , &
-!      hr_vr                        => ccf%hr_vr                             , &
+!      smin_nh4sorb_delta_vr        => cnf%smin_nh4sorb_delta_vr             ,
      
      sminn_to_plant_vr            => clm_bgc_data%sminn_to_plant_vr_col         , &
      smin_no3_to_plant_vr         => clm_bgc_data%smin_no3_to_plant_vr_col      , &
@@ -2825,13 +2825,13 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
      call VecGetArrayReadF90(clm_pf_idata%accextrno3_vr_clms, accextrno3_vr_clm_loc, ierr)
      CHKERRQ(ierr)
 
-!      if(clm_pf_idata%ispec_hrimm>0) then
-!         call VecGetArrayReadF90(clm_pf_idata%acctothr_vr_clms, acchr_vr_clm_loc, ierr)
-!         CHKERRQ(ierr)
-!      else
-!         call VecGetArrayReadF90(clm_pf_idata%acchr_vr_clms, acchr_vr_clm_loc, ierr)
-!         CHKERRQ(ierr)
-!      endif
+      if(clm_pf_idata%ispec_hrimm>0) then
+         call VecGetArrayReadF90(clm_pf_idata%acctothr_vr_clms, acchr_vr_clm_loc, ierr)
+         CHKERRQ(ierr)
+      else
+         call VecGetArrayReadF90(clm_pf_idata%acchr_vr_clms, acchr_vr_clm_loc, ierr)
+         CHKERRQ(ierr)
+      endif
 
      if(clm_pf_idata%ispec_nmin>0) then
         call VecGetArrayReadF90(clm_pf_idata%acctotnmin_vr_clms, accnmin_vr_clm_loc, ierr)
@@ -2875,7 +2875,7 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
 
       do j = 1, nlevdecomp
 
-!           hr_vr(c,j)              = 0._r8
+          hr_vr(c,j)              = 0._r8
           gross_nmin_vr(c,j)      = 0._r8
           actual_immob_vr(c,j)    = 0._r8
           potential_immob_vr(c,j) = 0._r8
@@ -2910,11 +2910,11 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
 !! hr_vr is moved to update_bgc_gaslosses_pf2clm()
                  ! tracking HR/NMIN/NIMM/NIMMP from SOM-C reaction network
                  ! if total 'hr/nmin/nimm/nimp' unknown, have to add up
-!                  if (clm_pf_idata%ispec_decomp_hr(k)>0 .and. clm_pf_idata%ispec_hrimm<=0) then
-!                     hr_vr(c,j) = hr_vr(c,j)                            &
-!                           + (acchr_vr_clm_loc(vec_offset+cellcount)    &
-!                           * clm_pf_idata%C_molecular_weight)/dtime
-!                  endif
+                  if (clm_pf_idata%ispec_decomp_hr(k)>0 .and. clm_pf_idata%ispec_hrimm<=0) then
+                     hr_vr(c,j) = hr_vr(c,j)                            &
+                           + (acchr_vr_clm_loc(vec_offset+cellcount)    &
+                           * clm_pf_idata%C_molecular_weight)/dtime
+                  endif
 !!wgs:end:--------------------------------------------------------------------------------
                  !
                  if (clm_pf_idata%ispec_decomp_nmin(k)>0 .and. clm_pf_idata%ispec_nmin<=0) then
@@ -2940,11 +2940,11 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
               enddo ! do k=1, ndecomp_pools
 
               ! if total 'hr/nmin/nimm/nimp' known
-!               if (clm_pf_idata%ispec_hrimm>0) then
-!                  hr_vr(c,j) = hr_vr(c,j)                            &
-!                           + (acchr_vr_clm_loc(cellcount)            &
-!                           * clm_pf_idata%C_molecular_weight)/dtime
-!               endif
+               if (clm_pf_idata%ispec_hrimm>0) then
+                  hr_vr(c,j) = hr_vr(c,j)                            &
+                           + (acchr_vr_clm_loc(cellcount)            &
+                           * clm_pf_idata%C_molecular_weight)/dtime
+               endif
 
               if (clm_pf_idata%ispec_nmin>0) then
                  gross_nmin_vr(c,j)  = gross_nmin_vr(c,j)           &
@@ -2982,15 +2982,16 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
               smin_no3_to_plant_vr(c,j) = (accextrno3_vr_clm_loc(cellcount)  &
                           * clm_pf_idata%N_molecular_weight)/dtime
               sminn_to_plant_vr(c,j) = smin_nh4_to_plant_vr(c,j) + smin_no3_to_plant_vr(c,j)
-
-              gross_nmin_vr(c,j) = (accnmin_vr_clm_loc(cellcount)        &
-                          * clm_pf_idata%N_molecular_weight)/dtime
-
-              potential_immob_vr(c,j) = (accnimmp_vr_clm_loc(cellcount)  &
-                          * clm_pf_idata%N_molecular_weight)/dtime
-              actual_immob_vr(c,j)    = (accnimm_vr_clm_loc(cellcount)   &
-                          * clm_pf_idata%N_molecular_weight)/dtime
-
+!! wgs-beg:--------------------------------------------------------------------------------
+!! these 3 fluxes have been updated above
+!              gross_nmin_vr(c,j) = (accnmin_vr_clm_loc(cellcount)        &
+!                          * clm_pf_idata%N_molecular_weight)/dtime
+!
+!              potential_immob_vr(c,j) = (accnimmp_vr_clm_loc(cellcount)  &
+!                          * clm_pf_idata%N_molecular_weight)/dtime
+!              actual_immob_vr(c,j)    = (accnimm_vr_clm_loc(cellcount)   &
+!                          * clm_pf_idata%N_molecular_weight)/dtime
+!! wgs-end:--------------------------------------------------------------------------------
           else    ! just in case 'clm_pf_idata%nzclm_mapped<nlevdcomp', all set to ZERO (different from TH)
 
               do k=1, ndecomp_pools
@@ -2998,7 +2999,7 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
                  decomp_npools_delta_vr(c,j,k) = 0._r8
               enddo
 
-!               hr_vr(c,j)                 = 0._r8
+               hr_vr(c,j)                 = 0._r8
 
 !               sminn_delta_vr(c,j)        = 0._r8
 !               smin_no3_delta_vr(c,j)     = 0._r8
@@ -3036,13 +3037,13 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
      call VecRestoreArrayReadF90(clm_pf_idata%accextrno3_vr_clms, accextrno3_vr_clm_loc, ierr)
      CHKERRQ(ierr)
 
-!      if(clm_pf_idata%ispec_hrimm>0) then
-!         call VecRestoreArrayReadF90(clm_pf_idata%acctothr_vr_clms, acchr_vr_clm_loc, ierr)
-!         CHKERRQ(ierr)
-!      else
-!         call VecRestoreArrayReadF90(clm_pf_idata%acchr_vr_clms, acchr_vr_clm_loc, ierr)
-!         CHKERRQ(ierr)
-!      endif
+      if(clm_pf_idata%ispec_hrimm>0) then
+         call VecRestoreArrayReadF90(clm_pf_idata%acctothr_vr_clms, acchr_vr_clm_loc, ierr)
+         CHKERRQ(ierr)
+      else
+         call VecRestoreArrayReadF90(clm_pf_idata%acchr_vr_clms, acchr_vr_clm_loc, ierr)
+         CHKERRQ(ierr)
+      endif
 
      if(clm_pf_idata%ispec_nmin>0) then
         call VecRestoreArrayReadF90(clm_pf_idata%acctotnmin_vr_clms, accnmin_vr_clm_loc, ierr)
@@ -3083,7 +3084,8 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
         pf_cdelta = 0._r8
 
         do j = 1, nlevdecomp
-            pf_coutputs = pf_coutputs + clm_bgc_data%hr_vr_col(c,j)*dzsoi_decomp(j)
+!            pf_coutputs = pf_coutputs + clm_bgc_data%hr_vr_col(c,j)*dzsoi_decomp(j)
+            pf_coutputs = pf_coutputs + hr_vr(c,j)*dzsoi_decomp(j)
             do l = 1, ndecomp_pools
                 pf_cinputs = pf_cinputs + clm_bgc_data%externalc_to_decomp_cpools_col(c,j,l)*dzsoi_decomp(j)
                 pf_cdelta  = pf_cdelta  + decomp_cpools_delta_vr(c,j,l)*dzsoi_decomp(j)
@@ -3164,12 +3166,12 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
         pf_noutputs_gas = pf_noutputs_nit   + pf_noutputs_denit
         pf_noutputs     = pf_noutputs_gas   + pf_noutputs_veg
         pf_errnb        = (pf_ninputs - pf_noutputs)*dtime - pf_ndelta
-!        write(iulog,*)'>>>DEBUG | pflotran nbalance error = ', pf_errnb, c, get_nstep()
+!write(iulog,*)'>>>DEBUG | pflotran nbalance error = ', pf_errnb, c, get_nstep()
         ! check for significant errors
-        if (abs(pf_errnb) > 1e-8_r8) then
+!        if (abs(pf_errnb) > 1e-8_r8) then
             err_found = .true.
             err_index = c
-        end if
+!        end if
     end do
 
     if (.not. use_ed) then
@@ -3262,7 +3264,7 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
      PetscScalar, pointer :: gn2o_vr_clmp_loc(:)               ! (M: molN/m3 bulk soil) vertically-resolved soil gas N2O to reset PF's N2Og
 
      ! 'acchr_vr' - accumulative CO2 proudction from decompositon (for tracking HR, not involving mass-balance)
-     PetscScalar, pointer :: acchr_vr_clm_loc(:)               ! (moleC/m3/timestep) vertically-resolved soil CO2 production (accumulated)
+!     PetscScalar, pointer :: acchr_vr_clm_loc(:)               ! (moleC/m3/timestep) vertically-resolved soil CO2 production (accumulated)
      ! 'accngasmin_vr' - accumulative N gas proudction from mineralization (for tracking, not involving mass-balance)
      PetscScalar, pointer :: accngasmin_vr_clm_loc(:)          ! (moleN/m3/timestep) vertically-resolved soil gaseous N  production (accumulated)
      ! 'accngasnitr_vr' - accumulative N gas proudction from nitrification (for tracking)
@@ -3288,7 +3290,7 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
      frac_sno                     => clm_bgc_data%frac_sno_eff_col              , & ! fraction of ground covered by snow (0 to 1)
      frac_h2osfc                  => clm_bgc_data%frac_h2osfc_col               , & ! fraction of ground covered by surface water (0 to 1)
      dz                           => clm_bgc_data%dz                            , & ! soil layer thickness depth (m)
-     hr_vr                        => clm_bgc_data%hr_vr_col                     , &
+!     hr_vr                        => clm_bgc_data%hr_vr_col                     , &
      f_co2_soil_vr                => clm_bgc_data%f_co2_soil_vr_col             , &
      f_n2o_soil_vr                => clm_bgc_data%f_n2o_soil_vr_col             , &
      f_n2_soil_vr                 => clm_bgc_data%f_n2_soil_vr_col              , &
@@ -3323,13 +3325,13 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
      call VecGetArrayReadF90(clm_pf_idata%accngasdeni_vr_clms, accngasdeni_vr_clm_loc, ierr)
      CHKERRQ(ierr)
 
-     if(clm_pf_idata%ispec_hrimm>0) then
-        call VecGetArrayReadF90(clm_pf_idata%acctothr_vr_clms, acchr_vr_clm_loc, ierr)
-        CHKERRQ(ierr)
-     else
-        call VecGetArrayReadF90(clm_pf_idata%acchr_vr_clms, acchr_vr_clm_loc, ierr)
-        CHKERRQ(ierr)
-     endif
+!     if(clm_pf_idata%ispec_hrimm>0) then
+!        call VecGetArrayReadF90(clm_pf_idata%acctothr_vr_clms, acchr_vr_clm_loc, ierr)
+!        CHKERRQ(ierr)
+!     else
+!        call VecGetArrayReadF90(clm_pf_idata%acchr_vr_clms, acchr_vr_clm_loc, ierr)
+!        CHKERRQ(ierr)
+!     endif
 
      ! env. variables to properties of gases
      if (pf_tmode) then
@@ -3475,8 +3477,8 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
               f_n2o_soil_vr(c,j) = f_n2o_soil_vr(c,j)/dtime                ! gN/m3/s
 
               ! tracking HR from SOM-C reaction network
-              hr_vr(c,j)           = (acchr_vr_clm_loc(cellcount) &
-                                    * clm_pf_idata%C_molecular_weight)/dtime
+!              hr_vr(c,j)           = (acchr_vr_clm_loc(cellcount) &
+!                                    * clm_pf_idata%C_molecular_weight)/dtime
 
               ! tracking gaseous N production from N reaction network
               f_ngas_decomp_vr(c,j)= (accngasmin_vr_clm_loc (cellcount) &
@@ -3494,7 +3496,7 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
               f_n2_soil_vr(c,j)          = f_n2_soil_vr(c,clm_pf_idata%nzclm_mapped)
               f_n2o_soil_vr(c,j)         = f_n2o_soil_vr(c,clm_pf_idata%nzclm_mapped)
 
-              hr_vr(c,j)                 = 0._r8
+!              hr_vr(c,j)                 = 0._r8
               f_ngas_decomp_vr(c,j)      = 0._r8
               f_ngas_nitri_vr(c,j)       = 0._r8
               f_ngas_denit_vr(c,j)       = 0._r8
@@ -3516,13 +3518,13 @@ write(101,*) c, j, soilpress_clmp_loc(cellcount), soilt_clmp_loc(cellcount), soi
      call VecRestoreArrayF90(clm_pf_idata%gn2o_vr_clmp, gn2o_vr_clmp_loc, ierr)
      CHKERRQ(ierr)
 
-     if(clm_pf_idata%ispec_hrimm>0) then
-        call VecRestoreArrayReadF90(clm_pf_idata%acctothr_vr_clms, acchr_vr_clm_loc, ierr)
-        CHKERRQ(ierr)
-     else
-        call VecRestoreArrayReadF90(clm_pf_idata%acchr_vr_clms, acchr_vr_clm_loc, ierr)
-        CHKERRQ(ierr)
-     endif
+!     if(clm_pf_idata%ispec_hrimm>0) then
+!        call VecRestoreArrayReadF90(clm_pf_idata%acctothr_vr_clms, acchr_vr_clm_loc, ierr)
+!        CHKERRQ(ierr)
+!     else
+!        call VecRestoreArrayReadF90(clm_pf_idata%acchr_vr_clms, acchr_vr_clm_loc, ierr)
+!        CHKERRQ(ierr)
+!     endif
 
      call VecRestoreArrayReadF90(clm_pf_idata%accngasmin_vr_clms, accngasmin_vr_clm_loc, ierr)
      CHKERRQ(ierr)

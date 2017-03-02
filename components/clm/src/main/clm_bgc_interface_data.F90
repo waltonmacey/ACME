@@ -236,6 +236,9 @@ module clm_bgc_interface_data
      real(r8), pointer :: forc_pco2_grc                             (:)     ! CO2 partial pressure (Pa)
      real(r8), pointer :: forc_pch4_grc                             (:)     ! CH4 partial pressure (Pa)
 
+     ! mass balance check:
+
+
      !!------------------------------------------------------------------------------------------
      !! pflotran variables: END
      !!------------------------------------------------------------------------------------------
