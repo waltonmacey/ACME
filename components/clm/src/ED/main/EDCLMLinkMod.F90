@@ -15,8 +15,8 @@ module EDCLMLinkMod
   use CNNitrogenStateType   , only : nitrogenstate_type
   use CanopyStateType       , only : canopystate_type
   use WaterStateType        , only : waterstate_type
-   use VegetationPropertiesType        , only : veg_pp
-  use PatchType             , only : pft_pp
+   use VegetationPropertiesType        , only : veg_vp
+  use VegetationType             , only : veg_pp
   use ColumnType            , only : col_pp
   use LandunitType          , only : lun_pp
   use EDVecPatchtype        , only : EDpft
@@ -141,7 +141,7 @@ contains
                if(patchn <= numpft - numcft)then !don't expand into crop patches.   
                   currentPatch%clm_pno = firstsoilpatch(g) + patchn !the first 'soil' patch is unvegetated...      
                   p = currentPatch%clm_pno
-                  c = pft_pp%column(p)
+                  c = veg_pp%column(p)
 
                   call root_fraction(currentPatch)
                   ED_patch(p) = 1 !this .is. a tile filled with vegetation... 
@@ -156,15 +156,15 @@ contains
                   currentCohort => currentPatch%shortest
                   do while(associated(currentCohort))
                      ft = currentCohort%pft
-                     currentCohort%livestemn = currentCohort%bsw  / veg_pp%leafcn(currentCohort%pft)
+                     currentCohort%livestemn = currentCohort%bsw  / veg_vp%leafcn(currentCohort%pft)
 
-                     if (veg_pp%woody(ft) == 1) then
+                     if (veg_vp%woody(ft) == 1) then
                         coarse_wood_frac = 0.5_r8
                      else
                         coarse_wood_frac = 0.0_r8
                      end if
 
-                     currentCohort%livecrootn = currentCohort%br * coarse_wood_frac / veg_pp%leafcn(ft)
+                     currentCohort%livecrootn = currentCohort%br * coarse_wood_frac / veg_vp%leafcn(ft)
                      currentCohort%b          = currentCohort%balive+currentCohort%bdead+currentCohort%bstore
                      currentCohort%treelai    = tree_lai(currentCohort)
                      ! Why is currentCohort%c_area used and then reset in the
@@ -174,7 +174,7 @@ contains
 
                      if(currentCohort%canopy_layer.eq.1)then
                         currentPatch%total_canopy_area = currentPatch%total_canopy_area + currentCohort%c_area
-                        if(veg_pp%woody(ft).eq.1)then
+                        if(veg_vp%woody(ft).eq.1)then
                            currentPatch%total_tree_area = currentPatch%total_tree_area + currentCohort%c_area
                         endif
                      endif
@@ -664,7 +664,7 @@ contains
                      maxh(iv) = (iv)*dh
                   endif
                enddo
-               c = pft_pp%column(currentPatch%clm_pno)
+               c = veg_pp%column(currentPatch%clm_pno)
                currentCohort => currentPatch%shortest
                do while(associated(currentCohort))  
                   ft = currentCohort%pft
@@ -763,7 +763,7 @@ contains
                   if(currentCohort%NV > currentPatch%nrad(L,ft))then
                      write(iulog,*) 'CF: issue with NV',currentCohort%NV,currentCohort%pft,currentCohort%canopy_layer
                   endif
-                  c = pft_pp%column(currentPatch%clm_pno)
+                  c = veg_pp%column(currentPatch%clm_pno)
 
                   !Whole layers.  Make a weighted average of the leaf area in each layer before dividing it by the total area. 
                   !fill up layer for whole layers.  FIX(RF,032414)- for debugging jan 2012
@@ -777,11 +777,11 @@ contains
                           currentCohort%c_area/currentPatch%total_canopy_area)
 
                      ! what is the height of this layer? (for snow burial purposes...)  
-                     ! veg_pp%vertical_canopy_frac(ft))! fudge - this should be pft specific but i cant get it to compile. 
+                     ! veg_vp%vertical_canopy_frac(ft))! fudge - this should be pft specific but i cant get it to compile. 
                      layer_top_hite = currentCohort%hite-((iv/currentCohort%NV) * currentCohort%hite * &
                           EDecophyscon%crown(currentCohort%pft) )
                      layer_bottom_hite = currentCohort%hite-(((iv+1)/currentCohort%NV) * currentCohort%hite * &
-                          EDecophyscon%crown(currentCohort%pft)) ! veg_pp%vertical_canopy_frac(ft))
+                          EDecophyscon%crown(currentCohort%pft)) ! veg_vp%vertical_canopy_frac(ft))
                      fraction_exposed = 1.0_r8 !default. 
                      snowdp(c) = snow_depth(c) * frac_sno_eff(c)
                      if(snowdp(c) > layer_top_hite)then
@@ -802,10 +802,10 @@ contains
 
                   !Bottom layer
                   iv = currentCohort%NV
-                  ! veg_pp%vertical_canopy_frac(ft))! fudge - this should be pft specific but i cant get it to compile.
+                  ! veg_vp%vertical_canopy_frac(ft))! fudge - this should be pft specific but i cant get it to compile.
                   layer_top_hite = currentCohort%hite-((iv/currentCohort%NV) * currentCohort%hite * &
                        EDecophyscon%crown(currentCohort%pft) )
-                  ! veg_pp%vertical_canopy_frac(ft))
+                  ! veg_vp%vertical_canopy_frac(ft))
                   layer_bottom_hite = currentCohort%hite-(((iv+1)/currentCohort%NV) * currentCohort%hite * &
                        EDecophyscon%crown(currentCohort%pft))
                   fraction_exposed = 1.0_r8 !default. 

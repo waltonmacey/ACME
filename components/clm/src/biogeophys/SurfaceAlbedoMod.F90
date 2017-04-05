@@ -14,7 +14,7 @@ module SurfaceAlbedoMod
   use clm_varcon        , only : grlnd, namep
   use clm_varpar        , only : numrad, nlevcan, nlevsno, nlevcan
   use clm_varctl        , only : fsurdat, iulog, subgridflag, use_snicar_frc, use_ed  
-  use VegetationPropertiesType    , only : veg_pp
+  use VegetationPropertiesType    , only : veg_vp
   use SnowSnicarMod     , only : sno_nbr_aer, SNICAR_RT, DO_SNO_AER, DO_SNO_OC
   use AerosolType       , only : aerosol_type
   use CanopyStateType   , only : canopystate_type
@@ -25,7 +25,7 @@ module SurfaceAlbedoMod
   use GridcellType      , only : grc_pp                
   use LandunitType      , only : lun_pp                
   use ColumnType        , only : col_pp                
-  use PatchType         , only : pft_pp                
+  use VegetationType         , only : veg_pp                
   use EDSurfaceAlbedoMod, only : ED_Norman_Radiation
   !
   implicit none
@@ -274,10 +274,10 @@ contains
   !-----------------------------------------------------------------------
 
    associate(&
-          rhol          =>    veg_pp%rhol                     , & ! Input:  [real(r8)  (:,:) ]  leaf reflectance: 1=vis, 2=nir        
-          rhos          =>    veg_pp%rhos                     , & ! Input:  [real(r8)  (:,:) ]  stem reflectance: 1=vis, 2=nir        
-          taul          =>    veg_pp%taul                     , & ! Input:  [real(r8)  (:,:) ]  leaf transmittance: 1=vis, 2=nir      
-          taus          =>    veg_pp%taus                     , & ! Input:  [real(r8)  (:,:) ]  stem transmittance: 1=vis, 2=nir      
+          rhol          =>    veg_vp%rhol                     , & ! Input:  [real(r8)  (:,:) ]  leaf reflectance: 1=vis, 2=nir        
+          rhos          =>    veg_vp%rhos                     , & ! Input:  [real(r8)  (:,:) ]  stem reflectance: 1=vis, 2=nir        
+          taul          =>    veg_vp%taul                     , & ! Input:  [real(r8)  (:,:) ]  leaf transmittance: 1=vis, 2=nir      
+          taus          =>    veg_vp%taus                     , & ! Input:  [real(r8)  (:,:) ]  stem transmittance: 1=vis, 2=nir      
 
           tlai          =>    canopystate_vars%tlai_patch         , & ! Input:  [real(r8)  (:)   ]  one-sided leaf area index, no burying by snow 
           tsai          =>    canopystate_vars%tsai_patch         , & ! Input:  [real(r8)  (:)   ]  one-sided stem area index, no burying by snow
@@ -353,7 +353,7 @@ contains
     end do
     do fp = 1,num_nourbanp
        p = filter_nourbanp(fp)
-       g = pft_pp%gridcell(p)
+       g = veg_pp%gridcell(p)
           coszen_patch(p) = coszen_gcell(g)
     end do
 
@@ -401,7 +401,7 @@ contains
           ! at runtime.  SPM
           if ( use_ed ) then
              if( EDpft%ED_patch(p) == 1 )then ! We have vegetation...
-                g = pft_pp%gridcell(p)
+                g = veg_pp%gridcell(p)
                 currentPatch => gridCellEdState(g)%spnt%oldest_patch
                 do while(p /= currentPatch%clm_pno)
                    currentPatch => currentPatch%younger
@@ -740,8 +740,8 @@ contains
     do fp = 1,num_nourbanp
        p = filter_nourbanp(fp)
           if (coszen_patch(p) > 0._r8) then
-             if ((lun_pp%itype(pft_pp%landunit(p)) == istsoil .or.  &
-                  lun_pp%itype(pft_pp%landunit(p)) == istcrop     ) &
+             if ((lun_pp%itype(veg_pp%landunit(p)) == istsoil .or.  &
+                  lun_pp%itype(veg_pp%landunit(p)) == istcrop     ) &
                  .and. (elai(p) + esai(p)) > 0._r8) then
                     num_vegsol = num_vegsol + 1
                     filter_vegsol(num_vegsol) = p
@@ -764,8 +764,8 @@ contains
     do ib = 1, numrad
        do fp = 1,num_vegsol
           p = filter_vegsol(fp)
-          rho(p,ib) = max( rhol(pft_pp%itype(p),ib)*wl(p) + rhos(pft_pp%itype(p),ib)*ws(p), mpe )
-          tau(p,ib) = max( taul(pft_pp%itype(p),ib)*wl(p) + taus(pft_pp%itype(p),ib)*ws(p), mpe )
+          rho(p,ib) = max( rhol(veg_pp%itype(p),ib)*wl(p) + rhos(veg_pp%itype(p),ib)*ws(p), mpe )
+          tau(p,ib) = max( taul(veg_pp%itype(p),ib)*wl(p) + taus(veg_pp%itype(p),ib)*ws(p), mpe )
        end do
     end do
 
@@ -954,7 +954,7 @@ contains
     do ib = 1,numrad
        do fp = 1,num_novegsol
           p = filter_novegsol(fp)
-          c = pft_pp%column(p)
+          c = veg_pp%column(p)
           fabd(p,ib) = 0._r8
           fabd_sun(p,ib) = 0._r8
           fabd_sha(p,ib) = 0._r8
@@ -1180,7 +1180,7 @@ contains
      SHR_ASSERT_ALL((ubound(tau)    == (/bounds%endp, numrad/)), errMsg(__FILE__, __LINE__))
 
    associate(&
-          xl           =>    veg_pp%xl                       , & ! Input:  [real(r8) (:)   ]  ecophys const - leaf/stem orientation index
+          xl           =>    veg_vp%xl                       , & ! Input:  [real(r8) (:)   ]  ecophys const - leaf/stem orientation index
 
           t_veg        =>    temperature_vars%t_veg_patch        , & ! Input:  [real(r8) (:)   ]  vegetation temperature (Kelvin)         
 
@@ -1226,7 +1226,7 @@ contains
        ! out in filter_vegsol
        cosz = max(0.001_r8, coszen(p))
 
-       chil(p) = min( max(xl(pft_pp%itype(p)), -0.4_r8), 0.6_r8 )
+       chil(p) = min( max(xl(veg_pp%itype(p)), -0.4_r8), 0.6_r8 )
        if (abs(chil(p)) <= 0.01_r8) chil(p) = 0.01_r8
        phi1 = 0.5_r8 - 0.633_r8*chil(p) - 0.330_r8*chil(p)*chil(p)
        phi2 = 0.877_r8 * (1._r8-2._r8*phi1)
@@ -1269,7 +1269,7 @@ contains
     do ib = 1, numrad
        do fp = 1,num_vegsol
           p = filter_vegsol(fp)
-          c = pft_pp%column(p)
+          c = veg_pp%column(p)
 
           ! Calculate two-stream parameters omega, betad, and betai.
           ! Omega, betad, betai are adjusted for snow. Values for omega*betad

@@ -10,11 +10,11 @@ module CNDVLightMod
   use shr_kind_mod      , only: r8 => shr_kind_r8
   use shr_const_mod     , only : SHR_CONST_PI
   use decompMod         , only : bounds_type
-  use VegetationPropertiesType    , only : veg_pp
+  use VegetationPropertiesType    , only : veg_vp
   use CNDVType          , only : dgv_ecophyscon
   use CNDVType          , only : dgvs_type
   use CNCarbonStateType , only : carbonstate_type
-  use PatchType         , only : pft_pp                
+  use VegetationType         , only : veg_pp                
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -64,17 +64,17 @@ contains
     !-----------------------------------------------------------------------
 
     associate(                                                  & 
-         ivt           =>    pft_pp%itype                        , & ! Input:  [integer  (:) ]  pft vegetation type                                
+         ivt           =>    veg_pp%itype                        , & ! Input:  [integer  (:) ]  pft vegetation type                                
          
          crownarea_max =>    dgv_ecophyscon%crownarea_max     , & ! Input:  [real(r8) (:) ]  ecophys const - tree maximum crown a              
          reinickerp    =>    dgv_ecophyscon%reinickerp        , & ! Input:  [real(r8) (:) ]  ecophys const - parameter in allomet              
          allom1        =>    dgv_ecophyscon%allom1            , & ! Input:  [real(r8) (:) ]  ecophys const - parameter in allomet              
 
-         dwood         =>    veg_pp%dwood                 , & ! Input:  [real(r8) (:) ]  ecophys const - wood density (gC/m3)              
-         slatop        =>    veg_pp%slatop                , & ! Input:  [real(r8) (:) ]  specific leaf area at top of canopy, projected area basis [m^2/gC]
-         dsladlai      =>    veg_pp%dsladlai              , & ! Input:  [real(r8) (:) ]  dSLA/dLAI, projected area basis [m^2/gC]           
-         woody         =>    veg_pp%woody                 , & ! Input:  [real(r8) (:) ]  ecophys const - woody pft or not                  
-         tree          =>    veg_pp%tree                  , & ! Input:  [integer  (:) ]  ecophys const - tree pft or not                    
+         dwood         =>    veg_vp%dwood                 , & ! Input:  [real(r8) (:) ]  ecophys const - wood density (gC/m3)              
+         slatop        =>    veg_vp%slatop                , & ! Input:  [real(r8) (:) ]  specific leaf area at top of canopy, projected area basis [m^2/gC]
+         dsladlai      =>    veg_vp%dsladlai              , & ! Input:  [real(r8) (:) ]  dSLA/dLAI, projected area basis [m^2/gC]           
+         woody         =>    veg_vp%woody                 , & ! Input:  [real(r8) (:) ]  ecophys const - woody pft or not                  
+         tree          =>    veg_vp%tree                  , & ! Input:  [integer  (:) ]  ecophys const - tree pft or not                    
          
          deadstemc     =>    carbonstate_vars%deadstemc_patch , & ! Input:  [real(r8) (:) ]  (gC/m2) dead stem C                               
          leafcmax      =>    carbonstate_vars%leafcmax_patch  , & ! Input:  [real(r8) (:) ]  (gC/m2) leaf C storage                            
@@ -98,7 +98,7 @@ contains
 
       do fp = 1,num_natvegp
          p = filter_natvegp(fp)
-         g = pft_pp%gridcell(p)
+         g = veg_pp%gridcell(p)
 
          ! Update LAI and FPC as in the last lines of DGVMAllocation
 
@@ -160,7 +160,7 @@ contains
 
       do fp = 1,num_natvegp
          p = filter_natvegp(fp)
-         g = pft_pp%gridcell(p)
+         g = veg_pp%gridcell(p)
 
          ! light competition
 

@@ -47,13 +47,14 @@ module clm_instMod
   use glcDiagnosticsMod          , only : glc_diagnostics_type
   use SoilWaterRetentionCurveMod , only : soil_water_retention_curve_type
   use UrbanParamsType            , only : urbanparams_type   ! Constants
-  use VegetationPropertiesType   , only : veg_pp             ! Ecophysical Constants
-  ! use VegetationPropertiesType             , only : veg_pp         ! Constants
-  use SoilorderConType           , only : soilordercon         ! Constants
+  use VegetationPropertiesType   , only : veg_vp             ! Ecophysical Constants
+  ! use VegetationPropertiesType             , only : veg_vp         ! Constants
+  !DW moved to ColumnType
+  ! use SoilorderConType           , only : soilordercon         ! Constants
 
   use LandunitType               , only : lun_pp
   use ColumnType                 , only : col_pp
-  use PatchType                  , only : pft_pp
+  use VegetationType                  , only : veg_pp
   use EDEcophysConType           , only : EDecophyscon       ! ED Constants
 
   use EDBioType                  , only : EDbio_type         ! ED type used to interact with CLM variables
@@ -228,10 +229,10 @@ contains
     use controlMod                        , only : nlfilename
     use SoilWaterRetentionCurveFactoryMod , only : create_soil_water_retention_curve
     use fileutils                         , only : getfil
-    !use VegetationPropertiesType                    , only : veg_ppInit
-    use VegetationPropertiesType          , only : veg_pp
+    !use VegetationPropertiesType                    , only : veg_vpInit
+    use VegetationPropertiesType          , only : veg_vp
     use EDEcophysConType                  , only : EDecophysconInit
-    use SoilorderConType                  , only : soilorderconInit
+    !use SoilorderConType                  , only : soilorderconInit
     use LakeCon                           , only : LakeConInit
     use initVerticalMod                   , only : initVertical
     ! !ARGUMENTS
@@ -287,14 +288,16 @@ contains
 
     ! Initialize ecophys constants
 
-    call veg_pp%Init()
+    call veg_vp%Init()
     if (use_ed) then
        call EDecophysconInit( EDpftvarcon_Inst, numpft)
     end if
 
     ! Initialize soil order related constants
+    ! DW already initialized at col_pp within clm_inializeMod->initialize1()
+    ! DW call soilorderconInit()
 
-    call soilorderconInit()
+    ! call soilorderconInit()
 
     ! Initialize lake constants
 

@@ -14,7 +14,7 @@ module EDInitMod
   use CanopyStateType       , only : canopystate_type
   use WaterStateType        , only : waterstate_type
   use GridcellType          , only : grc_pp
-   use VegetationPropertiesType        , only : veg_pp
+   use VegetationPropertiesType        , only : veg_vp
   use EDBioType             , only : EDbio_type
   use EDEcophysConType      , only : EDecophyscon
   use EDGrowthFunctionsMod  , only : bdead, bleaf, dbh
@@ -361,16 +361,16 @@ contains
         dc%dbh                        = Dbh(dc) ! FIX(RF, 090314) - comment out addition of ' + 0.0001_r8*pft   '  - seperate out PFTs a little bit...
         dc%canopy_trim                = 1.0_r8
         dc%bdead                      = Bdead(dc)
-        dc%balive                     = Bleaf(dc)*(1.0_r8 + veg_pp%froot_leaf(pft) +EDecophyscon%sapwood_ratio(dc%pft)*dc%hite)
+        dc%balive                     = Bleaf(dc)*(1.0_r8 + veg_vp%froot_leaf(pft) +EDecophyscon%sapwood_ratio(dc%pft)*dc%hite)
         dc%b                          = dc%balive + dc%bdead
 
-        if( veg_pp%evergreen(pft)     == 1) then
+        if( veg_vp%evergreen(pft)     == 1) then
            dc%bstore                  = Bleaf(dc) * EDecophyscon%cushion(pft)
            dc%laimemory               = 0._r8
            cstatus                    = 2
         endif
 
-        if( veg_pp%season_decid(pft)  == 1 ) then !for dorment places
+        if( veg_vp%season_decid(pft)  == 1 ) then !for dorment places
            dc%bstore                  = Bleaf(dc) * EDecophyscon%cushion(pft) !stored carbon in new seedlings.
            if(patch_in%siteptr%status==2)then 
              dc%laimemory             = 0.0_r8
@@ -382,7 +382,7 @@ contains
            cstatus                    = patch_in%siteptr%status
         endif
 
-        if ( veg_pp%stress_decid(pft) == 1 ) then
+        if ( veg_vp%stress_decid(pft) == 1 ) then
            dc%bstore                  = Bleaf(dc) * EDecophyscon%cushion(pft)
            dc%laimemory               = Bleaf(dc)
            dc%balive                  = dc%balive - dc%laimemory

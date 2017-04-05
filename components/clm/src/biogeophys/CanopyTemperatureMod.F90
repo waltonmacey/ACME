@@ -19,7 +19,7 @@ module CanopyTemperatureMod
   use clm_varctl           , only : iulog
   use PhotosynthesisMod    , only : Photosynthesis, PhotosynthesisTotal, Fractionation
   use SurfaceResistanceMod , only : calc_soilevap_stress
-  use VegetationPropertiesType     , only : veg_pp
+  use VegetationPropertiesType     , only : veg_vp
   use atm2lndType          , only : atm2lnd_type
   use CanopyStateType      , only : canopystate_type
   use EnergyFluxType       , only : energyflux_type
@@ -30,7 +30,7 @@ module CanopyTemperatureMod
   use WaterstateType       , only : waterstate_type
   use LandunitType         , only : lun_pp                
   use ColumnType           , only : col_pp                
-  use PatchType            , only : pft_pp                
+  use VegetationType            , only : veg_pp                
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -123,8 +123,8 @@ contains
          z_d_town         =>    lun_pp%z_d_town                          , & ! Input:  [real(r8) (:)   ] displacement height of urban landunit (m)
          urbpoi           =>    lun_pp%urbpoi                            , & ! Input:  [logical  (:)   ] true => landunit is an urban point       
 
-         z0mr             =>    veg_pp%z0mr                       , & ! Input:  [real(r8) (:)   ] ratio of momentum roughness length to canopy top height (-)
-         displar          =>    veg_pp%displar                    , & ! Input:  [real(r8) (:)   ] ratio of displacement height to canopy top height (-)
+         z0mr             =>    veg_vp%z0mr                       , & ! Input:  [real(r8) (:)   ] ratio of momentum roughness length to canopy top height (-)
+         displar          =>    veg_vp%displar                    , & ! Input:  [real(r8) (:)   ] ratio of displacement height to canopy top height (-)
 
          forc_hgt_t       =>    atm2lnd_vars%forc_hgt_t_grc           , & ! Input:  [real(r8) (:)   ] observational height of temperature [m]  
          forc_u           =>    atm2lnd_vars%forc_u_grc               , & ! Input:  [real(r8) (:)   ] atmospheric wind speed in east direction (m/s)
@@ -400,7 +400,7 @@ contains
          ! Initial set (needed for history tape fields)
 
          eflx_sh_tot(p) = 0._r8
-         l = pft_pp%landunit(p)
+         l = veg_pp%landunit(p)
          if (urbpoi(l)) then
             eflx_sh_tot_u(p) = 0._r8
          else if (lun_pp%itype(l) == istsoil .or. lun_pp%itype(l) == istcrop) then 
@@ -430,8 +430,8 @@ contains
 
          ! Roughness lengths over vegetation
 
-         z0m(p)    = z0mr(pft_pp%itype(p)) * htop(p)
-         displa(p) = displar(pft_pp%itype(p)) * htop(p)
+         z0m(p)    = z0mr(veg_pp%itype(p)) * htop(p)
+         displa(p) = displar(veg_pp%itype(p)) * htop(p)
 
          z0mv(p)   = z0m(p)
          z0hv(p)   = z0mv(p)
@@ -441,10 +441,10 @@ contains
       ! Make forcing height a pft-level quantity that is the atmospheric forcing 
       ! height plus each pft's z0m+displa
       do p = bounds%begp,bounds%endp
-         if (pft_pp%active(p)) then
-            g = pft_pp%gridcell(p)
-            l = pft_pp%landunit(p)
-            c = pft_pp%column(p)
+         if (veg_pp%active(p)) then
+            g = veg_pp%gridcell(p)
+            l = veg_pp%landunit(p)
+            c = veg_pp%column(p)
             if (lun_pp%itype(l) == istsoil .or. lun_pp%itype(l) == istcrop) then
                if (frac_veg_nosno(p) == 0) then
                   forc_hgt_u_patch(p) = forc_hgt_u(g) + z0mg(c) + displa(p)
@@ -475,7 +475,7 @@ contains
 
       do fp = 1,num_nolakep
          p = filter_nolakep(fp)
-         c = pft_pp%column(p)
+         c = veg_pp%column(p)
 
          thm(p)  = forc_t(c) + 0.0098_r8*forc_hgt_t_patch(p)
       end do

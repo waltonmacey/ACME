@@ -257,7 +257,7 @@ contains
     use WaterFluxType        , only : waterflux_type
     use WaterStateType       , only : waterstate_type
     use SoilWaterRetentionCurveMod, only : soil_water_retention_curve_type
-    use PatchType            , only : pft_pp
+    use VegetationType            , only : veg_pp
     use ColumnType           , only : col_pp
     !
     ! !ARGUMENTS:
@@ -409,8 +409,8 @@ contains
                c = filter_hydrologyc(fc)
                if (pi <= col_pp%npfts(c)) then
                   p = col_pp%pfti(c) + pi - 1
-                  if (pft_pp%active(p)) then
-                     rootr_col(c,j) = rootr_col(c,j) + rootr_pft(p,j) * qflx_tran_veg_pft(p) * pft_pp%wtcol(p)
+                  if (veg_pp%active(p)) then
+                     rootr_col(c,j) = rootr_col(c,j) + rootr_pft(p,j) * qflx_tran_veg_pft(p) * veg_pp%wtcol(p)
                   end if
                end if
             end do
@@ -419,8 +419,8 @@ contains
             c = filter_hydrologyc(fc)
             if (pi <= col_pp%npfts(c)) then
                p = col_pp%pfti(c) + pi - 1
-               if (pft_pp%active(p)) then
-                  temp(c) = temp(c) + qflx_tran_veg_pft(p) * pft_pp%wtcol(p)
+               if (veg_pp%active(p)) then
+                  temp(c) = temp(c) + qflx_tran_veg_pft(p) * veg_pp%wtcol(p)
                end if
             end if
          end do
@@ -904,7 +904,7 @@ contains
     use TemperatureType           , only : temperature_type
     use WaterFluxType             , only : waterflux_type
     use WaterStateType            , only : waterstate_type
-    use PatchType                 , only : pft_pp
+    use VegetationType                 , only : veg_pp
     use ColumnType                , only : col_pp
     use clm_varcon                , only : watmin
     use LandunitType              , only : lun_pp
@@ -1079,8 +1079,8 @@ contains
                c = filter_hydrologyc(fc)
                if (pi <= col_pp%npfts(c)) then
                   p = col_pp%pfti(c) + pi - 1
-                  if (pft_pp%active(p)) then
-                     rootr_col(c,j) = rootr_col(c,j) + rootr_pft(p,j) * qflx_tran_veg_pft(p) * pft_pp%wtcol(p)
+                  if (veg_pp%active(p)) then
+                     rootr_col(c,j) = rootr_col(c,j) + rootr_pft(p,j) * qflx_tran_veg_pft(p) * veg_pp%wtcol(p)
                   end if
                end if
             end do
@@ -1089,8 +1089,8 @@ contains
             c = filter_hydrologyc(fc)
             if (pi <= col_pp%npfts(c)) then
                p = col_pp%pfti(c) + pi - 1
-               if (pft_pp%active(p)) then
-                  temp(c) = temp(c) + qflx_tran_veg_pft(p) * pft_pp%wtcol(p)
+               if (veg_pp%active(p)) then
+                  temp(c) = temp(c) + qflx_tran_veg_pft(p) * veg_pp%wtcol(p)
                end if
             end if
          end do

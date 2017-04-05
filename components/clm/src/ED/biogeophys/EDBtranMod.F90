@@ -10,7 +10,7 @@ module EDBtranMod
   
   
   ! !USES:
-  use VegetationPropertiesType   , only : veg_pp
+  use VegetationPropertiesType   , only : veg_vp
   use EDtypesMod       , only : patch, cohort, gridCellEdState,numpft_ed
   use EDEcophysContype , only : EDecophyscon
   use EDVecPatchType   , only : EDpft
@@ -41,7 +41,7 @@ contains
     use EnergyFluxType     ,  only : energyflux_type
     use GridcellType       ,  only : grc_pp
     use ColumnType         ,  only : col_pp
-    use PatchType          ,  only : pft_pp
+    use VegetationType          , only : veg_pp
 
     implicit none
 
@@ -108,8 +108,8 @@ contains
     associate(& 
          dz          => col_pp%dz                            , & ! Input:  [real(r8) (:,:) ]  layer depth (m)
 
-         smpso       => veg_pp%smpso                  , & ! Input:  [real(r8) (:)   ]  soil water potential at full stomatal opening (mm)
-         smpsc       => veg_pp%smpsc                  , & ! Input:  [real(r8) (:)   ]  soil water potential at full stomatal closure (mm)
+         smpso       => veg_vp%smpso                  , & ! Input:  [real(r8) (:)   ]  soil water potential at full stomatal opening (mm)
+         smpsc       => veg_vp%smpsc                  , & ! Input:  [real(r8) (:)   ]  soil water potential at full stomatal closure (mm)
 
          sucsat      => soilstate_vars%sucsat_col         , & ! Input:  [real(r8) (:,:) ]  minimum soil suction (mm) 
          watsat      => soilstate_vars%watsat_col         , & ! Input:  [real(r8) (:,:) ]  volumetric soil water at saturation (porosity)
@@ -136,13 +136,13 @@ contains
    
       if(ED_patch(p)==1)then
 
-         g = pft_pp%gridcell(p)
+         g = veg_pp%gridcell(p)
          currentPatch => gridCellEdState(g)%spnt%oldest_patch   
          do while(p /= currentPatch%clm_pno)
             currentPatch => currentPatch%younger
          enddo
 
-         c = pft_pp%column(p)
+         c = veg_pp%column(p)
          do FT = 1,numpft_ed
             currentPatch%btran_ft(FT) = 0.0_r8
             do j = 1,nlevgrnd

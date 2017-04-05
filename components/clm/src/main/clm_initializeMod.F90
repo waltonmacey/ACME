@@ -25,7 +25,7 @@ module clm_initializeMod
   use TopounitType           , only : top_pp, top_es, top_ws
   use LandunitType           , only : lun_pp                
   use ColumnType             , only : col_pp                
-  use PatchType              , only : pft_pp                
+  use VegetationType              , only : veg_pp                
   use EDVecPatchType         , only : EDpft                   
   use EDVecCohortType        , only : coh                ! unique to ED, used for domain decomp
   use clm_instMod
@@ -214,7 +214,7 @@ contains
     ! --end ALM-v1 block
     call lun_pp%Init (bounds_proc%begl, bounds_proc%endl)
     call col_pp%Init (bounds_proc%begc, bounds_proc%endc)
-    call pft_pp%Init (bounds_proc%begp, bounds_proc%endp)
+    call veg_pp%Init (bounds_proc%begp, bounds_proc%endp)
     if ( use_ed ) then
        call EDpft%Init(bounds_proc)
        call coh%Init(bounds_proc)
@@ -317,8 +317,9 @@ contains
     use CNDecompCascadeCNMod  , only : init_decompcascade_cn
     use CNDecompCascadeContype, only : init_decomp_cascade_constants
     use EDInitMod             , only : ed_init  
-    use VegetationPropertiesType        , only : veg_pp 
-    use SoilorderConType      , only : soilorderconInit 
+    use VegetationPropertiesType        , only : veg_vp 
+    !DW moved to ColumnType
+    !use SoilorderConType      , only : soilorderconInit 
     use EDEcophysConType      , only : EDecophysconInit 
     use EDPftVarcon           , only : EDpftvarcon_inst
     use LakeCon               , only : LakeConInit 
