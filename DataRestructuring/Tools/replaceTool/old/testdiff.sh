@@ -1,0 +1,49 @@
+#!/bin/bash
+
+
+str1="input variable"
+str2="occurs in these locations"
+
+#Call for input
+echo $str1
+read varIn
+#Confirm input variable
+printf "\n"
+str22="$varIn $str2"
+echo $str22
+#All top level Directories containing variable
+find ../ACME/components/clm -name '*.F90' | xargs grep -l "\s$varIn\>" | cut -d/ -f1-6 | sort -u
+
+#************************************Use Count*********************************************************
+#Count all files containing variable
+
+varLoc=$(find ../ACME/components/clm -name '*.F90' | xargs grep -l "\s$varIn\>" | sort -u | wc -l)
+echo $varLoc "Files"
+
+#Return total count excluding comments
+printf "\n"
+echo "Without comments"
+varTot=$(find ../ACME/components/clm -name '*.F90' | xargs sed 's/!.*//' | grep -o "\s$varIn\>" | wc -l)
+echo $varTot
+
+echo "Total with comments"
+varTot2=$(find ../ACME/components/clm -name '*.F90' | xargs grep -o "\s$varIn\>" | wc -l)
+echo $varTot2
+
+
+#Return Definition count
+printf "\n"
+echo "Definition count"
+varDef=$(find ../ACME/components/clm -name '*.F90' | xargs sed 's/!.*//' | grep "\s$varIn\>" | grep -o "use" |wc -l)
+echo $varDef
+
+varLN=$(find ../ACME/components/clm -name '*.F90' | xargs sed 's/!.*//' | grep "\s$varIn\>" | grep -n "use" |cut -f1 -d:)
+echo $varLN
+
+varReplace='wally'
+
+for line in $varLN; do
+
+	echo $line
+done
+
